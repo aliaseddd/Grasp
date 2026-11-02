@@ -1,0 +1,13 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "stronghold-server-client-side-solution",
+    "title": "Stronghold",
+    "id": "322a9a8e-09a1-46be-af4f-bbd0b5281aea",
+    "version": "0.1.0.0",
+    "includeClientSideAssets": true
+  },
+  "paths": {
+    "zippedPackage": "solution/stronghold-server.sppkg"
+  }
+}

@@ -1,0 +1,5 @@
+node_modules/
+.DS_Store
+
+# aider, which draws the repo map (docs/REPO_MAP.md)
+.aider*

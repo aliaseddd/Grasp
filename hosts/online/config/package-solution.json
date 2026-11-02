@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "stronghold-online-client-side-solution",
+    "title": "Stronghold",
+    "id": "4ad484c8-2dba-4160-99fa-de9ff95c3b25",
+    "version": "0.1.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.24.1"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "Logbooks and BOLOs for front desks."
+      },
+      "longDescription": {
+        "default": "Logbooks and BOLOs for front desks."
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "stronghold-online Feature",
+        "description": "The feature that activates elements of the stronghold-online solution.",
+        "id": "91a19c40-1a25-4bf5-aca3-66685e1047b0",
+        "version": "0.1.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/stronghold-online.sppkg"
+  }
+}

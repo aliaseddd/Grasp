@@ -1,0 +1,13 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "version": "1.10.0",
+    "libraryName": "stronghold-server",
+    "libraryId": "c9bc1ad2-d405-43c7-9eab-c4a0d180bc5a",
+    "environment": "onprem19",
+    "packageManager": "npm",
+    "solutionName": "stronghold-server",
+    "isCreatingSolution": true,
+    "componentType": "webpart",
+    "framework": "none"
+  }
+}
