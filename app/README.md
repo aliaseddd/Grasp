@@ -42,7 +42,7 @@ Everything is flat and starts with `stronghold-app.`, because a host's package p
 
 ## Why webpack 5, and not Vite
 
-`ARCHITECTURE.md` leaves the bundler to the proof: "whichever finds its module files most reliably from a SharePoint page." This is the first attempt, and it uses webpack 5. The reason is how the files get loaded.
+`ARCHITECTURE.md` left the bundler to the proof: "whichever finds its module files most reliably from a SharePoint page." The proof uses webpack 5, and it was kept on November 5, 2026 (`ARCHITECTURE.md`, "How a host loads the app"). The reason is how the files get loaded.
 
 Vite builds ES modules. A browser fetches ES modules with CORS, so if the app's files live on a different origin from the page, the server has to send `Access-Control-Allow-Origin`, or the module doesn't load. On an intranet that is a real possibility: an app catalog on its own host header, or SharePoint Online's files served through the Microsoft 365 CDN. SharePoint's own SPFx bundles are classic scripts for the same reason.
 

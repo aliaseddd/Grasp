@@ -1,6 +1,6 @@
 # The host files
 
-`ARCHITECTURE.md` ("The app and its hosts", proposed) makes `HostServices` the only code every toolchain compiles. This proof adds one more file to that set, the loader, because both hosts load the app the same way and one copy of that logic is better than two. Both wait for Damon's approval; the root README lists the deviation.
+`HostServices` and the loader are the only code every toolchain compiles (`ARCHITECTURE.md`, "The app and its hosts", decided November 5, 2026). The loader is shared because both hosts load the app the same way, and one copy of that logic is better than two.
 
 - `host-services.ts`: the contract. What a host gives the app, what it gets back, and the `window.Stronghold` global.
 - `load-app.ts`: how a host loads the app's entry file into a page.
