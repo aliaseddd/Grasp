@@ -1,0 +1,21 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json",
+  "id": "46df236a-2538-43ca-968c-fe5a6de88004",
+  "alias": "StrongholdWebPart",
+  "componentType": "WebPart",
+  "version": "*",
+  "manifestVersion": 2,
+  "requiresCustomScript": false,
+  "supportedHosts": ["SharePointWebPart", "TeamsTab"],
+  "supportsThemeVariants": false,
+  "preconfiguredEntries": [
+    {
+      "groupId": "5c03119e-3074-46fd-976b-c60198311f70",
+      "group": { "default": "Advanced" },
+      "title": { "default": "Stronghold" },
+      "description": { "default": "Logbooks and BOLOs for front desks." },
+      "officeFabricIconFontName": "Shield",
+      "properties": {}
+    }
+  ]
+}

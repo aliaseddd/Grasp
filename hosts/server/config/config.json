@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "stronghold-web-part": {
+      "components": [
+        {
+          "entrypoint": "./lib/webparts/stronghold/StrongholdWebPart.js",
+          "manifest": "./src/webparts/stronghold/StrongholdWebPart.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "StrongholdWebPartStrings": "lib/webparts/stronghold/loc/{locale}.js"
+  }
+}

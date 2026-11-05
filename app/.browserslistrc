@@ -1,0 +1,5 @@
+# Stronghold is built for Chrome (DECISIONS.md, 2026-11-02): the desk computers use it, and Teams's desktop app
+# draws tabs with WebView2, which is Chromium. webpack reads this file (webpack.config.js, target).
+# 120 is a floor about three years back from the current release, older than any managed desk computer should
+# run; nothing in the app needs anything newer than constructed stylesheets (Chrome 73) and the Font Loading API.
+Chrome >= 120

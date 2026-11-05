@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stronghold · dev host</title>
+  <style>
+    /* Deliberately hostile page styles, standing in for SharePoint's and Teams's. None of them may show inside the
+       app: it draws in a shadow root and resets what would be inherited (app/src/shell/shell.css). */
+    body { margin: 0; font-family: Georgia, "Times New Roman", serif; color: #7a1fa2; background: #fff7e6; }
+    p { color: red; font-style: italic; text-decoration: underline; }
+    div { letter-spacing: 2px; }
+    .page-header { padding: 12px 24px; background: #0b2a4a; color: #fff; font: 700 14px Georgia, serif; }
+    .toolbar { display: flex; gap: 8px; align-items: center; padding: 12px 24px; font-size: 13px; }
+    .toolbar button { font: inherit; }
+    .web-part-zone { margin: 0 24px 24px; border: 1px dashed #c33; }
+    .web-part-zone:empty::before { content: "(web part zone)"; display: block; padding: 24px; opacity: .5; }
+  </style>
+</head>
+<body>
+  <div class="page-header">Intranet · Site page · a stand-in for SharePoint</div>
+  <div class="toolbar">
+    <button id="mount" type="button">Mount</button>
+    <button id="unmount" type="button">Unmount</button>
+    <span id="status">Loading the app…</span>
+  </div>
+  <div class="web-part-zone" id="web-part"></div>
+  <script type="module" src="./dist/hosts/dev/src/dev-host.js"></script>
+</body>
+</html>
