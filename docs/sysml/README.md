@@ -21,9 +21,26 @@
 
 ## Notes on the drawing
 
-`stronghold-proof.html` is the same drawing on an endless plane you can move around and annotate. Open the file in a browser; it needs no server and no build. Drag the background to move around, scroll to pan, and pinch or hold Ctrl or ⌘ while scrolling to zoom; Fit brings the whole drawing back. Click to add a note. The note belongs to the element under the pointer (a box, a port, a line, or the view itself), and you can drag its pin onto another element or out onto the plane. A note's number in the list takes you to its pin.
+`stronghold-proof.html` is the same drawing on an endless plane you can move around and annotate. Drag the background to move around, scroll to pan, and pinch or hold Ctrl or ⌘ while scrolling to zoom; Fit brings the whole drawing back. Click to add a note. The note belongs to the element under the pointer (a box, a port, a line, or the view itself), and you can drag its pin onto another element or out onto the plane. A note's number in the list takes you to its pin. Copy as Markdown lists the notes with each element's qualified name, ready for an issue or a chat.
 
-Notes stay in the browser that made them. Save notes writes them to `stronghold-proof-notes.json`, Load notes adds the ones from such a file that aren't there yet, and Copy as Markdown lists them with each element's qualified name, ready for an issue or a chat.
+Each note keeps the number it was given. When Claude has acted on a note, it moves the note to the archive, listed under the notes, with a line on what changed.
+
+Where the notes are kept:
+
+- **On the published page** (claude.ai), in the page's database. Notes save as you type, everyone who can open the page sees them, and Claude reads them there.
+- **In git**, inside `stronghold-proof.html` between `<!-- notes:start -->` and `<!-- notes:end -->`: the notes and the archive as they were last saved. `node docs/sysml/save-notes.mjs notes.json` writes them there.
+- **Opened as a file** in a browser, the page needs no server. It shows the notes saved in it and keeps the ones you add in that browser. Download notes saves them to a file, which Import notes, or `save-notes.mjs`, takes back.
+
+## Working on it with Claude
+
+The design is worked on in a loop, and git is its memory between conversations.
+
+1. **Load.** Claude reads this folder and publishes `stronghold-proof.html` to its page, https://claude.ai/artifact/8fV31WD4frJN56rVcprRHH. The page is private until it's shared from its Share menu. If the notes on the page differ from the ones saved in the file, Claude says how before changing either.
+2. **Annotate.** You pin notes to the drawing.
+3. **Change.** Claude reads the notes and makes the changes you decide on, in `stronghold-proof.sysml` and in the layout in `draw.mjs`, then runs `node docs/sysml/draw.mjs` and republishes the page. Each note it acts on moves to the archive with a line on what changed.
+4. **Save.** Claude writes the notes and the archive into the HTML with `save-notes.mjs`, and commits the model, the drawing, and the notes together.
+
+How Claude reaches the notes: the page's database has two collections, `notes` and `archive`, with one document per note named by the note's `id`. A note has `no`, `el` (the qualified name of the element it's on), `label`, `x` and `y` (where its pin sits, in drawing units), `text`, `created`, and `updated`. An archived note also has `resolution` and `archived`. Archiving a note is one batch: delete `notes/<id>`, and set `archive/<id>` to the note with those two fields added. Saving reads both collections into a file shaped `{ "notes": [...], "archive": [...] }` and runs `save-notes.mjs` on it. A page published somewhere new starts with no notes, so Claude loads the saved ones into it the same way, one batch of sets.
 
 ## How it was checked
 
