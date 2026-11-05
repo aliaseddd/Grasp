@@ -19,10 +19,16 @@
 - A hollow triangle means "specializes": each host specializes the `Host` its line's triangle touches. With two dots behind the triangle, it means "defined by": the part `hosts` is defined by `Host`.
 - Compartments are named in italics. `:>>` redefines an inherited feature, so `:>> ships[0]` says the dev host ships nothing.
 
+## Notes on the drawing
+
+`stronghold-proof.html` is the same drawing on a page you can annotate. Open the file in a browser; it needs no server and no build. Click the drawing to add a note. The note belongs to the element under the pointer (a box, a port, a line, or the view itself), and you can drag its pin onto another element.
+
+Notes stay in the browser that made them. Save notes writes them to `stronghold-proof-notes.json`, Load notes adds the ones from such a file that aren't there yet, and Copy as Markdown lists them with each element's qualified name, ready for an issue or a chat.
+
 ## How it was checked
 
 By reading, not by a tool. The model was checked against the SysML v2 textual grammar (`bnf/SysML-textual-bnf.kebnf`) and the training examples in the [SysML v2 release](https://github.com/Systems-Modeling/SysML-v2-Release), tag `2026-09.1`, construct by construct. It hasn't been parsed by a SysML v2 tool yet.
 
-The drawing follows the release's graphical notation (`bnf/SysML-graphical-bnf.html`). It was laid out by hand, not generated from the model, so a change to one needs the same change to the other. Every `doc` line in the drawing is copied word for word from the model.
+The drawing follows the release's graphical notation (`bnf/SysML-graphical-bnf.html`). It is laid out by hand in `draw.mjs`, not generated from the model, so a change to the model needs the same change there. Every `doc` line in the drawing is copied word for word from the model. `node docs/sysml/draw.mjs` writes `stronghold-proof.svg` and the drawing inside `stronghold-proof.html`, so the two stay the same.
 
 To have a tool check the model, install the release's Jupyter kernel (`install/jupyter`, `jupyter-sysml-kernel` 0.63.1), paste the file into a cell, and run it. The kernel lists any errors, and `%viz StrongholdProof` draws the model.

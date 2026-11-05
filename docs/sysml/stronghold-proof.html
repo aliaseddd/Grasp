@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stronghold Proof Structure</title>
+<!-- The view proofStructure of stronghold-proof.sysml, with notes you add by clicking it. Open this file in a
+     browser; it needs no server. The drawing between the drawing markers is written by draw.mjs: edit it there. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Stronghold's design tokens (app/src/design/tokens.css), with a dark set made from the same ink and teal. */
+:root {
+  --bg: #F8FAFB;
+  --card: #FFFFFF;
+  --fg: #182630;
+  --fg-2: #5B6973;
+  --line: #E2E7EB;
+  --line-strong: #CBD3D9;
+  --accent: #176B61;
+  --on-accent: #FFFFFF;
+  --danger: #B23C3C;
+  --sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #10181D; --card: #162128; --fg: #E2E7EB; --fg-2: #A9B4BC; --line: #26343D; --line-strong: #3A4A55;
+    --accent: #6CB8A9; --on-accent: #10181D; --danger: #F08A8A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #10181D; --card: #162128; --fg: #E2E7EB; --fg-2: #A9B4BC; --line: #26343D; --line-strong: #3A4A55;
+  --accent: #6CB8A9; --on-accent: #10181D; --danger: #F08A8A;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 14px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+.page {
+  max-width: 1680px;
+  margin: 0 auto;
+  padding: 24px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px));
+  display: grid;
+  gap: 16px;
+}
+header { display: grid; gap: 6px; }
+.eyebrow { margin: 0; font: 500 12px/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+h1 { margin: 0; font: 600 26px/1.2 var(--sans); letter-spacing: -0.01em; text-wrap: balance; }
+.intro { margin: 0; max-width: 84ch; color: var(--fg-2); }
+.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.hint { margin: 0; min-height: 1.4em; font: 400 13px/1.4 var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button {
+  font: 600 13px/1 var(--sans);
+  color: var(--fg);
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+button:focus-visible, textarea:focus-visible, .sheet:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status { margin: 0; min-height: 1.4em; font-size: 13px; color: var(--fg-2); }
+.copy-box {
+  width: 100%; min-height: 140px; resize: vertical;
+  font: 400 12.5px/1.5 var(--mono); color: var(--fg); background: var(--card);
+  border: 1px solid var(--line-strong); border-radius: 6px; padding: 10px;
+}
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+@media (max-width: 1120px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.sheet { background: var(--card); border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
+.sheet svg { display: block; width: 100%; min-width: 1040px; height: auto; color: var(--fg); }
+
+/* The drawing: the inside of every box can be clicked, and thin lines have a wider invisible edge to click. */
+.sysml { cursor: crosshair; user-select: none; -webkit-user-select: none; }
+.sysml .outline { pointer-events: all; }
+.sysml .hit { pointer-events: stroke; }
+.sysml .accent { stroke: var(--accent); }
+.sysml .is-hover > .outline { stroke: var(--accent); }
+.sysml .is-marked > .outline { stroke: var(--accent); stroke-width: 2.5; }
+.sysml .pin { cursor: grab; touch-action: none; }
+.sysml .pin.is-dragging { cursor: grabbing; }
+.sysml .pin circle { fill: var(--accent); stroke: var(--card); stroke-width: 2; }
+.sysml .pin.is-active circle { stroke: var(--fg); stroke-width: 2.5; }
+.sysml .pin text { fill: var(--on-accent); font: 600 11px/1 var(--sans); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+
+.notes {
+  position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto;
+  display: grid; gap: 12px; align-content: start;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px;
+}
+@media (max-width: 1120px) { .notes { position: static; max-height: none; } }
+.notes h2 { margin: 0; display: flex; align-items: baseline; gap: 8px; font: 600 15px/1.3 var(--sans); }
+.count { font: 500 12px/1 var(--mono); color: var(--fg-2); }
+.empty { margin: 0; font-size: 13.5px; color: var(--fg-2); }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.note { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
+.note.is-active { border-color: var(--accent); }
+.note-head { display: flex; align-items: center; gap: 8px; }
+.badge {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--accent); color: var(--on-accent); font: 600 11px/1 var(--sans);
+}
+.on { flex: 1; min-width: 0; font-size: 12.5px; color: var(--fg-2); overflow-wrap: anywhere; }
+.on b { font-weight: 600; color: var(--fg); }
+.remove { padding: 6px 8px; font-size: 12px; color: var(--fg-2); border-color: var(--line); }
+.remove:hover { color: var(--danger); border-color: var(--danger); }
+textarea.text {
+  width: 100%; min-height: 60px; resize: vertical;
+  font: 400 13.5px/1.5 var(--sans); color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
+}
+.meta { margin: 0; font: 400 11.5px/1.3 var(--mono); color: var(--fg-2); }
+.foot { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.warning { margin: 0; font-size: 13px; color: var(--danger); }
+.delete-all { justify-self: start; color: var(--danger); border-color: var(--line); }
+.delete-all:hover { color: var(--danger); border-color: var(--danger); }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <p class="eyebrow">SysML v2 · view proofStructure</p>
+    <h1>Stronghold Proof Structure</h1>
+    <p class="intro">Click anywhere on the drawing to add a note. A note belongs to the element you click, and its pin can be dragged onto another one. Notes stay in this browser: save them to a file to keep them, or copy them as Markdown for an issue or a chat.</p>
+  </header>
+
+  <div class="bar">
+    <p class="hint" id="pointer-hint">Point at the drawing to see what a note would be on.</p>
+    <div class="actions">
+      <button type="button" id="copy-markdown">Copy as Markdown</button>
+      <button type="button" id="save-notes">Save notes</button>
+      <button type="button" id="load-notes">Load notes</button>
+      <input type="file" id="load-file" accept="application/json,.json" hidden>
+    </div>
+  </div>
+  <p class="status" id="status" role="status" aria-live="polite"></p>
+  <textarea class="copy-box" id="copy-box" readonly hidden aria-label="Your notes as Markdown"></textarea>
+
+  <main class="layout">
+    <div class="sheet" tabindex="0" aria-label="The drawing. Scroll sideways on a narrow screen.">
+<!-- drawing:start -->
+<svg id="drawing" class="sysml" viewBox="0 0 1240 857" role="img" aria-label="SysML v2 general view of the Stronghold proof. A Page holds one or more host web parts and exactly one app; every host connects through its conjugated StrongholdApp port to the app's StrongholdApp port, by the interface mount. ServerHost, OnlineHost and DevHost specialize Host, so each carries the shared loader and that port. StrongholdApp, HostServices, AppHandle, HTMLElement and Loader sit in the package HostFiles, the code every host compiles.">
+<g data-el="StrongholdProof::proofStructure" data-label="the view proofStructure" data-kind="view">
+<rect class="outline" x="8" y="8" width="1224" height="841" rx="12" fill="none" stroke="currentColor" stroke-width="1"/>
+<path d="M8,34 H252 A8,8 0 0 0 260,26 V8" fill="none" stroke="currentColor" stroke-width="1"/>
+<text x="20" y="26" fill="currentColor"><tspan font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill-opacity="0.72">«view» </tspan><tspan font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12" font-weight="600">proofStructure</tspan><tspan font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill-opacity="0.72"> : GeneralView</tspan></text>
+<path d="M1008,8 V26 A8,8 0 0 0 1016,34 H1232" fill="none" stroke="currentColor" stroke-width="1"/>
+<text x="1220" y="26" text-anchor="end" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">expose StrongholdProof::*::**</text>
+<g data-el="StrongholdProof::Page" data-label="Page" data-kind="part def">
+<rect class="outline" x="32" y="56" width="772" height="264" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="418" y="72" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«part def»</text>
+<text x="418" y="88" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="currentColor">Page</text>
+<line x1="32" y1="96" x2="804" y2="96" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<g data-el="StrongholdProof::Page::hosts" data-label="hosts, in Page" data-kind="part">
+<path class="outline" d="M306,180 V236 A10,10 0 0 1 296,246 H136 A10,10 0 0 1 126,236 V126 A10,10 0 0 1 136,116 H296 A10,10 0 0 1 306,126 V164" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="216" y="131" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«part»</text>
+<text x="216" y="146" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12.5" font-weight="500" fill="currentColor">hosts : Host [1..*]</text>
+<g data-el="StrongholdProof::Page::hosts.api" data-label="hosts.api, in Page" data-kind="port">
+<rect class="outline accent" x="298" y="164" width="16" height="16" rx="2.5" fill="none" stroke="#2F8C7E" stroke-width="1.5"/>
+<path class="accent" d="M301.5,172 H310.5 M304,169.5 L301.5,172 L304,174.5 M308,169.5 L310.5,172 L308,174.5" fill="none" stroke="#2F8C7E" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="292" y="176" text-anchor="end" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">api : ~StrongholdApp</text>
+</g>
+<g data-el="StrongholdProof::Page::hosts.loader" data-label="hosts.loader, in Page" data-kind="part">
+<rect class="outline" x="146" y="192" width="140" height="40" rx="8" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="216" y="207" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«part»</text>
+<text x="216" y="222" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12.5" font-weight="500" fill="currentColor">loader : Loader</text>
+</g>
+</g>
+<g data-el="StrongholdProof::Page::app" data-label="app, in Page" data-kind="part">
+<path class="outline" d="M520,164 V126 A10,10 0 0 1 530,116 H710 A10,10 0 0 1 720,126 V292 A10,10 0 0 1 710,302 H530 A10,10 0 0 1 520,292 V180" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="620" y="131" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«part»</text>
+<text x="620" y="146" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12.5" font-weight="500" fill="currentColor">app : App [1]</text>
+<g data-el="StrongholdProof::Page::app.api" data-label="app.api, in Page" data-kind="port">
+<rect class="outline accent" x="512" y="164" width="16" height="16" rx="2.5" fill="none" stroke="#2F8C7E" stroke-width="1.5"/>
+<path class="accent" d="M515.5,172 H524.5 M518,169.5 L515.5,172 L518,174.5 M522,169.5 L524.5,172 L522,174.5" fill="none" stroke="#2F8C7E" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="534" y="176" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">api : StrongholdApp</text>
+</g>
+<g data-el="StrongholdProof::Page::app.shell" data-label="app.shell, in Page" data-kind="part">
+<rect class="outline" x="536" y="192" width="168" height="96" rx="8" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="620" y="207" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«part»</text>
+<text x="620" y="222" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12.5" font-weight="500" fill="currentColor">shell : Shell</text>
+<g data-el="StrongholdProof::Page::app.shell.hello" data-label="app.shell.hello, in Page" data-kind="part">
+<rect class="outline" x="552" y="236" width="136" height="40" rx="7" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="620" y="251" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«part»</text>
+<text x="620" y="266" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12.5" font-weight="500" fill="currentColor">hello : Module</text>
+</g>
+</g>
+</g>
+<g data-el="StrongholdProof::Page::mount" data-label="mount, in Page" data-kind="interface">
+<path class="hit" d="M314,172 H512" fill="none" stroke="transparent" stroke-width="12"/>
+<line class="outline accent" x1="314" y1="172" x2="512" y2="172" stroke="#2F8C7E" stroke-width="1.75"/>
+<text x="413" y="150" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«interface»</text>
+<text x="413" y="164" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="12.5" font-weight="500" fill="currentColor">mount</text>
+<text x="320" y="188" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">1..*</text>
+<text x="506" y="188" text-anchor="end" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">1</text>
+</g>
+</g>
+<g data-el="StrongholdProof::Host" data-label="Host" data-kind="part def">
+<rect class="outline" x="32" y="356" width="368" height="187" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="216" y="372" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«abstract part def»</text>
+<text x="216" y="388" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="currentColor">Host</text>
+<line x1="32" y1="396" x2="400" y2="396" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="216" y="409" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">attributes</text>
+<text x="44" y="425" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">toolchain : String</text>
+<text x="44" y="440" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">ships : String[0..1]</text>
+<line x1="32" y1="450" x2="400" y2="450" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="216" y="463" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">ports</text>
+<text x="44" y="479" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">api : ~StrongholdApp</text>
+<line x1="32" y1="489" x2="400" y2="489" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="216" y="502" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">parts</text>
+<text x="44" y="518" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">loader : Loader</text>
+</g>
+<g data-el="StrongholdProof::App" data-label="App" data-kind="part def">
+<rect class="outline" x="436" y="356" width="368" height="187" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="620" y="372" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«part def»</text>
+<text x="620" y="388" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="currentColor">App</text>
+<line x1="436" y1="396" x2="804" y2="396" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="620" y="409" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">ports</text>
+<text x="448" y="425" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">api : StrongholdApp</text>
+<line x1="436" y1="435" x2="804" y2="435" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="620" y="448" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">parts</text>
+<text x="448" y="464" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">shell : Shell</text>
+<line x1="436" y1="474" x2="804" y2="474" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="620" y="487" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">doc</text>
+<text x="448" y="503" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">app/: Stronghold itself, built once with</text>
+<text x="448" y="518" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">webpack 5 and TypeScript 5.9. Nothing in it</text>
+<text x="448" y="533" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">knows about SharePoint.</text>
+</g>
+<g data-el="StrongholdProof::Page::hosts : Host" data-label="hosts, defined by Host" data-kind="relationship">
+<path class="outline" d="M216,356 L209,344 L223,344 Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>
+<path class="hit" d="M216,246 V344" fill="none" stroke="transparent" stroke-width="12"/>
+<line class="outline" x1="216" y1="246" x2="216" y2="344" stroke="currentColor" stroke-width="1.25"/>
+<circle cx="212" cy="340" r="1.6" fill="currentColor"/>
+<circle cx="220" cy="340" r="1.6" fill="currentColor"/>
+</g>
+<g data-el="StrongholdProof::Page::app : App" data-label="app, defined by App" data-kind="relationship">
+<path class="outline" d="M620,356 L613,344 L627,344 Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>
+<path class="hit" d="M620,302 V344" fill="none" stroke="transparent" stroke-width="12"/>
+<line class="outline" x1="620" y1="302" x2="620" y2="344" stroke="currentColor" stroke-width="1.25"/>
+<circle cx="616" cy="340" r="1.6" fill="currentColor"/>
+<circle cx="624" cy="340" r="1.6" fill="currentColor"/>
+</g>
+<g data-el="StrongholdProof::HostFiles" data-label="HostFiles" data-kind="package">
+<rect class="outline" x="840" y="56" width="104" height="24" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<rect class="outline" x="840" y="80" width="368" height="556" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="852" y="73" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="currentColor">HostFiles</text>
+<g data-el="StrongholdProof::HostFiles::StrongholdApp" data-label="StrongholdApp" data-kind="port def">
+<rect class="outline" x="856" y="96" width="336" height="178" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="1024" y="112" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«port def»</text>
+<text x="1024" y="128" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="currentColor">StrongholdApp</text>
+<line x1="856" y1="136" x2="1192" y2="136" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="1024" y="149" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">directed features</text>
+<text x="868" y="165" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">in item container : HTMLElement</text>
+<text x="868" y="180" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">in attribute services : HostServices</text>
+<text x="868" y="195" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">out attribute handle : AppHandle</text>
+<text x="868" y="210" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">out attribute version : String</text>
+<line x1="856" y1="220" x2="1192" y2="220" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="1024" y="233" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">doc</text>
+<text x="868" y="249" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">What the app's entry file registers on</text>
+<text x="868" y="264" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">window.Stronghold.</text>
+</g>
+<g data-el="StrongholdProof::HostFiles::HostServices" data-label="HostServices" data-kind="attribute def">
+<rect class="outline" x="856" y="286" width="336" height="109" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="1024" y="302" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«attribute def»</text>
+<text x="1024" y="318" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="currentColor">HostServices</text>
+<line x1="856" y1="326" x2="1192" y2="326" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="1024" y="339" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">doc</text>
+<text x="868" y="355" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">What a host gives the app. Empty until</text>
+<text x="868" y="370" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">proof step 4 adds the signed-in person</text>
+<text x="868" y="385" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">and SharePoint's REST API.</text>
+</g>
+<g data-el="StrongholdProof::HostFiles::AppHandle" data-label="AppHandle" data-kind="attribute def">
+<rect class="outline" x="856" y="407" width="162" height="40" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="937" y="423" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«attribute def»</text>
+<text x="937" y="439" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="currentColor">AppHandle</text>
+</g>
+<g data-el="StrongholdProof::HostFiles::HTMLElement" data-label="HTMLElement" data-kind="item def">
+<rect class="outline" x="1030" y="407" width="162" height="40" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="1111" y="423" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«item def»</text>
+<text x="1111" y="439" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="currentColor">HTMLElement</text>
+</g>
+<g data-el="StrongholdProof::HostFiles::Loader" data-label="Loader" data-kind="part def">
+<rect class="outline" x="856" y="459" width="336" height="94" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="1024" y="475" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«part def»</text>
+<text x="1024" y="491" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="currentColor">Loader</text>
+<line x1="856" y1="499" x2="1192" y2="499" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="1024" y="512" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">doc</text>
+<text x="868" y="528" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">load-app.ts: adds one &lt;script&gt; for the</text>
+<text x="868" y="543" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">entry file, then waits for window.Stronghold.</text>
+</g>
+<line x1="840" y1="567" x2="1208" y2="567" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="1024" y="580" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">doc</text>
+<text x="852" y="596" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">app/src/host: the only code every host's</text>
+<text x="852" y="611" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">toolchain compiles, written for TypeScript 2.4.</text>
+<text x="852" y="626" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">Each host copies it in with prepare-shared.js.</text>
+</g>
+<g data-el="StrongholdProof::ServerHost" data-label="ServerHost" data-kind="part def">
+<rect class="outline" x="32" y="677" width="368" height="148" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="216" y="693" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«part def»</text>
+<text x="216" y="709" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="currentColor">ServerHost</text>
+<line x1="32" y1="717" x2="400" y2="717" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="216" y="730" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">attributes</text>
+<text x="44" y="746" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">:&gt;&gt; toolchain = &quot;SPFx 1.4.1, TypeScript 2.4, Node 8&quot;</text>
+<text x="44" y="761" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">:&gt;&gt; ships = &quot;stronghold-server.sppkg&quot;</text>
+<line x1="32" y1="771" x2="400" y2="771" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="216" y="784" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">doc</text>
+<text x="44" y="800" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">hosts/server: the web part for SharePoint Server.</text>
+</g>
+<g data-el="StrongholdProof::OnlineHost" data-label="OnlineHost" data-kind="part def">
+<rect class="outline" x="436" y="677" width="368" height="148" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="620" y="693" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«part def»</text>
+<text x="620" y="709" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="currentColor">OnlineHost</text>
+<line x1="436" y1="717" x2="804" y2="717" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="620" y="730" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">attributes</text>
+<text x="448" y="746" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">:&gt;&gt; toolchain = &quot;SPFx 1.24.1, Heft, Node 22.14+&quot;</text>
+<text x="448" y="761" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">:&gt;&gt; ships = &quot;stronghold-online.sppkg&quot;</text>
+<line x1="436" y1="771" x2="804" y2="771" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="620" y="784" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">doc</text>
+<text x="448" y="800" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">hosts/online: the web part for SharePoint</text>
+<text x="448" y="815" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">Online, which is also the Teams tab.</text>
+</g>
+<g data-el="StrongholdProof::DevHost" data-label="DevHost" data-kind="part def">
+<rect class="outline" x="840" y="677" width="368" height="148" fill="none" stroke="currentColor" stroke-width="1.25"/>
+<text x="1024" y="693" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" fill="currentColor" fill-opacity="0.72">«part def»</text>
+<text x="1024" y="709" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="currentColor">DevHost</text>
+<line x1="840" y1="717" x2="1208" y2="717" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="1024" y="730" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">attributes</text>
+<text x="852" y="746" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">:&gt;&gt; toolchain = &quot;tsc, Playwright&quot;</text>
+<text x="852" y="761" font-family="'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="currentColor">:&gt;&gt; ships[0]</text>
+<line x1="840" y1="771" x2="1208" y2="771" stroke="currentColor" stroke-width="0.75" stroke-opacity="0.45"/>
+<text x="1024" y="784" text-anchor="middle" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10.5" font-style="italic" fill="currentColor" fill-opacity="0.66">doc</text>
+<text x="852" y="800" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">hosts/dev: a plain page that mounts the app</text>
+<text x="852" y="815" font-family="Inter, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="11" fill="currentColor" fill-opacity="0.86">the way the SharePoint hosts do. It never ships.</text>
+</g>
+<g data-el="ServerHost :&gt; Host, OnlineHost :&gt; Host, DevHost :&gt; Host" data-label="the specializations of Host" data-kind="relationship">
+<path class="outline" d="M216,543 L209,555 L223,555 Z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>
+<path class="hit" d="M216,555 V653 M216,653 H1024 M620,653 V677 M1024,653 V677 M216,653 V677" fill="none" stroke="transparent" stroke-width="12"/>
+<path class="outline" d="M216,555 V653 M216,653 H1024 M620,653 V677 M1024,653 V677 M216,653 V677" fill="none" stroke="currentColor" stroke-width="1.25"/>
+</g>
+</g>
+</svg>
+<!-- drawing:end -->
+    </div>
+
+    <aside class="notes" aria-labelledby="notes-title">
+      <h2 id="notes-title">Notes <span class="count" id="notes-count"></span></h2>
+      <p class="empty" id="notes-empty">No notes yet. Click a box, a port, or a line in the drawing to add the first one.</p>
+      <ol class="list" id="notes-list"></ol>
+      <div class="foot">
+        <p class="warning" id="storage-warning" hidden>This browser isn't keeping notes for this page. Save them to a file before you close it.</p>
+        <button type="button" class="delete-all" id="delete-all">Delete all notes</button>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var KEY = 'stronghold-proof-notes:v1';
+  var NS = 'http://www.w3.org/2000/svg';
+  var VIEW = { el: 'StrongholdProof::proofStructure', label: 'the view proofStructure' };
+  var HINT = 'Point at the drawing to see what a note would be on.';
+
+  var svg = document.getElementById('drawing');
+  var list = document.getElementById('notes-list');
+  var empty = document.getElementById('notes-empty');
+  var count = document.getElementById('notes-count');
+  var hint = document.getElementById('pointer-hint');
+  var status = document.getElementById('status');
+  var warning = document.getElementById('storage-warning');
+  var copyBox = document.getElementById('copy-box');
+  var deleteAll = document.getElementById('delete-all');
+  var fileInput = document.getElementById('load-file');
+  var view = svg.viewBox.baseVal;
+
+  var layer = document.createElementNS(NS, 'g');
+  layer.setAttribute('class', 'pins');
+  svg.appendChild(layer);
+
+  var fresh = null;      // a note just added: removed again if it is left without text
+  var dragging = null;   // the note whose pin is being dragged
+  var lastDrag = -Infinity; // when a drag ended, so the click that follows it adds no note
+  var hovered = null;
+  var armed = -Infinity; // when "Delete all notes" was first clicked
+  var notes = readNotes();
+
+  function now() { return new Date().toISOString(); }
+  function say(message) { status.textContent = message; }
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+  function clampX(x) { return Math.round(Math.min(Math.max(x, 12), view.width - 12)); }
+  function clampY(y) { return Math.round(Math.min(Math.max(y, 12), view.height - 12)); }
+
+  function groupFor(el) {
+    var groups = svg.querySelectorAll('[data-el]');
+    for (var i = 0; i < groups.length; i++) {
+      if (groups[i].getAttribute('data-el') === el) return groups[i];
+    }
+    return null;
+  }
+
+  // The model element a node in the drawing belongs to: its nearest box, or the view itself.
+  function elementOf(node) {
+    var g = node && node.closest ? node.closest('[data-el]') : null;
+    if (!g || !svg.contains(g)) return { el: VIEW.el, label: VIEW.label, g: null };
+    return { el: g.getAttribute('data-el'), label: g.getAttribute('data-label'), g: g };
+  }
+
+  function isNote(n) {
+    return !!n && typeof n === 'object' && typeof n.id === 'string' && typeof n.el === 'string' &&
+      typeof n.text === 'string' && isFinite(n.x) && isFinite(n.y);
+  }
+
+  function tidy(n) {
+    var g = groupFor(n.el);
+    var label = g ? g.getAttribute('data-label') : (typeof n.label === 'string' ? n.label : n.el);
+    var created = typeof n.created === 'string' ? n.created : now();
+    return {
+      id: n.id, el: n.el, label: label, x: clampX(+n.x), y: clampY(+n.y), text: n.text,
+      created: created, updated: typeof n.updated === 'string' ? n.updated : created
+    };
+  }
+
+  function readNotes() {
+    try {
+      var data = JSON.parse(localStorage.getItem(KEY) || '[]');
+      return Array.isArray(data) ? data.filter(isNote).map(tidy) : [];
+    } catch (error) {
+      warning.hidden = false;
+      return [];
+    }
+  }
+
+  function store() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(notes));
+      warning.hidden = true;
+    } catch (error) {
+      warning.hidden = false;
+    }
+  }
+
+  function when(n) {
+    var options = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+    var added = new Date(n.created).toLocaleString(undefined, options);
+    var edited = new Date(n.updated).toLocaleString(undefined, options);
+    return 'Added ' + added + (edited !== added ? ' · edited ' + edited : '');
+  }
+
+  function toDrawing(clientX, clientY) {
+    var point = new DOMPoint(clientX, clientY).matrixTransform(svg.getScreenCTM().inverse());
+    return { x: clampX(point.x), y: clampY(point.y) };
+  }
+
+  function grow(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 2 + 'px';
+  }
+
+  // ---- Drawing the notes: a numbered pin on the drawing and an entry in the list, for each.
+
+  function pinFor(n, i) {
+    var g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'pin');
+    g.setAttribute('transform', 'translate(' + n.x + ' ' + n.y + ')');
+    g.setAttribute('data-id', n.id);
+    var title = document.createElementNS(NS, 'title');
+    title.textContent = 'Note ' + (i + 1) + ' on ' + n.label + '. Drag to move it.';
+    var circle = document.createElementNS(NS, 'circle');
+    circle.setAttribute('r', '11');
+    var number = document.createElementNS(NS, 'text');
+    number.textContent = String(i + 1);
+    g.appendChild(title);
+    g.appendChild(circle);
+    g.appendChild(number);
+    return g;
+  }
+
+  function itemFor(n, i) {
+    var li = document.createElement('li');
+    li.className = 'note';
+    li.setAttribute('data-id', n.id);
+
+    var head = document.createElement('div');
+    head.className = 'note-head';
+    var badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = String(i + 1);
+    var on = document.createElement('span');
+    on.className = 'on';
+    on.title = n.el;
+    var name = document.createElement('b');
+    name.textContent = n.label;
+    on.appendChild(document.createTextNode('on '));
+    on.appendChild(name);
+    var remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'remove';
+    remove.textContent = 'Delete';
+    remove.setAttribute('aria-label', 'Delete note ' + (i + 1));
+    head.appendChild(badge);
+    head.appendChild(on);
+    head.appendChild(remove);
+
+    var textarea = document.createElement('textarea');
+    textarea.className = 'text';
+    textarea.rows = 2;
+    textarea.value = n.text;
+    textarea.placeholder = 'Write the note';
+    textarea.setAttribute('aria-label', 'Note ' + (i + 1) + ', on ' + n.label);
+    var meta = document.createElement('p');
+    meta.className = 'meta';
+    meta.textContent = when(n);
+
+    li.appendChild(head);
+    li.appendChild(textarea);
+    li.appendChild(meta);
+
+    textarea.addEventListener('input', function () {
+      n.text = textarea.value;
+      n.updated = now();
+      meta.textContent = when(n);
+      grow(textarea);
+      store();
+    });
+    textarea.addEventListener('focus', function () { mark(n); });
+    textarea.addEventListener('blur', function () {
+      mark(n);
+      // A note that was just added and got no text goes away once you leave it, unless you are dragging its pin
+      // or are back in it (the list is redrawn after a drag, so look up its text box again).
+      setTimeout(function () {
+        if (fresh !== n.id || dragging === n.id) return;
+        var current = list.querySelector('[data-id="' + n.id + '"] textarea');
+        if (current && document.activeElement === current) return;
+        if (dropEmptyFresh()) {
+          store();
+          render();
+        }
+      }, 200);
+    });
+    li.addEventListener('mouseenter', function () { mark(n); });
+    li.addEventListener('mouseleave', function () { mark(n); });
+    remove.addEventListener('click', function () { removeNote(n.id); });
+    requestAnimationFrame(function () { grow(textarea); });
+    return li;
+  }
+
+  // Shows which pin and which box a note in the list belongs to, while it is pointed at or being edited.
+  function mark(n) {
+    var li = list.querySelector('[data-id="' + n.id + '"]');
+    var pin = layer.querySelector('[data-id="' + n.id + '"]');
+    var on = !!li && (li.matches(':hover') || li.contains(document.activeElement));
+    if (li) li.classList.toggle('is-active', on);
+    if (pin) pin.classList.toggle('is-active', on);
+    var g = groupFor(n.el);
+    if (g && g.getAttribute('data-kind') !== 'view') g.classList.toggle('is-marked', on);
+  }
+
+  // Redraws every pin and list entry. Whoever was typing in a note keeps their place in it.
+  function render() {
+    var active = document.activeElement;
+    var activeNote = active && active.closest ? active.closest('.note') : null;
+    var activeId = activeNote ? activeNote.getAttribute('data-id') : null;
+    var start = activeId ? active.selectionStart : 0;
+    var finish = activeId ? active.selectionEnd : 0;
+    var marked = svg.querySelectorAll('.is-marked');
+    for (var i = 0; i < marked.length; i++) marked[i].classList.remove('is-marked');
+    while (layer.firstChild) layer.removeChild(layer.firstChild);
+    while (list.firstChild) list.removeChild(list.firstChild);
+    notes.forEach(function (n, i) {
+      layer.appendChild(pinFor(n, i));
+      list.appendChild(itemFor(n, i));
+    });
+    empty.hidden = notes.length > 0;
+    count.textContent = notes.length ? String(notes.length) : '';
+    var again = activeId ? list.querySelector('[data-id="' + activeId + '"] textarea') : null;
+    if (again) {
+      again.focus({ preventScroll: true });
+      try { again.setSelectionRange(start, finish); } catch (error) { /* not a text field */ }
+    }
+  }
+
+  // Takes away the note just added if it has no text. Says whether it did.
+  function dropEmptyFresh() {
+    var id = fresh;
+    fresh = null;
+    for (var i = 0; i < notes.length; i++) {
+      if (notes[i].id === id && !notes[i].text.trim()) {
+        notes.splice(i, 1);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function focusNote(id) {
+    var textarea = list.querySelector('[data-id="' + id + '"] textarea');
+    if (!textarea) return;
+    textarea.focus({ preventScroll: true });
+    textarea.closest('li').scrollIntoView({ block: 'nearest' });
+  }
+
+  function removeNote(id, quietly) {
+    var index = -1;
+    for (var i = 0; i < notes.length; i++) if (notes[i].id === id) index = i;
+    if (index < 0) return;
+    notes.splice(index, 1);
+    store();
+    render();
+    if (!quietly) say('Deleted note ' + (index + 1) + '.');
+  }
+
+  // ---- Adding a note: a click anywhere on the drawing, on the element under the pointer.
+
+  svg.addEventListener('click', function (event) {
+    if (event.target.closest('.pin') || performance.now() - lastDrag < 400) return;
+    dropEmptyFresh();
+    var at = elementOf(event.target);
+    var point = toDrawing(event.clientX, event.clientY);
+    var stamp = now();
+    var n = {
+      id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      el: at.el, label: at.label, x: point.x, y: point.y, text: '', created: stamp, updated: stamp
+    };
+    notes.push(n);
+    fresh = n.id;
+    store();
+    render();
+    focusNote(n.id);
+    say('Added note ' + notes.length + ' on ' + at.label + '.');
+  });
+
+  function setHover(g) {
+    if (hovered === g) return;
+    if (hovered) hovered.classList.remove('is-hover');
+    hovered = g;
+    if (g) g.classList.add('is-hover');
+  }
+
+  svg.addEventListener('pointermove', function (event) {
+    if (dragging) return;
+    if (event.target.closest('.pin')) {
+      setHover(null);
+      hint.textContent = 'Drag the pin to move its note, or click it to edit the note.';
+      return;
+    }
+    var at = elementOf(event.target);
+    setHover(at.g && at.g.getAttribute('data-kind') !== 'view' ? at.g : null);
+    hint.textContent = 'Click to add a note on ' + at.label;
+  });
+  svg.addEventListener('pointerleave', function () {
+    setHover(null);
+    hint.textContent = HINT;
+  });
+
+  // ---- Moving a note: drag its pin. Dropped on another element, the note moves to that element.
+
+  layer.addEventListener('mousedown', function (event) { event.preventDefault(); });
+  layer.addEventListener('pointerdown', function (event) {
+    var g = event.target.closest('.pin');
+    if (!g || event.button > 0) return;
+    event.preventDefault();
+    var n = null;
+    for (var i = 0; i < notes.length; i++) if (notes[i].id === g.getAttribute('data-id')) n = notes[i];
+    if (!n) return;
+    var startX = event.clientX;
+    var startY = event.clientY;
+    var moved = false;
+    dragging = n.id;
+    g.setPointerCapture(event.pointerId);
+    g.classList.add('is-dragging');
+
+    function move(ev) {
+      if (!moved && Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) < 4) return;
+      moved = true;
+      var point = toDrawing(ev.clientX, ev.clientY);
+      n.x = point.x;
+      n.y = point.y;
+      g.setAttribute('transform', 'translate(' + point.x + ' ' + point.y + ')');
+    }
+    function end(ev) {
+      g.removeEventListener('pointermove', move);
+      g.removeEventListener('pointerup', end);
+      g.removeEventListener('pointercancel', end);
+      g.classList.remove('is-dragging');
+      lastDrag = performance.now();
+      if (moved) {
+        var at = VIEW;
+        if (ev.type === 'pointerup') {
+          g.style.display = 'none';
+          at = elementOf(document.elementFromPoint(ev.clientX, ev.clientY));
+          g.style.display = '';
+        } else {
+          at = { el: n.el, label: n.label };
+        }
+        var changed = at.el !== n.el;
+        n.el = at.el;
+        n.label = at.label;
+        n.updated = now();
+        store();
+        render();
+        say('Moved note ' + (notes.indexOf(n) + 1) + (changed ? ' to ' + at.label : '') + '.');
+      }
+      dragging = null;
+      focusNote(n.id);
+    }
+    g.addEventListener('pointermove', move);
+    g.addEventListener('pointerup', end);
+    g.addEventListener('pointercancel', end);
+  });
+
+  // ---- Taking notes out and bringing them back.
+
+  function markdown() {
+    var lines = [
+      '## Notes on proofStructure',
+      '',
+      'From docs/sysml/stronghold-proof.html. Each note names the element of docs/sysml/stronghold-proof.sysml it is on.',
+      ''
+    ];
+    notes.forEach(function (n, i) {
+      var parts = (n.text.trim() || '(no text)').split('\n');
+      lines.push((i + 1) + '. **' + n.label + '** (`' + n.el + '`): ' + parts[0]);
+      for (var j = 1; j < parts.length; j++) lines.push('   ' + parts[j]);
+    });
+    return lines.join('\n') + '\n';
+  }
+
+  document.getElementById('copy-markdown').addEventListener('click', function () {
+    if (!notes.length) {
+      say('There are no notes to copy yet.');
+      return;
+    }
+    var text = markdown();
+    var shown = function () {
+      copyBox.hidden = false;
+      copyBox.value = text;
+      copyBox.focus();
+      copyBox.select();
+      say('This browser wouldn\'t copy for the page. The Markdown is selected in the box below: copy it from there.');
+    };
+    try {
+      navigator.clipboard.writeText(text).then(function () {
+        copyBox.hidden = true;
+        say('Copied ' + plural(notes.length, 'note') + ' as Markdown.');
+      }, shown);
+    } catch (error) {
+      shown();
+    }
+  });
+
+  document.getElementById('save-notes').addEventListener('click', function () {
+    if (!notes.length) {
+      say('There are no notes to save yet.');
+      return;
+    }
+    var data = { view: VIEW.el, model: 'docs/sysml/stronghold-proof.sysml', saved: now(), notes: notes };
+    var url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2) + '\n'], { type: 'application/json' }));
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'stronghold-proof-notes.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    say('Saving ' + plural(notes.length, 'note') + ' as stronghold-proof-notes.json in your downloads.');
+  });
+
+  document.getElementById('load-notes').addEventListener('click', function () { fileInput.click(); });
+  fileInput.addEventListener('change', function () {
+    var file = fileInput.files && fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    file.text().then(function (raw) {
+      var data = JSON.parse(raw);
+      var incoming = Array.isArray(data) ? data : data && data.notes;
+      if (!Array.isArray(incoming)) throw new Error('no notes');
+      var have = {};
+      notes.forEach(function (n) { have[n.id] = true; });
+      var added = incoming.filter(isNote).filter(function (n) { return !have[n.id]; }).map(tidy);
+      notes = notes.concat(added).sort(function (a, b) { return a.created < b.created ? -1 : a.created > b.created ? 1 : 0; });
+      store();
+      render();
+      var skipped = incoming.length - added.length;
+      say('Loaded ' + plural(added.length, 'note') + ' from ' + file.name +
+        (skipped ? ', and left out ' + skipped + ' already here or unreadable.' : '.'));
+    }).catch(function () {
+      say(file.name + ' isn\'t a notes file saved from this page.');
+    });
+  });
+
+  deleteAll.addEventListener('click', function () {
+    if (!notes.length) {
+      say('There are no notes to delete.');
+      return;
+    }
+    if (performance.now() - armed > 4000) {
+      armed = performance.now();
+      deleteAll.textContent = 'Click again to delete all ' + notes.length;
+      setTimeout(function () {
+        if (performance.now() - armed >= 4000) deleteAll.textContent = 'Delete all notes';
+      }, 4100);
+      return;
+    }
+    var n = notes.length;
+    notes = [];
+    armed = -Infinity;
+    deleteAll.textContent = 'Delete all notes';
+    store();
+    render();
+    say('Deleted ' + plural(n, 'note') + '.');
+  });
+
+  // Another tab with this page open changed the notes.
+  window.addEventListener('storage', function (event) {
+    if (event.key !== KEY) return;
+    notes = readNotes();
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
