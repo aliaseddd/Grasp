@@ -1,6 +1,6 @@
 # The Online host, which is also the Teams tab
 
-The Stronghold web part for SharePoint Online, on SPFx 1.24.1 and its Heft toolchain. Its manifest lists `TeamsTab` under `supportedHosts`, so the same web part is the Teams tab; Teams needs no host of its own (`ARCHITECTURE.md`, "The app and its hosts", proposed).
+The Stronghold web part for SharePoint Online, on SPFx 1.24.1 and its Heft toolchain. Its manifest lists `TeamsTab` under `supportedHosts`, so the same web part is the Teams tab; Teams needs no host of its own (`ARCHITECTURE.md`, "The app and its hosts", decided November 5, 2026: a Teams tab, probably through the Online host).
 
 The web part is the Server host's twin in current TypeScript (`src/webparts/stronghold/StrongholdWebPart.ts`): it works out where the app's files are, loads the entry file with the shared loader, and calls `mount`. It has no properties, for the reason its source comment gives. Keep the two in step.
 

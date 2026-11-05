@@ -63,25 +63,25 @@ Not done here:
 
 **Decided** (`DECISIONS.md`): one app with small hosts; the hosts are the only SPFx code; SharePoint data through the REST API; built for Chrome; the first code is the proof on SharePoint Server.
 
+**Decided on November 5, 2026**, from what this proof built:
+
+- Three hosts to design for: a Server host on SPFx 1.4.1, an Online host on current SPFx, and a Teams tab, probably through the Online host. Until then, the Online web part is also the Teams tab. A dev host never ships.
+- One package per SPFx host. The hosts stay thin, and both carry the same app files. This changes the October 31 "one package" decision.
+- The folder layout: `app/`, `hosts/server/`, `hosts/online/`, `hosts/dev/`.
+- `HostServices` and the loader as the only code every toolchain compiles, written for TypeScript 2.4.
+- Loading the app with a `<script>` element from the package's own files; drawing in a shadow root; fonts declared on the page.
+- webpack 5 as the bundler (`app/README.md` says why, and when Vite would come back).
+- The shell's module registry, with one `import()` per module (`app/src/shell/registry.ts`).
+- The design's tokens as CSS variables on `:host`, and the fonts bundled in the package.
+- Tests in Chromium through the dev host, with Node's test runner and Playwright (`hosts/dev/test`). A unit test runner is picked when the first screen has logic to test.
+
 **Assumed**, under the open question "Which SharePoint Server version?": SPFx 1.4.1 for the Server host. It runs on SharePoint Server 2019 and on Subscription Edition, so those answers only decide whether 1.5 becomes an option. A 2016 answer would send the Server host back to SPFx 1.1, as `ARCHITECTURE.md` notes.
 
-**Proposed, not approved.** This code follows these parts of `ARCHITECTURE.md`, and they still wait for Damon:
-
-- Two SPFx hosts, with the Online web part doubling as the Teams tab, plus a dev host that never ships.
-- The folder layout: `app/`, `hosts/server/`, `hosts/online/`, `hosts/dev/`.
-- `HostServices` written for TypeScript 2.4 as the only shared code. This proof shares one more file the same way, the loader, because both hosts load the app identically.
-- Loading the app with a `<script>` element from the package's own files; drawing in a shadow root; fonts declared on the page.
-- One package per SPFx host. That is the open question "Does one package now mean one package per host?" This proof builds two packages because one `.sppkg` can't target both SPFx 1.4.1 and 1.24.1. The October 31 decision said one package.
-- The bundler. The plan leaves it to the proof; this attempt uses webpack 5, and `app/README.md` says why.
-- The shell's module registry, with one `import()` per module (`app/src/shell/registry.ts`).
-- The styling proposals the hello page already uses: the design's tokens as CSS variables on `:host`, and the fonts bundled in the package instead of loaded from Google Fonts.
-- Tests. The plan proposes Jest, or Vitest if the bundler is Vite. This proof tests in Chromium with Node's test runner and Playwright instead (`hosts/dev/test`), because what the proof has to show happens in a browser: the shadow root, the font, the module file loading. A unit test runner adds nothing to hello world; it comes with the first screen that has logic to test.
-
-Not used, by choice: React (proposed for the screens; hello world doesn't need it), SCSS modules, Tailwind, Fluent UI.
+**Still proposed** in `ARCHITECTURE.md`, and not used here: React for the screens, SCSS modules, the shell's frame and hash routing, the data rules, sign-in and roles. Tailwind and Fluent UI aren't used either, as the plan proposes.
 
 ## Facts that update the plan's notes
 
-`ARCHITECTURE.md` marks its toolchain notes as unconfirmed search results. These come from Microsoft's documentation source (the `SharePoint/sp-dev-docs` repository as it stood on November 2, 2026; the compatibility and setup pages are dated October 29, 2026, the Teams pages October 28, 2026, and the SharePoint Server 2019 and Subscription Edition page February 14, 2020) and from the SPFx generator packages on npm:
+`ARCHITECTURE.md` marked its toolchain notes as unconfirmed search results. These come from Microsoft's documentation source (the `SharePoint/sp-dev-docs` repository as it stood on November 2, 2026; the compatibility and setup pages are dated October 29, 2026, the Teams pages October 28, 2026, and the SharePoint Server 2019 and Subscription Edition page February 14, 2020) and from the SPFx generator packages on npm:
 
 - Current SPFx is **1.24.1** (1.24 went GA on October 28, 2026). It needs **Node 22.14+, 24, or 26**, uses **TypeScript 5.8** and **React 18.3.1**, and builds with **Heft**. The gulp toolchain is unsupported from 1.24 on.
 - **SharePoint Server 2019** supports SPFx 1.0 to 1.4.1. **Subscription Edition** supports 1.0 to 1.5. **2016 with Feature Pack 2** supports 1.0 to 1.1. So 1.4.1 is right for 2019 and Subscription Edition, and only a 2016 answer would change the Server host.
@@ -93,16 +93,9 @@ Not used, by choice: React (proposed for the screens; hello world doesn't need i
 ## Next
 
 1. Install `stronghold-server.sppkg` on the SharePoint Server farm and go through the checks in `hosts/server/README.md`. That settles proof steps 1, 2, and 3. Step 5 is `hosts/server/build.sh` on a machine with Docker.
-2. Decide the proposals above, starting with one package per host.
-3. Proof step 4: grow `HostServices` with the signed-in person and the REST client, in both hosts and the dev host.
-4. The same checks on SharePoint Online and in a Teams tab.
+2. Proof step 4: grow `HostServices` with the signed-in person and the REST client, in both hosts and the dev host.
+3. The same checks on SharePoint Online and in a Teams tab.
 
-## Changes for the Stronghold repository, once decided
+## Recorded in the Stronghold repository
 
-Nothing in the Stronghold repository was changed for this proof. These are the lines it makes stale, for Damon to apply when he decides:
-
-- `README.md` ("There's no code yet"), `ARCHITECTURE.md` (its first lines), and `CLAUDE.md` (its first paragraph): point at this repository and say the proof exists and what it has shown.
-- `ARCHITECTURE.md`, Toolchain: replace the unconfirmed notes with the facts above (SPFx 1.24.1, Heft, Node 22.14+/24/26, TypeScript 5.8, React 18.3.1; 2019 up to 1.4.1, Subscription Edition up to 1.5, 2016 up to 1.1), and name the sources.
-- `ARCHITECTURE.md`, "How a host loads the app": the bundler is webpack 5 in the proof, with the condition under which Vite comes back (`app/README.md`, "Why webpack 5").
-- `ARCHITECTURE.md`, "The app and its hosts": the shared code is `HostServices` plus the loader, if that stands.
-- `DECISIONS.md`: a row for each proposal above that Damon approves, with the date, and the answer to "one package per host".
+The November 5 decisions and the facts above are written into the Stronghold repository's `DECISIONS.md`, `ARCHITECTURE.md`, `README.md`, and `CLAUDE.md`, on its branch `claude/youthful-einstein-4a5w20`. They take effect there once that branch is merged.

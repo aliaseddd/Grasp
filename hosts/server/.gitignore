@@ -13,7 +13,7 @@ solution
 temp
 *.sppkg
 
-# Generated copies of app/src/host (scripts/copy-shared.js)
+# Generated copies of app/src/host (scripts/prepare-shared.js)
 src/shared
 
 # Coverage directory used by tools like istanbul
