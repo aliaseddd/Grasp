@@ -6,7 +6,8 @@
 <title>Stronghold Proof Structure</title>
 <!-- The view proofStructure of stronghold-proof.sysml on an endless plane you can move around, with notes you add
      by clicking it. Open this file in a browser; it needs no server. The drawing between the drawing markers is
-     written by draw.mjs: edit it there. -->
+     written by draw.mjs: edit it there. The notes and the archive between the notes markers are written by
+     save-notes.mjs. Published on claude.ai, the page keeps its notes in the page's database, where Claude reads them. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:ital,wght@0,400;0,500;0,600;1,400&display=swap">
@@ -76,6 +77,7 @@ button {
 }
 button:hover { border-color: var(--accent); color: var(--accent); }
 button:focus-visible, textarea:focus-visible, .canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
 /* The plane: it fills the window under the bar, and everything else floats on it. */
 .stage { position: relative; min-height: 0; overflow: hidden; }
@@ -142,8 +144,27 @@ textarea.text {
   font: 400 13.5px/1.5 var(--sans); color: var(--fg); background: var(--bg);
   border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
 }
+textarea.text[readonly] { resize: none; background: transparent; }
 .meta { margin: 0; font: 400 11.5px/1.3 var(--mono); color: var(--fg-2); }
+
+/* The archive: notes Claude has acted on, newest first, each with what was done about it. */
+.archive { padding-top: 12px; border-top: 1px solid var(--line); }
+.archive summary { cursor: pointer; font: 600 13.5px/1.3 var(--sans); color: var(--fg); }
+.archive summary:hover { color: var(--accent); }
+.archive summary .count { margin-left: 6px; }
+.archive-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.archived { display: grid; gap: 6px; padding: 10px; border: 1px dashed var(--line-strong); border-radius: 6px; }
+.chip {
+  flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  border: 1px solid var(--line-strong); color: var(--fg-2); font: 600 11px/1 var(--sans);
+}
+.archived-text, .outcome { margin: 0; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.outcome { color: var(--fg-2); }
+.outcome b { font-weight: 600; color: var(--accent); }
+
 .foot { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.where { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.where:empty { display: none; }
 .warning { margin: 0; font-size: 13px; color: var(--danger); }
 .delete-all { justify-self: start; color: var(--danger); border-color: var(--line); }
 .delete-all:hover { color: var(--danger); border-color: var(--danger); }
@@ -167,9 +188,9 @@ textarea.text {
     </div>
     <div class="actions">
       <button type="button" id="copy-markdown">Copy as Markdown</button>
-      <button type="button" id="save-notes">Save notes</button>
-      <button type="button" id="load-notes">Load notes</button>
-      <input type="file" id="load-file" accept="application/json,.json" hidden>
+      <button type="button" id="download-notes" hidden>Download notes</button>
+      <button type="button" id="import-notes" hidden>Import notes</button>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
     </div>
   </div>
 
@@ -397,31 +418,61 @@ textarea.text {
         <h2 id="notes-title">Notes <span class="count" id="notes-count"></span></h2>
         <button type="button" class="hide" id="hide-notes">Hide</button>
       </div>
-      <p class="empty" id="notes-empty">No notes yet. Click a box, a port, or a line to add the first one. Drag the background to move around.</p>
+      <p class="empty" id="notes-empty">Loading the notes…</p>
       <ol class="list" id="notes-list"></ol>
       <textarea class="copy-box" id="copy-box" readonly hidden aria-label="Your notes as Markdown"></textarea>
+      <details class="archive" id="archive" hidden>
+        <summary>Archive<span class="count" id="archive-count"></span></summary>
+        <ol class="archive-list" id="archive-list"></ol>
+      </details>
       <div class="foot">
-        <p class="warning" id="storage-warning" hidden>This browser isn't keeping notes for this page. Save them to a file before you close it.</p>
-        <button type="button" class="delete-all" id="delete-all">Delete all notes</button>
+        <p class="where" id="where"></p>
+        <p class="warning" id="storage-warning" hidden>This browser isn't keeping notes for this page. Download them before you close it.</p>
+        <button type="button" class="delete-all" id="delete-all" hidden>Delete all notes</button>
       </div>
     </aside>
   </div>
 </div>
 
+<!-- notes:start -->
+<script type="application/json" id="saved-notes">
+{
+  "saved": null,
+  "notes": [],
+  "archive": []
+}
+</script>
+<!-- notes:end -->
+
 <script>
 (function () {
   'use strict';
 
-  var KEY = 'stronghold-proof-notes:v1';
+  var LEGACY_KEY = 'stronghold-proof-notes:v1'; // the first version of this page kept each note in one browser
+  var LOCAL_KEY = 'stronghold-proof-notes:v2';  // this browser's notes, when the page is opened as a file
   var CAMERA_KEY = 'stronghold-proof-camera:v1';
+  var MODEL = 'docs/sysml/stronghold-proof.sysml';
+  var PAGE = 'docs/sysml/stronghold-proof.html';
   var NS = 'http://www.w3.org/2000/svg';
   var VIEW = { el: 'StrongholdProof::proofStructure', label: 'the view proofStructure' };
   var NARROW = window.matchMedia('(max-width: 720px)');
-  var HINT = NARROW.matches
-    ? 'Drag to move · pinch to zoom · tap to add a note'
-    : 'Drag to move around · scroll to pan · pinch or Ctrl/⌘ + scroll to zoom · click to add a note';
+  var MOVE_HINT = NARROW.matches
+    ? 'Drag to move · pinch to zoom'
+    : 'Drag to move around · scroll to pan · pinch or Ctrl/⌘ + scroll to zoom';
+  var ADD_HINT = NARROW.matches ? ' · tap to add a note' : ' · click to add a note';
   var MIN_ZOOM = 0.1;
   var MAX_ZOOM = 6;
+  var PAUSE = 600; // how long typing stops before a note's text goes to the shared notes, in ms
+  var FIELDS = ['no', 'el', 'label', 'x', 'y', 'text', 'created', 'updated'];
+  var PLACE = ['el', 'label', 'x', 'y', 'updated'];
+  var EMPTY = 'No notes yet. Click a box, a port, or a line to add the first one. Drag the background to move around.';
+  var SLOW = 'The shared notes can\'t be reached yet, so these may be out of date.';
+  var WHERE = {
+    loading: '',
+    shared: 'Notes save as you type, and everyone who can open this page sees them. Ask Claude to save them to GitHub.',
+    local: 'Notes you add here stay in this browser. Download them to keep them or to give them to Claude.',
+    read: 'You can read these notes here but not change them.'
+  };
 
   var canvas = document.getElementById('canvas');
   var svg = document.getElementById('drawing');
@@ -430,12 +481,18 @@ textarea.text {
   var list = document.getElementById('notes-list');
   var empty = document.getElementById('notes-empty');
   var count = document.getElementById('notes-count');
+  var archiveBox = document.getElementById('archive');
+  var archiveList = document.getElementById('archive-list');
+  var archiveCount = document.getElementById('archive-count');
   var hint = document.getElementById('pointer-hint');
   var status = document.getElementById('status');
+  var where = document.getElementById('where');
   var warning = document.getElementById('storage-warning');
   var copyBox = document.getElementById('copy-box');
   var deleteAll = document.getElementById('delete-all');
-  var fileInput = document.getElementById('load-file');
+  var downloadButton = document.getElementById('download-notes');
+  var importButton = document.getElementById('import-notes');
+  var fileInput = document.getElementById('import-file');
   var zoomLevel = document.getElementById('zoom-level');
   var hud = document.querySelector('.hud');
 
@@ -472,16 +529,23 @@ textarea.text {
 
   var fresh = null;          // a note just added: removed again if it is left without text
   var dragging = null;       // the note whose pin is being dragged
-  var lastDrag = -Infinity;  // when a drag or a pan ended
+  var pendingRender = false; // the notes changed while a pin was being dragged
   var hovered = null;
   var armed = -Infinity;     // when "Delete all notes" was first clicked
   var camera = readCamera(); // the top-left corner of the window, in drawing units, and pixels per unit
-  var notes = readNotes();
+  var mode = 'loading';      // 'shared': the page's database · 'local': this browser · 'read': look only
+  var reason = '';           // why the notes can only be read, when that needs saying
+  var saved = readSaved();   // the notes and the archive saved in this file
+  var notes = saved.notes.map(tidy);
+  var archive = saved.archive;
+  var shown = '';            // the notes and the archive as last drawn, so unchanged ones aren't drawn again
 
   function now() { return new Date().toISOString(); }
   function say(message) { status.textContent = message; }
   function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
   function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
+  function editable() { return mode === 'shared' || mode === 'local'; }
+  function baseHint() { return MOVE_HINT + (editable() ? ADD_HINT : ''); }
 
   function groupFor(el) {
     var groups = svg.querySelectorAll('[data-el]');
@@ -498,9 +562,10 @@ textarea.text {
     return { el: g.getAttribute('data-el'), label: g.getAttribute('data-label'), g: g };
   }
 
+  // A note's id is also its name in the shared notes, so it keeps to letters, digits, - and _.
   function isNote(n) {
-    return !!n && typeof n === 'object' && typeof n.id === 'string' && typeof n.el === 'string' &&
-      typeof n.text === 'string' && isFinite(n.x) && isFinite(n.y);
+    return !!n && typeof n === 'object' && typeof n.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(n.id) &&
+      typeof n.el === 'string' && typeof n.text === 'string' && isFinite(n.x) && isFinite(n.y);
   }
 
   function tidy(n) {
@@ -508,34 +573,79 @@ textarea.text {
     var label = g ? g.getAttribute('data-label') : (typeof n.label === 'string' ? n.label : n.el);
     var created = typeof n.created === 'string' ? n.created : now();
     return {
-      id: n.id, el: n.el, label: label, x: Math.round(+n.x), y: Math.round(+n.y), text: n.text,
-      created: created, updated: typeof n.updated === 'string' ? n.updated : created
+      id: n.id, no: n.no >= 1 ? Math.floor(n.no) : 0, el: n.el, label: label, x: Math.round(+n.x), y: Math.round(+n.y),
+      text: n.text, created: created, updated: typeof n.updated === 'string' ? n.updated : created
     };
   }
 
-  function readNotes() {
+  function tidyArchived(n) {
+    var t = tidy(n);
+    t.resolution = typeof n.resolution === 'string' ? n.resolution : '';
+    t.archived = typeof n.archived === 'string' ? n.archived : t.updated;
+    return t;
+  }
+
+  function readSaved() {
+    var none = { saved: null, notes: [], archive: [] };
+    var block = document.getElementById('saved-notes');
     try {
-      var data = JSON.parse(localStorage.getItem(KEY) || '[]');
-      return Array.isArray(data) ? data.filter(isNote).map(tidy) : [];
+      var data = block ? JSON.parse(block.textContent) : null;
+      if (!data || typeof data !== 'object') return none;
+      return {
+        saved: typeof data.saved === 'string' ? data.saved : null,
+        notes: Array.isArray(data.notes) ? data.notes.filter(isNote).map(tidy) : [],
+        archive: Array.isArray(data.archive) ? data.archive.filter(isNote).map(tidyArchived).sort(byArchived) : []
+      };
     } catch (error) {
-      warning.hidden = false;
-      return [];
+      return none;
     }
   }
 
-  function store() {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(notes));
-      warning.hidden = true;
-    } catch (error) {
-      warning.hidden = false;
+  function byCreated(a, b) { return a.created < b.created ? -1 : a.created > b.created ? 1 : 0; }
+  function byNumber(a, b) { return (a.no - b.no) || byCreated(a, b); }
+  function byArchived(a, b) { return a.archived < b.archived ? -1 : a.archived > b.archived ? 1 : byNumber(a, b); }
+
+  // Notes are numbered once and keep their number, in the archive too.
+  function nextNumber() {
+    var top = 0;
+    notes.concat(archive).forEach(function (n) { top = Math.max(top, n.no || 0); });
+    return top + 1;
+  }
+
+  // Gives each note in `list` that has no number, or one already taken, the next free number, oldest first.
+  function numberNew(list, others) {
+    var taken = {};
+    var top = 0;
+    function take(n) {
+      taken[n.no] = true;
+      top = Math.max(top, n.no);
     }
+    others.forEach(function (n) { if (n.no) take(n); });
+    var needs = [];
+    list.forEach(function (n) {
+      if (n.no && !taken[n.no]) take(n);
+      else needs.push(n);
+    });
+    needs.sort(byCreated).forEach(function (n) {
+      n.no = top + 1;
+      take(n);
+    });
+    return list;
+  }
+
+  function fieldsOf(n, keys) {
+    var out = {};
+    keys.forEach(function (key) { out[key] = n[key]; });
+    return out;
+  }
+
+  function dateOf(iso) {
+    return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   function when(n) {
-    var options = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-    var added = new Date(n.created).toLocaleString(undefined, options);
-    var edited = new Date(n.updated).toLocaleString(undefined, options);
+    var added = dateOf(n.created);
+    var edited = dateOf(n.updated);
     return 'Added ' + added + (edited !== added ? ' · edited ' + edited : '');
   }
 
@@ -578,7 +688,7 @@ textarea.text {
   }
 
   function pinTransform(n) {
-    return 'translate(' + n.x + ' ' + n.y + ') scale(' + (1 / camera.k).toFixed(4) + ')';
+    return 'translate(' + n.x + ' ' + n.y + ') scale(' + (1 / (camera ? camera.k : 1)).toFixed(4) + ')';
   }
 
   function apply() {
@@ -625,31 +735,44 @@ textarea.text {
     apply();
   }
 
-  // ---- Drawing the notes: a numbered pin on the plane and an entry in the list, for each.
+  // ---- Drawing the notes: a numbered pin on the plane and an entry in the list, for each open note. Archived
+  // notes are listed under them, without pins.
 
   function noteById(id) {
     for (var i = 0; i < notes.length; i++) if (notes[i].id === id) return notes[i];
     return null;
   }
 
-  function pinFor(n, i) {
+  function pinFor(n) {
     var g = document.createElementNS(NS, 'g');
     g.setAttribute('class', 'pin');
     g.setAttribute('transform', pinTransform(n));
     g.setAttribute('data-id', n.id);
     var title = document.createElementNS(NS, 'title');
-    title.textContent = 'Note ' + (i + 1) + ' on ' + n.label + '. Drag to move it.';
+    title.textContent = 'Note ' + n.no + ' on ' + n.label + (editable() ? '. Drag to move it.' : '.');
     var circle = document.createElementNS(NS, 'circle');
     circle.setAttribute('r', '11');
     var number = document.createElementNS(NS, 'text');
-    number.textContent = String(i + 1);
+    number.textContent = String(n.no);
     g.appendChild(title);
     g.appendChild(circle);
     g.appendChild(number);
     return g;
   }
 
-  function itemFor(n, i) {
+  function onLabel(n) {
+    var on = document.createElement('span');
+    on.className = 'on';
+    on.title = n.el;
+    var name = document.createElement('b');
+    name.textContent = n.label;
+    on.appendChild(document.createTextNode('on '));
+    on.appendChild(name);
+    return on;
+  }
+
+  function itemFor(n) {
+    var write = editable();
     var li = document.createElement('li');
     li.className = 'note';
     li.setAttribute('data-id', n.id);
@@ -659,31 +782,28 @@ textarea.text {
     var badge = document.createElement('button');
     badge.type = 'button';
     badge.className = 'badge';
-    badge.textContent = String(i + 1);
+    badge.textContent = String(n.no);
     badge.title = 'Show this note on the drawing';
-    badge.setAttribute('aria-label', 'Show note ' + (i + 1) + ' on the drawing');
-    var on = document.createElement('span');
-    on.className = 'on';
-    on.title = n.el;
-    var name = document.createElement('b');
-    name.textContent = n.label;
-    on.appendChild(document.createTextNode('on '));
-    on.appendChild(name);
-    var remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'remove';
-    remove.textContent = 'Delete';
-    remove.setAttribute('aria-label', 'Delete note ' + (i + 1));
+    badge.setAttribute('aria-label', 'Show note ' + n.no + ' on the drawing');
     head.appendChild(badge);
-    head.appendChild(on);
-    head.appendChild(remove);
+    head.appendChild(onLabel(n));
+    if (write) {
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'remove';
+      remove.textContent = 'Delete';
+      remove.setAttribute('aria-label', 'Delete note ' + n.no);
+      remove.addEventListener('click', function () { removeNote(n.id); });
+      head.appendChild(remove);
+    }
 
     var textarea = document.createElement('textarea');
     textarea.className = 'text';
     textarea.rows = 2;
     textarea.value = n.text;
-    textarea.placeholder = 'Write the note';
-    textarea.setAttribute('aria-label', 'Note ' + (i + 1) + ', on ' + n.label);
+    textarea.readOnly = !write;
+    textarea.placeholder = write ? 'Write the note' : '';
+    textarea.setAttribute('aria-label', 'Note ' + n.no + ', on ' + n.label);
     var meta = document.createElement('p');
     meta.className = 'meta';
     meta.textContent = when(n);
@@ -693,36 +813,67 @@ textarea.text {
     li.appendChild(meta);
 
     textarea.addEventListener('input', function () {
-      n.text = textarea.value;
-      n.updated = now();
+      typed(n, textarea.value);
       meta.textContent = when(n);
       grow(textarea);
-      store();
     });
     textarea.addEventListener('focus', function () { mark(n); });
     textarea.addEventListener('blur', function () {
       mark(n);
+      if (mode === 'shared') send(n.id);
       // A note that was just added and got no text goes away once you leave it, unless you are dragging its pin
       // or are back in it (the list is redrawn after a drag, so look up its text box again).
       setTimeout(function () {
         if (fresh !== n.id || dragging === n.id) return;
         var current = list.querySelector('[data-id="' + n.id + '"] textarea');
         if (current && document.activeElement === current) return;
-        if (dropEmptyFresh()) {
-          store();
-          render();
-        }
+        if (dropEmptyFresh()) render();
       }, 200);
     });
     li.addEventListener('mouseenter', function () { mark(n); });
     li.addEventListener('mouseleave', function () { mark(n); });
     badge.addEventListener('click', function () {
       showPoint(n.x, n.y);
-      say('Showing note ' + (notes.indexOf(n) + 1) + ', on ' + n.label + '.');
+      say('Showing note ' + n.no + ', on ' + n.label + '.');
     });
-    remove.addEventListener('click', function () { removeNote(n.id); });
     requestAnimationFrame(function () { grow(textarea); });
     return li;
+  }
+
+  function archivedFor(n) {
+    var li = document.createElement('li');
+    li.className = 'archived';
+    var head = document.createElement('div');
+    head.className = 'note-head';
+    var chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = String(n.no || '·');
+    head.appendChild(chip);
+    head.appendChild(onLabel(n));
+    var text = document.createElement('p');
+    text.className = 'archived-text';
+    text.textContent = n.text.trim() || '(no text)';
+    var outcome = document.createElement('p');
+    outcome.className = 'outcome';
+    var done = document.createElement('b');
+    done.textContent = 'Resolved: ';
+    outcome.appendChild(done);
+    outcome.appendChild(document.createTextNode(n.resolution || 'nothing was recorded.'));
+    var meta = document.createElement('p');
+    meta.className = 'meta';
+    meta.textContent = 'Archived ' + dateOf(n.archived);
+    li.appendChild(head);
+    li.appendChild(text);
+    li.appendChild(outcome);
+    li.appendChild(meta);
+    li.addEventListener('mouseenter', function () { markEl(n.el, true); });
+    li.addEventListener('mouseleave', function () { markEl(n.el, false); });
+    return li;
+  }
+
+  function markEl(el, on) {
+    var g = groupFor(el);
+    if (g && g.getAttribute('data-kind') !== 'view') g.classList.toggle('is-marked', on);
   }
 
   // Shows which pin and which box a note in the list belongs to, while it is pointed at or being edited.
@@ -732,46 +883,67 @@ textarea.text {
     var on = !!li && (li.matches(':hover') || li.contains(document.activeElement));
     if (li) li.classList.toggle('is-active', on);
     if (pin) pin.classList.toggle('is-active', on);
-    var g = groupFor(n.el);
-    if (g && g.getAttribute('data-kind') !== 'view') g.classList.toggle('is-marked', on);
+    markEl(n.el, on);
   }
+
+  function remember() { shown = JSON.stringify([notes, archive]); }
 
   // Redraws every pin and list entry. Whoever was typing in a note keeps their place in it.
   function render() {
+    pendingRender = false;
     var active = document.activeElement;
     var activeNote = active && active.closest ? active.closest('.note') : null;
     var activeId = activeNote ? activeNote.getAttribute('data-id') : null;
-    var start = activeId ? active.selectionStart : 0;
-    var finish = activeId ? active.selectionEnd : 0;
+    var selStart = activeId ? active.selectionStart : 0;
+    var selEnd = activeId ? active.selectionEnd : 0;
     var marked = svg.querySelectorAll('.is-marked');
     for (var i = 0; i < marked.length; i++) marked[i].classList.remove('is-marked');
     while (layer.firstChild) layer.removeChild(layer.firstChild);
     while (list.firstChild) list.removeChild(list.firstChild);
-    notes.forEach(function (n, i) {
-      layer.appendChild(pinFor(n, i));
-      list.appendChild(itemFor(n, i));
+    while (archiveList.firstChild) archiveList.removeChild(archiveList.firstChild);
+    notes.forEach(function (n) {
+      layer.appendChild(pinFor(n));
+      list.appendChild(itemFor(n));
     });
+    for (var j = archive.length - 1; j >= 0; j--) archiveList.appendChild(archivedFor(archive[j]));
     empty.hidden = notes.length > 0;
     count.textContent = notes.length ? String(notes.length) : '';
+    archiveBox.hidden = !archive.length;
+    archiveCount.textContent = archive.length ? String(archive.length) : '';
     showNotes.textContent = notes.length ? 'Notes · ' + notes.length : 'Notes';
+    chrome();
+    remember();
     var again = activeId ? list.querySelector('[data-id="' + activeId + '"] textarea') : null;
     if (again) {
       again.focus({ preventScroll: true });
-      try { again.setSelectionRange(start, finish); } catch (error) { /* not a text field */ }
+      try { again.setSelectionRange(selStart, selEnd); } catch (error) { /* not a text field */ }
     }
+  }
+
+  // The controls that depend on where the notes are kept and whether this viewer can change them.
+  function chrome() {
+    var write = editable();
+    where.textContent = reason || WHERE[mode];
+    empty.textContent = mode === 'loading' ? 'Loading the notes…' : write ? EMPTY : 'No notes yet.';
+    downloadButton.hidden = mode !== 'local';
+    importButton.hidden = !write;
+    deleteAll.hidden = !write || !notes.length;
+    if (!hovered) hint.textContent = baseHint();
+  }
+
+  function setMode(next, why) {
+    mode = next;
+    reason = why || '';
+    render();
   }
 
   // Takes away the note just added if it has no text. Says whether it did.
   function dropEmptyFresh() {
-    var id = fresh;
+    var n = noteById(fresh);
     fresh = null;
-    for (var i = 0; i < notes.length; i++) {
-      if (notes[i].id === id && !notes[i].text.trim()) {
-        notes.splice(i, 1);
-        return true;
-      }
-    }
-    return false;
+    if (!n || n.text.trim()) return false;
+    forget(n.id);
+    return true;
   }
 
   function setPanel(open) {
@@ -788,30 +960,360 @@ textarea.text {
   }
 
   function removeNote(id) {
-    var index = notes.indexOf(noteById(id));
-    if (index < 0) return;
-    notes.splice(index, 1);
-    store();
+    var n = noteById(id);
+    if (!n) return;
+    forget(id);
     render();
-    say('Deleted note ' + (index + 1) + '.');
+    say('Deleted note ' + n.no + '.');
+  }
+
+  // Takes note `id` off the page and out of wherever the notes are kept.
+  function forget(id) {
+    var n = noteById(id);
+    if (n) notes.splice(notes.indexOf(n), 1);
+    if (fresh === id) fresh = null;
+    if (mode === 'local') saveLocal();
+    else if (mode === 'shared') dropShared(id);
   }
 
   // A tap or click that didn't move: a note on the element under the pointer.
   function addNoteAt(clientX, clientY) {
+    if (!editable()) {
+      say(mode === 'loading' ? 'The notes are still loading.' : 'Notes can only be read here.');
+      return;
+    }
     dropEmptyFresh();
     var at = elementOf(document.elementFromPoint(clientX, clientY));
     var point = toDrawing(clientX, clientY);
     var stamp = now();
     var n = {
       id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-      el: at.el, label: at.label, x: point.x, y: point.y, text: '', created: stamp, updated: stamp
+      no: nextNumber(), el: at.el, label: at.label, x: point.x, y: point.y, text: '', created: stamp, updated: stamp
     };
     notes.push(n);
     fresh = n.id;
-    store();
+    if (mode === 'local') saveLocal();
+    else stage(n, FIELDS).unsent = true;
     render();
     focusNote(n.id);
-    say('Added note ' + notes.length + ' on ' + at.label + '.');
+    say('Added note ' + n.no + ' on ' + at.label + '.');
+  }
+
+  function typed(n, text) {
+    n.text = text;
+    n.updated = now();
+    remember();
+    if (mode === 'local') {
+      saveLocal();
+    } else if (mode === 'shared') {
+      stage(n, ['text', 'updated']);
+      clearTimeout(timers[n.id]);
+      timers[n.id] = setTimeout(function () { send(n.id); }, PAUSE);
+    }
+  }
+
+  function placed(n) {
+    if (mode === 'local') {
+      saveLocal();
+    } else if (mode === 'shared') {
+      stage(n, PLACE);
+      send(n.id);
+    }
+  }
+
+  // ---- Where the notes are kept. Published on claude.ai: the page's database, shared by everyone who can open
+  // the page, where Claude reads them. Opened as a file: this browser, starting from the notes saved in the file.
+
+  function start() {
+    var claude = window.claude;
+    if (!claude || typeof claude.use !== 'function') {
+      startLocal();
+      return;
+    }
+    notes = [];
+    archive = [];
+    render();
+    claude.use('db').then(function (found) {
+      if (!found) {
+        notes = saved.notes.map(tidy);
+        archive = saved.archive;
+        setMode('read', 'This view can\'t reach the shared notes. These are the notes saved with the page.');
+        return null;
+      }
+      db = found;
+      return claude.use('user').then(function (user) {
+        return user ? user.can('data.write') : null;
+      }).then(function (allowed) {
+        startShared(allowed !== false);
+      });
+    }).catch(function () {
+      if (mode === 'loading') setMode('read', 'The notes couldn\'t be loaded. Reload the page to try again.');
+    });
+  }
+
+  // -- This browser.
+
+  function readLocal() {
+    var data = null;
+    try {
+      data = JSON.parse(localStorage.getItem(LOCAL_KEY) || 'null');
+    } catch (error) {
+      warning.hidden = false;
+    }
+    if (!data || !Array.isArray(data.notes)) return null;
+    return {
+      base: typeof data.base === 'string' ? data.base : null,
+      ids: Array.isArray(data.ids) ? data.ids : [],
+      notes: data.notes.filter(isNote).map(tidy)
+    };
+  }
+
+  function saveLocal() {
+    try {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify({
+        base: saved.saved,
+        ids: saved.notes.map(function (n) { return n.id; }),
+        notes: notes
+      }));
+      warning.hidden = true;
+    } catch (error) {
+      warning.hidden = false;
+    }
+  }
+
+  // Notes the first version of this page kept in this browser.
+  function readLegacy() {
+    try {
+      var data = JSON.parse(localStorage.getItem(LEGACY_KEY) || '[]');
+      if (!Array.isArray(data)) return [];
+      return data.filter(isNote).map(tidy).filter(function (n) { return n.text.trim(); });
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function dropLegacy() {
+    try { localStorage.removeItem(LEGACY_KEY); } catch (error) { /* nothing to drop */ }
+  }
+
+  function startLocal() {
+    mode = 'local';
+    var copy = readLocal();
+    var known = {};
+    saved.notes.concat(saved.archive).forEach(function (n) { known[n.id] = true; });
+    var mine;
+    if (copy && copy.base === saved.saved) {
+      mine = copy.notes;
+    } else {
+      // The first visit, or the file has been saved again since: start from the file, and keep the notes added
+      // in this browser that the file doesn't have.
+      mine = saved.notes.map(tidy).concat(copy ? copy.notes.filter(function (n) {
+        return copy.ids.indexOf(n.id) < 0 && !known[n.id];
+      }) : []);
+    }
+    var ids = {};
+    mine.forEach(function (n) { ids[n.id] = true; });
+    var old = readLegacy().filter(function (n) { return !known[n.id] && !ids[n.id]; });
+    notes = numberNew(mine.concat(old), saved.archive).sort(byNumber);
+    archive = saved.archive;
+    saveLocal();
+    if (old.length) dropLegacy();
+    render();
+  }
+
+  // -- The page's database: a collection `notes` and a collection `archive`, one document per note, named by
+  // its id. Claude moves a note it has acted on from `notes` to `archive`, adding `resolution` and `archived`.
+
+  var db = null;
+  var remote = { notes: {}, archive: {} }; // what the database last delivered
+  var heard = { notes: false, archive: false };
+  var waiting = [];  // what waits until both collections have been heard from
+  var overlay = {};  // id -> a note changed here that the database hasn't confirmed yet
+  var gone = {};     // id -> deleted here, hidden until the database drops it
+  var queue = {};    // id -> that note's writes, one at a time
+  var timers = {};   // id -> the pause after typing in it
+
+  function startShared(writable) {
+    mode = writable ? 'shared' : 'read';
+    reason = '';
+    var timer = setTimeout(function () {
+      if (!heard.notes || !heard.archive) say(SLOW);
+    }, 10000);
+    whenHeard(function () {
+      clearTimeout(timer);
+      if (status.textContent === SLOW) say('');
+    });
+    listen('notes');
+    listen('archive');
+    render();
+    if (writable) whenHeard(adoptLegacy);
+  }
+
+  function whenHeard(fn) {
+    if (heard.notes && heard.archive) fn();
+    else waiting.push(fn);
+  }
+
+  function listen(name) {
+    db.collection(name).onSnapshot(function (snap) {
+      var next = {};
+      snap.docs.forEach(function (doc) {
+        var body = doc.data();
+        if (!body) return;
+        var n = { id: doc.id };
+        Object.keys(body).forEach(function (key) { if (key !== 'id') n[key] = body[key]; });
+        if (isNote(n)) next[doc.id] = name === 'archive' ? tidyArchived(n) : tidy(n);
+      });
+      remote[name] = next;
+      if (name === 'notes') {
+        Object.keys(gone).forEach(function (id) { if (!next[id]) delete gone[id]; });
+        Object.keys(overlay).forEach(function (id) { if (overlay[id].settled) delete overlay[id]; });
+      }
+      refresh();
+      if (!snap.metadata.fromCache && !heard[name]) {
+        heard[name] = true;
+        if (heard.notes && heard.archive) waiting.splice(0).forEach(function (fn) { fn(); });
+      }
+    }, function () {
+      setMode('read', 'The notes stopped updating. Reload the page to see the latest ones.');
+    });
+  }
+
+  // Shows what the database holds, with this page's own unconfirmed changes on top.
+  function refresh() {
+    var ids = {};
+    Object.keys(remote.notes).concat(Object.keys(overlay)).forEach(function (id) { if (!gone[id]) ids[id] = true; });
+    var next = Object.keys(ids).map(function (id) { return overlay[id] ? overlay[id].note : remote.notes[id]; }).sort(byNumber);
+    var kept = Object.keys(remote.archive).map(function (id) { return remote.archive[id]; }).sort(byArchived);
+    if (JSON.stringify([next, kept]) === shown) return;
+    notes = next;
+    archive = kept;
+    if (dragging) pendingRender = true;
+    else render();
+  }
+
+  // Records a change to note n made here. `fields` are the ones to write.
+  function stage(n, fields) {
+    var entry = overlay[n.id];
+    if (!entry) entry = overlay[n.id] = { note: n, seq: 0, unsent: false, sending: false, dirty: {} };
+    entry.note = n;
+    entry.seq += 1;
+    entry.settled = false;
+    fields.forEach(function (field) { entry.dirty[field] = true; });
+    return entry;
+  }
+
+  // Whether the database already shows note `id` the way it is here.
+  function matches(id) {
+    var mine = overlay[id] && overlay[id].note;
+    var theirs = remote.notes[id];
+    return !!mine && !!theirs && FIELDS.every(function (field) { return mine[field] === theirs[field]; });
+  }
+
+  // Writes note `id`'s changes. A note added here is written once it has text.
+  function send(id) {
+    clearTimeout(timers[id]);
+    var entry = overlay[id];
+    if (!entry || !db) return;
+    if (entry.unsent && !entry.note.text.trim()) return;
+    if (entry.unsent) entry.sending = true;
+    enqueue(id, function () { return flush(id, entry); });
+  }
+
+  function flush(id, entry) {
+    if (overlay[id] !== entry) return null;
+    var keys = Object.keys(entry.dirty);
+    var seq = entry.seq;
+    var n = entry.note;
+    var creating = entry.unsent;
+    entry.dirty = {};
+    if (!creating && !keys.length) {
+      delete overlay[id];
+      return null;
+    }
+    var ref = db.collection('notes').doc(id);
+    return attempt(function () {
+      return creating ? ref.set(fieldsOf(n, FIELDS)) : ref.update(fieldsOf(n, keys));
+    }).then(function () {
+      entry.unsent = false;
+      // Written. Once the database shows it, the note no longer needs holding here.
+      if (overlay[id] === entry && entry.seq === seq) {
+        if (matches(id)) delete overlay[id];
+        else entry.settled = true;
+      }
+      refresh();
+    }, function (error) {
+      if (overlay[id] === entry) delete overlay[id];
+      refused(error, id, creating);
+      refresh();
+    });
+  }
+
+  function dropShared(id) {
+    clearTimeout(timers[id]);
+    var entry = overlay[id];
+    delete overlay[id];
+    if (entry && entry.unsent && !entry.sending) return; // it was never written
+    gone[id] = true;
+    enqueue(id, function () {
+      return attempt(function () { return db.collection('notes').doc(id).delete(); }).then(function () {
+        if (!remote.notes[id]) delete gone[id];
+      }, function (error) {
+        delete gone[id];
+        refused(error, id, false);
+        refresh();
+      });
+    });
+  }
+
+  // Runs a note's writes one after another.
+  function enqueue(id, job) {
+    var next = (queue[id] || Promise.resolve()).then(job, job);
+    queue[id] = next;
+    var done = function () { if (queue[id] === next) delete queue[id]; };
+    next.then(done, done);
+  }
+
+  // A write the database couldn't take for a moment gets one more try.
+  function attempt(fn) {
+    return Promise.resolve().then(fn).catch(function (error) {
+      if (!error || error.code !== 'unavailable') throw error;
+      return new Promise(function (resolve) { setTimeout(resolve, 400 + Math.random() * 800); }).then(fn);
+    });
+  }
+
+  // Notes the first version of this page kept in this browser join the shared notes, once.
+  function adoptLegacy() {
+    if (mode !== 'shared') return;
+    var old = readLegacy().filter(function (n) { return !remote.notes[n.id] && !remote.archive[n.id]; });
+    if (!old.length) {
+      dropLegacy();
+      return;
+    }
+    numberNew(old, notes.concat(archive));
+    old.reduce(function (done, n) {
+      return done.then(function () {
+        return attempt(function () { return db.collection('notes').doc(n.id).set(fieldsOf(n, FIELDS)); });
+      });
+    }, Promise.resolve()).then(function () {
+      dropLegacy();
+      say('Moved ' + plural(old.length, 'note') + ' from this browser into the shared notes.');
+    }, function (error) {
+      refused(error, null, true);
+    });
+  }
+
+  function refused(error, id, creating) {
+    var code = error && error.code;
+    if (code === 'invalid_argument' && id && !creating && !remote.notes[id]) {
+      say('That note was archived or deleted somewhere else, so the change wasn\'t kept.');
+    } else if (code === 'invalid_argument' || code === 'revoked' || code === 'not_granted') {
+      setMode('read', 'You can read these notes but not change them.');
+    } else if (code === 'quota_exceeded') {
+      say('The shared notes are full. Delete some notes, then try again.');
+    } else {
+      say('A change to the notes wasn\'t saved. Check your connection, then try again.');
+    }
   }
 
   // ---- Moving around: drag the plane with one pointer, pinch with two, or use the wheel.
@@ -892,12 +1394,8 @@ textarea.text {
     var g = gesture;
     gesture = null;
     canvas.classList.remove('is-panning');
-    if (!g) return;
-    if (g.moved) {
-      lastDrag = performance.now();
-    } else if (event.type === 'pointerup' && p.button === 0) {
-      addNoteAt(event.clientX, event.clientY);
-    }
+    if (!g || g.moved) return;
+    if (event.type === 'pointerup' && p.button === 0) addNoteAt(event.clientX, event.clientY);
   }
   svg.addEventListener('pointerup', endPointer);
   svg.addEventListener('pointercancel', endPointer);
@@ -946,16 +1444,17 @@ textarea.text {
   function hover(event) {
     if (event.target.closest('.pin')) {
       setHover(null);
-      hint.textContent = 'Drag the pin to move its note, or click it to edit the note.';
+      hint.textContent = editable() ? 'Drag the pin to move its note, or click it to edit the note.' : 'Click the pin to see its note.';
       return;
     }
     var at = elementOf(event.target);
     setHover(at.g && at.g.getAttribute('data-kind') !== 'view' ? at.g : null);
-    hint.textContent = at.g ? 'Click to add a note on ' + at.label + ' · drag to move around' : HINT;
+    if (!at.g) hint.textContent = baseHint();
+    else hint.textContent = (editable() ? 'Click to add a note on ' : '') + at.label + ' · drag to move around';
   }
   svg.addEventListener('pointerleave', function () {
     setHover(null);
-    hint.textContent = HINT;
+    hint.textContent = baseHint();
   });
 
   // ---- Moving a note: drag its pin. Dropped on another element, the note moves to that element.
@@ -968,6 +1467,10 @@ textarea.text {
     event.stopPropagation();
     var n = noteById(g.getAttribute('data-id'));
     if (!n) return;
+    if (!editable()) {
+      focusNote(n.id);
+      return;
+    }
     var startX = event.clientX;
     var startY = event.clientY;
     var moved = false;
@@ -988,7 +1491,7 @@ textarea.text {
       g.removeEventListener('pointerup', end);
       g.removeEventListener('pointercancel', end);
       g.classList.remove('is-dragging');
-      lastDrag = performance.now();
+      dragging = null;
       if (moved) {
         var at = { el: n.el, label: n.label };
         if (ev.type === 'pointerup') {
@@ -1000,11 +1503,10 @@ textarea.text {
         n.el = at.el;
         n.label = at.label;
         n.updated = now();
-        store();
-        render();
-        say('Moved note ' + (notes.indexOf(n) + 1) + (changed ? ' to ' + at.label : '') + '.');
+        placed(n);
+        say('Moved note ' + n.no + (changed ? ' to ' + at.label : '') + '.');
       }
-      dragging = null;
+      if (moved || pendingRender) render();
       focusNote(n.id);
     }
     g.addEventListener('pointermove', move);
@@ -1012,30 +1514,38 @@ textarea.text {
     g.addEventListener('pointercancel', end);
   });
 
-  // ---- Taking notes out and bringing them back.
+  // ---- Taking notes out and bringing them in.
+
+  function listed(lines, n, after) {
+    var parts = (n.text.trim() || '(no text)').split('\n');
+    lines.push('- **Note ' + n.no + '** on **' + n.label + '** (`' + n.el + '`): ' + parts[0]);
+    for (var j = 1; j < parts.length; j++) lines.push('  ' + parts[j]);
+    if (after) after.split('\n').forEach(function (line) { lines.push('  ' + line); });
+  }
 
   function markdown() {
     var lines = [
       '## Notes on proofStructure',
       '',
-      'From docs/sysml/stronghold-proof.html. Each note names the element of docs/sysml/stronghold-proof.sysml it is on.',
+      'From ' + PAGE + '. Each note names the element of ' + MODEL + ' it is on.',
       ''
     ];
-    notes.forEach(function (n, i) {
-      var parts = (n.text.trim() || '(no text)').split('\n');
-      lines.push((i + 1) + '. **' + n.label + '** (`' + n.el + '`): ' + parts[0]);
-      for (var j = 1; j < parts.length; j++) lines.push('   ' + parts[j]);
-    });
+    if (!notes.length) lines.push('No open notes.');
+    notes.forEach(function (n) { listed(lines, n); });
+    if (archive.length) {
+      lines.push('', '### Archive', '');
+      archive.forEach(function (n) { listed(lines, n, 'Resolved: ' + (n.resolution || 'nothing was recorded.')); });
+    }
     return lines.join('\n') + '\n';
   }
 
   document.getElementById('copy-markdown').addEventListener('click', function () {
-    if (!notes.length) {
+    if (!notes.length && !archive.length) {
       say('There are no notes to copy yet.');
       return;
     }
     var text = markdown();
-    var shown = function () {
+    var byHand = function () {
       setPanel(true);
       copyBox.hidden = false;
       copyBox.value = text;
@@ -1046,19 +1556,20 @@ textarea.text {
     try {
       navigator.clipboard.writeText(text).then(function () {
         copyBox.hidden = true;
-        say('Copied ' + plural(notes.length, 'note') + ' as Markdown.');
-      }, shown);
+        say('Copied ' + plural(notes.length, 'note') + (archive.length ? ' and the archive' : '') + ' as Markdown.');
+      }, byHand);
     } catch (error) {
-      shown();
+      byHand();
     }
   });
 
-  document.getElementById('save-notes').addEventListener('click', function () {
-    if (!notes.length) {
-      say('There are no notes to save yet.');
+  // Opened as a file, the page can hand its notes over as a file: the same shape save-notes.mjs takes.
+  downloadButton.addEventListener('click', function () {
+    if (!notes.length && !archive.length) {
+      say('There are no notes to download yet.');
       return;
     }
-    var data = { view: VIEW.el, model: 'docs/sysml/stronghold-proof.sysml', saved: now(), notes: notes };
+    var data = { view: VIEW.el, model: MODEL, saved: now(), notes: notes, archive: archive };
     var url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2) + '\n'], { type: 'application/json' }));
     var link = document.createElement('a');
     link.href = url;
@@ -1067,38 +1578,47 @@ textarea.text {
     link.click();
     link.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
-    say('Saving ' + plural(notes.length, 'note') + ' as stronghold-proof-notes.json in your downloads.');
+    say('Downloading ' + plural(notes.length, 'note') + ' as stronghold-proof-notes.json.');
   });
 
-  document.getElementById('load-notes').addEventListener('click', function () { fileInput.click(); });
+  importButton.addEventListener('click', function () { fileInput.click(); });
   fileInput.addEventListener('change', function () {
     var file = fileInput.files && fileInput.files[0];
     fileInput.value = '';
-    if (!file) return;
+    if (!file || !editable()) return;
     file.text().then(function (raw) {
       var data = JSON.parse(raw);
       var incoming = Array.isArray(data) ? data : data && data.notes;
       if (!Array.isArray(incoming)) throw new Error('no notes');
       var have = {};
-      notes.forEach(function (n) { have[n.id] = true; });
-      var added = incoming.filter(isNote).filter(function (n) { return !have[n.id]; }).map(tidy);
-      notes = notes.concat(added).sort(function (a, b) { return a.created < b.created ? -1 : a.created > b.created ? 1 : 0; });
-      store();
+      notes.concat(archive).forEach(function (n) { have[n.id] = true; });
+      var added = incoming.filter(isNote).map(tidy).filter(function (n) {
+        if (have[n.id] || !n.text.trim()) return false;
+        have[n.id] = true;
+        return true;
+      });
+      numberNew(added, notes.concat(archive));
+      added.forEach(function (n) {
+        notes.push(n);
+        if (mode === 'shared') {
+          stage(n, FIELDS).unsent = true;
+          send(n.id);
+        }
+      });
+      notes.sort(byNumber);
+      if (mode === 'local') saveLocal();
       render();
       setPanel(true);
       var skipped = incoming.length - added.length;
-      say('Loaded ' + plural(added.length, 'note') + ' from ' + file.name +
-        (skipped ? ', and left out ' + skipped + ' already here or unreadable.' : '.'));
+      say('Imported ' + plural(added.length, 'note') + ' from ' + file.name +
+        (skipped ? ', and left out ' + skipped + ' already here, empty, or unreadable.' : '.'));
     }).catch(function () {
-      say(file.name + ' isn\'t a notes file saved from this page.');
+      say(file.name + ' isn\'t a notes file from this page.');
     });
   });
 
   deleteAll.addEventListener('click', function () {
-    if (!notes.length) {
-      say('There are no notes to delete.');
-      return;
-    }
+    if (!notes.length || !editable()) return;
     if (performance.now() - armed > 4000) {
       armed = performance.now();
       deleteAll.textContent = 'Click again to delete all ' + notes.length;
@@ -1108,10 +1628,9 @@ textarea.text {
       return;
     }
     var n = notes.length;
-    notes = [];
+    notes.slice().forEach(function (note) { forget(note.id); });
     armed = -Infinity;
     deleteAll.textContent = 'Delete all notes';
-    store();
     render();
     say('Deleted ' + plural(n, 'note') + '.');
   });
@@ -1119,18 +1638,20 @@ textarea.text {
   document.getElementById('hide-notes').addEventListener('click', function () { setPanel(false); });
   showNotes.addEventListener('click', function () { setPanel(true); });
 
-  // Another tab with this page open changed the notes.
+  // Another tab with this file open changed this browser's notes.
   window.addEventListener('storage', function (event) {
-    if (event.key !== KEY) return;
-    notes = readNotes();
+    if (mode !== 'local' || event.key !== LOCAL_KEY) return;
+    var copy = readLocal();
+    if (!copy || copy.base !== saved.saved) return;
+    notes = copy.notes.sort(byNumber);
     render();
   });
 
   if (window.ResizeObserver) new ResizeObserver(function () { if (camera) apply(); }).observe(canvas);
   else window.addEventListener('resize', function () { if (camera) apply(); });
 
-  hint.textContent = HINT;
-  render();
+  hint.textContent = baseHint();
+  start();
   if (NARROW.matches && !notes.length) setPanel(false);
   if (camera) apply(); else fit();
 })();
