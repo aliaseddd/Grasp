@@ -4,60 +4,66 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Stronghold Proof Structure</title>
-<!-- The view proofStructure of stronghold-proof.sysml, with notes you add by clicking it. Open this file in a
-     browser; it needs no server. The drawing between the drawing markers is written by draw.mjs: edit it there. -->
+<!-- The view proofStructure of stronghold-proof.sysml on an endless plane you can move around, with notes you add
+     by clicking it. Open this file in a browser; it needs no server. The drawing between the drawing markers is
+     written by draw.mjs: edit it there. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:ital,wght@0,400;0,500;0,600;1,400&display=swap">
 <style>
 /* Stronghold's design tokens (app/src/design/tokens.css), with a dark set made from the same ink and teal. */
 :root {
-  --bg: #F8FAFB;
+  --bg: #EEF2F4;
   --card: #FFFFFF;
   --fg: #182630;
   --fg-2: #5B6973;
   --line: #E2E7EB;
   --line-strong: #CBD3D9;
+  --grid: #B9C3CB;
   --accent: #176B61;
   --on-accent: #FFFFFF;
   --danger: #B23C3C;
+  --shadow: 0 1px 2px rgba(24, 38, 48, 0.12), 0 8px 24px -8px rgba(24, 38, 48, 0.22);
   --sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #10181D; --card: #162128; --fg: #E2E7EB; --fg-2: #A9B4BC; --line: #26343D; --line-strong: #3A4A55;
-    --accent: #6CB8A9; --on-accent: #10181D; --danger: #F08A8A;
+    --bg: #0C1317; --card: #162128; --fg: #E2E7EB; --fg-2: #A9B4BC; --line: #26343D; --line-strong: #3A4A55;
+    --grid: #2C3A44; --accent: #6CB8A9; --on-accent: #10181D; --danger: #F08A8A;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -8px rgba(0, 0, 0, 0.6);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #10181D; --card: #162128; --fg: #E2E7EB; --fg-2: #A9B4BC; --line: #26343D; --line-strong: #3A4A55;
-  --accent: #6CB8A9; --on-accent: #10181D; --danger: #F08A8A;
+  --bg: #0C1317; --card: #162128; --fg: #E2E7EB; --fg-2: #A9B4BC; --line: #26343D; --line-strong: #3A4A55;
+  --grid: #2C3A44; --accent: #6CB8A9; --on-accent: #10181D; --danger: #F08A8A;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -8px rgba(0, 0, 0, 0.6);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
 body {
   margin: 0;
+  overflow: hidden;
   background: var(--bg);
   color: var(--fg);
   font: 400 14px/1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
 }
-.page {
-  max-width: 1680px;
-  margin: 0 auto;
-  padding: 24px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px));
-  display: grid;
-  gap: 16px;
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+
+/* The bar along the top. */
+.top {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--card); border-bottom: 1px solid var(--line);
 }
-header { display: grid; gap: 6px; }
-.eyebrow { margin: 0; font: 500 12px/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
-h1 { margin: 0; font: 600 26px/1.2 var(--sans); letter-spacing: -0.01em; text-wrap: balance; }
-.intro { margin: 0; max-width: 84ch; color: var(--fg-2); }
-.bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
-.hint { margin: 0; min-height: 1.4em; font: 400 13px/1.4 var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
+.title { display: grid; gap: 2px; min-width: 0; }
+.eyebrow { margin: 0; font: 500 11px/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+h1 { margin: 0; font: 600 17px/1.25 var(--sans); }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 button {
   font: 600 13px/1 var(--sans);
@@ -69,20 +75,17 @@ button {
   cursor: pointer;
 }
 button:hover { border-color: var(--accent); color: var(--accent); }
-button:focus-visible, textarea:focus-visible, .sheet:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.status { margin: 0; min-height: 1.4em; font-size: 13px; color: var(--fg-2); }
-.copy-box {
-  width: 100%; min-height: 140px; resize: vertical;
-  font: 400 12.5px/1.5 var(--mono); color: var(--fg); background: var(--card);
-  border: 1px solid var(--line-strong); border-radius: 6px; padding: 10px;
-}
-.layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
-@media (max-width: 1120px) { .layout { grid-template-columns: minmax(0, 1fr); } }
-.sheet { background: var(--card); border: 1px solid var(--line); border-radius: 8px; overflow: auto; }
-.sheet svg { display: block; width: 100%; min-width: 1040px; height: auto; color: var(--fg); }
+button:focus-visible, textarea:focus-visible, .canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-/* The drawing: the inside of every box can be clicked, and thin lines have a wider invisible edge to click. */
-.sysml { cursor: crosshair; user-select: none; -webkit-user-select: none; }
+/* The plane: it fills the window under the bar, and everything else floats on it. */
+.stage { position: relative; min-height: 0; overflow: hidden; }
+.canvas { position: absolute; inset: 0; touch-action: none; cursor: grab; outline: none; }
+.canvas.is-panning, .canvas.is-panning * { cursor: grabbing !important; }
+.canvas svg { display: block; width: 100%; height: 100%; color: var(--fg); user-select: none; -webkit-user-select: none; }
+.sysml .plane-dot { fill: var(--grid); }
+.sysml.is-far .plane { display: none; }
+.sysml .paper { fill: var(--card); pointer-events: none; }
+.sysml [data-el] { cursor: crosshair; }
 .sysml .outline { pointer-events: all; }
 .sysml .hit { pointer-events: stroke; }
 .sysml .accent { stroke: var(--accent); }
@@ -94,24 +97,42 @@ button:focus-visible, textarea:focus-visible, .sheet:focus-visible { outline: 2p
 .sysml .pin.is-active circle { stroke: var(--fg); stroke-width: 2.5; }
 .sysml .pin text { fill: var(--on-accent); font: 600 11px/1 var(--sans); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 
-.notes {
-  position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto;
-  display: grid; gap: 12px; align-content: start;
-  background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px;
+.float { position: absolute; background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.hud {
+  left: max(12px, env(safe-area-inset-left, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  max-width: min(560px, calc(100% - 220px)); padding: 8px 12px; display: grid; gap: 2px;
 }
-@media (max-width: 1120px) { .notes { position: static; max-height: none; } }
+.hint { margin: 0; font: 400 12.5px/1.4 var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
+.status { margin: 0; font-size: 13px; color: var(--fg); min-height: 0; }
+.status:empty { display: none; }
+.zoom {
+  right: max(12px, env(safe-area-inset-right, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 4px; padding: 4px;
+}
+.zoom button { padding: 7px 10px; border-color: transparent; }
+.zoom button:hover { border-color: var(--line-strong); }
+.zoom output { min-width: 48px; text-align: center; font: 500 12px/1 var(--mono); color: var(--fg-2); font-variant-numeric: tabular-nums; }
+
+.notes {
+  top: 12px; right: max(12px, env(safe-area-inset-right, 0px)); width: 330px; max-height: calc(100% - 84px); overflow: auto;
+  display: grid; gap: 12px; align-content: start; padding: 14px;
+}
+.notes-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .notes h2 { margin: 0; display: flex; align-items: baseline; gap: 8px; font: 600 15px/1.3 var(--sans); }
 .count { font: 500 12px/1 var(--mono); color: var(--fg-2); }
+.hide { padding: 6px 9px; font-size: 12px; }
+.show-notes { position: absolute; top: 12px; right: max(12px, env(safe-area-inset-right, 0px)); box-shadow: var(--shadow); }
 .empty { margin: 0; font-size: 13.5px; color: var(--fg-2); }
 .list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .note { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
 .note.is-active { border-color: var(--accent); }
 .note-head { display: flex; align-items: center; gap: 8px; }
 .badge {
-  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  flex: none; width: 24px; height: 24px; padding: 0; border: none; border-radius: 50%;
   display: grid; place-items: center;
   background: var(--accent); color: var(--on-accent); font: 600 11px/1 var(--sans);
 }
+.badge:hover { color: var(--on-accent); box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
 .on { flex: 1; min-width: 0; font-size: 12.5px; color: var(--fg-2); overflow-wrap: anywhere; }
 .on b { font-weight: 600; color: var(--fg); }
 .remove { padding: 6px 8px; font-size: 12px; color: var(--fg-2); border-color: var(--line); }
@@ -126,18 +147,24 @@ textarea.text {
 .warning { margin: 0; font-size: 13px; color: var(--danger); }
 .delete-all { justify-self: start; color: var(--danger); border-color: var(--line); }
 .delete-all:hover { color: var(--danger); border-color: var(--danger); }
+.copy-box {
+  width: 100%; min-height: 120px; resize: vertical;
+  font: 400 12px/1.5 var(--mono); color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line-strong); border-radius: 6px; padding: 8px;
+}
+@media (max-width: 720px) {
+  .notes { top: auto; left: 12px; right: 12px; width: auto; bottom: 64px; max-height: 46%; }
+  .hud { max-width: calc(100% - 124px); bottom: auto; top: 12px; }
+}
 </style>
 </head>
 <body>
-<div class="page">
-  <header>
-    <p class="eyebrow">SysML v2 · view proofStructure</p>
-    <h1>Stronghold Proof Structure</h1>
-    <p class="intro">Click anywhere on the drawing to add a note. A note belongs to the element you click, and its pin can be dragged onto another one. Notes stay in this browser: save them to a file to keep them, or copy them as Markdown for an issue or a chat.</p>
-  </header>
-
-  <div class="bar">
-    <p class="hint" id="pointer-hint">Point at the drawing to see what a note would be on.</p>
+<div class="app">
+  <div class="top">
+    <div class="title">
+      <p class="eyebrow">SysML v2 · view proofStructure</p>
+      <h1>Stronghold Proof Structure</h1>
+    </div>
     <div class="actions">
       <button type="button" id="copy-markdown">Copy as Markdown</button>
       <button type="button" id="save-notes">Save notes</button>
@@ -145,11 +172,9 @@ textarea.text {
       <input type="file" id="load-file" accept="application/json,.json" hidden>
     </div>
   </div>
-  <p class="status" id="status" role="status" aria-live="polite"></p>
-  <textarea class="copy-box" id="copy-box" readonly hidden aria-label="Your notes as Markdown"></textarea>
 
-  <main class="layout">
-    <div class="sheet" tabindex="0" aria-label="The drawing. Scroll sideways on a narrow screen.">
+  <div class="stage">
+    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing.">
 <!-- drawing:start -->
 <svg id="drawing" class="sysml" viewBox="0 0 1240 857" role="img" aria-label="SysML v2 general view of the Stronghold proof. A Page holds one or more host web parts and exactly one app; every host connects through its conjugated StrongholdApp port to the app's StrongholdApp port, by the interface mount. ServerHost, OnlineHost and DevHost specialize Host, so each carries the shared loader and that port. StrongholdApp, HostServices, AppHandle, HTMLElement and Loader sit in the package HostFiles, the code every host compiles.">
 <g data-el="StrongholdProof::proofStructure" data-label="the view proofStructure" data-kind="view">
@@ -354,16 +379,33 @@ textarea.text {
 <!-- drawing:end -->
     </div>
 
-    <aside class="notes" aria-labelledby="notes-title">
-      <h2 id="notes-title">Notes <span class="count" id="notes-count"></span></h2>
-      <p class="empty" id="notes-empty">No notes yet. Click a box, a port, or a line in the drawing to add the first one.</p>
+    <div class="float hud">
+      <p class="hint" id="pointer-hint"></p>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </div>
+
+    <div class="float zoom" role="group" aria-label="Zoom">
+      <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+      <output id="zoom-level">100%</output>
+      <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+      <button type="button" id="zoom-fit">Fit</button>
+    </div>
+
+    <button type="button" class="show-notes" id="show-notes" hidden>Notes</button>
+    <aside class="float notes" id="notes" aria-labelledby="notes-title">
+      <div class="notes-head">
+        <h2 id="notes-title">Notes <span class="count" id="notes-count"></span></h2>
+        <button type="button" class="hide" id="hide-notes">Hide</button>
+      </div>
+      <p class="empty" id="notes-empty">No notes yet. Click a box, a port, or a line to add the first one. Drag the background to move around.</p>
       <ol class="list" id="notes-list"></ol>
+      <textarea class="copy-box" id="copy-box" readonly hidden aria-label="Your notes as Markdown"></textarea>
       <div class="foot">
         <p class="warning" id="storage-warning" hidden>This browser isn't keeping notes for this page. Save them to a file before you close it.</p>
         <button type="button" class="delete-all" id="delete-all">Delete all notes</button>
       </div>
     </aside>
-  </main>
+  </div>
 </div>
 
 <script>
@@ -371,11 +413,20 @@ textarea.text {
   'use strict';
 
   var KEY = 'stronghold-proof-notes:v1';
+  var CAMERA_KEY = 'stronghold-proof-camera:v1';
   var NS = 'http://www.w3.org/2000/svg';
   var VIEW = { el: 'StrongholdProof::proofStructure', label: 'the view proofStructure' };
-  var HINT = 'Point at the drawing to see what a note would be on.';
+  var NARROW = window.matchMedia('(max-width: 720px)');
+  var HINT = NARROW.matches
+    ? 'Drag to move · pinch to zoom · tap to add a note'
+    : 'Drag to move around · scroll to pan · pinch or Ctrl/⌘ + scroll to zoom · click to add a note';
+  var MIN_ZOOM = 0.1;
+  var MAX_ZOOM = 6;
 
+  var canvas = document.getElementById('canvas');
   var svg = document.getElementById('drawing');
+  var panel = document.getElementById('notes');
+  var showNotes = document.getElementById('show-notes');
   var list = document.getElementById('notes-list');
   var empty = document.getElementById('notes-empty');
   var count = document.getElementById('notes-count');
@@ -385,24 +436,52 @@ textarea.text {
   var copyBox = document.getElementById('copy-box');
   var deleteAll = document.getElementById('delete-all');
   var fileInput = document.getElementById('load-file');
-  var view = svg.viewBox.baseVal;
+  var zoomLevel = document.getElementById('zoom-level');
+  var hud = document.querySelector('.hud');
+
+  // The drawing's own size, before the camera takes over the viewBox.
+  var PAPER = { w: svg.viewBox.baseVal.width, h: svg.viewBox.baseVal.height };
+
+  // Under the drawing: a dotted plane that goes on in every direction, and a sheet of paper for the drawing.
+  (function () {
+    var defs = document.createElementNS(NS, 'defs');
+    defs.innerHTML = '<pattern id="plane-dots" width="24" height="24" patternUnits="userSpaceOnUse">' +
+      '<circle class="plane-dot" cx="1" cy="1" r="1.1"/></pattern>';
+    var plane = document.createElementNS(NS, 'rect');
+    plane.setAttribute('class', 'plane');
+    plane.setAttribute('x', '-100000');
+    plane.setAttribute('y', '-100000');
+    plane.setAttribute('width', '200000');
+    plane.setAttribute('height', '200000');
+    plane.setAttribute('fill', 'url(#plane-dots)');
+    var paper = document.createElementNS(NS, 'rect');
+    paper.setAttribute('class', 'paper');
+    paper.setAttribute('x', '8');
+    paper.setAttribute('y', '8');
+    paper.setAttribute('width', String(PAPER.w - 16));
+    paper.setAttribute('height', String(PAPER.h - 16));
+    paper.setAttribute('rx', '12');
+    svg.insertBefore(paper, svg.firstChild);
+    svg.insertBefore(plane, svg.firstChild);
+    svg.insertBefore(defs, svg.firstChild);
+  })();
 
   var layer = document.createElementNS(NS, 'g');
   layer.setAttribute('class', 'pins');
   svg.appendChild(layer);
 
-  var fresh = null;      // a note just added: removed again if it is left without text
-  var dragging = null;   // the note whose pin is being dragged
-  var lastDrag = -Infinity; // when a drag ended, so the click that follows it adds no note
+  var fresh = null;          // a note just added: removed again if it is left without text
+  var dragging = null;       // the note whose pin is being dragged
+  var lastDrag = -Infinity;  // when a drag or a pan ended
   var hovered = null;
-  var armed = -Infinity; // when "Delete all notes" was first clicked
+  var armed = -Infinity;     // when "Delete all notes" was first clicked
+  var camera = readCamera(); // the top-left corner of the window, in drawing units, and pixels per unit
   var notes = readNotes();
 
   function now() { return new Date().toISOString(); }
   function say(message) { status.textContent = message; }
   function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
-  function clampX(x) { return Math.round(Math.min(Math.max(x, 12), view.width - 12)); }
-  function clampY(y) { return Math.round(Math.min(Math.max(y, 12), view.height - 12)); }
+  function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
 
   function groupFor(el) {
     var groups = svg.querySelectorAll('[data-el]');
@@ -429,7 +508,7 @@ textarea.text {
     var label = g ? g.getAttribute('data-label') : (typeof n.label === 'string' ? n.label : n.el);
     var created = typeof n.created === 'string' ? n.created : now();
     return {
-      id: n.id, el: n.el, label: label, x: clampX(+n.x), y: clampY(+n.y), text: n.text,
+      id: n.id, el: n.el, label: label, x: Math.round(+n.x), y: Math.round(+n.y), text: n.text,
       created: created, updated: typeof n.updated === 'string' ? n.updated : created
     };
   }
@@ -462,7 +541,7 @@ textarea.text {
 
   function toDrawing(clientX, clientY) {
     var point = new DOMPoint(clientX, clientY).matrixTransform(svg.getScreenCTM().inverse());
-    return { x: clampX(point.x), y: clampY(point.y) };
+    return { x: Math.round(point.x), y: Math.round(point.y) };
   }
 
   function grow(textarea) {
@@ -470,12 +549,93 @@ textarea.text {
     textarea.style.height = textarea.scrollHeight + 2 + 'px';
   }
 
-  // ---- Drawing the notes: a numbered pin on the drawing and an entry in the list, for each.
+  // ---- The camera: what part of the plane the window shows, and how big.
+
+  function readCamera() {
+    try {
+      var c = JSON.parse(localStorage.getItem(CAMERA_KEY) || 'null');
+      if (c && isFinite(c.x) && isFinite(c.y) && isFinite(c.k) && c.k > 0) return { x: +c.x, y: +c.y, k: clamp(+c.k, MIN_ZOOM, MAX_ZOOM) };
+    } catch (error) { /* start from a fitted view */ }
+    return null;
+  }
+
+  function stageSize() {
+    var r = canvas.getBoundingClientRect();
+    return { left: r.left, top: r.top, width: Math.max(r.width, 1), height: Math.max(r.height, 1) };
+  }
+
+  // The part of the window the notes panel doesn't cover, so "fit" and "show" aim at what you can see.
+  function openArea() {
+    var s = stageSize();
+    var area = { x: 0, y: 0, width: s.width, height: s.height };
+    if (!panel.hidden && s.width > 720) area.width = Math.max(200, s.width - panel.offsetWidth - 24);
+    if (s.width <= 720) {
+      // On a phone the hint sits at the top and the zoom buttons at the bottom.
+      area.y = hud.offsetHeight + 20;
+      area.height = Math.max(160, s.height - area.y - 60 - (panel.hidden ? 0 : panel.offsetHeight + 12));
+    }
+    return area;
+  }
+
+  function pinTransform(n) {
+    return 'translate(' + n.x + ' ' + n.y + ') scale(' + (1 / camera.k).toFixed(4) + ')';
+  }
+
+  function apply() {
+    var s = stageSize();
+    svg.setAttribute('viewBox', [camera.x, camera.y, s.width / camera.k, s.height / camera.k].map(function (v) { return v.toFixed(2); }).join(' '));
+    svg.classList.toggle('is-far', camera.k < 0.35);
+    zoomLevel.textContent = Math.round(camera.k * 100) + '%';
+    var pins = layer.children;
+    for (var i = 0; i < pins.length; i++) {
+      var n = noteById(pins[i].getAttribute('data-id'));
+      if (n) pins[i].setAttribute('transform', pinTransform(n));
+    }
+    try { localStorage.setItem(CAMERA_KEY, JSON.stringify(camera)); } catch (error) { /* a convenience only */ }
+  }
+
+  function fit() {
+    var area = openArea();
+    var k = clamp(Math.min(area.width / PAPER.w, area.height / PAPER.h) * 0.94, MIN_ZOOM, MAX_ZOOM);
+    camera = { k: k, x: PAPER.w / 2 - (area.x + area.width / 2) / k, y: PAPER.h / 2 - (area.y + area.height / 2) / k };
+    apply();
+  }
+
+  // Zooms by `factor`, keeping the point under (clientX, clientY) where it is.
+  function zoomAt(factor, clientX, clientY) {
+    var s = stageSize();
+    var px = clientX - s.left;
+    var py = clientY - s.top;
+    var wx = camera.x + px / camera.k;
+    var wy = camera.y + py / camera.k;
+    var k = clamp(camera.k * factor, MIN_ZOOM, MAX_ZOOM);
+    camera = { k: k, x: wx - px / k, y: wy - py / k };
+    apply();
+  }
+
+  function zoomAtCenter(factor) {
+    var s = stageSize();
+    var area = openArea();
+    zoomAt(factor, s.left + area.x + area.width / 2, s.top + area.y + area.height / 2);
+  }
+
+  function showPoint(x, y) {
+    var area = openArea();
+    camera = { k: camera.k, x: x - (area.x + area.width / 2) / camera.k, y: y - (area.y + area.height / 2) / camera.k };
+    apply();
+  }
+
+  // ---- Drawing the notes: a numbered pin on the plane and an entry in the list, for each.
+
+  function noteById(id) {
+    for (var i = 0; i < notes.length; i++) if (notes[i].id === id) return notes[i];
+    return null;
+  }
 
   function pinFor(n, i) {
     var g = document.createElementNS(NS, 'g');
     g.setAttribute('class', 'pin');
-    g.setAttribute('transform', 'translate(' + n.x + ' ' + n.y + ')');
+    g.setAttribute('transform', pinTransform(n));
     g.setAttribute('data-id', n.id);
     var title = document.createElementNS(NS, 'title');
     title.textContent = 'Note ' + (i + 1) + ' on ' + n.label + '. Drag to move it.';
@@ -496,9 +656,12 @@ textarea.text {
 
     var head = document.createElement('div');
     head.className = 'note-head';
-    var badge = document.createElement('span');
+    var badge = document.createElement('button');
+    badge.type = 'button';
     badge.className = 'badge';
     badge.textContent = String(i + 1);
+    badge.title = 'Show this note on the drawing';
+    badge.setAttribute('aria-label', 'Show note ' + (i + 1) + ' on the drawing');
     var on = document.createElement('span');
     on.className = 'on';
     on.title = n.el;
@@ -553,6 +716,10 @@ textarea.text {
     });
     li.addEventListener('mouseenter', function () { mark(n); });
     li.addEventListener('mouseleave', function () { mark(n); });
+    badge.addEventListener('click', function () {
+      showPoint(n.x, n.y);
+      say('Showing note ' + (notes.indexOf(n) + 1) + ', on ' + n.label + '.');
+    });
     remove.addEventListener('click', function () { removeNote(n.id); });
     requestAnimationFrame(function () { grow(textarea); });
     return li;
@@ -586,6 +753,7 @@ textarea.text {
     });
     empty.hidden = notes.length > 0;
     count.textContent = notes.length ? String(notes.length) : '';
+    showNotes.textContent = notes.length ? 'Notes · ' + notes.length : 'Notes';
     var again = activeId ? list.querySelector('[data-id="' + activeId + '"] textarea') : null;
     if (again) {
       again.focus({ preventScroll: true });
@@ -606,30 +774,33 @@ textarea.text {
     return false;
   }
 
+  function setPanel(open) {
+    panel.hidden = !open;
+    showNotes.hidden = open;
+  }
+
   function focusNote(id) {
+    setPanel(true);
     var textarea = list.querySelector('[data-id="' + id + '"] textarea');
     if (!textarea) return;
     textarea.focus({ preventScroll: true });
     textarea.closest('li').scrollIntoView({ block: 'nearest' });
   }
 
-  function removeNote(id, quietly) {
-    var index = -1;
-    for (var i = 0; i < notes.length; i++) if (notes[i].id === id) index = i;
+  function removeNote(id) {
+    var index = notes.indexOf(noteById(id));
     if (index < 0) return;
     notes.splice(index, 1);
     store();
     render();
-    if (!quietly) say('Deleted note ' + (index + 1) + '.');
+    say('Deleted note ' + (index + 1) + '.');
   }
 
-  // ---- Adding a note: a click anywhere on the drawing, on the element under the pointer.
-
-  svg.addEventListener('click', function (event) {
-    if (event.target.closest('.pin') || performance.now() - lastDrag < 400) return;
+  // A tap or click that didn't move: a note on the element under the pointer.
+  function addNoteAt(clientX, clientY) {
     dropEmptyFresh();
-    var at = elementOf(event.target);
-    var point = toDrawing(event.clientX, event.clientY);
+    var at = elementOf(document.elementFromPoint(clientX, clientY));
+    var point = toDrawing(clientX, clientY);
     var stamp = now();
     var n = {
       id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
@@ -641,7 +812,129 @@ textarea.text {
     render();
     focusNote(n.id);
     say('Added note ' + notes.length + ' on ' + at.label + '.');
+  }
+
+  // ---- Moving around: drag the plane with one pointer, pinch with two, or use the wheel.
+
+  var pointers = {};
+  var gesture = null;
+
+  function pointerCount() { return Object.keys(pointers).length; }
+  function twoPointers() {
+    var ids = Object.keys(pointers);
+    var a = pointers[ids[0]];
+    var b = pointers[ids[1]];
+    return { mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, dist: Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1) };
+  }
+  function startSingle(p, moved) {
+    gesture = { x: p.x, y: p.y, cx: camera.x, cy: camera.y, moved: moved, pinch: null };
+  }
+
+  svg.addEventListener('pointerdown', function (event) {
+    if (event.target.closest('.pin')) return;
+    if (event.pointerType === 'mouse' && event.button > 1) return;
+    event.preventDefault();
+    canvas.focus({ preventScroll: true });
+    pointers[event.pointerId] = { x: event.clientX, y: event.clientY, button: event.button };
+    try { svg.setPointerCapture(event.pointerId); } catch (error) { /* not capturable */ }
+    if (pointerCount() === 1) {
+      startSingle(pointers[event.pointerId], event.button === 1);
+    } else if (pointerCount() === 2) {
+      var t = twoPointers();
+      gesture = { moved: true, pinch: { mid: t.mid, dist: t.dist, cx: camera.x, cy: camera.y, k: camera.k } };
+    }
   });
+
+  svg.addEventListener('pointermove', function (event) {
+    var p = pointers[event.pointerId];
+    if (!p) {
+      if (!dragging) hover(event);
+      return;
+    }
+    p.x = event.clientX;
+    p.y = event.clientY;
+    if (!gesture) return;
+    if (gesture.pinch) {
+      if (pointerCount() < 2) return;
+      var s = stageSize();
+      var t = twoPointers();
+      var g = gesture.pinch;
+      var k = clamp(g.k * t.dist / g.dist, MIN_ZOOM, MAX_ZOOM);
+      var wx = g.cx + (g.mid.x - s.left) / g.k;
+      var wy = g.cy + (g.mid.y - s.top) / g.k;
+      camera = { k: k, x: wx - (t.mid.x - s.left) / k, y: wy - (t.mid.y - s.top) / k };
+      apply();
+      return;
+    }
+    var dx = p.x - gesture.x;
+    var dy = p.y - gesture.y;
+    if (!gesture.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+    if (!gesture.moved) {
+      gesture.moved = true;
+      canvas.classList.add('is-panning');
+      setHover(null);
+    }
+    camera = { k: camera.k, x: gesture.cx - dx / camera.k, y: gesture.cy - dy / camera.k };
+    apply();
+  });
+
+  function endPointer(event) {
+    var p = pointers[event.pointerId];
+    if (!p) return;
+    delete pointers[event.pointerId];
+    var left = pointerCount();
+    if (left === 1) {
+      // From a pinch back to one finger: carry on dragging from here.
+      startSingle(pointers[Object.keys(pointers)[0]], true);
+      return;
+    }
+    if (left > 0) return;
+    var g = gesture;
+    gesture = null;
+    canvas.classList.remove('is-panning');
+    if (!g) return;
+    if (g.moved) {
+      lastDrag = performance.now();
+    } else if (event.type === 'pointerup' && p.button === 0) {
+      addNoteAt(event.clientX, event.clientY);
+    }
+  }
+  svg.addEventListener('pointerup', endPointer);
+  svg.addEventListener('pointercancel', endPointer);
+
+  canvas.addEventListener('wheel', function (event) {
+    event.preventDefault();
+    var scale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stageSize().height : 1;
+    var dx = event.deltaX * scale;
+    var dy = event.deltaY * scale;
+    if (event.ctrlKey || event.metaKey) {
+      zoomAt(Math.exp(-dy * 0.01), event.clientX, event.clientY);
+    } else {
+      if (event.shiftKey && !dx) { dx = dy; dy = 0; }
+      camera = { k: camera.k, x: camera.x + dx / camera.k, y: camera.y + dy / camera.k };
+      apply();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('keydown', function (event) {
+    var step = 80 / camera.k;
+    var handled = true;
+    switch (event.key) {
+      case 'ArrowLeft': camera.x -= step; apply(); break;
+      case 'ArrowRight': camera.x += step; apply(); break;
+      case 'ArrowUp': camera.y -= step; apply(); break;
+      case 'ArrowDown': camera.y += step; apply(); break;
+      case '+': case '=': zoomAtCenter(1.25); break;
+      case '-': case '_': zoomAtCenter(0.8); break;
+      case '0': fit(); break;
+      default: handled = false;
+    }
+    if (handled) event.preventDefault();
+  });
+
+  document.getElementById('zoom-in').addEventListener('click', function () { zoomAtCenter(1.25); });
+  document.getElementById('zoom-out').addEventListener('click', function () { zoomAtCenter(0.8); });
+  document.getElementById('zoom-fit').addEventListener('click', fit);
 
   function setHover(g) {
     if (hovered === g) return;
@@ -650,8 +943,7 @@ textarea.text {
     if (g) g.classList.add('is-hover');
   }
 
-  svg.addEventListener('pointermove', function (event) {
-    if (dragging) return;
+  function hover(event) {
     if (event.target.closest('.pin')) {
       setHover(null);
       hint.textContent = 'Drag the pin to move its note, or click it to edit the note.';
@@ -659,8 +951,8 @@ textarea.text {
     }
     var at = elementOf(event.target);
     setHover(at.g && at.g.getAttribute('data-kind') !== 'view' ? at.g : null);
-    hint.textContent = 'Click to add a note on ' + at.label;
-  });
+    hint.textContent = at.g ? 'Click to add a note on ' + at.label + ' · drag to move around' : HINT;
+  }
   svg.addEventListener('pointerleave', function () {
     setHover(null);
     hint.textContent = HINT;
@@ -673,8 +965,8 @@ textarea.text {
     var g = event.target.closest('.pin');
     if (!g || event.button > 0) return;
     event.preventDefault();
-    var n = null;
-    for (var i = 0; i < notes.length; i++) if (notes[i].id === g.getAttribute('data-id')) n = notes[i];
+    event.stopPropagation();
+    var n = noteById(g.getAttribute('data-id'));
     if (!n) return;
     var startX = event.clientX;
     var startY = event.clientY;
@@ -689,7 +981,7 @@ textarea.text {
       var point = toDrawing(ev.clientX, ev.clientY);
       n.x = point.x;
       n.y = point.y;
-      g.setAttribute('transform', 'translate(' + point.x + ' ' + point.y + ')');
+      g.setAttribute('transform', pinTransform(n));
     }
     function end(ev) {
       g.removeEventListener('pointermove', move);
@@ -698,13 +990,11 @@ textarea.text {
       g.classList.remove('is-dragging');
       lastDrag = performance.now();
       if (moved) {
-        var at = VIEW;
+        var at = { el: n.el, label: n.label };
         if (ev.type === 'pointerup') {
           g.style.display = 'none';
           at = elementOf(document.elementFromPoint(ev.clientX, ev.clientY));
           g.style.display = '';
-        } else {
-          at = { el: n.el, label: n.label };
         }
         var changed = at.el !== n.el;
         n.el = at.el;
@@ -746,11 +1036,12 @@ textarea.text {
     }
     var text = markdown();
     var shown = function () {
+      setPanel(true);
       copyBox.hidden = false;
       copyBox.value = text;
       copyBox.focus();
       copyBox.select();
-      say('This browser wouldn\'t copy for the page. The Markdown is selected in the box below: copy it from there.');
+      say('This browser wouldn\'t copy for the page. The Markdown is selected in the notes panel: copy it from there.');
     };
     try {
       navigator.clipboard.writeText(text).then(function () {
@@ -794,6 +1085,7 @@ textarea.text {
       notes = notes.concat(added).sort(function (a, b) { return a.created < b.created ? -1 : a.created > b.created ? 1 : 0; });
       store();
       render();
+      setPanel(true);
       var skipped = incoming.length - added.length;
       say('Loaded ' + plural(added.length, 'note') + ' from ' + file.name +
         (skipped ? ', and left out ' + skipped + ' already here or unreadable.' : '.'));
@@ -824,6 +1116,9 @@ textarea.text {
     say('Deleted ' + plural(n, 'note') + '.');
   });
 
+  document.getElementById('hide-notes').addEventListener('click', function () { setPanel(false); });
+  showNotes.addEventListener('click', function () { setPanel(true); });
+
   // Another tab with this page open changed the notes.
   window.addEventListener('storage', function (event) {
     if (event.key !== KEY) return;
@@ -831,7 +1126,13 @@ textarea.text {
     render();
   });
 
+  if (window.ResizeObserver) new ResizeObserver(function () { if (camera) apply(); }).observe(canvas);
+  else window.addEventListener('resize', function () { if (camera) apply(); });
+
+  hint.textContent = HINT;
   render();
+  if (NARROW.matches && !notes.length) setPanel(false);
+  if (camera) apply(); else fit();
 })();
 </script>
 </body>

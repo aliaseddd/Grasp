@@ -21,7 +21,7 @@
 
 ## Notes on the drawing
 
-`stronghold-proof.html` is the same drawing on a page you can annotate. Open the file in a browser; it needs no server and no build. Click the drawing to add a note. The note belongs to the element under the pointer (a box, a port, a line, or the view itself), and you can drag its pin onto another element.
+`stronghold-proof.html` is the same drawing on an endless plane you can move around and annotate. Open the file in a browser; it needs no server and no build. Drag the background to move around, scroll to pan, and pinch or hold Ctrl or ⌘ while scrolling to zoom; Fit brings the whole drawing back. Click to add a note. The note belongs to the element under the pointer (a box, a port, a line, or the view itself), and you can drag its pin onto another element or out onto the plane. A note's number in the list takes you to its pin.
 
 Notes stay in the browser that made them. Save notes writes them to `stronghold-proof-notes.json`, Load notes adds the ones from such a file that aren't there yet, and Copy as Markdown lists them with each element's qualified name, ready for an issue or a chat.
 
