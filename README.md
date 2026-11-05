@@ -12,7 +12,7 @@ The first code for [Stronghold](https://github.com/aliaseddd/Stronghold): one we
 | `hosts/server/` | The web part for SharePoint Server. | SPFx 1.4.1, TypeScript 2.4, Node 8 |
 | `hosts/online/` | The web part for SharePoint Online, which is also the Teams tab. | SPFx 1.24.1, Heft, Node 22.14+ |
 | `hosts/dev/` | A plain page that mounts the app the way the SharePoint hosts do, and the Chromium test. Never ships. | tsc, Playwright |
-| `docs/` | The screenshot above, the Teams icon source, the repo map aider drew, and a SysML v2 model of the proof's structure. | |
+| `docs/` | The screenshot above, the Teams icon source, the repo map aider drew, a SysML v2 model of the proof's structure, and aider's map of the SysML v2 Pilot Implementation (`docs/sysml/pilot-implementation`). | |
 
 Each folder has a README that says why it is the way it is.
 

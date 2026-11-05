@@ -32,3 +32,7 @@ By reading, not by a tool. The model was checked against the SysML v2 textual gr
 The drawing follows the release's graphical notation (`bnf/SysML-graphical-bnf.html`). It is laid out by hand in `draw.mjs`, not generated from the model, so a change to the model needs the same change there. Every `doc` line in the drawing is copied word for word from the model. `node docs/sysml/draw.mjs` writes `stronghold-proof.svg` and the drawing inside `stronghold-proof.html`, so the two stay the same.
 
 To have a tool check the model, install the release's Jupyter kernel (`install/jupyter`, `jupyter-sysml-kernel` 0.63.1), paste the file into a cell, and run it. The kernel lists any errors, and `%viz StrongholdProof` draws the model.
+
+## The pilot implementation
+
+[`pilot-implementation/`](pilot-implementation) maps the code of the SysML v2 Pilot Implementation, which the release's Jupyter kernel is built from: aider's repo maps of it, and how its projects fit together, from the grammars to the kernel.

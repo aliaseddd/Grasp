@@ -1,0 +1,10 @@
+# What draw-maps.sh tells aider to leave out of every map (gitignore syntax, read against the clone's root).
+
+# The code Xtext generates from the .xtext grammars: the ANTLR parsers, grammar access, and abstract
+# base classes. The parsers are megabytes each and would fill a map with their rule methods.
+src-gen/
+
+# Pictures, mostly the EMF edit icons. They have no definitions to show.
+*.gif
+*.png
+*.svg
