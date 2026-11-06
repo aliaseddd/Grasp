@@ -251,6 +251,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
 /* ==== slice: sequence ==== */
 /* ==== end slice: sequence ==== */
 /* ==== slice: geometry ==== */
+/* The geometry view: a plan with a coordinate frame and the parts' footprints to scale. A footprint that isn't to scale
+   (no shape, or its dimensions not set yet) is dashed. */
+.sysml .geo-axis { fill: none; stroke: currentColor; stroke-width: 1; stroke-opacity: 0.6; pointer-events: none; }
+.sysml .geo-arrow { fill: currentColor; fill-opacity: 0.6; }
+.sysml .geo-origin { fill: currentColor; fill-opacity: 0.6; pointer-events: none; }
+.sysml .geo-label { font: italic 400 11.5px var(--sans); fill-opacity: 0.7; pointer-events: none; }
+.sysml .geo-scale { font: 400 10.5px var(--mono); fill-opacity: 0.7; pointer-events: none; }
+.sysml .footprint.no-shape > .outline { stroke-dasharray: 5 3; stroke-opacity: 0.7; }
+.sysml .footprint .geo-dims { font: 400 11px var(--mono); fill-opacity: 0.8; }
+.sysml .footprint.no-shape .geo-dims { font: italic 400 11px var(--sans); fill-opacity: 0.6; }
+/* The spatial fields sit in rows, as many columns as the row has fields showing; a row with none showing takes no room. */
+.fields .geo-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.fields .geo-row:not(:has(label:not([hidden]))) { display: none; }
 /* ==== end slice: geometry ==== */
 /* ==== slice: grid ==== */
 /* ==== end slice: grid ==== */
@@ -358,6 +371,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
           <!-- ==== slice: sequence ==== -->
           <!-- ==== end slice: sequence ==== -->
           <!-- ==== slice: geometry ==== -->
+          <!-- The spatial fields of a part drawn in a geometry view: its shape and unit, the dimensions its shape has (in
+               that unit), and the position of its origin in its owner's frame. -->
+          <div class="geo-row">
+            <label id="l-shape">Shape <select id="f-shape"><option value="">none</option><option value="Box">Box</option><option value="Rectangle">Rectangle</option><option value="CircularCylinder">CircularCylinder</option><option value="Sphere">Sphere</option><option value="CircularCone">CircularCone</option></select></label>
+            <label id="l-unit">Unit <select id="f-unit"><option value="m">m</option><option value="mm">mm</option><option value="cm">cm</option><option value="km">km</option><option value="ft">ft</option><option value="in">in</option></select></label>
+          </div>
+          <div class="geo-row">
+            <label id="l-length">Length <input type="text" id="f-length" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label id="l-width">Width <input type="text" id="f-width" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label id="l-height">Height <input type="text" id="f-height" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label id="l-radius">Radius <input type="text" id="f-radius" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <div class="geo-row">
+            <label id="l-posX">Position x <input type="text" id="f-posX" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label id="l-posY">Position y <input type="text" id="f-posY" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label id="l-posZ">Position z <input type="text" id="f-posZ" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          </div>
           <!-- ==== end slice: geometry ==== -->
           <!-- ==== slice: grid ==== -->
           <!-- ==== end slice: grid ==== -->
@@ -387,6 +417,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
           <!-- ==== slice: sequence ==== -->
           <!-- ==== end slice: sequence ==== -->
           <!-- ==== slice: geometry ==== -->
+          <div class="view-options" data-view-kind="GeometryView" hidden>
+            <div class="geo-row">
+              <label id="l-g-scale">Pixels per unit <input type="text" id="g-scale" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+              <label id="l-g-unit">Unit <select id="g-unit"><option value="m">m</option><option value="mm">mm</option><option value="cm">cm</option><option value="km">km</option><option value="ft">ft</option><option value="in">in</option></select></label>
+            </div>
+          </div>
           <!-- ==== end slice: geometry ==== -->
           <!-- ==== slice: grid ==== -->
           <!-- ==== end slice: grid ==== -->
@@ -706,8 +742,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
       admits: [], tools: [], options: { lifelines: [] } },
     // ==== end slice: sequence ====
     // ==== slice: geometry ====
+    // A plan of parts (and items, once that kind is in) drawn to scale: scale is the pixels per unit of the view's unit.
     GeometryView: { name: 'GeometryView', label: 'geometry view', qualified: 'StandardViewDefinitions::GeometryView', short: 'gev', renderer: 'geometry',
-      admits: [], tools: [], options: { scale: 40, unit: 'm' } },
+      admits: ['PartUsage', 'ItemUsage'], tools: ['PartUsage'], options: { scale: 40, unit: 'm' } },
     // ==== end slice: geometry ====
     // ==== slice: grid ====
     GridView: { name: 'GridView', label: 'grid view', qualified: 'StandardViewDefinitions::GridView', short: 'grv', renderer: 'grid',
@@ -750,6 +787,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // ==== slice: sequence ====
     // ==== end slice: sequence ====
     // ==== slice: geometry ====
+    // The spatial fields of a part or item drawn to scale in a geometry view: its shape (a ShapeItems kind whose
+    // dimensions are plain attributes; Box is RectangularCuboid), the dimensions that shape has, the position of the
+    // shape's origin in its owner's frame, all numbers in the element's own unit. The panel shows them only while the
+    // selection is drawn in a geometry view.
+    shape: { type: 'enum', label: 'shape', values: ['', 'Box', 'Rectangle', 'CircularCylinder', 'Sphere', 'CircularCone'], views: ['GeometryView'] },
+    length: { type: 'number', label: 'length', views: ['GeometryView'] },
+    width: { type: 'number', label: 'width', views: ['GeometryView'] },
+    height: { type: 'number', label: 'height', views: ['GeometryView'] },
+    radius: { type: 'number', label: 'radius', views: ['GeometryView'] },
+    posX: { type: 'number', label: 'x position', views: ['GeometryView'] },
+    posY: { type: 'number', label: 'y position', views: ['GeometryView'] },
+    posZ: { type: 'number', label: 'z position', views: ['GeometryView'] },
+    unit: { type: 'enum', label: 'unit', values: ['m', 'mm', 'cm', 'km', 'ft', 'in'], views: ['GeometryView'] },
     // ==== end slice: geometry ====
     // ==== slice: grid ====
     // ==== end slice: grid ====
@@ -768,6 +818,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ==== slice: sequence ====
   // ==== end slice: sequence ====
   // ==== slice: geometry ====
+  // A part, and an item once that kind is in, can be drawn to scale: the spatial trait and the spatial fields.
+  ['PartUsage', 'ItemUsage'].forEach((k) => {
+    if (!KINDS[k]) return;
+    KINDS[k].traits.push('spatial');
+    KINDS[k].fields.push('shape', 'length', 'width', 'height', 'radius', 'posX', 'posY', 'posZ', 'unit');
+  });
   // ==== end slice: geometry ====
   // ==== slice: grid ====
   // ==== end slice: grid ====
@@ -1135,6 +1191,130 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ==== slice: sequence ====
   // ==== end slice: sequence ====
   // ==== slice: geometry ====
+  // Geometry. A part or item with the spatial trait may carry a shape with its dimensions and a position, numbers in
+  // its own unit; a number that isn't set is '' and is neither drawn to scale nor written. The dimensions a shape has
+  // are exactly those its ShapeItems kind owns (Box is RectangularCuboid), so a dimension always names a feature of the
+  // shape: with SI::* imported a wrong name would resolve to the ISQ quantity and pass the validator silently.
+  const GEO_DIMS = { Box: ['length', 'width', 'height'], Rectangle: ['length', 'width'], CircularCylinder: ['radius', 'height'], Sphere: ['radius'], CircularCone: ['radius', 'height'] };
+  const GEO_UNITS = ['m', 'mm', 'cm', 'km', 'ft', 'in'];
+  const GEO_METRES = { m: 1, mm: 0.001, cm: 0.01, km: 1000, ft: 0.3048, in: 0.0254 };
+  // The names the text brings in from the library (ShapeItems, SpatialItems, MeasurementReferences, SI, USCustomaryUnits)
+  // when anything is drawn to scale; an element named like one would shadow it in the text.
+  const GEO_LIBRARY_NAMES = new Set(['SpatialItem', 'Translation', 'TranslationRotationSequence'].concat(Object.keys(GEO_DIMS), GEO_UNITS));
+  function geoDims(shape) { return GEO_DIMS[shape] || null; }
+  function geoUnitOf(el) { return GEO_UNITS.indexOf(el.unit) >= 0 ? el.unit : 'm'; }
+  // A length in one unit, in another.
+  function geoConvert(value, from, to) { return value * GEO_METRES[GEO_UNITS.indexOf(from) >= 0 ? from : 'm'] / GEO_METRES[GEO_UNITS.indexOf(to) >= 0 ? to : 'm']; }
+  function geoSet(v) { return typeof v === 'number' && Number.isFinite(v); }
+  // Whether an element has a position: any of its three coordinates set (the others count as 0).
+  function geoPlaced(el) { return hasTrait(el.kind, 'spatial') && (geoSet(el.posX) || geoSet(el.posY) || geoSet(el.posZ)); }
+  // The dimensions of its shape an element sets.
+  function geoDimsSet(el) { const dims = hasTrait(el.kind, 'spatial') ? geoDims(el.shape) : null; return dims ? dims.filter((d) => geoSet(el[d])) : []; }
+  // Whether the text says anything spatial about an element: a shape, or a position.
+  function geoExported(el) { return hasTrait(el.kind, 'spatial') && (!!geoDims(el.shape) || geoPlaced(el)); }
+  // A number as the text writes it: as JavaScript prints it, but never in exponent form.
+  function geoNumber(v) {
+    const s = String(v);
+    if (!/e/i.test(s)) return s;
+    return Math.abs(v) >= 1e21 ? BigInt(Math.round(v)).toString() : v.toFixed(12).replace(/0+$/, '').replace(/\.$/, '');
+  }
+  // A quantity with its unit: 2 [m], 24 ['in'] (in is a keyword, so quote() quotes it).
+  function geoQuantity(v, unit) { return geoNumber(v) + ' [' + quote(unit) + ']'; }
+  // The usages an element takes bound values from in the text: the inherited feature it redefines (the same name as one
+  // its owner inherits, which headOf writes as :>>), the usages it specializes (:>), and theirs in turn. A dimension or
+  // the position one of them binds can't be bound again on the element: the validator refuses to override it.
+  function geoGenerals(model, el, ids) {
+    const out = [];
+    const seen = new Set([el.id]);
+    const walk = (e) => {
+      const owner = e.owner !== undefined ? ids.get(e.owner) : null;
+      const inherited = owner && e.name.trim() ? inheritedFeatures(model, owner, ids).get(e.name.trim()) : null;
+      const next = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === e.id).map((r) => ids.get(r.to));
+      if (inherited && inherited.kind === e.kind) next.push(inherited);
+      next.forEach((g) => { if (g && !seen.has(g.id)) { seen.add(g.id); out.push(g); walk(g); } });
+    };
+    walk(el);
+    return out;
+  }
+  // What keeps a spatial element's text from being right, beyond what the validator says: a dimension that isn't a
+  // length, a position on a usage that stands for several parts (the text would place them all at one point), and a
+  // dimension or position bound twice along the :>> and :> chain ("Cannot override a binding feature value").
+  function geoCheck(model, el, ids, add) {
+    if (!hasTrait(el.kind, 'spatial')) return;
+    const what = describe(model, el, ids);
+    const dims = geoDimsSet(el);
+    dims.forEach((d) => { if (el[d] <= 0) add(el.id, 'The ' + d + ' of ' + what + ' is ' + geoNumber(el[d]) + '; a dimension must be more than 0.'); });
+    const placed = geoPlaced(el);
+    if (placed && el.multiplicity && el.multiplicity !== '1') add(el.id, what + ' has a position, which places one ' + KINDS[el.kind].label + ', but its multiplicity is ' + el.multiplicity + '. Make it 1 or clear it.');
+    if (!placed && !dims.length) return;
+    geoGenerals(model, el, ids).forEach((g) => {
+      const from = describe(model, g, ids);
+      if (placed && geoPlaced(g)) add(el.id, what + ' takes its position from ' + from + ' and sets one of its own. The text can\'t bind it twice: clear one of them.');
+      geoDimsSet(g).filter((d) => dims.indexOf(d) >= 0).forEach((d) => add(el.id, what + ' takes its ' + d + ' from ' + from + ' and sets one of its own. The text can\'t bind it twice: clear one of them.'));
+    });
+  }
+  // An element of any kind named like a library name the geometry text imports shadows it, and the text breaks.
+  function geoNameCheck(model, el, ids, add) {
+    const name = el.name.trim();
+    if (!GEO_LIBRARY_NAMES.has(name) || !model.elements.some(geoExported)) return;
+    add(el.id, 'The name ' + name + ' is one the geometry text brings in from the library, so the text would mix them up. Rename ' + describe(model, el, ids) + '.');
+  }
+  // The spatial statements of a usage's body: its shape with the dimensions it sets, then its position as a translation
+  // of its coordinate frame, with the imports they need (validated: critique/g01, g02, g08b, g10, g11; the units, a
+  // shape without dimensions and the heads headOf makes, slices/geometry/v01, v03, v04).
+  function writeGeometry(model, el, depth, h) {
+    if (!geoExported(el)) return;
+    const unit = geoUnitOf(el);
+    const dims = geoDims(el.shape);
+    h.needImport('SI::*');
+    if (unit === 'ft' || unit === 'in') h.needImport('USCustomaryUnits::*');
+    if (dims) {
+      h.needImport('ShapeItems::*');
+      const set = dims.filter((d) => geoSet(el[d]));
+      if (!set.length) h.line(depth, 'item :>> shape : ' + el.shape + ';');
+      else {
+        h.line(depth, 'item :>> shape : ' + el.shape + ' {');
+        set.forEach((d) => h.line(depth + 1, ':>> ' + d + ' = ' + geoQuantity(el[d], unit) + ';'));
+        h.line(depth, '}');
+      }
+    }
+    if (geoPlaced(el)) {
+      h.needImport('SpatialItems::*');
+      h.needImport('MeasurementReferences::*');
+      const at = ['posX', 'posY', 'posZ'].map((k) => geoQuantity(geoSet(el[k]) ? el[k] : 0, unit)).join(', ');
+      h.line(depth, 'attribute :>> coordinateFrame {');
+      h.line(depth + 1, ':>> transformation : TranslationRotationSequence {');
+      h.line(depth + 2, ':>> elements = (new Translation((' + at + ')));');
+      h.line(depth + 1, '}');
+      h.line(depth, '}');
+    }
+  }
+  BODY.push(writeGeometry);
+  // A positioned usage is typed as a spatial item, after whatever head it has, and sits among its owner's spatial parts
+  // (or items) when the owner has a position too; under a plain owner or the package it is only typed, since
+  // subSpatialParts resolves only in a spatial item (validated heads: g08b, g10, g11, v01, v02, v04).
+  function wrapGeometryHead(kind, subset) {
+    const prev = kind.head;
+    kind.head = function (model, el, h) {
+      const base = prev ? prev(model, el, h) : h.headOf(el);
+      if (base === null || !geoPlaced(el)) return base;
+      const owner = el.owner !== undefined ? h.ids.get(el.owner) : null;
+      return base + ' : SpatialItem' + (owner && geoPlaced(owner) ? ' :> ' + subset : '');
+    };
+  }
+  function wrapCheck(kind, check) {
+    const prev = kind.check;
+    kind.check = function (model, el, ids, add) { if (prev) prev(model, el, ids, add); check(model, el, ids, add); };
+  }
+  if (KINDS.PartUsage) { wrapGeometryHead(KINDS.PartUsage, 'subSpatialParts'); wrapCheck(KINDS.PartUsage, geoCheck); }
+  if (KINDS.ItemUsage) { wrapGeometryHead(KINDS.ItemUsage, 'subSpatialItems'); wrapCheck(KINDS.ItemUsage, geoCheck); }
+  Object.keys(KINDS).forEach((k) => wrapCheck(KINDS[k], geoNameCheck));
+  EXTRA.GEO_UNITS = GEO_UNITS;
+  EXTRA.geoDims = geoDims;
+  EXTRA.geoUnitOf = geoUnitOf;
+  EXTRA.geoConvert = geoConvert;
+  EXTRA.geoPlaced = geoPlaced;
+  EXTRA.geoNumber = geoNumber;
   // ==== end slice: geometry ====
   // ==== slice: grid ====
   // ==== end slice: grid ====
@@ -2169,6 +2349,231 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ==== slice: sequence ====
   // ==== end slice: sequence ====
   // ==== slice: geometry ====
+  // The geometry view: a plan of the parts it shows, each drawn as its shape's footprint to scale, x to the right and y
+  // up from a coordinate frame at the view's origin. A Box or Rectangle stands on its origin corner, length along x and
+  // width along y, as the pilot's own vehicle example has it; a round shape (a cylinder, a sphere, a cone) is centred on
+  // its origin. A part's position is in its owner's frame when the owner is drawn here too, else in the view's. The
+  // positions and sizes are the model's: dragging a footprint changes posX and posY; dimensions are set in the panel.
+  const GEO_AXIS = 96;  // the axes' length, in px
+  function geoScale(view) { const s = +view.options.scale; return Number.isFinite(s) && s > 0 ? s : 40; }
+  function geoViewUnit(view) { return M.GEO_UNITS.indexOf(view.options.unit) >= 0 ? view.options.unit : 'm'; }
+  // Pixels per one of unit in a view.
+  function geoPxPer(view, unit) { return geoScale(view) * M.geoConvert(1, unit, geoViewUnit(view)); }
+  // The view's frame origin on the plane: the axes rise from it, so an empty frame keeps its usual place and size.
+  function geoOrigin(view) { return { x: view.x, y: view.y + GEO_AXIS }; }
+  function geoNum(v) { return typeof v === 'number' && Number.isFinite(v) ? v : 0; }
+  // Rounds a position to what a pixel is worth in the part's unit, and one digit more (three decimals for metres at
+  // 40 px per metre, whole millimetres at 0.04).
+  function geoRound(v, pxPer) {
+    const p = Math.pow(10, clamp(Math.ceil(Math.log10(pxPer)) + 1, 0, 6));
+    return Math.round(v * p) / p;
+  }
+  // The footprint of an element whose position is measured from the plane point o: its shape (rect or circle) and rect in
+  // plane coordinates, its origin (where its own children are measured from), whether it is to scale (its shape and the
+  // dimensions the plan needs are set; else the kind's default size, dashed), and the words of its second line.
+  function geoFootprint(view, el, o) {
+    const unit = M.geoUnitOf(el);
+    const px = geoPxPer(view, unit);
+    const size = M.KINDS[el.kind].size;
+    const x = o.x + geoNum(el.posX) * px;
+    const y = o.y - geoNum(el.posY) * px;
+    const dims = M.geoDims(el.shape);
+    const set = (d) => typeof el[d] === 'number' && Number.isFinite(el[d]) && el[d] > 0;
+    const out = (shape, r, toScale, text) => ({ shape: shape, x: r.x, y: r.y, w: r.w, h: r.h, toScale: toScale, origin: { x: x, y: y }, text: text });
+    if (!dims) return out('rect', { x: x, y: y - size[1], w: size[0], h: size[1] }, false, 'no shape yet');
+    const words = el.shape + ' ' + dims.map((d) => (d === 'radius' ? 'r ' : dims[0] === 'radius' ? 'h ' : '') + (typeof el[d] === 'number' ? M.geoNumber(el[d]) : '?')).join(' × ') + ' ' + unit;
+    if (dims[0] === 'radius') {
+      if (!set('radius')) return out('circle', { x: x - size[1] / 2, y: y - size[1] / 2, w: size[1], h: size[1] }, false, el.shape + ' · set its radius');
+      const r = el.radius * px;
+      return out('circle', { x: x - r, y: y - r, w: 2 * r, h: 2 * r }, true, words);
+    }
+    if (!set('length') || !set('width')) return out('rect', { x: x, y: y - size[1], w: size[0], h: size[1] }, false, el.shape + ' · set its length and width');
+    return out('rect', { x: x, y: y - el.width * px, w: el.length * px, h: el.width * px }, true, words);
+  }
+  // The layout of a geometry view: the spatial elements it shows as footprints, each in the frame of its nearest owner
+  // shown here (kids and parentOf as in a graph view), feet the footprints, origin the view's frame origin.
+  function geometryLayout(view, ids) {
+    const order = new Map(model.elements.map((e, i) => [e.id, i]));
+    const shown = new Set(Object.keys(view.layout).filter((id) => ids.has(id) && M.hasTrait(ids.get(id).kind, 'spatial')));
+    const kids = new Map();
+    const parentOf = new Map();
+    shown.forEach((id) => {
+      const el = ids.get(id);
+      let p = el.owner;
+      while (p !== undefined && !shown.has(p)) { const owner = ids.get(p); p = owner ? owner.owner : undefined; }
+      const key = p === undefined ? '' : p;
+      parentOf.set(id, key);
+      if (!kids.has(key)) kids.set(key, []);
+      kids.get(key).push(el);
+    });
+    kids.forEach((group) => group.sort((a, b) => order.get(a.id) - order.get(b.id)));
+    const o = geoOrigin(view);
+    const rects = new Map();
+    const feet = new Map();
+    // The axes and the scale bar take their room whatever is drawn, so an empty view frames them.
+    let box = { x: o.x - 8, y: o.y - GEO_AXIS - 16, x2: o.x + GEO_AXIS + 24, y2: o.y + 32 };
+    const place = (el, from) => {
+      const fp = geoFootprint(view, el, from);
+      feet.set(el.id, fp);
+      rects.set(el.id, { x: fp.x, y: fp.y, w: fp.w, h: fp.h });
+      // A small footprint carries its two lines below itself; the frame leaves room for them.
+      const bottom = fp.y + fp.h + (fp.w >= 120 && fp.h >= 44 ? 0 : 34);
+      box = { x: Math.min(box.x, fp.x), y: Math.min(box.y, fp.y), x2: Math.max(box.x2, fp.x + fp.w), y2: Math.max(box.y2, bottom) };
+      (kids.get(el.id) || []).forEach((k) => place(k, fp.origin));
+    };
+    (kids.get('') || []).forEach((el) => place(el, o));
+    return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: new Map(), frameRect: frameAround(view, box), origin: o, feet: feet };
+  }
+  MARKERS['m-geo-axis'] = '<marker id="m-geo-axis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto">' +
+    '<path class="geo-arrow" d="M1,1 L9,5 L1,9 Z"/></marker>';
+  // The coordinate frame at the view's origin: the x and y axes with their names, and under the x axis a scale bar of
+  // the shortest of 1, 2, 5 × 10ⁿ units of the view's unit that is at least 40 px long, reading "1 m".
+  function drawGeometryAxes(view, g, L) {
+    const o = L.origin;
+    const scale = geoScale(view);
+    const axes = node('g', {}, 'geo-axes');
+    axes.appendChild(node('path', { d: 'M' + f(o.x) + ',' + f(o.y) + ' H' + f(o.x + GEO_AXIS), 'marker-end': 'url(#m-geo-axis)' }, 'geo-axis'));
+    axes.appendChild(node('path', { d: 'M' + f(o.x) + ',' + f(o.y) + ' V' + f(o.y - GEO_AXIS), 'marker-end': 'url(#m-geo-axis)' }, 'geo-axis'));
+    axes.appendChild(node('circle', { cx: f(o.x), cy: f(o.y), r: 2.5 }, 'geo-origin'));
+    axes.appendChild(text(o.x + GEO_AXIS + 8, o.y + 4, 'x', 'geo-label'));
+    axes.appendChild(text(o.x - 7, o.y - GEO_AXIS - 2, 'y', 'geo-label', 'end'));
+    const base = Math.pow(10, Math.floor(Math.log10(40 / scale)));
+    const n = +([1, 2, 5, 10].map((m) => m * base).find((v) => v * scale >= 40)).toPrecision(3);
+    const len = n * scale;
+    const by = o.y + 20;
+    axes.appendChild(node('path', { d: 'M' + f(o.x) + ',' + f(by - 4) + ' V' + f(by + 4) + ' M' + f(o.x) + ',' + f(by) + ' H' + f(o.x + len) + ' M' + f(o.x + len) + ',' + f(by - 4) + ' V' + f(by + 4) }, 'geo-axis'));
+    axes.appendChild(text(o.x + len + 6, by + 4, M.geoNumber(n) + ' ' + geoViewUnit(view), 'geo-scale'));
+    g.appendChild(axes);
+  }
+  // A footprint: the outline (a rectangle or a circle), then «part» name : Type and the shape with its dimensions,
+  // inside the footprint when it has room for them, else below it (pins and badges sit on its top edge); then what
+  // sits inside it, on top of it.
+  function drawFootprint(el, parent, L) {
+    const kind = M.KINDS[el.kind];
+    const fp = L.feet.get(el.id);
+    const g = node('g', { 'data-el': el.id, 'data-kind': el.kind, 'data-view': L.view.id }, 'el usage footprint' + (fp.toScale ? '' : ' no-shape'));
+    if (fp.shape === 'circle') g.appendChild(node('circle', { cx: f(fp.x + fp.w / 2), cy: f(fp.y + fp.h / 2), r: f(fp.w / 2) }, 'outline'));
+    else g.appendChild(node('rect', { x: f(fp.x), y: f(fp.y), width: f(fp.w), height: f(fp.h) }, 'outline'));
+    const inside = fp.shape === 'rect' && fp.w >= 120 && fp.h >= 44;
+    const x = inside ? fp.x + PAD : fp.x + fp.w / 2;
+    const y = inside ? fp.y + 16 : fp.y + fp.h + 15;
+    const anchor = inside ? 'start' : 'middle';
+    const head = node('text', { x: f(x), y: f(y), 'text-anchor': anchor });
+    const kw = node('tspan', {}, 'kw');
+    kw.textContent = '«' + kind.keyword + '» ';
+    const name = node('tspan', {}, 'uname');
+    name.textContent = nameLine(el);
+    head.appendChild(kw);
+    head.appendChild(name);
+    g.appendChild(head);
+    g.appendChild(text(x, y + 15, fp.text, 'geo-dims', anchor));
+    parent.appendChild(g);
+    (L.kids.get(el.id) || []).forEach((k) => drawFootprint(k, parent, L));
+  }
+  RENDERERS.geometry = {
+    layout: geometryLayout,
+    draw: function (view, g, L) {
+      const plan = node('g', {}, 'geometry');
+      g.appendChild(plan);
+      (L.kids.get('') || []).forEach((el) => drawFootprint(el, plan, L));
+      drawGeometryAxes(view, plan, L); // on top, since a part at the origin would cover them
+    },
+    // A new part: a box of one by one by one of the view's unit, centred on the click; inside another footprint that can
+    // hold it, it belongs to that part and its position is in that part's frame.
+    place: function (view, kind, p, hit) {
+      const k = M.KINDS[kind];
+      if (!M.hasTrait(kind, 'spatial')) { say('A ' + k.label + ' has no footprint to draw to scale, so it can\'t go in a ' + M.VIEW_KINDS[view.kind].label + '.'); return null; }
+      const L = viewLayout(view.id);
+      const unit = geoViewUnit(view);
+      const px = geoPxPer(view, unit);
+      const host = containerAt(L, p, null, kind);
+      const o = host ? L.feet.get(host).origin : L.origin;
+      const el = freshElement(kind, freeName(kind, host));
+      if (host) el.owner = host;
+      el.shape = 'Box';
+      el.length = 1;
+      el.width = 1;
+      el.height = 1;
+      el.unit = unit;
+      el.posX = geoRound((p.x - o.x) / px - 0.5, px);
+      el.posY = geoRound((o.y - p.y) / px - 0.5, px);
+      el.posZ = 0;
+      view.layout[el.id] = M.placement(el, { x: 0, y: 0 });
+      model.elements.push(el);
+      return el;
+    },
+    dragStart: function (view, el, p) {
+      if (!view.layout[el.id]) return null;
+      return { kind: 'el', id: el.id, view: view.id, start: p, from: { posX: el.posX, posY: el.posY }, moved: false };
+    },
+    // Moving a footprint moves the part: its position follows the pointer, in its own unit, rounded to a pixel's worth.
+    drag: function (view, el, d, p) {
+      const px = geoPxPer(view, M.geoUnitOf(el));
+      el.posX = geoRound(geoNum(d.from.posX) + (p.x - d.start.x) / px, px);
+      el.posY = geoRound(geoNum(d.from.posY) - (p.y - d.start.y) / px, px);
+    },
+    // The owner stays whatever footprint the part lands in: changing owners is a general view's business. Dropped in
+    // another view's frame, it goes back where it was, as a box does in a graph view.
+    drop: function (view, el, d, p, event) {
+      const what = M.describe(model, el);
+      const other = event.type === 'pointerup' ? viewAt(p, view.id) : null;
+      if (other) {
+        el.posX = d.from.posX;
+        el.posY = d.from.posY;
+        return { say: 'A footprint doesn\'t move into another view by dragging, so it went back. To show ' + what + ' in ' + M.describeView(model, viewById(other)) + ', select that view and use its Show list.' };
+      }
+      const where = 'Moved ' + what + ' to ' + M.geoNumber(geoNum(el.posX)) + ', ' + M.geoNumber(geoNum(el.posY)) + ' ' + M.geoUnitOf(el);
+      return { undo: where, text: where, key: 'move:' + el.id };
+    }
+  };
+  // The view's options in the panel: the scale (pixels per unit) and the unit. Changing the unit keeps the drawing its
+  // size, so the scale follows (40 px per m is 0.04 px per mm); the unit is what new parts are measured in.
+  const gScale = $('g-scale');
+  const gUnit = $('g-unit');
+  VIEW_PANELS.GeometryView = function (view, write) {
+    gScale.value = M.geoNumber(geoScale(view));
+    gUnit.value = geoViewUnit(view);
+    gScale.readOnly = !write;
+    gUnit.disabled = !write;
+  };
+  function geoSelectedView() {
+    const view = selectedView();
+    return view && view.kind === 'GeometryView' && editable() ? view : null;
+  }
+  function geoScaleText(view) { return 'Set the scale of ' + M.describeView(model, view) + ' to ' + M.geoNumber(geoScale(view)) + ' px per ' + geoViewUnit(view); }
+  gScale.addEventListener('input', () => {
+    const view = geoSelectedView();
+    const v = gScale.value.trim() === '' ? NaN : +gScale.value;
+    if (!view || !Number.isFinite(v) || v <= 0) return;
+    const before = snapshot();
+    view.options.scale = v;
+    commit(geoScaleText(view), 'scale:' + view.id, before);
+    render();
+    changed();
+  });
+  gScale.addEventListener('change', () => {
+    const view = geoSelectedView();
+    if (!view) return;
+    gScale.value = M.geoNumber(geoScale(view));
+    logChange(geoScaleText(view), 'scale:' + view.id);
+    endEdit();
+    changed();
+    say(geoScaleText(view) + '.');
+  });
+  gUnit.addEventListener('change', () => {
+    const view = geoSelectedView();
+    if (!view || M.GEO_UNITS.indexOf(gUnit.value) < 0) return;
+    const before = snapshot();
+    view.options.scale = +(geoScale(view) * M.geoConvert(1, gUnit.value, geoViewUnit(view))).toPrecision(6);
+    view.options.unit = gUnit.value;
+    const what = 'Set the unit of ' + M.describeView(model, view) + ' to ' + gUnit.value;
+    commit(what, null, before);
+    logChange(what);
+    render();
+    renderInspector();
+    changed();
+    say(what + '. The scale is now ' + M.geoNumber(geoScale(view)) + ' px per ' + gUnit.value + ', so the drawing keeps its size; new parts are measured in ' + gUnit.value + '.');
+  });
   // ==== end slice: geometry ====
   // ==== slice: grid ====
   // ==== end slice: grid ====

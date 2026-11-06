@@ -1,0 +1,56 @@
+{
+  "model": {
+    "format": "stronghold-canvas/2",
+    "revision": "2026-11-06T15:00:00.000Z",
+    "package": {
+      "name": "RoomPlan",
+      "doc": "A room with a desk, a cabinet and a pillar: its plan drawn to scale in a geometry view, its structure in a general view."
+    },
+    "elements": [
+      { "id": "Room", "kind": "PartDefinition", "name": "Room", "abstract": false, "doc": "A room; its frame's origin is the south-west floor corner, x east, y north, z up." },
+      { "id": "Desk", "kind": "PartDefinition", "name": "Desk", "abstract": false, "doc": "" },
+      { "id": "Cabinet", "kind": "PartDefinition", "name": "Cabinet", "abstract": false, "doc": "" },
+      { "id": "Pillar", "kind": "PartDefinition", "name": "Pillar", "abstract": false, "doc": "" },
+      { "id": "room", "kind": "PartUsage", "name": "room", "multiplicity": "1", "doc": "The room is 8 by 6 metres and 3 metres high.",
+        "shape": "Box", "length": 8, "width": 6, "height": 3, "radius": "", "posX": 0, "posY": 0, "posZ": 0, "unit": "m" },
+      { "id": "room.desk", "kind": "PartUsage", "name": "desk", "owner": "room", "multiplicity": "", "doc": "",
+        "shape": "Box", "length": 2, "width": 1, "height": 0.75, "radius": "", "posX": 2, "posY": 1.5, "posZ": 0, "unit": "m" },
+      { "id": "room.cabinet", "kind": "PartUsage", "name": "cabinet", "owner": "room", "multiplicity": "", "doc": "",
+        "shape": "Box", "length": 1, "width": 0.5, "height": 2, "radius": "", "posX": 6.5, "posY": 0.5, "posZ": 0, "unit": "m" },
+      { "id": "room.pillar", "kind": "PartUsage", "name": "pillar", "owner": "room", "multiplicity": "", "doc": "",
+        "shape": "CircularCylinder", "length": "", "width": "", "height": 3, "radius": 0.25, "posX": 5, "posY": 4, "posZ": 0, "unit": "m" }
+    ],
+    "relationships": [
+      { "id": "t-room", "kind": "FeatureTyping", "from": "room", "to": "Room", "hidden": true },
+      { "id": "t-desk", "kind": "FeatureTyping", "from": "room.desk", "to": "Desk", "hidden": true },
+      { "id": "t-cabinet", "kind": "FeatureTyping", "from": "room.cabinet", "to": "Cabinet", "hidden": true },
+      { "id": "t-pillar", "kind": "FeatureTyping", "from": "room.pillar", "to": "Pillar", "hidden": true }
+    ],
+    "views": [
+      { "id": "v-plan", "kind": "GeometryView", "name": "plan", "doc": "The room seen from above, in metres.", "x": 0, "y": 0,
+        "layout": {
+          "room": { "x": 0, "y": 0, "w": 180, "h": 60 },
+          "room.desk": { "x": 0, "y": 0, "w": 180, "h": 60 },
+          "room.cabinet": { "x": 0, "y": 0, "w": 180, "h": 60 },
+          "room.pillar": { "x": 0, "y": 0, "w": 180, "h": 60 }
+        },
+        "options": { "scale": 40, "unit": "m" } },
+      { "id": "v-structure", "kind": "GeneralView", "name": "structure", "doc": "", "x": 560, "y": 0,
+        "layout": {
+          "Room": { "x": 0, "y": 0, "w": 220, "h": 72 },
+          "Desk": { "x": 250, "y": 0, "w": 220, "h": 72 },
+          "Cabinet": { "x": 500, "y": 0, "w": 220, "h": 72 },
+          "Pillar": { "x": 750, "y": 0, "w": 220, "h": 72 },
+          "room": { "x": 0, "y": 140, "w": 760, "h": 200 },
+          "room.desk": { "x": 20, "y": 92, "w": 180, "h": 60 },
+          "room.cabinet": { "x": 230, "y": 92, "w": 180, "h": 60 },
+          "room.pillar": { "x": 440, "y": 92, "w": 180, "h": 60 }
+        },
+        "options": {} }
+    ]
+  },
+  "notes": [
+    { "id": "n1", "no": 1, "target": "room.desk", "targetLabel": "part desk in room", "text": "Is 2 m long enough for two screens side by side?",
+      "by": "user", "created": "2026-11-06T15:00:00.000Z", "updated": "2026-11-06T15:00:00.000Z", "response": "", "resolved": false }
+  ]
+}
