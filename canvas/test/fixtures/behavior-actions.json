@@ -1,0 +1,78 @@
+{
+  "model": {
+    "format": "stronghold-canvas/2",
+    "revision": "2026-11-06T15:00:00.000Z",
+    "package": {
+      "name": "StrongholdRelease",
+      "doc": "How a release of Stronghold is built: compile, then test and lint side by side, then publish, warn or fix, then wait for the maintainer's approval."
+    },
+    "elements": [
+      { "id": "Warning", "kind": "PartDefinition", "name": "Warning", "abstract": false, "doc": "What a release sends its maintainer when the lint has something to say." },
+      { "id": "Approval", "kind": "PartDefinition", "name": "Approval", "abstract": false, "doc": "What the maintainer sends back to let the release out." },
+      { "id": "maintainer", "kind": "PartUsage", "name": "maintainer", "multiplicity": "1", "doc": "Whoever cuts the release." },
+      { "id": "Release", "kind": "ActionDefinition", "name": "Release", "abstract": false, "doc": "One release, from the sources to the published bundle." },
+      { "id": "Release.source", "kind": "ParameterUsage", "name": "source", "owner": "Release", "direction": "in", "multiplicity": "", "doc": "" },
+      { "id": "Release.bundle", "kind": "ParameterUsage", "name": "bundle", "owner": "Release", "direction": "out", "multiplicity": "", "doc": "" },
+      { "id": "Release.compile", "kind": "ActionUsage", "name": "compile", "owner": "Release", "multiplicity": "", "actionKind": "plain", "payload": "", "target": "", "role": "", "doc": "webpack 5 and TypeScript 5.9." },
+      { "id": "Release.test", "kind": "ActionUsage", "name": "test", "owner": "Release", "multiplicity": "", "actionKind": "plain", "payload": "", "target": "", "role": "", "doc": "" },
+      { "id": "Release.test.passed", "kind": "ParameterUsage", "name": "passed", "owner": "Release.test", "direction": "out", "multiplicity": "", "doc": "" },
+      { "id": "Release.lint", "kind": "ActionUsage", "name": "lint", "owner": "Release", "multiplicity": "", "actionKind": "plain", "payload": "", "target": "", "role": "", "doc": "" },
+      { "id": "Release.lint.warnings", "kind": "ParameterUsage", "name": "warnings", "owner": "Release.lint", "direction": "out", "multiplicity": "", "doc": "" },
+      { "id": "Release.publish", "kind": "ActionUsage", "name": "publish", "owner": "Release", "multiplicity": "", "actionKind": "plain", "payload": "", "target": "", "role": "", "doc": "" },
+      { "id": "Release.notify", "kind": "ActionUsage", "name": "notify", "owner": "Release", "multiplicity": "", "actionKind": "send", "payload": "new Warning()", "target": "maintainer", "role": "", "doc": "" },
+      { "id": "Release.fix", "kind": "ActionUsage", "name": "fix", "owner": "Release", "multiplicity": "", "actionKind": "plain", "payload": "", "target": "", "role": "", "doc": "" },
+      { "id": "Release.approve", "kind": "ActionUsage", "name": "approve", "owner": "Release", "multiplicity": "", "actionKind": "accept", "payload": "approval : Approval", "target": "", "role": "", "doc": "" },
+      { "id": "Release.split", "kind": "ForkNode", "name": "split", "owner": "Release", "doc": "" },
+      { "id": "Release.rejoin", "kind": "JoinNode", "name": "rejoin", "owner": "Release", "doc": "" },
+      { "id": "Release.verdict", "kind": "DecisionNode", "name": "verdict", "owner": "Release", "doc": "Reads what the tests and the lint found." },
+      { "id": "Release.collect", "kind": "MergeNode", "name": "collect", "owner": "Release", "doc": "" },
+      { "id": "Release.start", "kind": "StartNode", "name": "", "owner": "Release", "doc": "" },
+      { "id": "Release.done", "kind": "DoneNode", "name": "", "owner": "Release", "doc": "" }
+    ],
+    "relationships": [
+      { "id": "s-start", "kind": "SuccessionAsUsage", "from": "Release.start", "to": "Release.compile", "name": "", "guard": "", "doc": "" },
+      { "id": "s-compiled", "kind": "SuccessionAsUsage", "from": "Release.compile", "to": "Release.split", "name": "compiled", "guard": "", "doc": "Tests and lint run side by side once the bundle exists." },
+      { "id": "s-split-test", "kind": "SuccessionAsUsage", "from": "Release.split", "to": "Release.test", "name": "", "guard": "", "doc": "" },
+      { "id": "s-split-lint", "kind": "SuccessionAsUsage", "from": "Release.split", "to": "Release.lint", "name": "", "guard": "", "doc": "" },
+      { "id": "s-test-rejoin", "kind": "SuccessionAsUsage", "from": "Release.test", "to": "Release.rejoin", "name": "", "guard": "", "doc": "" },
+      { "id": "s-lint-rejoin", "kind": "SuccessionAsUsage", "from": "Release.lint", "to": "Release.rejoin", "name": "", "guard": "", "doc": "" },
+      { "id": "s-rejoin-verdict", "kind": "SuccessionAsUsage", "from": "Release.rejoin", "to": "Release.verdict", "name": "", "guard": "", "doc": "" },
+      { "id": "s-publish", "kind": "SuccessionAsUsage", "from": "Release.verdict", "to": "Release.publish", "name": "", "guard": "test.passed", "doc": "" },
+      { "id": "s-notify", "kind": "SuccessionAsUsage", "from": "Release.verdict", "to": "Release.notify", "name": "", "guard": "lint.warnings", "doc": "" },
+      { "id": "s-fix", "kind": "SuccessionAsUsage", "from": "Release.verdict", "to": "Release.fix", "name": "", "guard": "else", "doc": "" },
+      { "id": "s-publish-collect", "kind": "SuccessionAsUsage", "from": "Release.publish", "to": "Release.collect", "name": "", "guard": "", "doc": "" },
+      { "id": "s-notify-collect", "kind": "SuccessionAsUsage", "from": "Release.notify", "to": "Release.collect", "name": "", "guard": "", "doc": "" },
+      { "id": "s-fix-collect", "kind": "SuccessionAsUsage", "from": "Release.fix", "to": "Release.collect", "name": "", "guard": "", "doc": "" },
+      { "id": "s-collect-approve", "kind": "SuccessionAsUsage", "from": "Release.collect", "to": "Release.approve", "name": "", "guard": "", "doc": "" },
+      { "id": "s-approve-done", "kind": "SuccessionAsUsage", "from": "Release.approve", "to": "Release.done", "name": "", "guard": "", "doc": "" }
+    ],
+    "views": [
+      { "id": "v-release", "kind": "ActionFlowView", "name": "releaseFlow", "doc": "", "x": 0, "y": 0,
+        "layout": {
+          "Release": { "x": 32, "y": 72, "w": 1000, "h": 600 },
+          "Release.source": { "side": "left", "at": 0.5 },
+          "Release.bundle": { "side": "right", "at": 0.5 },
+          "Release.start": { "x": 36, "y": 132, "w": 16, "h": 16 },
+          "Release.compile": { "x": 90, "y": 108, "w": 150, "h": 64 },
+          "Release.split": { "x": 300, "y": 136, "w": 60, "h": 8 },
+          "Release.test": { "x": 410, "y": 92, "w": 150, "h": 56 },
+          "Release.test.passed": { "side": "right", "at": 0.5 },
+          "Release.lint": { "x": 410, "y": 184, "w": 150, "h": 56 },
+          "Release.lint.warnings": { "side": "right", "at": 0.5 },
+          "Release.rejoin": { "x": 630, "y": 136, "w": 60, "h": 8 },
+          "Release.verdict": { "x": 740, "y": 120, "w": 40, "h": 40 },
+          "Release.publish": { "x": 700, "y": 344, "w": 150, "h": 56 },
+          "Release.notify": { "x": 480, "y": 344, "w": 170, "h": 56 },
+          "Release.fix": { "x": 300, "y": 344, "w": 150, "h": 56 },
+          "Release.collect": { "x": 190, "y": 374, "w": 40, "h": 40 },
+          "Release.approve": { "x": 40, "y": 464, "w": 170, "h": 56 },
+          "Release.done": { "x": 110, "y": 554, "w": 22, "h": 22 }
+        },
+        "options": {} }
+    ]
+  },
+  "notes": [
+    { "id": "n-compiled", "no": 1, "target": "s-compiled", "targetLabel": "succession compiled, compile to split", "text": "Should lint run before the tests instead, so a warning never waits on a slow test?", "by": "user", "created": "2026-11-06T15:00:00.000Z", "updated": "2026-11-06T15:00:00.000Z", "response": "", "resolved": false },
+    { "id": "n-verdict", "no": 2, "target": "Release.verdict", "targetLabel": "decision verdict in Release", "text": "The verdict reads test.passed and lint.warnings; both are items until the item defs are in.", "by": "user", "created": "2026-11-06T15:01:00.000Z", "updated": "2026-11-06T15:01:00.000Z", "response": "", "resolved": false }
+  ]
+}
