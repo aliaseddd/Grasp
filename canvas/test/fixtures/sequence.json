@@ -1,0 +1,64 @@
+{
+  "format": "stronghold-canvas/2",
+  "saved": "2026-11-06T16:00:00.000Z",
+  "model": {
+    "format": "stronghold-canvas/2",
+    "revision": "2026-11-06T16:00:00.000Z",
+    "package": {
+      "name": "LoginFlow",
+      "doc": "A user logs in: the client asks the server, the server asks the auth service, and the answer comes back."
+    },
+    "elements": [
+      { "id": "Client", "kind": "PartDefinition", "name": "Client", "abstract": false, "doc": "The browser." },
+      { "id": "Server", "kind": "PartDefinition", "name": "Server", "abstract": false, "doc": "" },
+      { "id": "Auth", "kind": "PartDefinition", "name": "Auth", "abstract": false, "doc": "" },
+      { "id": "Login", "kind": "PartDefinition", "name": "Login", "abstract": false,
+        "doc": "The interaction: the context the lifelines and the messages belong to." },
+      { "id": "Login.client", "kind": "PartUsage", "name": "client", "owner": "Login", "multiplicity": "", "doc": "" },
+      { "id": "Login.client.loginSent", "kind": "EventOccurrenceUsage", "name": "loginSent", "owner": "Login.client", "doc": "" },
+      { "id": "Login.client.loginDone", "kind": "EventOccurrenceUsage", "name": "loginDone", "owner": "Login.client", "doc": "The client is in." },
+      { "id": "Login.server", "kind": "PartUsage", "name": "server", "owner": "Login", "multiplicity": "", "doc": "" },
+      { "id": "Login.auth", "kind": "PartUsage", "name": "auth", "owner": "Login", "multiplicity": "", "doc": "" }
+    ],
+    "relationships": [
+      { "id": "t-client", "kind": "FeatureTyping", "from": "Login.client", "to": "Client", "hidden": true },
+      { "id": "t-server", "kind": "FeatureTyping", "from": "Login.server", "to": "Server", "hidden": true },
+      { "id": "t-auth", "kind": "FeatureTyping", "from": "Login.auth", "to": "Auth", "hidden": true },
+      { "id": "m-login", "kind": "Message", "name": "login", "item": "", "order": 1, "from": "Login.client.loginSent", "to": "Login.server", "doc": "" },
+      { "id": "m-check", "kind": "Message", "name": "checkCredentials", "item": "", "order": 2, "from": "Login.server", "to": "Login.auth", "doc": "" },
+      { "id": "m-ok", "kind": "Message", "name": "credentialsOk", "item": "", "order": 3, "from": "Login.auth", "to": "Login.server", "doc": "" },
+      { "id": "m-done", "kind": "Message", "name": "loggedIn", "item": "", "order": 4, "from": "Login.server", "to": "Login.client.loginDone",
+        "doc": "The server tells the client it is in." }
+    ],
+    "views": [
+      { "id": "v-seq", "kind": "SequenceView", "name": "loginSequence", "doc": "", "x": 0, "y": 0,
+        "layout": {
+          "Login.client": { "x": 0, "y": 0, "w": 180, "h": 60 },
+          "Login.client.loginSent": { "x": 0, "y": 116, "w": 16, "h": 16 },
+          "Login.client.loginDone": { "x": 0, "y": 284, "w": 16, "h": 16 },
+          "Login.server": { "x": 260, "y": 0, "w": 180, "h": 60 },
+          "Login.auth": { "x": 520, "y": 0, "w": 180, "h": 60 }
+        },
+        "options": { "spacing": 56 } },
+      { "id": "v-all", "kind": "GeneralView", "name": "loginStructure", "doc": "", "x": 900, "y": 0,
+        "layout": {
+          "Client": { "x": 32, "y": 72, "w": 220, "h": 72 },
+          "Server": { "x": 300, "y": 72, "w": 220, "h": 72 },
+          "Auth": { "x": 568, "y": 72, "w": 220, "h": 72 },
+          "Login": { "x": 32, "y": 200, "w": 760, "h": 190 },
+          "Login.client": { "x": 24, "y": 56, "w": 180, "h": 76 },
+          "Login.client.loginSent": { "x": 14, "y": 48, "w": 16, "h": 16 },
+          "Login.client.loginDone": { "x": 90, "y": 48, "w": 16, "h": 16 },
+          "Login.server": { "x": 290, "y": 56, "w": 180, "h": 60 },
+          "Login.auth": { "x": 556, "y": 56, "w": 180, "h": 60 }
+        },
+        "options": {} }
+    ]
+  },
+  "notes": [
+    { "id": "n1", "no": 1, "target": "m-login", "targetLabel": "message login, loginSent to server",
+      "text": "Should the login carry the user name as its payload?", "by": "user",
+      "created": "2026-11-06T16:00:00.000Z", "updated": "2026-11-06T16:00:00.000Z", "response": "", "resolved": false }
+  ],
+  "changes": []
+}
