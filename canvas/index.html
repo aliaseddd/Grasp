@@ -255,6 +255,26 @@ textarea.text[readonly] { resize: none; background: transparent; }
 /* ==== slice: grid ==== */
 /* ==== end slice: grid ==== */
 /* ==== slice: browser ==== */
+/* The browser view: the model as a tree of rows. Each row has a fill (alternating) and, inset, the outline the core's
+   marks land on (is-hover, is-selected, is-problem, is-source), on element and relationship rows alike. */
+.sysml .browser-row .browser-fill { fill: var(--card); stroke: none; }
+.sysml .browser-row.browser-alt .browser-fill { fill: var(--bg); }
+.sysml .browser-row > .outline { fill: none; stroke: none; stroke-width: 1.25; }
+.sysml .browser-row.is-hover > .outline { stroke: var(--accent); }
+.sysml .browser-row.is-source > .outline { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; }
+.sysml .browser-row.is-selected > .outline { stroke: var(--accent); stroke-width: 2.5; }
+.sysml .browser-row.is-problem > .outline { stroke: var(--danger); }
+.sysml .browser-row .browser-name { font: 500 12.5px var(--sans); }
+.sysml .browser-row.is-abstract .browser-name { font-style: italic; }
+.sysml .browser-row .browser-type { font: 400 12px var(--sans); fill-opacity: 0.8; }
+.sysml .browser-row .browser-rel { font: 400 12.5px var(--sans); }
+.sysml .browser-row .browser-notes { font: 400 10.5px var(--sans); fill-opacity: 0.72; }
+/* The disclosure triangle: a control on a row with something inside it, with a clear square around it to click. */
+.sysml .browser-toggle { cursor: pointer; }
+.sysml .browser-toggle .browser-hit { fill: transparent; stroke: none; pointer-events: all; }
+.sysml .browser-toggle .browser-arrow { fill: currentColor; fill-opacity: 0.75; }
+.sysml .browser-toggle:hover .browser-arrow { fill: var(--accent); fill-opacity: 1; }
+.sysml .browser-empty { font: italic 400 12.5px var(--sans); fill-opacity: 0.6; pointer-events: none; }
 /* ==== end slice: browser ==== */
 /* ==== slice: annotations ==== */
 /* ==== end slice: annotations ==== */
@@ -391,6 +411,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
           <!-- ==== slice: grid ==== -->
           <!-- ==== end slice: grid ==== -->
           <!-- ==== slice: browser ==== -->
+          <div class="view-options" data-view-kind="BrowserView" hidden>
+            <label id="l-browser-roots">Roots of the tree <select id="browser-roots" multiple size="6" aria-describedby="browser-roots-help"></select></label>
+            <p class="meta" id="browser-roots-help">The whole package, or the elements the tree starts from; Ctrl or ⌘ + click picks several. Click the whole package to show everything again.</p>
+            <div class="row">
+              <button type="button" id="browser-expand-all" title="Nothing is folded in this view">Expand all</button>
+            </div>
+          </div>
           <!-- ==== end slice: browser ==== -->
           <!-- ==== slice: annotations ==== -->
           <!-- ==== end slice: annotations ==== -->
@@ -714,8 +741,30 @@ textarea.text[readonly] { resize: none; background: transparent; }
       admits: [], tools: [], options: { mode: 'table', columns: ['kind', 'name', 'type', 'multiplicity', 'owner', 'doc'], rows: null } },
     // ==== end slice: grid ====
     // ==== slice: browser ====
+    // A browser view shows the whole model as a tree, so it admits every kind and places nothing by hand: roots is null
+    // for the whole package (every element at the top) or the ids of the elements whose subtrees the tree shows, and
+    // collapsed the ids whose insides are folded away.
     BrowserView: { name: 'BrowserView', label: 'browser view', qualified: 'StandardViewDefinitions::BrowserView', short: 'bv', renderer: 'browser',
-      admits: [], tools: [], options: { roots: null, collapsed: [] } },
+      admits: null, tools: [], options: { roots: null, collapsed: [] },
+      // A root is exposed by its qualified name, so one without a full name can't be, and the text leaves it out.
+      check: function (model, view, ids, add) {
+        (browserRoots(model, view, ids) || []).forEach((root) => {
+          if (chain(model, root, ids).some((e) => !e.name.trim())) {
+            add(view.id, 'The ' + describeView(model, view) + ' can\'t expose its root ' + describe(model, root, ids) + ' by name: it, or what it is in, has no name. Name it.');
+          }
+        });
+      },
+      // The view's body in the text: the whole package, recursively, or each root with everything inside it, then the
+      // tree rendering. Validated in understand/views/02-expose-forms.sysml and 04-render-clauses.sysml, and in
+      // slices/browser/b01-forms.sysml (quoted, nested and leaf roots; no root at all).
+      exposes: function (model, view, h) {
+        const roots = browserRoots(model, view, h.ids);
+        const lines = roots === null
+          ? ['expose ' + quote(model.package.name) + '::*::**;']
+          : roots.filter((e) => chain(model, e, h.ids).every((c) => c.name.trim())).map((e) => 'expose ' + qualified(model, e, h.ids) + '::**;');
+        lines.push('render Views::asTreeDiagram;');
+        return lines;
+      } },
     // ==== end slice: browser ====
     // ==== slice: annotations ====
     // ==== end slice: annotations ====
@@ -1139,6 +1188,51 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ==== slice: grid ====
   // ==== end slice: grid ====
   // ==== slice: browser ====
+  // ---- The browser view: the model as a tree.
+  // The elements a browser view's tree starts from: null for the whole package (every element at the top), else the
+  // elements its roots option names that are in the model, in model order, leaving out one that sits inside another
+  // root, since that root's subtree shows it already. A roots option that isn't a list counts as the whole package.
+  function browserRoots(model, view, ids) {
+    ids = ids || index(model);
+    const want = view.options && Array.isArray(view.options.roots) ? view.options.roots : null;
+    if (want === null) return null;
+    const set = new Set(want.filter((id) => typeof id === 'string' && ids.has(id)));
+    return model.elements.filter((e) => set.has(e.id) && !chain(model, e, ids).slice(0, -1).some((o) => set.has(o.id)));
+  }
+  // The rows of a browser view, in order: a depth-first walk from its roots in model order, each element a row with
+  // what it owns under it, unless the view folds it (its id in options.collapsed), then the relationships declared in
+  // it. The package's relationships, and those declared above a root, come last. A relationship is a row only when
+  // both of its ends are rows, so what is drawn in the view is what pins and badges can find. Each row is
+  // { type: 'el' | 'rel', id, item, depth, kids (whether anything is inside it), folded }.
+  function browserRows(model, view, ids) {
+    ids = ids || index(model);
+    const roots = browserRoots(model, view, ids);
+    const folded = new Set(view.options && Array.isArray(view.options.collapsed) ? view.options.collapsed : []);
+    const nodes = new Map(); // element id → its node, for the elements that are rows
+    const branch = (el, depth) => {
+      const kids = childrenOf(model, el.id).filter((k) => !nodes.has(k.id));
+      const n = { row: { type: 'el', id: el.id, item: el, depth: depth, kids: kids.length > 0, folded: folded.has(el.id) }, under: [], rels: [] };
+      nodes.set(el.id, n);
+      if (!n.row.folded) kids.forEach((k) => n.under.push(branch(k, depth + 1)));
+      return n;
+    };
+    const tops = [];
+    (roots === null ? childrenOf(model, null) : roots).forEach((e) => { if (!nodes.has(e.id)) tops.push(branch(e, 0)); });
+    const tail = [];
+    model.relationships.forEach((rel) => {
+      if (!nodes.has(rel.from) || !nodes.has(rel.to)) return;
+      const owner = RELATIONSHIPS[rel.kind].owner(model, rel, ids);
+      const at = owner === null ? null : nodes.get(owner) || null;
+      const row = { type: 'rel', id: rel.id, item: rel, depth: at ? at.row.depth + 1 : 0 };
+      if (at) at.rels.push(row); else tail.push(row);
+    });
+    const out = [];
+    const flatten = (n) => { out.push(n.row); n.under.forEach(flatten); n.rels.forEach((r) => out.push(r)); };
+    tops.forEach(flatten);
+    return out.concat(tail);
+  }
+  EXTRA.browserRoots = browserRoots;
+  EXTRA.browserRows = browserRows;
   // ==== end slice: browser ====
   // ==== slice: annotations ====
   // ==== end slice: annotations ====
@@ -2173,6 +2267,193 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ==== slice: grid ====
   // ==== end slice: grid ====
   // ==== slice: browser ====
+  // ---- The browser view: the model as a tree of rows, one per element with what it owns under it and the
+  // relationships declared in it, each a row the core's marks, pins and badges land on (its rect is the row's text
+  // band, so a pin on its top edge and a badge at its corner sit inside the row). Rows are BROWSER_ROW high and step
+  // in BROWSER_INDENT a level; the library's browserRows says which rows there are, and in what order.
+  const BROWSER_ROW = 24;
+  const BROWSER_INDENT = 20;
+  const browserRootsSelect = $('browser-roots');
+  const browserExpandAll = $('browser-expand-all');
+  // What a row says, in parts: the keyword in guillemets and the name (the kind's label alone for a kind without a
+  // name), ": Type [mult]" for a usage, and how many notes are on it; for a relationship row the kind's label and
+  // describeRel's sentence, without the label when it starts with it.
+  function browserRowParts(row, ids) {
+    if (row.type === 'rel') {
+      const label = M.RELATIONSHIPS[row.item.kind].label;
+      let said = M.describeRel(model, row.item, ids);
+      if (said.indexOf(label + ' ') === 0) said = said.slice(label.length + 1);
+      return { kw: '«' + label + '» ', name: said, type: '', notes: '' };
+    }
+    const el = row.item;
+    const kind = M.KINDS[el.kind];
+    const named = M.hasName(el.kind);
+    const parts = { kw: named && kind.keyword ? '«' + kind.keyword + '» ' : '', name: named ? el.name.trim() || '(unnamed)' : kind.label, type: '', notes: '' };
+    if (kind.usage) {
+      const typing = M.typingOf(model, el);
+      if (typing) { const def = ids.get(typing.to); parts.type += ' : ' + (el.conjugated ? '~' : '') + (def ? def.name.trim() || '(unnamed)' : '?'); }
+      if (el.multiplicity) parts.type += ' [' + el.multiplicity + ']';
+    }
+    const count = notes.filter((n) => n.target === el.id).length;
+    if (count) parts.notes = ' · ' + plural(count, 'note');
+    return parts;
+  }
+  // Near enough the width of a row's text, from the fonts' average widths per character, to size the rows and the frame.
+  function browserTextWidth(p) { return p.kw.length * 5.6 + p.name.length * 7.1 + p.type.length * 6.4 + p.notes.length * 5.8; }
+  // The disclosure triangle on a row with something inside it: a control (data-action) the core runs ACTIONS.toggle
+  // for, pointing right while the element is folded and down while it is open.
+  function browserToggle(row, x0, top) {
+    const what = M.describe(model, row.item);
+    const tg = node('g', { 'data-action': 'toggle', 'data-for': row.id, 'data-hint': 'Show or hide what is inside ' + what + '.' }, 'browser-toggle');
+    const title = node('title');
+    title.textContent = (row.folded ? 'Show' : 'Hide') + ' what is inside ' + what;
+    tg.appendChild(title);
+    tg.appendChild(node('rect', { x: f(x0), y: f(top + 5), width: 14, height: 14 }, 'browser-hit'));
+    const cx = x0 + 7;
+    const cy = top + 12;
+    const d = row.folded
+      ? 'M' + f(cx - 2.5) + ',' + f(cy - 4.5) + ' L' + f(cx + 3.5) + ',' + f(cy) + ' L' + f(cx - 2.5) + ',' + f(cy + 4.5) + ' Z'
+      : 'M' + f(cx - 4.5) + ',' + f(cy - 2.5) + ' L' + f(cx + 4.5) + ',' + f(cy - 2.5) + ' L' + f(cx) + ',' + f(cy + 3.5) + ' Z';
+    tg.appendChild(node('path', { d: d }, 'browser-arrow'));
+    return tg;
+  }
+  RENDERERS.browser = {
+    showsAll: true,
+    layout: function (view, ids) {
+      const rows = M.browserRows(model, view, ids);
+      let width = 360;
+      rows.forEach((row) => {
+        row.parts = browserRowParts(row, ids);
+        width = Math.max(width, row.depth * BROWSER_INDENT + 18 + browserTextWidth(row.parts) + 32);
+      });
+      const shown = new Set();
+      const kids = new Map();
+      const parentOf = new Map();
+      const rects = new Map();
+      const open = []; // the element row at each depth above the current row
+      rows.forEach((row, i) => {
+        const top = view.y + i * BROWSER_ROW;
+        rects.set(row.id, { x: view.x, y: top + 7, w: width, h: BROWSER_ROW - 10 });
+        if (row.type !== 'el') return;
+        shown.add(row.id);
+        open.length = row.depth;
+        const parent = row.depth ? open[row.depth - 1] : '';
+        parentOf.set(row.id, parent);
+        if (!kids.has(parent)) kids.set(parent, []);
+        kids.get(parent).push(row.item);
+        open.push(row.id);
+      });
+      const box = rows.length ? { x: view.x, y: view.y, x2: view.x + width, y2: view.y + rows.length * BROWSER_ROW } : null;
+      return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: new Map(), frameRect: frameAround(view, box), rows: rows, treeWidth: width };
+    },
+    draw: function (view, g, L) {
+      const rows = node('g', {}, 'browser-rows');
+      g.appendChild(rows);
+      if (!L.rows.length) {
+        const fr = L.frameRect;
+        const why = M.browserRoots(model, view, layout.ids) === null ? 'The model has no elements yet.' : 'None of its roots is in the model. Pick the roots in the panel, or the whole package.';
+        rows.appendChild(text(fr.x + fr.w / 2, fr.y + fr.h / 2, 'Nothing to show. ' + why, 'browser-empty', 'middle'));
+        return;
+      }
+      L.rows.forEach((row, i) => {
+        const top = view.y + i * BROWSER_ROW;
+        const x0 = view.x + row.depth * BROWSER_INDENT;
+        const isEl = row.type === 'el';
+        const attrs = { 'data-kind': row.item.kind, 'data-view': view.id };
+        attrs[isEl ? 'data-el' : 'data-rel'] = row.id;
+        const cls = (isEl ? 'el ' + (M.KINDS[row.item.kind].definition ? 'def' : 'usage') + (row.item.abstract ? ' is-abstract' : '') : 'rel') + ' browser-row' + (i % 2 ? ' browser-alt' : '');
+        const rg = node('g', attrs, cls);
+        rg.appendChild(node('rect', { x: f(view.x), y: f(top), width: f(L.treeWidth), height: BROWSER_ROW }, 'browser-fill'));
+        rg.appendChild(node('rect', { x: f(view.x + 1), y: f(top + 1), width: f(L.treeWidth - 2), height: BROWSER_ROW - 2, rx: 3 }, 'outline'));
+        if (isEl && row.kids) rg.appendChild(browserToggle(row, x0, top));
+        const t = node('text', { x: f(x0 + 18), y: f(top + 16) });
+        const span = (c, s) => { if (!s) return; const ts = node('tspan', {}, c); ts.textContent = s; t.appendChild(ts); };
+        span('kw', row.parts.kw);
+        span(isEl ? 'browser-name' : 'browser-rel', row.parts.name);
+        span('browser-type', row.parts.type);
+        span('browser-notes', row.parts.notes);
+        rg.appendChild(t);
+        rows.appendChild(rg);
+      });
+    },
+    place: function (view, kind) {
+      say('A ' + M.KINDS[kind].label + ' can\'t be placed in a ' + M.VIEW_KINDS[view.kind].label + ', which shows every element the model has. Add it in another view and it appears here too.');
+      return null;
+    },
+    dragStart: function () { return null; },
+    drag: function () {},
+    drop: function () { return null; }
+  };
+  // Folds or unfolds an element's row: its id goes into or out of the view's collapsed option, one undo step.
+  ACTIONS.toggle = function (hit) {
+    const view = viewById(hit.view);
+    const el = layout.ids.get(hit.id);
+    if (!view || !el) return;
+    if (!editable()) { say('Folding changes the view, and this model can\'t be changed here.'); return; }
+    const before = snapshot();
+    if (!Array.isArray(view.options.collapsed)) view.options.collapsed = [];
+    const list = view.options.collapsed;
+    const i = list.indexOf(el.id);
+    if (i < 0) list.push(el.id); else list.splice(i, 1);
+    const what = (i < 0 ? 'Folded ' : 'Unfolded ') + M.describe(model, el) + ' in ' + M.describeView(model, view);
+    commit(what, null, before);
+    logChange(what);
+    render();
+    renderInspector();
+    changed();
+    say(what + '.');
+  };
+  // The panel's options for a browser view: its roots (a multiple select: the whole package, or the elements at the top
+  // of the package, plus any root below the top a file named, so it can be seen and taken out), and Expand all for
+  // its folded elements.
+  VIEW_PANELS.BrowserView = function (view, write) {
+    const roots = M.browserRoots(model, view, layout.ids);
+    const chosen = new Set((roots || []).map((e) => e.id));
+    while (browserRootsSelect.firstChild) browserRootsSelect.removeChild(browserRootsSelect.firstChild);
+    const option = (value, label, selected) => {
+      const o = document.createElement('option');
+      o.value = value;
+      o.textContent = label;
+      o.selected = selected;
+      browserRootsSelect.appendChild(o);
+    };
+    option('', 'the whole package', roots === null);
+    M.childrenOf(model, null).forEach((e) => option(e.id, M.describe(model, e), chosen.has(e.id)));
+    (roots || []).filter((e) => e.owner !== undefined).forEach((e) => option(e.id, M.describe(model, e), true));
+    browserRootsSelect.disabled = !write;
+    const folded = Array.isArray(view.options.collapsed) ? view.options.collapsed.filter((id) => layout.ids.has(id)) : [];
+    browserExpandAll.disabled = !write || !folded.length;
+    browserExpandAll.title = folded.length ? 'Unfold ' + plural(folded.length, 'folded element') + ' in this view' : 'Nothing is folded in this view';
+  };
+  browserRootsSelect.addEventListener('change', () => {
+    const view = selectedView();
+    if (!view || view.kind !== 'BrowserView' || !editable()) return;
+    // The elements picked are the roots; none, or the whole package alone, means the whole package.
+    const picked = Array.from(browserRootsSelect.selectedOptions).map((o) => o.value).filter((v) => v && layout.ids.has(v));
+    const before = snapshot();
+    view.options.roots = picked.length ? picked : null;
+    const what = 'Set the roots of ' + M.describeView(model, view) + ' to ' +
+      (picked.length ? picked.map((id) => M.describe(model, layout.ids.get(id))).join(', ') : 'the whole package');
+    commit(what, null, before);
+    logChange(what);
+    render();
+    renderInspector();
+    changed();
+    say(what + '.');
+  });
+  browserExpandAll.addEventListener('click', () => {
+    const view = selectedView();
+    if (!view || view.kind !== 'BrowserView' || !editable()) return;
+    const before = snapshot();
+    view.options.collapsed = [];
+    const what = 'Unfolded everything in ' + M.describeView(model, view);
+    commit(what, null, before);
+    logChange(what);
+    render();
+    renderInspector();
+    changed();
+    say(what + '.');
+  });
   // ==== end slice: browser ====
   // ==== slice: annotations ====
   // ==== end slice: annotations ====
