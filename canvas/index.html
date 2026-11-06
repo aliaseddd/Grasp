@@ -706,8 +706,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
         if (o !== null && ids.get(o).kind === 'InterfaceDefinition') return 'An interface joins the ports of parts; ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' are the ends of an interface def.';
         return acrossDefinitions(model, 'An interface', a, b, ids);
       },
+      // The def an interface is typed by must be an interface def (the panel offers only those; a model written by
+      // hand may say otherwise, and the validator refuses it), and its ends must be the ports'.
       check: function (model, rel, ids, add) {
         connectorNameClash(model, rel, ids, add);
+        const def = rel.interfaceDef ? ids.get(rel.interfaceDef) : null;
+        if (def && def.kind !== 'InterfaceDefinition') add(rel.id, 'The ' + describeRel(model, rel, ids) + ' is typed by ' + describe(model, def, ids) + ', which isn\'t an interface def.');
         const problem = interfaceEndsProblem(model, rel, ids);
         if (problem) add(rel.id, problem);
       },
@@ -735,8 +739,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
         if (o !== null && ids.get(o).kind === 'PortDefinition') return 'A flow can\'t run inside ' + describe(model, ids.get(o), ids) + '; it runs between the ports of parts.';
         return bareFlowEnd(model, a, b, ids) || acrossDefinitions(model, 'A flow', a, b, ids);
       },
+      // What flows is an item def (the panel offers only those; a model written by hand may say otherwise); with one,
+      // the ends are checked against it.
       check: function (model, rel, ids, add) {
         connectorNameClash(model, rel, ids, add);
+        const item = rel.item ? ids.get(rel.item) : null;
+        if (item && item.kind !== 'ItemDefinition') { add(rel.id, 'The ' + describeRel(model, rel, ids) + ' carries ' + describe(model, item, ids) + ', which isn\'t an item def. Pick an item def in the panel.'); return; }
         flowProblems(model, rel, ids).forEach((p) => add(rel.id, p));
       },
       owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
@@ -1321,11 +1329,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     return null;
   }
+  // A flow end that is written through its definition: a port, defined by a port def whose directed items are what
+  // flows through it. Anything else (an item on a part; a parameter, once the behavior slice is in) is a directed
+  // feature written as itself, whether or not it sits on a border.
+  function portEnd(el) { return KINDS[el.kind].definedBy === 'PortDefinition'; }
   // A flow end that isn't a port is reached through its owner, so an item right in the element the flow is declared
   // in (or right in the package) would be a bare name, which the notation doesn't take as a flow end.
   function bareFlowEnd(model, a, b, ids) {
     const o = commonOwner(model, a, b, ids);
-    const bare = [a, b].find((e) => !KINDS[e.kind].onBorder && (e.owner === undefined ? null : e.owner) === o);
+    const bare = [a, b].find((e) => !portEnd(e) && (e.owner === undefined ? null : e.owner) === o);
     if (!bare) return null;
     return 'A flow from ' + describe(model, a, ids) + ' to ' + describe(model, b, ids) + ' would be declared ' + (o === null ? 'in the package' : 'in ' + describe(model, ids.get(o), ids)) +
       ', where ' + describe(model, bare, ids) + ' is a bare name, which the notation doesn\'t take as a flow end. Flows run between the items of different parts, or through ports.';
@@ -1354,7 +1366,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const goes = (d) => d === 'inout' || d === (out ? 'out' : 'in');
     const verb = out ? 'start' : 'end';
     if (!end) return { el: null, item: null, problem: null };
-    if (KINDS[end.kind].onBorder) {
+    if (portEnd(end)) {
       const typed = definitionOf(model, end, ids);
       if (!typed) return { el: end, item: null, problem: describe(model, end, ids) + ' has no port def, so nothing can flow through it. Define it by a port def that carries an item.' };
       if (!itemDef) return { el: end, item: null, problem: null }; // flowProblems says so once, for the flow
@@ -1389,7 +1401,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const a = ids.get(rel.from);
     const b = ids.get(rel.to);
     if (!a || !b) return problems;
-    if (!rel.item && (KINDS[a.kind].onBorder || KINDS[b.kind].onBorder)) problems.push('The ' + describeRel(model, rel, ids) + ' needs an item: pick in the panel what flows through the ports.');
+    if (!rel.item && (portEnd(a) || portEnd(b))) problems.push('The ' + describeRel(model, rel, ids) + ' needs an item: pick in the panel what flows through the ports.');
     ['from', 'to'].forEach((which) => {
       const r = flowEnd(model, rel, which, ids);
       if (r.problem) problems.push(r.problem);
@@ -1406,15 +1418,20 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return typed ? (typed.conjugated ? '~' : '') + shown(typed.def.name) : 'nothing';
   }
   // Whether a typed interface's two ports match the two ends of its interface def, one each, conjugation counted: a
-  // sentence saying which doesn't, or null. The def's own check says when it hasn't two ends.
+  // sentence saying which doesn't, or null. The def's own check says when it hasn't two ends; a def with more can't
+  // type an interface drawn between two ports, since the validator takes a binary interface only ("Cannot have more
+  // than two ends"), so that is said here, on the interface.
   function interfaceEndsProblem(model, rel, ids) {
     const def = rel.interfaceDef ? ids.get(rel.interfaceDef) : null;
-    if (!def) return null;
+    if (!def || def.kind !== 'InterfaceDefinition') return null; // the interface's check says so
     const ends = childrenOf(model, def.id).filter((c) => KINDS[c.kind].onBorder);
-    if (ends.length !== 2) return null;
+    if (ends.length < 2) return null;
     const a = ids.get(rel.from);
     const b = ids.get(rel.to);
     if (!hasTrait(a.kind, 'interfaceEnd') || !hasTrait(b.kind, 'interfaceEnd')) return null; // the ends rule says so
+    if (ends.length > 2) {
+      return describe(model, def, ids) + ' has ' + ends.length + ' ends (' + ends.map((e) => shown(e.name)).join(', ') + '), so an interface between two ports can\'t be typed by it. Keep two ends on it, or type the ' + describeRel(model, rel, ids) + ' by another def.';
+    }
     const sa = portSignature(model, a, ids);
     const sb = portSignature(model, b, ids);
     const s0 = portSignature(model, ends[0], ids);
