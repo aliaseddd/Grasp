@@ -86,6 +86,7 @@ describe('interconnection view', () => {
     const ctx = await openCanvas(browser);
     const { page } = ctx;
     const view = await addView(page, 'InterconnectionView');
+    assert.match(await page.textContent(`#drawing g.frame[data-view="${view}"] rect.tab title`), /^view view\d+, an interconnection view\./, 'the tab says what the view is, with the article its label takes');
     const tools = await page.$$eval('.palette button[data-tool]:not([data-tool="Note"])', (buttons) => buttons.map((b) => b.getAttribute('data-tool')));
     for (const tool of ['PartDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition', 'ConnectionUsage', 'InterfaceUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping']) {
       assert.ok(tools.includes(tool), `the palette offers ${tool}: ${JSON.stringify(tools)}`);

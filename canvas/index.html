@@ -721,7 +721,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // lifeline has no head of its own; one owned by nothing (a general view may put it in the package) is written
     // plainly, since then is only legal inside a body.
     EventOccurrenceUsage: { keyword: 'event occurrence', label: 'event', definition: false, usage: true, contains: false, onBorder: false,
-      size: [16, 16], shape: 'event', fields: ['name', 'doc'], traits: ['occurrence', 'successionEnd'], writeOrder: -1,
+      size: [16, 16], shape: 'event', fields: ['name', 'doc'], traits: ['occurrence', 'successionEnd'],
       head: function (model, el, h) {
         const owner = el.owner !== undefined ? h.ids.get(el.owner) : null;
         return owner && hasTrait(owner.kind, 'lifeline') ? null : h.headOf(el);
@@ -764,8 +764,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     },
     FeatureTyping: {
       label: 'defined by', fields: [], hideable: true,
+      // The first end is a usage of a kind that has a definition kind (definedBy): a definition is defined by nothing,
+      // and so is a usage of a kind without one (a fork, a start node, an event).
       first: function (model, a, ids) {
-        return KINDS[a.kind].usage ? null : 'Only a part or a port is defined by something; ' + describe(model, a, ids) + ' is a definition.';
+        const kind = KINDS[a.kind];
+        if (!kind.usage) return 'Only a usage is defined by something; ' + describe(model, a, ids) + ' is a definition.';
+        if (!kind.definedBy) return an(kind.label, true) + ' isn\'t defined by anything; a ' + definable() + ' is.';
+        return null;
       },
       ends: function (model, a, b, ids) {
         const problem = RELATIONSHIPS.FeatureTyping.first(model, a, ids);
@@ -773,7 +778,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         if (KINDS[a.kind].definedBy !== b.kind) {
           // The definition kind may be one another slice brings; when it isn't in KINDS, its name has to do.
           const def = KINDS[a.kind].definedBy;
-          return describe(model, a, ids) + ' can only be defined by a ' + (KINDS[def] ? KINDS[def].label : def) + '.';
+          return describe(model, a, ids) + ' can only be defined by ' + an(KINDS[def] ? KINDS[def].label : def) + '.';
         }
         return null;
       },
@@ -797,21 +802,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
         const problem = RELATIONSHIPS.ConnectionUsage.first(model, a, ids) || RELATIONSHIPS.ConnectionUsage.first(model, b, ids);
         if (problem) return problem;
         if (a.kind !== b.kind) return 'A connection joins two parts, two ports or two items.';
-        if (commonOwner(model, a, b, ids) === null && (KINDS[chain(model, a, ids)[0].kind].definition || KINDS[chain(model, b, ids)[0].kind].definition)) {
-          return 'A connection between ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' reaches across definitions. Connect things inside the same part def or part.';
-        }
-        return null;
+        return acrossDefinitions(model, 'A connection', a, b, ids);
       },
       // A named connection is a feature of the element it is declared in, so its name can't be that of a feature
       // declared there, or of a connection declared there before it.
       check: function (model, rel, ids, add) {
         const cname = rel.name.trim();
         if (!cname) return;
-        const o = RELATIONSHIPS.ConnectionUsage.owner(model, rel, ids) || '';
-        const taken = model.elements.some((e) => e.name.trim() === cname && (e.owner === undefined ? '' : e.owner) === o) ||
-          model.relationships.slice(0, model.relationships.indexOf(rel)).some((r) => r.kind === 'ConnectionUsage' && r.name.trim() === cname &&
-            ids.has(r.from) && ids.has(r.to) && (RELATIONSHIPS.ConnectionUsage.owner(model, r, ids) || '') === o);
-        if (taken) add(rel.id, 'The connection ' + cname + ' is named like something else beside it. Rename one.');
+        const before = model.relationships.slice(0, model.relationships.indexOf(rel));
+        if (nameTakenBeside(model, rel, ids, before.filter((r) => r.kind === 'ConnectionUsage'))) add(rel.id, 'The connection ' + cname + ' is named like something else beside it. Rename one.');
       },
       owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
       line: { route: 'straight', marker: null, cls: 'connection', label: function (rel) { return rel.name.trim(); } },
@@ -836,7 +835,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     InterfaceUsage: {
       label: 'interface', fields: ['name', 'interfaceDef', 'doc'], hideable: false,
       first: function (model, a, ids) {
-        return hasTrait(a.kind, 'interfaceEnd') ? null : 'An interface joins two ports; ' + describe(model, a, ids) + ' is a ' + KINDS[a.kind].label + '.';
+        return hasTrait(a.kind, 'interfaceEnd') ? null : 'An interface joins two ports; ' + describe(model, a, ids) + ' is ' + an(KINDS[a.kind].label) + '.';
       },
       ends: function (model, a, b, ids) {
         if (!hasTrait(a.kind, 'interfaceEnd') || !hasTrait(b.kind, 'interfaceEnd')) return 'An interface joins two ports.';
@@ -869,7 +868,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     FlowConnectionUsage: {
       label: 'flow', fields: ['name', 'item', 'doc'], hideable: false,
       first: function (model, a, ids) {
-        return hasTrait(a.kind, 'flowEnd') ? null : 'A flow runs from a port or an item; ' + describe(model, a, ids) + ' is a ' + KINDS[a.kind].label + '.';
+        return hasTrait(a.kind, 'flowEnd') ? null : 'A flow runs from a port or an item; ' + describe(model, a, ids) + ' is ' + an(KINDS[a.kind].label) + '.';
       },
       ends: function (model, a, b, ids) {
         if (!hasTrait(a.kind, 'flowEnd') || !hasTrait(b.kind, 'flowEnd')) return 'A flow joins two ports or items.';
@@ -901,7 +900,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     BindingConnectorAsUsage: {
       label: 'binding', fields: ['name', 'doc'], hideable: false,
       first: function (model, a, ids) {
-        return hasTrait(a.kind, 'bindable') ? null : 'A binding joins two ports or two items; ' + describe(model, a, ids) + ' is a ' + KINDS[a.kind].label + '.';
+        return hasTrait(a.kind, 'bindable') ? null : 'A binding joins two ports or two items; ' + describe(model, a, ids) + ' is ' + an(KINDS[a.kind].label) + '.';
       },
       ends: function (model, a, b, ids) {
         if (!hasTrait(a.kind, 'bindable') || !hasTrait(b.kind, 'bindable')) return 'A binding joins two ports or two items.';
@@ -910,7 +909,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         const tb = definitionOf(model, b, ids);
         if (ta && tb && ta.def.id !== tb.def.id) return 'A binding joins two things of one definition; ' + describe(model, a, ids) + ' is defined by ' + shown(ta.def.name) + ' and ' + describe(model, b, ids) + ' by ' + shown(tb.def.name) + '.';
         if (!!ta !== !!tb) return 'A binding joins two things of one definition; ' + describe(model, ta ? b : a, ids) + ' is defined by nothing yet.';
-        if (!ta && a.kind !== b.kind) return 'A binding joins two ports or two items, not a ' + KINDS[a.kind].label + ' and a ' + KINDS[b.kind].label + '.';
+        if (!ta && a.kind !== b.kind) return 'A binding joins two ports or two items, not ' + an(KINDS[a.kind].label) + ' and ' + an(KINDS[b.kind].label) + '.';
         return acrossDefinitions(model, 'A binding', a, b, ids);
       },
       check: function (model, rel, ids, add) { connectorNameClash(model, rel, ids, add); },
@@ -951,22 +950,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
         if (!hasTrait(a.kind, 'occurrence') || !hasTrait(b.kind, 'occurrence')) {
           return 'A message joins events and lifelines; ' + describe(model, hasTrait(a.kind, 'occurrence') ? b : a, ids) + ' is neither.';
         }
-        if (commonOwner(model, a, b, ids) === null && (KINDS[chain(model, a, ids)[0].kind].definition || KINDS[chain(model, b, ids)[0].kind].definition)) {
-          return 'A message between ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' reaches across definitions. Put both lifelines under one part def or part, or both in the package.';
-        }
-        return null;
+        return acrossDefinitions(model, 'A message', a, b, ids, 'Put both lifelines under one part def or part, or both in the package.');
       },
       // A named message is a feature of its context, so its name can't be that of a feature declared there or of
       // another named line declared there. The payload, when there is one, is an item def.
       check: function (model, rel, ids, add) {
-        const o = RELATIONSHIPS.Message.owner(model, rel, ids) || '';
         const mname = rel.name.trim();
-        if (mname) {
-          const taken = model.elements.some((e) => e.name.trim() === mname && (e.owner === undefined ? '' : e.owner) === o) ||
-            model.relationships.some((r) => r !== rel && RELATIONSHIPS[r.kind].fields.indexOf('name') >= 0 && r.name.trim() === mname &&
-              ids.has(r.from) && ids.has(r.to) && (RELATIONSHIPS[r.kind].owner(model, r, ids) || '') === o);
-          if (taken) add(rel.id, 'The message ' + mname + ' is named like something else beside it. Rename one.');
-        }
+        if (mname && nameTakenBeside(model, rel, ids, model.relationships)) add(rel.id, 'The message ' + mname + ' is named like something else beside it. Rename one.');
         if (rel.item && ids.has(rel.item) && ids.get(rel.item).kind !== 'ItemDefinition') {
           add(rel.id, 'The ' + describeRel(model, rel, ids) + ' carries ' + describe(model, ids.get(rel.item), ids) + ', which is not an item def.');
         }
@@ -1002,31 +992,31 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // (h.exposesOf(view) gives those, to build on). In this slice only the general view admits and draws anything; the other
   // rows are here so a view of each kind can sit on the plane, each in the region of the slice that fills it in.
   const VIEW_KINDS = {
-    GeneralView: { name: 'GeneralView', label: 'general view', qualified: 'StandardViewDefinitions::GeneralView', short: 'gv', renderer: 'graph',
+    GeneralView: { name: 'GeneralView', label: 'general view', qualified: 'StandardViewDefinitions::GeneralView', renderer: 'graph',
       admits: null, tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', '|', 'Specialization', 'FeatureTyping', 'ConnectionUsage'], options: {} },
     // The interconnection view: parts and part defs as nodes, their ports and items, the item, port and interface
     // defs beside them, and the connectors between the ports and items. A port def is admitted too, since the items
     // that flow are drawn in it.
-    InterconnectionView: { name: 'InterconnectionView', label: 'interconnection view', qualified: 'StandardViewDefinitions::InterconnectionView', short: 'iv', renderer: 'graph',
+    InterconnectionView: { name: 'InterconnectionView', label: 'interconnection view', qualified: 'StandardViewDefinitions::InterconnectionView', renderer: 'graph',
       admits: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition'],
       tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition', '|', 'ConnectionUsage', 'InterfaceUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'],
       options: {} },
-    ActionFlowView: { name: 'ActionFlowView', label: 'action flow view', qualified: 'StandardViewDefinitions::ActionFlowView', short: 'afv', renderer: 'graph',
+    ActionFlowView: { name: 'ActionFlowView', label: 'action flow view', qualified: 'StandardViewDefinitions::ActionFlowView', renderer: 'graph',
       admits: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'],
       tools: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', '|', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode', '|', 'SuccessionAsUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'], options: {} },
-    StateTransitionView: { name: 'StateTransitionView', label: 'state transition view', qualified: 'StandardViewDefinitions::StateTransitionView', short: 'stv', renderer: 'graph',
+    StateTransitionView: { name: 'StateTransitionView', label: 'state transition view', qualified: 'StandardViewDefinitions::StateTransitionView', renderer: 'graph',
       admits: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode'],
       tools: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode', '|', 'TransitionUsage', 'FeatureTyping'], options: {} },
-    SequenceView: { name: 'SequenceView', label: 'sequence view', qualified: 'StandardViewDefinitions::SequenceView', short: 'sv', renderer: 'sequence',
+    SequenceView: { name: 'SequenceView', label: 'sequence view', qualified: 'StandardViewDefinitions::SequenceView', renderer: 'sequence',
       admits: ['PartUsage', 'EventOccurrenceUsage'], tools: ['PartUsage', 'EventOccurrenceUsage', '|', 'Message', 'SuccessionAsUsage'], options: { spacing: 56 } },
     // A plan of parts (and items, once that kind is in) drawn to scale: scale is the pixels per unit of the view's unit.
-    GeometryView: { name: 'GeometryView', label: 'geometry view', qualified: 'StandardViewDefinitions::GeometryView', short: 'gev', renderer: 'geometry',
+    GeometryView: { name: 'GeometryView', label: 'geometry view', qualified: 'StandardViewDefinitions::GeometryView', renderer: 'geometry',
       admits: ['PartUsage', 'ItemUsage'], tools: ['PartUsage', 'ItemUsage'], options: { scale: 40, unit: 'm' } },
     // Any element may be a row, and nothing is drawn by hand: the rows come from the view's Show list and the panel's
     // Show all buttons. The options: mode (table, a row per element; matrix, the elements against each other), the
     // table's columns (keys of GRID_COLUMNS, in its order), and sort (a column, with a leading - for descending; null
     // for the model's order). The layout's keys are the rows, so there is no rows option.
-    GridView: { name: 'GridView', label: 'grid view', qualified: 'StandardViewDefinitions::GridView', short: 'grv', renderer: 'grid',
+    GridView: { name: 'GridView', label: 'grid view', qualified: 'StandardViewDefinitions::GridView', renderer: 'grid',
       admits: null, tools: [], options: { mode: 'table', columns: ['kind', 'name', 'type', 'multiplicity', 'owner', 'doc'], sort: null },
       // The view's body in the text: the core's expose lines, then, for a table, the library's tabular rendering (one
       // row per exposed element). A matrix has no library rendering, so it exposes and says nothing more. Validated
@@ -1040,7 +1030,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // A browser view shows the whole model as a tree, so it admits every kind and places nothing by hand: roots is null
     // for the whole package (every element at the top) or the ids of the elements whose subtrees the tree shows, and
     // collapsed the ids whose insides are folded away.
-    BrowserView: { name: 'BrowserView', label: 'browser view', qualified: 'StandardViewDefinitions::BrowserView', short: 'bv', renderer: 'browser',
+    BrowserView: { name: 'BrowserView', label: 'browser view', qualified: 'StandardViewDefinitions::BrowserView', renderer: 'browser',
       admits: null, tools: [], options: { roots: null, collapsed: [] },
       // A root is exposed by its qualified name, so one without a full name can't be, and the text leaves it out.
       check: function (model, view, ids, add) {
@@ -1438,6 +1428,25 @@ textarea.text[readonly] { resize: none; background: transparent; }
     for (const id of ca) if (cb.has(id)) found = id;
     return found;
   }
+  // What rules out a and b as the two ends of a connector (what is its kind in a sentence, "A flow"): with no common
+  // owner and an end inside a definition, the connector would reach across definitions, which the notation can't
+  // write. advice, when given, replaces the closing sentence that says where to draw it instead.
+  function acrossDefinitions(model, what, a, b, ids, advice) {
+    if (commonOwner(model, a, b, ids) === null && (KINDS[chain(model, a, ids)[0].kind].definition || KINDS[chain(model, b, ids)[0].kind].definition)) {
+      return what + ' between ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' reaches across definitions. ' + (advice || 'Connect things inside the same part def or part.');
+    }
+    return null;
+  }
+  // Whether a named relationship's name is taken beside it: by an element declared right in the body the relationship
+  // is written in (the package when its owner is null), or by another named relationship written there, among those
+  // given. Each kind's check says which it looks at (the ones before it, or every other one), so which line is marked
+  // when two clash still depends on the kinds and their order.
+  function nameTakenBeside(model, rel, ids, among) {
+    const name = str(rel.name).trim();
+    const o = RELATIONSHIPS[rel.kind].owner(model, rel, ids) || '';
+    return model.elements.some((e) => e.name.trim() === name && (e.owner === undefined ? '' : e.owner) === o) ||
+      among.some((r) => r !== rel && str(r.name).trim() === name && ids.has(r.from) && ids.has(r.to) && (RELATIONSHIPS[r.kind].owner(model, r, ids) || '') === o);
+  }
 
   function isName(s) { return NAME.test(s) && !KEYWORDS.has(s); }
   function quote(name) {
@@ -1459,6 +1468,18 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function nameable(model, el, ids) {
     return chain(model, el, ids).every((c) => hasName(c.kind) && c.name.trim());
   }
+  // A label with its indefinite article: "a part", "an item", "an action flow view". Some labels start with a vowel,
+  // so 'a ' + label reads wrong for them; capital gives the "A"/"An" that opens a sentence.
+  function an(label, capital) {
+    const article = /^[aeiou]/i.test(label) ? 'an' : 'a';
+    return (capital ? article.charAt(0).toUpperCase() + article.slice(1) : article) + ' ' + label;
+  }
+  // The kinds that are defined by something, as the defined-by rule and the page's hint list them: "part, port, item,
+  // action, parameter or state".
+  function definable() {
+    const labels = Object.keys(KINDS).filter((k) => KINDS[k].definedBy).map((k) => KINDS[k].label);
+    return labels.length > 1 ? labels.slice(0, -1).join(', ') + ' or ' + labels[labels.length - 1] : labels.join('');
+  }
 
   // An element in a sentence: its kind's label, its name (or "(unnamed)"), and the owner it is in. An element of a kind
   // with no name field is just its label: "start in a1".
@@ -1473,11 +1494,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const b = ids.get(rel.to);
     // An end of a kind with no name field is said by its kind (describe), not as "(unnamed)".
     const end = (e) => (!e ? '?' : hasName(e.kind) ? shown(e.name) : describe(model, e, ids));
-    const an = end(a);
-    const bn = end(b);
-    if (rel.kind === 'Specialization') return an + ' specializes ' + bn;
-    if (rel.kind === 'FeatureTyping') return an + ' defined by ' + bn;
-    return RELATIONSHIPS[rel.kind].label + ' ' + (rel.name && rel.name.trim() ? rel.name.trim() + ', ' : '') + an + ' to ' + bn;
+    const from = end(a);
+    const to = end(b);
+    if (rel.kind === 'Specialization') return from + ' specializes ' + to;
+    if (rel.kind === 'FeatureTyping') return from + ' defined by ' + to;
+    return RELATIONSHIPS[rel.kind].label + ' ' + (rel.name && rel.name.trim() ? rel.name.trim() + ', ' : '') + from + ' to ' + to;
   }
   function describeView(model, view) { return 'view ' + shown(view.name); }
   function labelFor(model, targetId) {
@@ -1561,15 +1582,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!ways.size) return null;
     return ways.size === 1 && !ways.has('inout') ? ways.values().next().value : 'inout';
   }
-  // What rules out a and b as the ends of a connector (what is its kind in a sentence, "A flow"): with no common owner
-  // and an end inside a definition, the connector would reach across definitions, which the notation can't write (the
-  // connection's own rule).
-  function acrossDefinitions(model, what, a, b, ids) {
-    if (commonOwner(model, a, b, ids) === null && (KINDS[chain(model, a, ids)[0].kind].definition || KINDS[chain(model, b, ids)[0].kind].definition)) {
-      return what + ' between ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' reaches across definitions. Connect things inside the same part def or part.';
-    }
-    return null;
-  }
   // A flow end that is written through its definition: a port, defined by a port def whose directed items are what
   // flows through it. Anything else (an item on a part; a parameter, once the behavior slice is in) is a directed
   // feature written as itself, whether or not it sits on a border.
@@ -1588,13 +1600,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // checks an interface, a flow or a binding against everything beside it.
   function connectorNameClash(model, rel, ids, add) {
     const cname = rel.name.trim();
-    if (!cname) return;
-    const kind = RELATIONSHIPS[rel.kind];
-    const o = kind.owner(model, rel, ids) || '';
-    const ownerOf = (r) => { const k = RELATIONSHIPS[r.kind]; return k.toSysML && ids.has(r.from) && ids.has(r.to) ? (k.owner(model, r, ids) || '') : undefined; };
-    const taken = model.elements.some((e) => e.name.trim() === cname && (e.owner === undefined ? '' : e.owner) === o) ||
-      model.relationships.some((r) => r !== rel && typeof r.name === 'string' && r.name.trim() === cname && ownerOf(r) === o);
-    if (taken) add(rel.id, 'The ' + kind.label + ' ' + cname + ' is named like something else beside it. Rename one.');
+    if (cname && nameTakenBeside(model, rel, ids, model.relationships)) add(rel.id, 'The ' + RELATIONSHIPS[rel.kind].label + ' ' + cname + ' is named like something else beside it. Rename one.');
   }
   // The end of a flow as the text names it (which is 'from' or 'to'): for a port, the directed item of its port def
   // that is of the flow's item and goes out of the source or into the target, through the port's conjugation; for
@@ -1835,7 +1841,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const what = describe(model, el, ids);
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
     if (el.role && !(owner && isStateOwner(owner.kind))) {
-      add(el.id, 'The role ' + el.role + ' is for an action inside a state; ' + what + ' is ' + (owner ? 'in a ' + KINDS[owner.kind].label : 'on its own') + '. Clear the role, or move it into a state.');
+      add(el.id, 'The role ' + el.role + ' is for an action inside a state; ' + what + ' is ' + (owner ? 'in ' + an(KINDS[owner.kind].label) : 'on its own') + '. Clear the role, or move it into a state.');
     }
     if (el.actionKind === 'accept' && !str(el.payload).trim()) add(el.id, what + ' accepts nothing yet. Give it a payload: a type, x : Type, or a trigger like after 10 [SI::s] or when ready.');
     if (el.actionKind === 'send' && !str(el.payload).trim()) add(el.id, what + ' sends nothing yet. Give it a payload, like new Alert().');
@@ -1843,7 +1849,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // def, a part, a state without a role or the package the pilot can't parse them.
     if ((el.actionKind === 'send' || el.actionKind === 'accept') && !(owner && isActionOwner(owner.kind)) && !(el.role && owner && isStateOwner(owner.kind))) {
       add(el.id, 'An action that ' + (el.actionKind === 'send' ? 'sends' : 'accepts') + ' is written inside an action def or an action, or as a state\'s entry, do or exit action; ' + what + ' is ' +
-        (owner ? 'in a ' + KINDS[owner.kind].label : 'on its own') + '. Move it' + (owner && isStateOwner(owner.kind) ? ', or give it a role' : '') + '.');
+        (owner ? 'in ' + an(KINDS[owner.kind].label) : 'on its own') + '. Move it' + (owner && isStateOwner(owner.kind) ? ', or give it a role' : '') + '.');
     }
     if (el.actionKind === 'accept' && str(el.payload).trim()) checkNamedType(model, el.id, el.payload, 'The payload ' + str(el.payload).trim() + ' of ' + what, add);
     checkInheritedName(model, el, ids, add);
@@ -1872,10 +1878,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const what = describe(model, el, ids);
     const label = KINDS[el.kind].label;
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-    if (!owner || !isActionOwner(owner.kind)) add(el.id, 'A ' + label + ' belongs inside an action def or an action; ' + what + ' is ' + (owner ? 'in a ' + KINDS[owner.kind].label : 'on its own') + '.');
+    if (!owner || !isActionOwner(owner.kind)) add(el.id, an(label, true) + ' belongs inside an action def or an action; ' + what + ' is ' + (owner ? 'in ' + an(KINDS[owner.kind].label) : 'on its own') + '.');
     const links = behaviorLinksOf(model, el.id, 'SuccessionAsUsage');
-    if ((el.kind === 'ForkNode' || el.kind === 'DecisionNode') && links.into.length > 1) add(el.id, 'One succession leads into a ' + label + '; ' + what + ' has ' + links.into.length + '.');
-    if ((el.kind === 'JoinNode' || el.kind === 'MergeNode') && links.outOf.length > 1) add(el.id, 'One succession leaves a ' + label + '; ' + what + ' has ' + links.outOf.length + '.');
+    if ((el.kind === 'ForkNode' || el.kind === 'DecisionNode') && links.into.length > 1) add(el.id, 'One succession leads into ' + an(label) + '; ' + what + ' has ' + links.into.length + '.');
+    if ((el.kind === 'JoinNode' || el.kind === 'MergeNode') && links.outOf.length > 1) add(el.id, 'One succession leaves ' + an(label) + '; ' + what + ' has ' + links.outOf.length + '.');
     if (el.kind === 'DecisionNode') {
       const guards = links.outOf.map((r) => str(r.guard).trim());
       const elses = guards.filter((g) => g === 'else').length;
@@ -1895,7 +1901,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
     const home = el.kind === 'StartNode' ? 'an action def or an action' : el.kind === 'DoneNode' ? 'an action def, an action, a state def or a state' : 'a state def or a state';
     const fits = !!owner && (el.kind === 'StartNode' ? isActionOwner(owner.kind) : el.kind === 'DoneNode' ? isActionOwner(owner.kind) || isStateOwner(owner.kind) : isStateOwner(owner.kind));
-    if (!fits) { add(el.id, 'A ' + label + ' belongs inside ' + home + '; ' + what + ' is ' + (owner ? 'in a ' + KINDS[owner.kind].label : 'on its own') + '.'); return; }
+    if (!fits) { add(el.id, an(label, true) + ' belongs inside ' + home + '; ' + what + ' is ' + (owner ? 'in ' + an(KINDS[owner.kind].label) : 'on its own') + '.'); return; }
     const twins = childrenOf(model, owner.id).filter((e) => e.kind === el.kind);
     if (twins.length > 1) add(el.id, describe(model, owner, ids) + ' has ' + twins.length + ' ' + label + 's; one is enough.');
     if (el.kind !== 'InitialNode') return;
@@ -1966,11 +1972,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const name = str(rel.name).trim();
     if (!name) return;
     const o = RELATIONSHIPS[rel.kind].owner(model, rel, ids);
-    const key = o || '';
     const before = model.relationships.slice(0, model.relationships.indexOf(rel));
-    const taken = model.elements.some((e) => e.name.trim() === name && (e.owner === undefined ? '' : e.owner) === key) ||
-      before.some((r) => str(r.name).trim() === name && ids.has(r.from) && ids.has(r.to) && (RELATIONSHIPS[r.kind].owner(model, r, ids) || '') === key);
-    if (taken) add(rel.id, 'The ' + describeRel(model, rel, ids) + ' is named like something else beside it. Rename one.');
+    if (nameTakenBeside(model, rel, ids, before)) add(rel.id, 'The ' + describeRel(model, rel, ids) + ' is named like something else beside it. Rename one.');
     if (o !== null && INHERITED_BEHAVIOR_NAMES.has(name)) add(rel.id, 'The name ' + name + ' is one every action and state already has inside it. Rename the ' + describeRel(model, rel, ids) + '.');
   }
   // Both ends of a succession or transition are written in one body: the innermost element holding both, or the
@@ -1978,12 +1981,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // neither successions nor transitions.
   function behaviorBodyProblem(model, a, b, ids, what) {
     const owner = commonOwner(model, a, b, ids);
-    if (owner === null) {
-      if (KINDS[chain(model, a, ids)[0].kind].definition || KINDS[chain(model, b, ids)[0].kind].definition) {
-        return 'A ' + what + ' between ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' reaches across definitions. Draw it inside one ' + (what === 'succession' ? 'action def, action or part' : 'state def or state') + '.';
-      }
-      return null;
-    }
+    if (owner === null) return acrossDefinitions(model, 'A ' + what, a, b, ids, 'Draw it inside one ' + (what === 'succession' ? 'action def, action or part' : 'state def or state') + '.');
     const o = ids.get(owner);
     if (o.parallel === true) return describe(model, o, ids) + ' runs its regions in parallel, so it can\'t hold a ' + what + ' between ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + '. Draw it inside one region.';
     return null;
@@ -2110,6 +2108,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   EXTRA.sendWord = function (model, target) { return namesAPort(model, target) ? 'via' : 'to'; };
+  EXTRA.isActionOwner = isActionOwner;
+  EXTRA.isStateOwner = isStateOwner;
   // Sequence: the time order. The messages in order: those with a numeric order first, by it, then the rest as the
   // model has them, so a new message, with no order yet, lands last.
   function messagesInOrder(model) {
@@ -2204,11 +2204,20 @@ textarea.text[readonly] { resize: none; background: transparent; }
       geoDimsSet(g).filter((d) => dims.indexOf(d) >= 0).forEach((d) => add(el.id, what + ' takes its ' + d + ' from ' + from + ' and sets one of its own. The text can\'t bind it twice: clear one of them.'));
     });
   }
-  // An element of any kind named like a library name the geometry text imports shadows it, and the text breaks.
+  // An element named like a library name the geometry text imports shadows it where that text can see it, and the
+  // text breaks. The text sits in the body of the element drawn to scale, where a name resolves through the members
+  // of that body, of each owner's body on the way up (inherited ones included) and of the package; a port named in
+  // on a part beside the spatial one is out of its sight (the pilot resolves ['in'] to the unit there), and so is
+  // the hidden name of a kind the text never declares (a start node).
   function geoNameCheck(model, el, ids, add) {
     const name = el.name.trim();
-    if (!GEO_LIBRARY_NAMES.has(name) || !model.elements.some(geoExported)) return;
+    if (!hasName(el.kind) || !GEO_LIBRARY_NAMES.has(name) || !model.elements.some((x) => geoExported(x) && geoSees(model, x, el, ids))) return;
     add(el.id, 'The name ' + name + ' is one the geometry text brings in from the library, so the text would mix them up. Rename ' + describe(model, el, ids) + '.');
+  }
+  // Whether the geometry text of x sees el by name: el is at the top of the package, or right inside x or one of its
+  // owners, or a feature x or one of its owners inherits.
+  function geoSees(model, x, el, ids) {
+    return el.owner === undefined || chain(model, x, ids).some((a) => a.id === el.owner || inheritedFeatures(model, a, ids).get(el.name.trim()) === el);
   }
   // The spatial statements of a usage's body: its shape with the dimensions it sets, then its position as a translation
   // of its coordinate frame, with the imports they need (validated: critique/g01, g02, g08b, g10, g11; the units, a
@@ -2372,9 +2381,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   BODY.push(writeBodyNotes);
 
-  // The notes the text writes, open and archived together: each with its number (made unique the way tidyNotes does),
-  // its target (an id, or null for a note that floats free on the plane), its text, Claude's response, whether it is
-  // resolved, and, for an archived note, that it is and the resolution it was archived with.
+  // The notes the text writes, open and archived together: each with its number (in number order, each number used
+  // once, so a note's short name <nN> is its own), its target (an id, or null for a note that floats free on the
+  // plane), its text, Claude's response, whether it is resolved, and, for an archived note, that it is and the
+  // resolution it was archived with.
   function noteRecords(notes, archive) {
     const take = (list, archived) => (Array.isArray(list) ? list : [])
       .filter((n) => n && typeof n === 'object' && (typeof n.target === 'string' || n.target === null) && typeof n.text === 'string')
@@ -2426,8 +2436,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const where = owner ? ' in ' + shown(owner.name) : '';
       // A kind with no name field is never unnamed.
       if (!name && hasName(el.kind)) {
-        if (kind.definition) add(el.id, 'A ' + kind.label + ' has no name.');
-        else if (inRelationship.has(el.id) || childrenOf(model, el.id).length) add(el.id, 'A ' + kind.label + where + ' has no name, so nothing can refer to it. Name it.');
+        if (kind.definition) add(el.id, an(kind.label, true) + ' has no name.');
+        else if (inRelationship.has(el.id) || childrenOf(model, el.id).length) add(el.id, an(kind.label, true) + where + ' has no name, so nothing can refer to it. Name it.');
       }
       if (el.multiplicity && (!MULTIPLICITY.test(el.multiplicity) || !boundsOk(el.multiplicity))) {
         add(el.id, 'The multiplicity "' + el.multiplicity + '" of ' + describe(model, el, ids) + ' is not like 1, 0..1, or 1..*.');
@@ -2498,22 +2508,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const ind = '    '.repeat(depth);
     if (!body.includes('\n') && (ind + head + body).length <= 96) return [ind + head + ' /* ' + body + ' */'];
     return [ind + head, ind + '/*'].concat(wrapText(body, 92 - ind.length).map((l) => ind + ' * ' + l)).concat([ind + ' */']);
-  }
-
-  // Notes in number order, each number used once, so each comment's short name is its own. A note's target is an id,
-  // or null for a note that floats free on the plane (the annotations slice draws those; the text leaves them out).
-  function tidyNotes(notes) {
-    const list = (Array.isArray(notes) ? notes : [])
-      .filter((n) => n && typeof n === 'object' && (typeof n.target === 'string' || n.target === null) && typeof n.text === 'string')
-      .map((n, i) => ({ no: n.no >= 1 ? Math.floor(n.no) : 0, target: n.target, text: n.text, response: typeof n.response === 'string' ? n.response : '', i }))
-      .sort((a, b) => (a.no - b.no) || (a.i - b.i));
-    const used = new Set();
-    let top = list.reduce((m, n) => Math.max(m, n.no), 0);
-    for (const n of list) {
-      if (!n.no || used.has(n.no)) n.no = ++top;
-      used.add(n.no);
-    }
-    return list;
   }
 
   // The notes and the archived notes are written together, at the end of the package (noteRecords, noteStatements).
@@ -2687,7 +2681,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     FORMAT, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, VIEW_DEF,
     blank, normalize, validate, toSysML, placement, canContain, admits, hasTrait, hasName, index, relIndex, viewIndex, shownIn, chain, childrenOf,
     descendants, typingOf, inUsage, specializes, commonOwner, featurePath, quote, qualified, describe, describeRel, describeView,
-    labelFor, isName, tidyNotes, inheritedFeatures,
+    labelFor, isName, inheritedFeatures, an, definable,
   }, EXTRA));
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 </script>
@@ -2730,7 +2724,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     PartUsage: 'A part: rounded corners, on the plane or inside a part def or part',
     PortUsage: 'A port: a small square on the border of a part def or part',
     Specialization: 'One definition specializes another, or one part or port subsets another',
-    FeatureTyping: 'A part is defined by a part def; a port by a port def',
+    FeatureTyping: 'A usage is defined by a definition: a part by a part def, an action by an action def, a state by a state def',
     ConnectionUsage: 'A connection between two ports or two parts'
   };
   const TOOL_HINT = {
@@ -2739,7 +2733,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     PartUsage: 'Click where the part goes: on the plane, or inside a part def or a part.',
     PortUsage: 'Click a part def or a part to put a port on its border.',
     Specialization: ['Click the element that specializes…', 'Now click the element it specializes.'],
-    FeatureTyping: ['Click a part or a port…', 'Now click the definition it is defined by.'],
+    FeatureTyping: ['Click the ' + M.definable() + ' to define…', 'Now click the definition it is defined by.'],
     ConnectionUsage: ['Click one port or part…', 'Now click the other end.']
   };
   const BASE_NAME = { PartDefinition: 'PartDef', PortDefinition: 'PortDef', PartUsage: 'part', PortUsage: 'port' };
@@ -3312,7 +3306,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     g.appendChild(t);
     const tab = node('rect', { x: f(fr.x), y: f(fr.y), width: f(tabW + 8), height: 26 }, 'tab');
     const title = node('title');
-    title.textContent = M.describeView(model, view) + ', a ' + M.VIEW_KINDS[view.kind].label + '. Click to select it, drag to move it.';
+    title.textContent = M.describeView(model, view) + ', ' + M.an(M.VIEW_KINDS[view.kind].label) + '. Click to select it, drag to move it.';
     tab.appendChild(title);
     g.appendChild(tab);
     rendererFor(view).draw(view, g, L);
@@ -3445,9 +3439,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
       },
       draw: function (view, g, L) {
         const fr = L.frameRect;
-        g.appendChild(text(fr.x + fr.w / 2, fr.y + fr.h / 2, 'A ' + M.VIEW_KINDS[view.kind].label + ' is not drawn yet.', 'pending', 'middle'));
+        g.appendChild(text(fr.x + fr.w / 2, fr.y + fr.h / 2, M.an(M.VIEW_KINDS[view.kind].label, true) + ' is not drawn yet.', 'pending', 'middle'));
       },
-      place: function (view, kind) { say('A ' + M.KINDS[kind].label + ' can\'t be drawn in a ' + M.VIEW_KINDS[view.kind].label + ' yet.'); return null; },
+      place: function (view, kind) { say(M.an(M.KINDS[kind].label, true) + ' can\'t be drawn in ' + M.an(M.VIEW_KINDS[view.kind].label) + ' yet.'); return null; },
       dragStart: function () { return null; },
       drag: function () {},
       drop: function () { return null; }
@@ -3560,8 +3554,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     ActionDefinition: 'ActionDef', ActionUsage: 'action', ParameterUsage: 'param', ForkNode: 'fork', JoinNode: 'join', DecisionNode: 'decision', MergeNode: 'merge',
     StartNode: 'start', DoneNode: 'done', StateDefinition: 'StateDef', StateUsage: 'state', InitialNode: 'initial'
   });
-  function isActionKind(kind) { return kind === 'ActionDefinition' || kind === 'ActionUsage'; }
-  function isStateKind(kind) { return kind === 'StateDefinition' || kind === 'StateUsage'; }
   // The header of an action or a state: the keyword line (with the action's role and kind, or the state's parallel,
   // in it) and the name line, as the core's boxes have them.
   function behaviorHeader(el, r, g, keywords) {
@@ -3668,7 +3660,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const home = BEHAVIOR_NODE_HOME[kind];
     if (!home) return el;
     const owner = el.owner !== undefined ? layout.ids.get(el.owner) : null;
-    const fits = !!owner && (home === 'action' ? isActionKind(owner.kind) : home === 'state' ? isStateKind(owner.kind) : isActionKind(owner.kind) || isStateKind(owner.kind));
+    const fits = !!owner && (home === 'action' ? M.isActionOwner(owner.kind) : home === 'state' ? M.isStateOwner(owner.kind) : M.isActionOwner(owner.kind) || M.isStateOwner(owner.kind));
     if (!fits) {
       model.elements.splice(model.elements.indexOf(el), 1);
       delete view.layout[el.id];
@@ -3870,7 +3862,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         insertEvent(el, host, y, L);
         return el;
       }
-      say('A ' + k.label + ' can\'t be drawn in a ' + M.VIEW_KINDS[view.kind].label + '.');
+      say(M.an(k.label, true) + ' can\'t be drawn in ' + M.an(M.VIEW_KINDS[view.kind].label) + '.');
       return null;
     },
     dragStart: function (view, el, p) {
@@ -4128,7 +4120,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // hold it, it belongs to that part and its position is in that part's frame.
     place: function (view, kind, p, hit) {
       const k = M.KINDS[kind];
-      if (!M.hasTrait(kind, 'spatial')) { say('A ' + k.label + ' has no footprint to draw to scale, so it can\'t go in a ' + M.VIEW_KINDS[view.kind].label + '.'); return null; }
+      if (!M.hasTrait(kind, 'spatial')) { say(M.an(k.label, true) + ' has no footprint to draw to scale, so it can\'t go in ' + M.an(M.VIEW_KINDS[view.kind].label) + '.'); return null; }
       const L = viewLayout(view.id);
       const unit = geoViewUnit(view);
       const px = geoPxPer(view, unit);
@@ -4240,14 +4232,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // Cuts a text to n characters, or to what fits a cell width px wide, with an ellipsis.
   function gridClipChars(s, n) { return s.length > n ? s.slice(0, Math.max(1, n - 1)) + '…' : s; }
   function gridClip(s, width) { return gridClipChars(s, Math.max(2, Math.floor((width - 2 * GRID_PAD) / GRID_CHAR))); }
-  // An element's dotted path from the package, Page.hosts.api, so two ports named api can be told apart.
-  function gridPath(el, ids) { return M.chain(model, el, ids).map((e) => e.name.trim() || '(unnamed)').join('.'); }
+  // An element's dotted path from the package, Page.hosts.api, so two ports named api can be told apart; a kind with no
+  // name field (a start node) goes by its label, as in a browser: Release.start.
+  function gridPath(el, ids) { return M.chain(model, el, ids).map(gridName).join('.'); }
+  // What stands for an element's name: its name, (unnamed) when it has none, or its kind's label when its kind has no
+  // name field.
+  function gridName(el) { return M.hasName(el.kind) ? el.name.trim() || '(unnamed)' : M.KINDS[el.kind].label; }
   // The text of a table cell: what the column says of the element. The notes and problems columns read the page's
   // lists; found, when given, stands in for the problems (what validate finds now, while sorting).
   function gridCell(el, col, ids, found) {
     const kind = M.KINDS[el.kind];
-    if (col === 'kind') return kind.keyword;
-    if (col === 'name') return el.name.trim() || '(unnamed)';
+    // A kind with no name field is said by its label in both columns (start, initial node), as the browser says it.
+    if (col === 'kind') return M.hasName(el.kind) ? kind.keyword : kind.label;
+    if (col === 'name') return gridName(el);
     if (col === 'type') {
       const typing = kind.usage ? M.typingOf(model, el) : null;
       const def = typing ? ids.get(typing.to) : null;
@@ -4644,7 +4641,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       });
     },
     place: function (view, kind) {
-      say('A ' + M.KINDS[kind].label + ' can\'t be placed in a ' + M.VIEW_KINDS[view.kind].label + ', which shows every element the model has. Add it in another view and it appears here too.');
+      say(M.an(M.KINDS[kind].label, true) + ' can\'t be placed in ' + M.an(M.VIEW_KINDS[view.kind].label) + ', which shows every element the model has. Add it in another view and it appears here too.');
       return null;
     },
     dragStart: function () { return null; },
@@ -4824,7 +4821,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (hit) {
       const el = hit.type === 'el' ? layout.ids.get(hit.id) : null;
       if (el && !M.hasName(el.kind)) {
-        say('A ' + M.KINDS[el.kind].label + ' can\'t carry a note. Drop the pin on the element it belongs to instead.');
+        say(M.an(M.KINDS[el.kind].label, true) + ' can\'t carry a note. Drop the pin on the element it belongs to instead.');
       } else if (hit.id !== n.target) {
         n.target = hit.id;
         n.targetLabel = M.labelFor(model, hit.id);
@@ -5488,7 +5485,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (tool) return toolHint(tool, pending ? 1 : 0);
     if (!editable()) return 'Drag to move around · scroll to pan · pinch or Ctrl/⌘ + scroll to zoom';
     const view = activeView();
-    if (view && !M.VIEW_KINDS[view.kind].tools.length) return 'A ' + M.VIEW_KINDS[view.kind].label + ' fills from its panel, not the palette · click another frame to draw there';
+    if (view && !M.VIEW_KINDS[view.kind].tools.length) return M.an(M.VIEW_KINDS[view.kind].label, true) + ' fills from its panel, not the palette · click another frame to draw there';
     return NARROW.matches
       ? 'Tap to select · drag a box to move it · drag the plane to move around'
       : 'Click to select · drag a box to move it · drag the plane to move around · Ctrl/⌘ + scroll to zoom';
@@ -5560,7 +5557,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const view = targetView(hit, p);
     if (!view) return;
     if (!M.admits(view.kind, kind)) {
-      say('A ' + k.label + ' can\'t go in a ' + M.VIEW_KINDS[view.kind].label + '. Click inside a view that takes one; Escape puts the tool down.');
+      say(M.an(k.label, true) + ' can\'t go in ' + M.an(M.VIEW_KINDS[view.kind].label) + '. Click inside a view that takes one; Escape puts the tool down.');
       return;
     }
     if (view.id !== active) setActive(view.id);
@@ -5573,6 +5570,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     render();
     select({ type: 'el', id: el.id }, view.id);
     changed();
+    // A kind with no name field (a start node) has nothing to name, and the panel shows no name input for it.
+    if (!M.hasName(kind)) { say('Added ' + M.describe(model, el) + ' to ' + M.describeView(model, view) + '.'); return; }
     say('Added ' + M.describe(model, el) + ' to ' + M.describeView(model, view) + '. Name it in the panel.');
     fName.focus({ preventScroll: true });
     fName.select();
@@ -5661,7 +5660,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     select({ type: 'view', id: view.id });
     fit();
     changed();
-    say('Added ' + M.describeView(model, view) + ', a ' + M.VIEW_KINDS[view.kind].label + ', to the right of the others. Name it in the panel.');
+    say('Added ' + M.describeView(model, view) + ', ' + M.an(M.VIEW_KINDS[view.kind].label) + ', to the right of the others. Name it in the panel.');
     vName.focus({ preventScroll: true });
     vName.select();
   }
@@ -5720,7 +5719,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const L = viewLayout(view.id);
     const before = snapshot();
     if (M.KINDS[el.kind].onBorder) {
-      if (!view.layout[el.owner]) { say('Show ' + M.describe(model, layout.ids.get(el.owner)) + ' first; a ' + M.KINDS[el.kind].label + ' sits on its border.'); return; }
+      if (!view.layout[el.owner]) { say('Show ' + M.describe(model, layout.ids.get(el.owner)) + ' first; ' + M.an(M.KINDS[el.kind].label) + ' sits on its border.'); return; }
       const used = M.childrenOf(model, el.owner).filter((s) => view.layout[s.id] && view.layout[s.id].side === 'right').map((s) => view.layout[s.id].at);
       const at = [0.5, 0.3, 0.7, 0.2, 0.8, 0.4, 0.6].find((a) => used.every((u) => Math.abs(u - a) > 0.06));
       view.layout[el.id] = M.placement(el, { side: 'right', at: at === undefined ? 0.5 : at });
@@ -5989,7 +5988,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       o.value = '';
       o.textContent = rendererFor(view).showsAll ? 'This view shows every element'
         : M.VIEW_KINDS[view.kind].admits !== null && !M.VIEW_KINDS[view.kind].admits.length
-          ? 'Nothing can be shown in a ' + M.VIEW_KINDS[view.kind].label + ' yet'
+          ? 'Nothing can be shown in ' + M.an(M.VIEW_KINDS[view.kind].label) + ' yet'
           : 'Everything it can show is shown';
       vShow.appendChild(o);
     }
@@ -6335,7 +6334,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!s || s.type === 'view' || !editable()) return;
     // A note's about needs a name, so an element of a kind without one (a start node) can't carry a note.
     if (s.type === 'el' && !M.hasName(s.item.kind)) {
-      say('A ' + M.KINDS[s.item.kind].label + ' can\'t carry a note. Note the ' + (s.item.owner !== undefined ? 'element it belongs to' : 'package') + ' instead.');
+      say(M.an(M.KINDS[s.item.kind].label, true) + ' can\'t carry a note. Note the ' + (s.item.owner !== undefined ? 'element it belongs to' : 'package') + ' instead.');
       return;
     }
     const stamp = now();

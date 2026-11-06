@@ -1,7 +1,7 @@
 // The grid view: a new one has no rows and no tool of its own; Show all makes a row of every element in one undo step
 // and the export gains the table's rendering; clicking a row selects its element; a column can be unticked and a header
-// sorts the rows; matrix mode puts the relationship between two elements in their cell; the fixture's table and matrix
-// load from a state file.
+// sorts the rows; matrix mode puts the relationship between two elements in their cell; a start node, which has no name,
+// goes by its label; the fixture's table and matrix load from a state file.
 
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { embeddedModel, exportText, finish, launch, openCanvas, until } from './helpers.mjs';
 
 const FIXTURE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'grid.json');
+const ACTIONS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'behavior-actions.json'); // holds a start and a done node
 const COUNT = embeddedModel().elements.length; // how many rows Show all makes of the saved model
 const rows = (id) => `#drawing g.frame[data-view="${id}"] g.grid-row[data-el]`;
 const heads = (id, col) => `#drawing g.frame[data-view="${id}"] g[data-action="sort"]${col ? `[data-for="${col}"]` : ''}`;
@@ -128,6 +129,23 @@ describe('grid view', () => {
     assert.match(await page.textContent('#status'), /matrix/);
     const text = await exportText(page);
     assert.match(text, /view view1 : StandardViewDefinitions::GridView \{\s+expose StrongholdProof::\*::\*\*;\s+\}/, 'a matrix exposes without the table rendering');
+    await finish(ctx);
+  });
+
+  test('a start or done node, which has no name, goes by its label in the table and in a matrix row header, as in a browser', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    await page.setInputFiles('#import-file', ACTIONS);
+    await until(page, () => !!document.querySelector('#drawing g.frame[data-view="v-release"] g[data-el="Release.start"]'), null, 'the release flow is drawn');
+    const id = await addView(page, 'GridView');
+    await page.click('#grid-show-all');
+    await until(page, (vid) => !!document.querySelector(`#drawing g.frame[data-view="${vid}"] g.grid-row[data-el="Release.start"]`), id, 'the start node has a row');
+    const cells = (elId) => page.$$eval(`#drawing g.frame[data-view="${id}"] g.grid-row[data-el="${elId}"] text.grid-cell`, (ts) => ts.map((t) => t.textContent));
+    assert.deepEqual(await cells('Release.start'), ['start', 'start', 'Release'], 'the kind and the name columns both say start, the owner column Release; an empty column draws no cell');
+    assert.deepEqual(await cells('Release.done'), ['done', 'done', 'Release']);
+    assert.ok(!(await page.textContent(`#drawing g.frame[data-view="${id}"]`)).includes('(unnamed)'), 'nothing in the table is (unnamed)');
+    await page.selectOption('#grid-mode', 'matrix');
+    await until(page, (vid) => document.querySelector(`#drawing g.frame[data-view="${vid}"] g.grid-row[data-el="Release.start"] text.grid-name`)?.textContent === 'Release.start', id, 'the matrix row header is the start node\'s path by its label');
     await finish(ctx);
   });
 

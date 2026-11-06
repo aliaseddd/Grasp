@@ -3,7 +3,7 @@
 //
 //   node canvas/export.mjs                     # the model and the notes saved in index.html
 //   node canvas/export.mjs canvas-state.json   # a state file: what Download state saves, or what Claude read
-//                                              # from the published page's store, shaped { model, notes }
+//                                              # from the published page's store, shaped { model, notes, archive }
 //
 // Problems that keep the text from being correct SysML go to stderr, and the exit code is 1 when there are any.
 // Check the text with the pilot implementation's validator: canvas/check.sh does both.

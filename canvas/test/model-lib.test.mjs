@@ -206,4 +206,52 @@ describe('model-lib', () => {
     assert.equal(lib.validate(model).length, 0, JSON.stringify(lib.validate(model)));
     assert.match(lib.toSysML(model, []), /action def A \{\s+action start1;\s+first start then start1;\s+\}/);
   });
+
+  test('the defined-by rule: a definition is refused as one, a fork or an event as something nothing defines, and a wrong definition kind with its article', () => {
+    const lib = loadLib(pageSource());
+    const model = lib.normalize(small([el('A', 'ActionDefinition', 'A'), el('A.f1', 'ForkNode', 'f1'), el('A.a1', 'ActionUsage', 'a1'), el('A.a1.x', 'ParameterUsage', 'x', { direction: 'in' }),
+      el('P', 'PartDefinition', 'P'), el('P.p', 'PartUsage', 'p'), el('P.p.e1', 'EventOccurrenceUsage', 'e1')], [{ id: 'ft', kind: 'FeatureTyping', from: 'A.f1', to: 'A' }]));
+    const ids = lib.index(model);
+    const rule = lib.RELATIONSHIPS.FeatureTyping;
+    const nothing = ' isn\'t defined by anything; a part, port, item, action, parameter or state is.';
+    assert.equal(rule.first(model, ids.get('A'), ids), 'Only a usage is defined by something; action def A is a definition.');
+    assert.equal(rule.first(model, ids.get('A.f1'), ids), 'A fork' + nothing);
+    assert.equal(rule.ends(model, ids.get('P.p.e1'), ids.get('P'), ids), 'An event' + nothing);
+    assert.equal(rule.first(model, ids.get('A.a1'), ids), null, 'an action is defined by something');
+    assert.equal(rule.ends(model, ids.get('A.a1'), ids.get('P'), ids), 'action a1 in A can only be defined by an action def.');
+    assert.equal(rule.ends(model, ids.get('A.a1.x'), ids.get('P'), ids), 'parameter x in a1 can only be defined by an item def.');
+    const problems = lib.validate(model).map((p) => p.id + ': ' + p.message);
+    assert.ok(problems.includes('ft: A fork' + nothing), `validate says the same of a typing in the file: ${JSON.stringify(problems)}`);
+    assert.ok(!problems.some((p) => /undefined/.test(p)), 'nothing says "a undefined"');
+  });
+
+  test('a label that starts with a vowel takes "an": An action def has no name, is an action, defined by an item def', () => {
+    const lib = loadLib(pageSource());
+    assert.equal(lib.an('part'), 'a part');
+    assert.equal(lib.an('item def', true), 'An item def');
+    assert.equal(lib.an('interconnection view'), 'an interconnection view');
+    const model = lib.normalize(small([el('AD', 'ActionDefinition', ''), el('AD.b', 'ActionUsage', 'b'), el('ID', 'ItemDefinition', ''), el('I', 'InitialNode', ''), el('PD', 'PartDefinition', 'PD')],
+      [{ id: 'ft', kind: 'FeatureTyping', from: 'AD.b', to: 'PD' }]));
+    const messages = lib.validate(model).map((p) => p.message);
+    for (const expected of ['An action def has no name.', 'An item def has no name.', 'An initial node belongs inside a state def or a state; initial node is on its own.', 'action b in (unnamed) can only be defined by an action def.']) {
+      assert.ok(messages.includes(expected), `${JSON.stringify(expected)} is among ${JSON.stringify(messages)}`);
+    }
+    assert.ok(!messages.some((m) => /\b[Aa] [aeio]/.test(m)), `no message glues "a" to a label that starts with a vowel: ${JSON.stringify(messages)}`);
+    const ids = lib.index(model);
+    assert.equal(lib.RELATIONSHIPS.FlowConnectionUsage.first(model, ids.get('AD.b'), ids), 'A flow runs from a port or an item; action b in (unnamed) is an action.');
+  });
+
+  test('a library name the geometry text can\'t see (a port named in on a part beside the one drawn to scale) is no problem; one it can see is', () => {
+    const lib = loadLib(pageSource());
+    const rug = { shape: 'Rectangle', length: 24, width: 12, unit: 'in', posX: 1, posY: 1 };
+    const geometry = { kind: 'GeometryView', show: ['Sys.rug'], options: { scale: 40, unit: 'in' } };
+    const problems = (elements, rels) => lib.validate(lib.normalize(small(elements, rels || [], geometry))).map((p) => p.id + ': ' + p.message).join('\n');
+    const sys = [el('Sys', 'PartDefinition', 'Sys'), el('Sys.rug', 'PartUsage', 'rug', rug)];
+    assert.equal(problems(sys.concat([el('Sys.tank', 'PartUsage', 'tank'), el('Sys.tank.in', 'PortUsage', 'in')])), '', 'a port named in on the part beside rug is out of the text\'s sight');
+    assert.equal(problems(sys.concat([el('Sys.rug.leg', 'PartUsage', 'leg'), el('Sys.rug.leg.m', 'PortUsage', 'm')])), '', 'and so is one deeper inside rug');
+    assert.match(problems(sys.concat([el('Sys.m', 'PortUsage', 'm')])), /^Sys\.m: The name m is one the geometry text brings in from the library/, 'a port m beside rug shadows the unit');
+    assert.match(problems(sys.concat([el('Sys.rug.m', 'PortUsage', 'm')])), /^Sys\.rug\.m: The name m/, 'so does one on rug');
+    assert.match(problems(sys.concat([el('Box', 'PartDefinition', 'Box')])), /^Box: The name Box/, 'and a part def Box at the top of the package');
+    assert.match(problems(sys.concat([el('Rug', 'PartDefinition', 'Rug'), el('Rug.m', 'PortUsage', 'm')]), [{ id: 'ft', kind: 'FeatureTyping', from: 'Sys.rug', to: 'Rug' }]), /^Rug\.m: The name m/, 'and a port m that rug inherits from its part def');
+  });
 });

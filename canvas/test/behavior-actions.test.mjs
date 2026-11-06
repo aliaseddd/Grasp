@@ -2,7 +2,8 @@
 // inside it, a fork refused on the plane; a succession drawn and exported as first … then …, and one into a start node
 // refused with its message; a guard typed in the panel as the line's label and in the export, with the decision's
 // if/else block; a send action's head in the export; a fork with two incoming successions marked as a problem; and, in
-// the release fixture, a parameter and a name that a succession's line runs over taking the click.
+// the release fixture, a parameter and a name that a succession's line runs over taking the click, and the defined-by
+// tool speaking of usages, not of parts and ports.
 
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
@@ -154,6 +155,7 @@ describe('behavior: action flow view', () => {
     const b = await placeInside(page, 'ActionUsage', def);
     const start = await placeInside(page, 'StartNode', def);
     assert.equal(await page.locator(`g[data-el="${start}"][data-kind="StartNode"].start`).count(), 1, 'the start node is drawn');
+    assert.match(await page.textContent('#status'), /^Added start in ActionDef1 to view view\d+\.$/, 'a start node has no name to ask for');
     await fit(page);
     const rel = await drawEdge(page, 'SuccessionAsUsage', a, b);
     assert.equal(await page.getAttribute(`g[data-rel="${rel}"]`, 'data-kind'), 'SuccessionAsUsage');
@@ -162,6 +164,26 @@ describe('behavior: action flow view', () => {
 
     const status = await refuseEdge(page, 'SuccessionAsUsage', b, start);
     assert.match(status, /Nothing leads into start/, `the start node refuses an incoming succession: ${status}`);
+    await finish(ctx);
+  });
+
+  test('the defined-by tool speaks of usages: its hint names every kind it defines, a definition clicked first is refused as one, and a fork as something nothing defines', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    await page.setInputFiles('#import-file', FIXTURE);
+    await until(page, () => !!document.querySelector('#drawing g.frame[data-view="v-release"] g[data-el="Release.split"]'), null, 'the release flow is drawn');
+    await page.click('.palette button[data-tool="FeatureTyping"]');
+    assert.match(await page.textContent('#hint'), /^Click the part, port, item, action, parameter or state to define/, 'the hint names every kind the tool defines');
+    assert.match(await page.getAttribute('.palette button[data-tool="FeatureTyping"]', 'title'), /an action by an action def/, 'and so does the button');
+    await clickBox(page, 'Release');
+    assert.match(await page.textContent('#status'), /^Only a usage is defined by something; action def Release is a definition\./);
+    await page.keyboard.press('Escape');
+    // A fork is refused at the first click, before any definition is asked for, and the tool stays armed.
+    await page.click('.palette button[data-tool="FeatureTyping"]');
+    await clickBox(page, 'Release.split');
+    assert.match(await page.textContent('#status'), /^A fork isn't defined by anything; a part, port, item, action, parameter or state is\./, 'the fork is refused as the first end');
+    assert.match(await page.textContent('#hint'), /Click the part, port, item, action, parameter or state to define/, 'the tool still waits for a first end');
+    await page.keyboard.press('Escape');
     await finish(ctx);
   });
 
