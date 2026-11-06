@@ -44,6 +44,7 @@ describe('grid view', () => {
     assert.ok(await page.locator('.view-options[data-view-kind="GridView"]').isVisible(), 'the grid options show for the view');
     assert.equal(await page.inputValue('#grid-mode'), 'table');
     assert.equal(await page.locator('#grid-columns .grid-column:checked').count(), 6, 'the default columns are ticked');
+    assert.equal(await page.locator('#grid-columns .grid-column[value="code"]').count(), 1, 'the code column is offered');
     assert.match(await page.textContent('#v-meta'), /^0 elements shown/);
     await finish(ctx);
   });

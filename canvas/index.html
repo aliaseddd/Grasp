@@ -337,7 +337,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .canvas.is-pinning, .canvas.is-pinning * { cursor: grabbing !important; }
 .sysml .rel.is-drop .line { stroke: var(--accent); stroke-width: 2.75; stroke-dasharray: 5 3; }
 /* The archive, under the notes: a button that opens the list, and each archived note as read-only text with Restore. */
-.archive { display: grid; gap: 10px; }
+.archive-section { display: grid; gap: 10px; }
 .archive-toggle { justify-self: start; padding: 6px 9px; font-size: 12px; }
 .note .archive { padding: 6px 8px; font-size: 12px; color: var(--fg-2); border-color: var(--line); }
 .archived { display: grid; gap: 6px; padding: 10px; border: 1px dashed var(--line-strong); border-radius: 6px; }
@@ -506,6 +506,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
               <label class="check"><input type="checkbox" class="grid-column" value="doc"> doc</label>
               <label class="check"><input type="checkbox" class="grid-column" value="specializes"> specializes</label>
               <label class="check"><input type="checkbox" class="grid-column" value="notes"> notes</label>
+              <label class="check"><input type="checkbox" class="grid-column" value="code"> code</label>
               <label class="check"><input type="checkbox" class="grid-column" value="problems"> problems</label>
             </fieldset>
             <div class="row">
@@ -547,7 +548,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         <ol class="list" id="notes-list"></ol>
         <p class="where" id="where"></p>
         <p class="warning" id="storage-warning" hidden>This browser isn't keeping your changes. Download the state before you close it.</p>
-        <section id="archive" class="archive" aria-label="Archived notes">
+        <section id="archive" class="archive-section" aria-label="Archived notes">
           <button type="button" class="archive-toggle" id="archive-toggle" hidden aria-expanded="false" aria-controls="archive-list">Archive · 0</button>
           <ol class="list" id="archive-list" hidden></ol>
         </section>
@@ -2224,7 +2225,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // carries: mode is table unless it says matrix, columns are the known ones in this order (the defaults when none is
   // known), and sort is a column name, with a leading - for descending, or null for the model's order. The page draws
   // from this reading and the export's render clause reads the mode from it, so both see one thing.
-  const GRID_COLUMNS = ['kind', 'name', 'type', 'multiplicity', 'owner', 'doc', 'specializes', 'notes', 'problems'];
+  const GRID_COLUMNS = ['kind', 'name', 'type', 'multiplicity', 'owner', 'doc', 'specializes', 'notes', 'code', 'problems'];
   function gridOptions(view) {
     const o = view && isObject(view.options) ? view.options : {};
     const wanted = Array.isArray(o.columns) ? o.columns : [];
@@ -2285,15 +2286,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
   ['Issue', 'Rationale', 'StatusInfo', 'StatusKind', 'ModelingMetadata'].forEach((n) => RESERVED_NAMES.add(n));
 
   // The code links of an element from what a file carries: a list of { path, language, text } strings, the language in
-  // lower case, a link with neither a path nor a text dropped; anything that isn't a list is no links.
+  // lower case; anything that isn't a list is no links. A link with neither a path nor a text is kept: the page adds a
+  // link empty and fills it in, and undoing the path must bring the empty link back, not drop it.
   function tidyCode(raw) {
     if (!Array.isArray(raw)) return [];
     const out = [];
     for (const c of raw) {
       if (!c || typeof c !== 'object') continue;
-      const link = { path: str(c.path), language: str(c.language).toLowerCase(), text: str(c.text) };
-      if (!link.path.trim() && !link.text.trim()) continue;
-      out.push(link);
+      out.push({ path: str(c.path), language: str(c.language).toLowerCase(), text: str(c.text) });
     }
     return out;
   }
@@ -2886,8 +2886,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
       for (const kid of boxesOf(el.id)) {
         const s = size(kid);
         const kl = view.layout[kid.id];
-        // A box grows to hold what it holds, except the box being dragged, which may be on its way out.
-        if (drag && drag.id === kid.id && drag.view === view.id) continue;
+        // A box grows to hold what it holds, except the box being dragged out of it (the pointer has left the box
+        // as it was before the drag: drag.out), which it no longer makes room for.
+        if (drag && drag.id === kid.id && drag.view === view.id && drag.out) continue;
         bottom = Math.max(bottom, kl.y + s.h + PAD);
         right = Math.max(right, kl.x + s.w + PAD);
       }
@@ -2937,7 +2938,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const L = rendererFor(view).layout(view, ids);
       views.set(view.id, L);
       L.shown.forEach((id) => drawnIn(id, view.id));
-      model.relationships.forEach((rel) => { if (!rel.hidden && ((L.lines && L.lines.has(rel.id)) || (L.rects.has(rel.from) && L.rects.has(rel.to)))) drawnIn(rel.id, view.id); });
+      // A line is drawn in the view when the renderer routed it itself (L.lines holds every line such a renderer
+      // draws), else, for a renderer that draws every line between the rects it has, when both ends are drawn there.
+      model.relationships.forEach((rel) => { if (!rel.hidden && (L.lines ? L.lines.has(rel.id) : (L.rects.has(rel.from) && L.rects.has(rel.to)))) drawnIn(rel.id, view.id); });
       const fr = L.frameRect;
       b = b ? { x: Math.min(b.x, fr.x), y: Math.min(b.y, fr.y), x2: Math.max(b.x2, fr.x + fr.w), y2: Math.max(b.y2, fr.y + fr.h) }
         : { x: fr.x, y: fr.y, x2: fr.x + fr.w, y2: fr.y + fr.h };
@@ -3064,12 +3067,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
       Object.keys(MARKERS).map((id) => MARKERS[id]).join('');
     return d;
   }
-  function nameLine(el) {
+  // The name line of a box: the name, its definition's after a colon, the multiplicity in brackets. ids, the element
+  // index, is for a caller that runs before the layout is set (a renderer's layout); the current layout's otherwise.
+  function nameLine(el, ids) {
     let s = el.name.trim() || '(unnamed)';
     if (M.KINDS[el.kind].usage) {
       const typing = M.typingOf(model, el);
       if (typing) {
-        const def = layout.ids.get(typing.to);
+        const def = (ids || layout.ids).get(typing.to);
         s += ' : ' + (el.conjugated ? '~' : '') + (def ? def.name.trim() || '(unnamed)' : '?');
       }
       if (el.multiplicity) s += ' [' + el.multiplicity + ']';
@@ -3090,12 +3095,42 @@ textarea.text[readonly] { resize: none; background: transparent; }
       g.appendChild(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle'));
     };
   }
+  // Which way the first line drawn from a border item leaves it, as a vector, or null when no drawn line starts or
+  // ends on it in view layout L.
+  function lineWay(p, L) {
+    for (const rel of model.relationships) {
+      if (rel.hidden || (rel.from !== p.id && rel.to !== p.id)) continue;
+      const e = endpoints(rel, L);
+      if (!e) continue;
+      const n = e.pts.length;
+      const d = rel.from === p.id ? { x: e.pts[1].x - e.pts[0].x, y: e.pts[1].y - e.pts[0].y } : { x: e.pts[n - 2].x - e.pts[n - 1].x, y: e.pts[n - 2].y - e.pts[n - 1].y };
+      if (d.x || d.y) return d;
+    }
+    return null;
+  }
+  // Where a border item's name goes, outside the owner and beside the square: above and to the right of a port on the
+  // right border, below and to the left on the left border (so two ports facing each other never share a line),
+  // centred above on the top, below on the bottom. When the first line drawn from the port heads where the name
+  // would be, the name takes the other side of the square, so the line doesn't run through it: below (or above) for
+  // a right (left) port, and beside the square, away from the line, for a top or bottom port. Returns the text's x,
+  // y and anchor, and on, which side of the square the name is on (above, below, left, right), which the pin keeps
+  // clear of.
+  function portName(p, r, L) {
+    const way = lineWay(p, L);
+    const c = r.cx;
+    const cy = r.cy;
+    if (r.side === 'right') return way && way.y < 0 && way.x > 0 ? { x: c + 12, y: cy + 15, anchor: 'start', on: 'below' } : { x: c + 12, y: cy - 6, anchor: 'start', on: 'above' };
+    if (r.side === 'left') return way && way.y > 0 && way.x < 0 ? { x: c - 12, y: cy - 6, anchor: 'end', on: 'above' } : { x: c - 12, y: cy + 15, anchor: 'end', on: 'below' };
+    const y = r.side === 'top' ? cy - 6 : cy + 15;
+    if (way && (r.side === 'top' ? way.y < 0 : way.y > 0)) return way.x > 0 ? { x: c - 12, y: y, anchor: 'end', on: 'left' } : { x: c + 12, y: y, anchor: 'start', on: 'right' };
+    return r.side === 'top' ? { x: c, y: cy - 13, anchor: 'middle', on: 'above' } : { x: c, y: cy + 22, anchor: 'middle', on: 'below' };
+  }
   const SHAPES = {
     rect: { draw: boxShape(0), compartments: true },
     rounded: { draw: boxShape(10), compartments: true },
     // A port: a small square on its owner's border, a glyph in it, and its name outside the owner.
     port: {
-      draw: function (p, r, g) {
+      draw: function (p, r, g, L) {
         g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: r.w, height: r.h, rx: 2.5 }, 'outline'));
         // The glyph inside the square, by what the kind says of the port (its glyph hook; inout when it says nothing):
         // inout has a head at both ends of the shaft, in one head pointing into the owner, out one pointing away from
@@ -3124,14 +3159,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
           });
           g.appendChild(node('path', { d: glyph }, 'glyph'));
         }
-        // The name sits outside the owner, beside the square: above and to the right of a port on the right border,
-        // below and to the left on the left border (so two ports facing each other never share a line), above on the
-        // top, below on the bottom.
-        const label = nameLine(p);
-        if (r.side === 'right') g.appendChild(text(c + 12, cy - 6, label, 'mono', 'start'));
-        else if (r.side === 'left') g.appendChild(text(c - 12, cy + 15, label, 'mono', 'end'));
-        else if (r.side === 'top') g.appendChild(text(c, cy - 13, label, 'mono', 'middle'));
-        else g.appendChild(text(c, cy + 22, label, 'mono', 'middle'));
+        // The name sits outside the owner, beside the square, on the side no drawn line heads for (portName).
+        const at = portName(p, r, L);
+        g.appendChild(text(at.x, at.y, nameLine(p), 'mono', at.anchor));
       },
       compartments: false
     }
@@ -3237,7 +3267,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // { view, shown (a Set of the ids of the elements drawn), kids (a parent's id, or '' for the view's ground → the
   // elements in it), parentOf (the other way round), rects (element id → its rect in plane coordinates; a border
   // item's has cx, cy, side and port: true), comps (element id → its compartments, [{ head, lines, cls }]), frameRect
-  // (from frameAround), and lines (optional: relationship id → the points of a line the renderer routed itself) }.
+  // (from frameAround), and lines (optional: relationship id → the points of a line the renderer routed itself; a
+  // renderer that fills it draws those lines and no other, and only they count as drawn in its view) }.
   // Pins, badges, lines, the Show list and the panel read shown, rects, comps and endpoints(), so a renderer that
   // fills them gets all of that for free. It draws its content into the frame's group (draw(view, g, L)) and, when
   // the view's elements can be placed and moved by hand, places one (place(view, kind, p, hit) adds the element to
@@ -3293,7 +3324,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
         const lay = view.layout[el.id];
         if (!lay) return null;
         const from = M.KINDS[el.kind].onBorder ? { side: lay.side, at: lay.at } : { x: lay.x, y: lay.y };
-        return { kind: 'el', id: el.id, view: view.id, start: p, from: from, moved: false, over: undefined };
+        // home is the box of the parent the element sits in here, as drawn before the drag: while the pointer stays
+        // inside it the parent keeps holding the element, growing for it; once the pointer leaves it the element is
+        // on its way out (out), and the parent no longer makes room for it, so the drop is judged against the box
+        // the user saw.
+        const L = viewLayout(view.id);
+        const parent = L ? L.parentOf.get(el.id) : '';
+        const home = parent ? L.rects.get(parent) : null;
+        return { kind: 'el', id: el.id, view: view.id, start: p, from: from, moved: false, over: undefined, home: home ? { x: home.x, y: home.y, w: home.w, h: home.h } : null, out: false };
       },
       drag: function (view, el, d, p) {
         const lay = view.layout[el.id];
@@ -3306,6 +3344,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         }
         lay.x = Math.round(d.from.x + (p.x - d.start.x));
         lay.y = Math.round(d.from.y + (p.y - d.start.y));
+        d.out = !d.home || !contains(d.home, p);
         d.over = containerAt(L, p, el, el.kind);
       },
       drop: function (view, el, d, p, event) {
@@ -3455,7 +3494,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     MergeNode: 'Click inside an action def or an action to put the merge there.',
     StartNode: 'Click inside an action def or an action to put its start there.',
     DoneNode: 'Click inside an action def, an action, a state def or a state to put its done there.',
-    SuccessionAsUsage: ['Click the action or node that comes first…', 'Now click what comes next.'],
+    SuccessionAsUsage: ['Click the action, node or event that comes first…', 'Now click what comes next.'],
     StateDefinition: 'Click where the state def goes.',
     StateUsage: 'Click where the state goes: inside a state def or a state, or on the plane.',
     InitialNode: 'Click inside a state def or a state to put its initial node there.',
@@ -3707,12 +3746,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
         }
         bottom = Math.max(bottom, y + spacing);
       });
+      // A succession between two drawn events (the behavior kind, which the palette offers here too) is a straight
+      // line from dot to dot, routed here so that it is drawn, and counted as drawn, in this view.
+      const links = model.relationships.filter((r) => r.kind === 'SuccessionAsUsage' && !r.hidden && rects.has(r.from) && rects.has(r.to));
+      links.forEach((r) => lines.set(r.id, ROUTES.straight(rects.get(r.from), rects.get(r.to))));
       let box = null;
       if (lifelines.length) {
         const heads = lifelines.map((l) => rects.get(l.id));
         box = { x: Math.min.apply(null, heads.map((r) => r.x)), y: view.y, x2: Math.max(right, Math.max.apply(null, heads.map((r) => r.x + r.w))), y2: bottom };
       }
-      return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: new Map(), frameRect: frameAround(view, box), lines: lines, rows: rows, bottom: bottom };
+      return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: new Map(), frameRect: frameAround(view, box), lines: lines, rows: rows, links: links, bottom: bottom };
     },
     draw: function (view, g, L) {
       const els = node('g', {}, 'els');
@@ -3738,6 +3781,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
           rg.appendChild(t);
         });
       });
+      L.links.forEach((r) => drawRel(r, rels, L));
     },
     place: function (view, kind, p, hit) {
       const k = M.KINDS[kind];
@@ -3781,7 +3825,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const from = el.kind === 'EventOccurrenceUsage'
         ? { x: lay.x, y: r ? r.y + r.h / 2 - view.y : lay.y }
         : { x: r ? r.x - view.x : lay.x, y: lay.y };
-      return { kind: 'el', id: el.id, view: view.id, start: p, from: from, moved: false };
+      // orig is the layout's own entry, which a refused drop puts back: from, where the thing was drawn, may differ.
+      return { kind: 'el', id: el.id, view: view.id, start: p, from: from, orig: { x: lay.x, y: lay.y }, moved: false };
     },
     drag: function (view, el, d, p) {
       const lay = view.layout[el.id];
@@ -3796,20 +3841,20 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (el.kind !== 'EventOccurrenceUsage') {
         // Dropped inside another view's frame: the head goes back where it was. Showing it there is the Show list's job.
         if (other) {
-          lay.x = d.from.x;
+          lay.x = d.orig.x;
           return { say: 'A lifeline doesn\'t move into another view by dragging, so it went back. To show it in ' + M.describeView(model, viewById(other)) + ', select that view and use its Show list.' };
         }
         return { undo: 'Moved ' + what, text: 'Moved ' + what, key: 'move:' + el.id };
       }
       const host = el.owner !== undefined ? layout.ids.get(el.owner) : null;
-      if (other || !host) { lay.y = d.from.y; return { say: 'An event moves up and down its own lifeline, so it went back.' }; }
+      if (other || !host) { lay.y = d.orig.y; return { say: 'An event moves up and down its own lifeline, so it went back.' }; }
       // Its new place among its lifeline's events, by height; one a drawn message ends on stays on the message's row.
       const was = M.eventOrder(model, host.id).map((e) => e.id).join(' ');
       insertEvent(el, host, view.y + lay.y, L);
-      const now = M.eventOrder(model, host.id).map((e) => e.id).join(' ');
-      if (now !== was) return { undo: 'Reordered the events of ' + M.describe(model, host), text: 'Moved ' + what + ' among the events of ' + M.describe(model, host), key: null };
+      const after = M.eventOrder(model, host.id).map((e) => e.id).join(' ');
+      if (after !== was) return { undo: 'Reordered the events of ' + M.describe(model, host), text: 'Moved ' + what + ' among the events of ' + M.describe(model, host), key: null };
       const pinned = L.rows.find((m) => m.from === el.id || m.to === el.id);
-      if (pinned) { lay.y = d.from.y; return { say: 'The ' + what + ' sits on the row of the ' + M.describeRel(model, pinned) + '; set the message\'s order to move it.' }; }
+      if (pinned) { lay.y = d.orig.y; return { say: 'The ' + what + ' sits on the row of the ' + M.describeRel(model, pinned) + '; set the message\'s order to move it.' }; }
       return { undo: 'Moved ' + what, text: 'Moved ' + what, key: 'move:' + el.id };
     }
   };
@@ -3954,16 +3999,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const feet = new Map();
     // The axes and the scale bar take their room whatever is drawn, so an empty view frames them.
     let box = { x: o.x - 8, y: o.y - GEO_AXIS - 16, x2: o.x + GEO_AXIS + 24, y2: o.y + 32 };
-    const place = (el, from) => {
+    const placeFoot = (el, from) => {
       const fp = geoFootprint(view, el, from);
       feet.set(el.id, fp);
       rects.set(el.id, { x: fp.x, y: fp.y, w: fp.w, h: fp.h });
-      // A small footprint carries its two lines below itself; the frame leaves room for them.
-      const bottom = fp.y + fp.h + (fp.w >= 120 && fp.h >= 44 ? 0 : 34);
-      box = { x: Math.min(box.x, fp.x), y: Math.min(box.y, fp.y), x2: Math.max(box.x2, fp.x + fp.w), y2: Math.max(box.y2, bottom) };
-      (kids.get(el.id) || []).forEach((k) => place(k, fp.origin));
+      // A small footprint carries its two lines below itself, centred on it (as drawFootprint has it): the frame
+      // leaves room for them below, and to either side by about what the longer line needs, 6.6 px a character.
+      const small = !(fp.shape === 'rect' && fp.w >= 120 && fp.h >= 44);
+      const half = small ? Math.max(('«' + M.KINDS[el.kind].keyword + '» ' + nameLine(el, ids)).length, fp.text.length) * 3.3 : 0;
+      const bottom = fp.y + fp.h + (small ? 34 : 0);
+      box = { x: Math.min(box.x, fp.x, fp.x + fp.w / 2 - half), y: Math.min(box.y, fp.y), x2: Math.max(box.x2, fp.x + fp.w, fp.x + fp.w / 2 + half), y2: Math.max(box.y2, bottom) };
+      (kids.get(el.id) || []).forEach((k) => placeFoot(k, fp.origin));
     };
-    (kids.get('') || []).forEach((el) => place(el, o));
+    (kids.get('') || []).forEach((el) => placeFoot(el, o));
     return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: new Map(), frameRect: frameAround(view, box), origin: o, feet: feet };
   }
   MARKERS['m-geo-axis'] = '<marker id="m-geo-axis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto">' +
@@ -4064,8 +4112,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
         el.posY = d.from.posY;
         return { say: 'A footprint doesn\'t move into another view by dragging, so it went back. To show ' + what + ' in ' + M.describeView(model, viewById(other)) + ', select that view and use its Show list.' };
       }
-      const where = 'Moved ' + what + ' to ' + M.geoNumber(geoNum(el.posX)) + ', ' + M.geoNumber(geoNum(el.posY)) + ' ' + M.geoUnitOf(el);
-      return { undo: where, text: where, key: 'move:' + el.id };
+      const moved = 'Moved ' + what + ' to ' + M.geoNumber(geoNum(el.posX)) + ', ' + M.geoNumber(geoNum(el.posY)) + ' ' + M.geoUnitOf(el);
+      return { undo: moved, text: moved, key: 'move:' + el.id };
     }
   };
   // The view's options in the panel: the scale (pixels per unit) and the unit. Changing the unit keeps the drawing its
@@ -4126,7 +4174,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const GRID_CHAR = 6.6;          // about a character of the cell fonts, in px, to cut what won't fit a cell
   const GRID_MATRIX_COL = 56;     // a matrix column
   const GRID_MATRIX_HEAD = 170;   // the matrix's first column, the row headers
-  const GRID_WIDTHS = { kind: 92, name: 160, type: 140, multiplicity: 96, owner: 150, doc: 320, specializes: 160, notes: 72, problems: 280 };
+  const GRID_WIDTHS = { kind: 92, name: 160, type: 140, multiplicity: 96, owner: 150, doc: 320, specializes: 160, notes: 72, code: 200, problems: 280 };
   const gridMode = $('grid-mode');
   const gridColumns = $('grid-columns');
   const gridShowAll = $('grid-show-all');
@@ -4157,6 +4205,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         .map((r) => ids.get(r.to).name.trim() || '(unnamed)').join(', ');
     }
     if (col === 'notes') return notes.filter((n) => n.target === el.id).sort(byNumber).map((n) => String(n.no)).join(', ');
+    if (col === 'code') return (Array.isArray(el.code) ? el.code : []).map((c) => c.path.trim() || '(no path)').join(', ');
     if (col === 'problems') return (found || problems).filter((p) => marksFor(p).indexOf(el.id) >= 0).map((p) => p.message).join(' ');
     return '';
   }
@@ -4194,26 +4243,28 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const o = M.gridOptions(view);
     const x0 = view.x;
     const y0 = view.y;
-    const list = gridRows(view, ids, o).map((e) => ({ el: e, path: gridPath(e, ids) }));
+    const rows = gridRows(view, ids, o).map((e) => ({ el: e, path: gridPath(e, ids) }));
     let grid;
     if (o.mode === 'matrix') {
       // The column headers lean at 60°, so the header is as tall as the longest name needs, up to 22 characters; a
       // longer name is cut to that.
-      const chars = Math.max(3, Math.min(22, list.reduce((m, r) => Math.max(m, r.path.length), 0)));
+      const chars = Math.max(3, Math.min(22, rows.reduce((m, r) => Math.max(m, r.path.length), 0)));
       const headH = Math.max(48, Math.ceil(chars * GRID_CHAR * 0.87 + 18));
-      list.forEach((r, i) => { r.y = y0 + headH + i * GRID_ROW_H; r.x = x0 + GRID_MATRIX_HEAD + i * GRID_MATRIX_COL; r.label = gridClipChars(r.path, chars); });
-      const w = GRID_MATRIX_HEAD + Math.max(1, list.length) * GRID_MATRIX_COL;
-      grid = { mode: 'matrix', x: x0, y: y0, w: w, h: headH + list.length * GRID_ROW_H, headH: headH, rows: list, sort: o.sort, lean: Math.ceil(headH * 0.5) };
+      rows.forEach((r, i) => { r.y = y0 + headH + i * GRID_ROW_H; r.x = x0 + GRID_MATRIX_HEAD + i * GRID_MATRIX_COL; r.label = gridClipChars(r.path, chars); });
+      const w = GRID_MATRIX_HEAD + Math.max(1, rows.length) * GRID_MATRIX_COL;
+      grid = { mode: 'matrix', x: x0, y: y0, w: w, h: headH + rows.length * GRID_ROW_H, headH: headH, rows: rows, sort: o.sort, lean: Math.ceil(headH * 0.5) };
     } else {
       let x = x0;
       const cols = o.columns.map((key) => { const c = { key: key, x: x, w: GRID_WIDTHS[key] || 120 }; x += c.w; return c; });
-      list.forEach((r, i) => { r.y = y0 + GRID_HEAD_H + i * GRID_ROW_H; });
-      grid = { mode: 'table', x: x0, y: y0, w: x - x0, h: GRID_HEAD_H + list.length * GRID_ROW_H, headH: GRID_HEAD_H, cols: cols, rows: list, sort: o.sort, lean: 0 };
+      rows.forEach((r, i) => { r.y = y0 + GRID_HEAD_H + i * GRID_ROW_H; });
+      grid = { mode: 'table', x: x0, y: y0, w: x - x0, h: GRID_HEAD_H + rows.length * GRID_ROW_H, headH: GRID_HEAD_H, cols: cols, rows: rows, sort: o.sort, lean: 0 };
     }
+    // A row's rect is its text band, not the whole row, so a pin or a badge, which sit on a rect's top edge, land
+    // inside the row rather than on its boundary with the row above (as the browser's rows have it).
     const rects = new Map();
-    list.forEach((r) => rects.set(r.el.id, { x: x0, y: r.y, w: grid.w, h: GRID_ROW_H }));
+    rows.forEach((r) => rects.set(r.el.id, { x: x0, y: r.y + 6, w: grid.w, h: GRID_ROW_H - 12 }));
     const lines = new Map();
-    const at = new Map(list.map((r) => [r.el.id, r]));
+    const at = new Map(rows.map((r) => [r.el.id, r]));
     model.relationships.forEach((rel) => {
       const a = at.get(rel.from);
       const b = at.get(rel.to);
@@ -4223,7 +4274,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         : [{ x: x0 + grid.w + 14, y: a.y + GRID_ROW_H / 2 }, { x: x0 + grid.w + 14, y: b.y + GRID_ROW_H / 2 }]);
     });
     const box = { x: x0, y: y0, x2: x0 + grid.w + grid.lean, y2: y0 + grid.h };
-    return { view: view, shown: new Set(list.map((r) => r.el.id)), kids: new Map(), parentOf: new Map(), rects: rects, comps: new Map(), frameRect: frameAround(view, box), lines: lines, grid: grid };
+    return { view: view, shown: new Set(rows.map((r) => r.el.id)), kids: new Map(), parentOf: new Map(), rects: rects, comps: new Map(), frameRect: frameAround(view, box), lines: lines, grid: grid };
   }
   // A row's group, with the core's classes (el, def or usage, is-abstract) and the grid's own, and a rect across the
   // sheet as the outline the marks color.
@@ -4342,11 +4393,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
   gridMode.addEventListener('change', () => {
     const view = selectedView();
     if (!view || view.kind !== 'GridView' || !editable()) return;
-    const mode = gridMode.value === 'matrix' ? 'matrix' : 'table';
-    if (M.gridOptions(view).mode === mode) return;
+    const next = gridMode.value === 'matrix' ? 'matrix' : 'table';
+    if (M.gridOptions(view).mode === next) return;
     const before = snapshot();
-    view.options.mode = mode;
-    const what = 'Showed ' + M.describeView(model, view) + ' as a ' + (mode === 'matrix' ? 'matrix of its elements against each other' : 'table with a row per element');
+    view.options.mode = next;
+    const what = 'Showed ' + M.describeView(model, view) + ' as a ' + (next === 'matrix' ? 'matrix of its elements against each other' : 'table with a row per element');
     commit(what, null, before);
     logChange(what);
     render();
@@ -4552,9 +4603,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!editable()) { say('Folding changes the view, and this model can\'t be changed here.'); return; }
     const before = snapshot();
     if (!Array.isArray(view.options.collapsed)) view.options.collapsed = [];
-    const list = view.options.collapsed;
-    const i = list.indexOf(el.id);
-    if (i < 0) list.push(el.id); else list.splice(i, 1);
+    const folded = view.options.collapsed;
+    const i = folded.indexOf(el.id);
+    if (i < 0) folded.push(el.id); else folded.splice(i, 1);
     const what = (i < 0 ? 'Folded ' : 'Unfolded ') + M.describe(model, el) + ' in ' + M.describeView(model, view);
     commit(what, null, before);
     logChange(what);
@@ -4689,7 +4740,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function underPin(event) {
     const target = document.elementFromPoint(event.clientX, event.clientY);
     if (!target || !canvas.contains(target)) return undefined;
-    const hit = hitOf(target);
+    const hit = hitOf(target, { x: event.clientX, y: event.clientY });
     return hit.type === 'el' || hit.type === 'rel' ? hit : null;
   }
   function movePin(d, event) {
@@ -5085,15 +5136,31 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const r = L.rects.get(n.target);
     if (r) {
       if (!r.port) return { x: r.x + r.w - 10 - step, y: r.y };
-      if (r.side === 'right') return { x: r.cx + 16 + step, y: r.cy + 14 };
-      if (r.side === 'left') return { x: r.cx - 16 - step, y: r.cy - 14 };
-      return { x: r.cx + 18 + step, y: r.cy };
+      // Beside a border item's square, on the side its name isn't (portName): below a right port's, above a left
+      // port's, right of a top or bottom port's, unless the name went there.
+      const on = portName(layout.ids.get(n.target), r, L).on;
+      if (r.side === 'right') return { x: r.cx + 16 + step, y: on === 'below' ? r.cy - 14 : r.cy + 14 };
+      if (r.side === 'left') return { x: r.cx - 16 - step, y: on === 'above' ? r.cy + 14 : r.cy - 14 };
+      return { x: on === 'right' ? r.cx - 18 - step : r.cx + 18 + step, y: r.cy };
     }
     const rel = relById(n.target);
     if (!rel) return null;
     if (rel.hidden) { const from = L.rects.get(rel.from); return from ? { x: (from.port ? from.cx : from.x) + 12 + step, y: (from.port ? from.cy : from.y) - 16 } : null; }
     const e = endpoints(rel, L);
-    return e ? { x: e.mid.x + step, y: e.mid.y } : null;
+    if (!e) return null;
+    // On the line's middle, or above its label when the kind puts the label above the line, where a screen-sized pin
+    // on the middle would cover it.
+    const top = labelTop(rel);
+    return { x: e.mid.x + step, y: top ? e.mid.y + top - 11 / (camera ? camera.k : 1) : e.mid.y };
+  }
+  // Where a line's label begins above the line's middle, relative to the middle, when its kind puts it there (a
+  // negative labelOffset is the baseline's height above the middle; the text's box reaches about 14 px above that)
+  // and it has a text; 0 when the label is below the line or empty. Pins and badges, drawn at screen size, keep above it.
+  function labelTop(rel) {
+    const how = M.RELATIONSHIPS[rel.kind].line;
+    const off = how.labelOffset;
+    if (typeof off !== 'number' || off >= 0 || !how.label || !how.label(rel, model, layout.ids)) return 0;
+    return off - 14;
   }
   function pinTransform(x, y) { return 'translate(' + f(x) + ' ' + f(y) + ') scale(' + (1 / (camera ? camera.k : 1)).toFixed(4) + ')'; }
   function drawPins(layer) {
@@ -5141,7 +5208,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const rel = relById(id);
     if (!rel || rel.hidden) return null;
     const e = endpoints(rel, L);
-    return e ? { x: e.mid.x, y: e.mid.y - 14 } : null;
+    if (!e) return null;
+    const top = labelTop(rel);
+    return { x: e.mid.x, y: top ? e.mid.y + top - 9 / (camera ? camera.k : 1) : e.mid.y - 14 };
   }
   function drawBadges(layer) {
     while (layer.firstChild) layer.removeChild(layer.firstChild);
@@ -5338,6 +5407,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     applyMarks();
     renderInspector();
     renderNotes();
+    syncNoteLabels(); // the names may have changed under the notes, as a rename changes them
     updateUndo();
   }
 
@@ -6317,6 +6387,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   // -- The page's store: one document with the working model, and a collection with one document per note.
   let lastWritten = null;        // the model as last written or read, to tell our own writes coming back
+  let overwritten = null;        // when a model from elsewhere came while a change here waited to be saved: its time
   let modelQueue = Promise.resolve();
   const noteQueue = {};
   const dirty = new Map();       // note id -> a counter while a change made here hasn't been written
@@ -6334,7 +6405,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (!data || data.baseRevision !== saved.model.revision || !data.model) return;
       const json = JSON.stringify(data.model);
       if (json === lastWritten) return;
-      if (drag || saveTimer) return;
+      // While a change made here waits for its save (or a drag is under way) a model from elsewhere isn't taken: this
+      // page's write follows and wins, and persist says so, here and in the change log, which Claude reads.
+      if (drag || saveTimer) { overwritten = str(data.updated) || now(); return; }
       lastWritten = json;
       model = M.normalize(data.model);
       if (Array.isArray(data.changes)) changes = data.changes.slice(-200);
@@ -6374,6 +6447,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     saveTimer = null;
     if (mode === 'local') { saveLocal(); return; }
     if (mode !== 'shared') return;
+    if (overwritten) {
+      logChange('Wrote this page\'s model over a change made elsewhere at ' + overwritten + ', which came while a change here waited to be saved');
+      say('The model was changed elsewhere while you were editing; this page\'s version was written over it.');
+      overwritten = null;
+    }
     const body = { baseRevision: saved.model.revision, model: JSON.parse(JSON.stringify(model)), changes: changes.slice(-200), updated: now() };
     lastWritten = JSON.stringify(body.model);
     modelQueue = modelQueue.then(() => attempt(() => db.doc(WORKING).set(body))).catch((error) => refused(error, 'The change to the model wasn\'t saved.'));
@@ -6514,8 +6592,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   // What is under the pointer: a pin, a problem's badge, a renderer's own control (anything with data-action, run
   // through ACTIONS; never dragged), an element, a line, a frame's tab, or the plane; with the view it belongs to,
-  // from the frame it is drawn in.
-  function hitOf(target) {
+  // from the frame it is drawn in. The lines are drawn over the boxes with a wide hit stroke, so when the pointer is
+  // on a line and at, the pointer's client point, is given, a border item or an element's own text under that point
+  // is the hit instead: a line leaves a box where a port may sit, and crosses names.
+  function hitOf(target, at) {
     const closest = (sel) => (target.closest ? target.closest(sel) : null);
     const frame = closest('.frame');
     const view = frame ? frame.getAttribute('data-view') : null;
@@ -6528,9 +6608,31 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const elG = closest('[data-el]');
     if (elG) return { type: 'el', id: elG.getAttribute('data-el'), g: elG, view: view };
     const relG = closest('[data-rel]');
-    if (relG) return { type: 'rel', id: relG.getAttribute('data-rel'), g: relG, view: view };
+    if (relG) {
+      const under = at ? underLine(at) : null;
+      if (under) return { type: 'el', id: under.getAttribute('data-el'), g: under, view: view };
+      return { type: 'rel', id: relG.getAttribute('data-rel'), g: relG, view: view };
+    }
     if (closest('.tab')) return { type: 'tab', id: view, view: view };
     return { type: 'plane', view: null };
+  }
+  // Among what is drawn at the client point under a line, the group of the first border item, or of the first
+  // element one of whose own texts (its keyword, its name, a compartment's lines) is at the point; null when the
+  // point is on a box's body or on nothing, which leaves the line the hit.
+  function underLine(at) {
+    if (!document.elementsFromPoint) return null;
+    const onText = (g) => Array.from(g.children).some((c) => {
+      if (c.tagName !== 'text') return false;
+      const b = c.getBoundingClientRect();
+      return at.x >= b.left && at.x <= b.right && at.y >= b.top && at.y <= b.bottom;
+    });
+    for (const n of document.elementsFromPoint(at.x, at.y)) {
+      if (n === svg || !svg.contains(n) || !n.closest) continue;
+      const g = n.closest('[data-el]');
+      if (!g) continue;
+      if (g.classList.contains('port') || n.tagName === 'text' || n.tagName === 'tspan' || (n.parentNode === g && onText(g))) return g;
+    }
+    return null;
   }
 
   svg.addEventListener('pointerdown', (event) => {
@@ -6548,7 +6650,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       return;
     }
     if (pointerCount() > 2) return;
-    const hit = hitOf(event.target);
+    const hit = hitOf(event.target, { x: event.clientX, y: event.clientY });
     const el = hit.type === 'el' ? layout.ids.get(hit.id) : null;
     const view = hit.view ? viewById(hit.view) : null;
     const movable = editable() && !tool && event.button !== 1 && view && (el || hit.type === 'tab');
@@ -6618,24 +6720,29 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (g) g.classList.add('is-drop');
     }
   }
+  // Ends a drag: a pin's, a view's, or an element's through its renderer's drop. The record comes off drag first, so
+  // the render that follows no longer makes way for what was dragged: a box dropped in its owner is drawn held by it
+  // at once.
   function finishDrag(event) {
-    if (drag.kind === 'pin') { dropPin(drag, event); return; }
-    if (drag.kind === 'view') {
-      const view = viewById(drag.id);
+    const d = drag;
+    drag = null;
+    if (d.kind === 'pin') { dropPin(d, event); return; }
+    if (d.kind === 'view') {
+      const view = viewById(d.id);
       if (!view) return;
-      commit('Moved the ' + M.describeView(model, view), null, drag.before);
+      commit('Moved the ' + M.describeView(model, view), null, d.before);
       logChange('Moved the ' + M.describeView(model, view), 'move:' + view.id);
       render();
       changed();
       say('Moved the ' + M.describeView(model, view) + '.');
       return;
     }
-    const view = viewById(drag.view);
-    const el = layout.ids.get(drag.id);
+    const view = viewById(d.view);
+    const el = layout.ids.get(d.id);
     if (!view || !el || !view.layout[el.id]) return;
-    const result = rendererFor(view).drop(view, el, drag, toDrawing(event.clientX, event.clientY), event);
+    const result = rendererFor(view).drop(view, el, d, toDrawing(event.clientX, event.clientY), event);
     if (result && result.undo) {
-      commit(result.undo, null, drag.before);
+      commit(result.undo, null, d.before);
       logChange(result.text, result.key);
     }
     render();
@@ -6741,8 +6848,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (g) g.classList.add('is-hover');
   }
   function hover(event) {
-    const hit = hitOf(event.target);
-    if (hit.type === 'pin') { setHover(null); hint.textContent = 'Click the pin to read its note.'; return; }
+    const hit = hitOf(event.target, { x: event.clientX, y: event.clientY });
+    if (hit.type === 'pin') { setHover(null); hint.textContent = editable() ? 'Click the pin to read its note · drag it to move the note onto something else, or onto the plane.' : 'Click the pin to read its note.'; return; }
     if (hit.type === 'problem') { setHover(null); hint.textContent = 'Click the badge to select what has the problem; the panel says what it is.'; return; }
     if (hit.type === 'action') { setHover(null); hint.textContent = hit.hint || baseHint(); return; }
     if (hit.type === 'tab') {
