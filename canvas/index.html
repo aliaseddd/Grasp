@@ -787,11 +787,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
     },
     ConnectionUsage: {
       label: 'connection', fields: ['name', 'doc'], hideable: false,
+      // An end is a usage with the connectable trait (a part, a port, an item): an action or a state in the same body
+      // is no connector end, and the pilot refuses connect a1 to a2 there.
       first: function (model, a, ids) {
-        return KINDS[a.kind].usage ? null : 'A connection joins ports or parts, not definitions; ' + describe(model, a, ids) + ' is a definition.';
+        return hasTrait(a.kind, 'connectable') ? null : 'A connection joins two parts, two ports or two items; ' + describe(model, a, ids) + ' is none of those.';
       },
       ends: function (model, a, b, ids) {
-        if (!(KINDS[a.kind].usage && KINDS[b.kind].usage) || a.kind !== b.kind) return 'A connection joins two ports or two parts.';
+        const problem = RELATIONSHIPS.ConnectionUsage.first(model, a, ids) || RELATIONSHIPS.ConnectionUsage.first(model, b, ids);
+        if (problem) return problem;
+        if (a.kind !== b.kind) return 'A connection joins two parts, two ports or two items.';
         if (commonOwner(model, a, b, ids) === null && (KINDS[chain(model, a, ids)[0].kind].definition || KINDS[chain(model, b, ids)[0].kind].definition)) {
           return 'A connection between ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' reaches across definitions. Connect things inside the same part def or part.';
         }
@@ -983,7 +987,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         if (!rel.doc.trim() && !inside.length) { h.line(depth, head + ';'); return; }
         h.line(depth, head + ' {');
         if (rel.doc.trim()) h.comment(depth + 1, 'doc', rel.doc);
-        inside.forEach((n) => h.comment(depth + 1, 'comment <n' + n.no + '>', h.noteText(n)));
+        inside.forEach((n) => h.note(depth + 1, n, null));
         h.line(depth, '}');
       },
     },
@@ -1008,12 +1012,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
       options: {} },
     ActionFlowView: { name: 'ActionFlowView', label: 'action flow view', qualified: 'StandardViewDefinitions::ActionFlowView', short: 'afv', renderer: 'graph',
       admits: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'],
-      tools: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', '|', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode', '|', 'SuccessionAsUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'], options: {},
-      exposes: exposesNamed },
+      tools: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', '|', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode', '|', 'SuccessionAsUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'], options: {} },
     StateTransitionView: { name: 'StateTransitionView', label: 'state transition view', qualified: 'StandardViewDefinitions::StateTransitionView', short: 'stv', renderer: 'graph',
       admits: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode'],
-      tools: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode', '|', 'TransitionUsage', 'FeatureTyping'], options: {},
-      exposes: exposesNamed },
+      tools: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode', '|', 'TransitionUsage', 'FeatureTyping'], options: {} },
     SequenceView: { name: 'SequenceView', label: 'sequence view', qualified: 'StandardViewDefinitions::SequenceView', short: 'sv', renderer: 'sequence',
       admits: ['PartUsage', 'EventOccurrenceUsage'], tools: ['PartUsage', 'EventOccurrenceUsage', '|', 'Message', 'SuccessionAsUsage'], options: { spacing: 56 } },
     // A plan of parts (and items, once that kind is in) drawn to scale: scale is the pixels per unit of the view's unit.
@@ -1042,8 +1044,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
       // A root is exposed by its qualified name, so one without a full name can't be, and the text leaves it out.
       check: function (model, view, ids, add) {
         (browserRoots(model, view, ids) || []).forEach((root) => {
-          if (chain(model, root, ids).some((e) => !e.name.trim())) {
-            add(view.id, 'The ' + describeView(model, view) + ' can\'t expose its root ' + describe(model, root, ids) + ' by name: it, or what it is in, has no name. Name it.');
+          if (!nameable(model, root, ids)) {
+            add(view.id, 'The ' + describeView(model, view) + ' can\'t expose its root ' + describe(model, root, ids) + ' by name: ' + (hasName(root.kind) ? 'it, or what it is in, has no name. Name it.' : 'the text has no name for it.'));
           }
         });
       },
@@ -1054,7 +1056,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         const roots = browserRoots(model, view, h.ids);
         const lines = roots === null
           ? ['expose ' + quote(model.package.name) + '::*::**;']
-          : roots.filter((e) => chain(model, e, h.ids).every((c) => c.name.trim())).map((e) => 'expose ' + qualified(model, e, h.ids) + '::**;');
+          : roots.filter((e) => nameable(model, e, h.ids)).map((e) => 'expose ' + qualified(model, e, h.ids) + '::**;');
         lines.push('render Views::asTreeDiagram;');
         return lines;
       } },
@@ -1158,9 +1160,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
     KINDS[k].traits.push('spatial');
     KINDS[k].fields.push('shape', 'length', 'width', 'height', 'radius', 'posX', 'posY', 'posZ', 'unit');
   });
-  // Every kind may carry code links, so the panel's code section and the export's textual representations apply to
-  // every element.
-  Object.keys(KINDS).forEach((k) => KINDS[k].fields.push('code'));
+  // Every kind the text declares may carry code links, so the panel's code section and the export's textual
+  // representations apply to every such element. A start, done or initial node has no name and no line of its own in
+  // the text, so a rep inside it would have nowhere to go: those kinds don't carry the field.
+  Object.keys(KINDS).filter(hasName).forEach((k) => KINDS[k].fields.push('code'));
 
   const SIDES = ['top', 'right', 'bottom', 'left'];
   const ID = /^[A-Za-z0-9_.:-]{1,64}$/;
@@ -1450,6 +1453,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const start = ownerId === null ? 0 : c.findIndex((e) => e.id === ownerId) + 1;
     return c.slice(start).map((e) => quote(e.name)).join('.');
   }
+  // Whether the text can name an element by its qualified name: it and every owner have a name field and a name. A
+  // start node (no name field), or anything inside an unnamed part, can't be exposed or annotated by name.
+  function nameable(model, el, ids) {
+    return chain(model, el, ids).every((c) => hasName(c.kind) && c.name.trim());
+  }
 
   // An element in a sentence: its kind's label, its name (or "(unnamed)"), and the owner it is in. An element of a kind
   // with no name field is just its label: "start in a1".
@@ -1481,7 +1489,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   // The features a type gets from elsewhere, by name: those of what it is defined by and of what it specializes,
-  // all the way up, and, for a usage that redefines a feature of its owner's type, those of that feature.
+  // all the way up, and, for a usage that redefines a feature of its owner's type, those of that feature. A kind with no
+  // name field (a start node, named start1 by the page for itself) has no name the text could inherit.
   function inheritedFeatures(model, type, ids, seen) {
     ids = ids || index(model);
     seen = seen || new Set();
@@ -1489,7 +1498,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const take = (t) => {
       if (!t || seen.has(t.id)) return;
       seen.add(t.id);
-      childrenOf(model, t.id).forEach((c) => { if (c.name.trim() && !out.has(c.name.trim())) out.set(c.name.trim(), c); });
+      childrenOf(model, t.id).forEach((c) => { if (hasName(c.kind) && c.name.trim() && !out.has(c.name.trim())) out.set(c.name.trim(), c); });
       inheritedFeatures(model, t, ids, seen).forEach((c, name) => { if (!out.has(name)) out.set(name, c); });
     };
     const typing = typingOf(model, type);
@@ -1674,13 +1683,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return 'Both ends of the ' + describeRel(model, rel, ids) + ' match the same end of ' + describe(model, def, ids) + ' (its ends are ' + endsText + '); one of them should be the other.';
   }
   // A connector's statement: head; or, with a doc or a note on an unnamed connector (which can't be about it by
-  // name), head { doc, comments }: the connection's own form.
+  // name), head { doc, notes }: the connection's own form.
   function connectorStatement(rel, head, depth, h) {
     const inside = rel.name.trim() ? [] : h.notesOn(rel.id);
     if (!rel.doc.trim() && !inside.length) { h.line(depth, head + ';'); return; }
     h.line(depth, head + ' {');
     if (rel.doc.trim()) h.comment(depth + 1, 'doc', rel.doc);
-    inside.forEach((n) => h.comment(depth + 1, 'comment <n' + n.no + '>', h.noteText(n)));
+    inside.forEach((n) => h.note(depth + 1, n, null));
     h.line(depth, '}');
   }
   EXTRA.definitionOf = definitionOf;
@@ -1725,6 +1734,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const last = String(target).split('.').pop().trim();
     return model.elements.some((e) => e.kind === 'PortUsage' && (e.name.trim() === last || quote(e.name) === last));
   }
+  // The type a trigger or an accept payload names, as the text reads it: the whole text, or what follows the colon of
+  // x : Type, up to a via; null for a timing or a condition (after …, when …, at …), for a qualified name (SI::s, which
+  // may be the library's) and for anything that isn't a plain name. A plain name has to be a definition of the model,
+  // else the pilot can't resolve the type (accept go; is refused with "Couldn't resolve reference to Type 'go'").
+  function namedType(text) {
+    let s = str(text).trim().replace(/\s+via\s[\s\S]*$/, '');
+    if (/^(after|when|at)\b/.test(s)) return null;
+    const colon = s.indexOf(':');
+    if (colon >= 0) s = s.slice(colon + 1).trim();
+    return NAME.test(s) ? s : null;
+  }
+  function checkNamedType(model, id, text, what, add) {
+    const type = namedType(text);
+    if (type && !model.elements.some((e) => KINDS[e.kind].definition && e.name.trim() === type)) {
+      add(id, what + ' names ' + type + ', which is no definition in the model, so the text can\'t resolve it. Name a part def or item def, as x : Type, or write after …, when … or at ….');
+    }
+  }
   // An element inside an action or a state can't take a name the library gives every action and state.
   function checkInheritedName(model, el, ids, add) {
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
@@ -1754,14 +1780,31 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (el.role && owner && isStateOwner(owner.kind)) head = el.role + ' ' + head;
     return head;
   }
-  // A parameter's declaration: in item name : Type [m]; a direction it doesn't have yet is left out (the check asks
-  // for one), and so is a name it doesn't have.
+  // A parameter's declaration: in item name : Type [m] :> general; a direction it doesn't have yet is left out (the
+  // check asks for one), and so is a name it doesn't have. With an empty index (a bare redefinition of a definition's
+  // parameter) neither the type nor the generals are written.
   function parameterText(model, p, ids) {
     const typing = typingOf(model, p);
     let text = (p.direction ? p.direction + ' ' : '') + 'item' + (p.name.trim() ? ' ' + quote(p.name) : '');
     if (typing && ids.get(typing.to)) text += ' : ' + quote(ids.get(typing.to).name);
     if (p.multiplicity && MULTIPLICITY.test(p.multiplicity)) text += ' [' + p.multiplicity + ']';
+    const generals = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === p.id && ids.get(r.to)).map((r) => quote(ids.get(r.to).name));
+    if (generals.length) text += ' :> ' + generals.join(', ');
     return text;
+  }
+  // A declaration a hook writes in place of element() (a typed action's parameter, an event under a lifeline): the head
+  // alone, or with a body holding the element's doc and what the body writers and its kind's body hook add (its code
+  // links, a note on it when the text can't name it), so nothing the panel offers is lost in the text.
+  function declare(model, el, head, depth, h) {
+    const lines = [];
+    const into = Object.assign({}, h, { line: (d, t) => lines.push('    '.repeat(d) + t), comment: (d, c, t) => commentLines(d, c, t).forEach((l) => lines.push(l)) });
+    BODY.forEach((write) => write(model, el, depth + 1, into));
+    if (KINDS[el.kind].body) KINDS[el.kind].body(model, el, depth + 1, into);
+    if (!el.doc.trim() && !lines.length) { h.line(depth, head + ';'); return; }
+    h.line(depth, head + ' {');
+    if (el.doc.trim()) h.comment(depth + 1, 'doc', el.doc);
+    lines.forEach((l) => h.line(0, l));
+    h.line(depth, '}');
   }
   // The parameters of an action typed by a definition redefine the definition's by position (the pilot aligns them
   // in order, whatever their names), so the action's body writes them in the definition's order: each one the
@@ -1775,9 +1818,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const named = (list, name) => (name ? list.find((p) => p.name.trim() === name) : undefined);
     inherited.forEach((p) => {
       const mine = named(own, p.name.trim());
-      h.line(depth, (mine ? parameterText(model, mine, h.ids) : parameterText(model, p, new Map())) + ';');
+      if (mine) declare(model, mine, parameterText(model, mine, h.ids), depth, h);
+      else h.line(depth, parameterText(model, p, new Map()) + ';');
     });
-    own.filter((p) => !named(inherited, p.name.trim())).forEach((p) => h.line(depth, parameterText(model, p, h.ids) + ';'));
+    own.filter((p) => !named(inherited, p.name.trim())).forEach((p) => declare(model, p, parameterText(model, p, h.ids), depth, h));
   }
   // A parameter of an action def, or of an action with no definition, declares itself; one of a typed action is
   // written by the action's body, in its definition's order.
@@ -1794,6 +1838,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     if (el.actionKind === 'accept' && !str(el.payload).trim()) add(el.id, what + ' accepts nothing yet. Give it a payload: a type, x : Type, or a trigger like after 10 [SI::s] or when ready.');
     if (el.actionKind === 'send' && !str(el.payload).trim()) add(el.id, what + ' sends nothing yet. Give it a payload, like new Alert().');
+    // The text has send and accept only inside an action's body, or as a state's entry, do or exit action: in a part
+    // def, a part, a state without a role or the package the pilot can't parse them.
+    if ((el.actionKind === 'send' || el.actionKind === 'accept') && !(owner && isActionOwner(owner.kind)) && !(el.role && owner && isStateOwner(owner.kind))) {
+      add(el.id, 'An action that ' + (el.actionKind === 'send' ? 'sends' : 'accepts') + ' is written inside an action def or an action, or as a state\'s entry, do or exit action; ' + what + ' is ' +
+        (owner ? 'in a ' + KINDS[owner.kind].label : 'on its own') + '. Move it' + (owner && isStateOwner(owner.kind) ? ', or give it a role' : '') + '.');
+    }
+    if (el.actionKind === 'accept' && str(el.payload).trim()) checkNamedType(model, el.id, el.payload, 'The payload ' + str(el.payload).trim() + ' of ' + what, add);
     checkInheritedName(model, el, ids, add);
   }
   function checkParameter(model, el, ids, add) {
@@ -1836,7 +1887,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   // Start and done live inside an action (done inside a state too), the initial node inside a state that isn't
   // parallel; one of each per owner; the initial node has one transition out, untriggered, and only an entry action
-  // lets that transition carry a doc or an effect (the entry idiom, entry; then first;, has no room for them).
+  // lets that transition carry a name, a doc or an effect (the entry idiom, entry; then first;, has no room for them).
   function checkPseudoNode(model, el, ids, add) {
     const what = describe(model, el, ids);
     const label = KINDS[el.kind].label;
@@ -1854,7 +1905,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const entry = entryActionOf(model, owner.id);
     out.forEach((t) => {
       if (str(t.trigger).trim()) add(t.id, 'The transition out of the initial node is taken as ' + shown(owner.name) + ' is entered, so it has no trigger. Clear the trigger of the ' + describeRel(model, t, ids) + '.');
-      if (!entry && (str(t.doc).trim() || str(t.effect).trim())) add(t.id, 'The transition out of the initial node carries a doc or an effect only when it leaves an entry action. Add an action with the role entry to ' + shown(owner.name) + ', or clear it.');
+      if (!entry && (str(t.name).trim() || str(t.doc).trim() || str(t.effect).trim())) add(t.id, 'The transition out of the initial node carries a name, a doc or an effect only when it leaves an entry action. Add an action with the role entry to ' + shown(owner.name) + ', or clear it.');
     });
   }
 
@@ -1865,8 +1916,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function writesItself(model, el, h) { const kind = KINDS[el.kind]; return !kind.head || kind.head(model, el, h) !== null; }
   // A state's body opens with the entry idiom for its initial node, entry; then first; (if g then first; when the
   // transition is guarded), unless an entry action takes its place: then writeTransition writes the initial node's
-  // transition from that action (the Annex A idiom). A parallel state with nothing inside still gets braces, since
-  // parallel can't end in a semicolon: an empty line opens them.
+  // transition from that action (the Annex A idiom). The idiom has no body a note on that transition could go in, so
+  // such a note annotates the state and says what it is on. A parallel state with nothing inside still gets braces,
+  // since parallel can't end in a semicolon: an empty line opens them.
   function stateBody(model, el, depth, h) {
     const initial = childrenOf(model, el.id).find((e) => e.kind === 'InitialNode');
     const t = initial ? behaviorLinksOf(model, initial.id, 'TransitionUsage').outOf.find((r) => h.ids.has(r.to)) : null;
@@ -1874,6 +1926,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const guard = str(t.guard).trim();
       h.line(depth, 'entry;');
       h.line(depth, (guard ? 'if ' + guard + ' then ' : 'then ') + behaviorEndPath(model, el.id, h.ids.get(t.to), h.ids) + ';');
+      // A named transition's notes are the notes block's (about the name the check asks the user to clear).
+      if (!str(t.name).trim()) h.notesOn(t.id).forEach((n) => h.note(depth, n, null, 'On ' + describeRel(model, t, h.ids) + ': ' + n.text));
       return;
     }
     if (el.parallel === true && !el.doc.trim() && !h.declaredIn(el.id).length && !childrenOf(model, el.id).some((k) => writesItself(model, k, h))) h.line(0, '');
@@ -1884,19 +1938,25 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const acts = childrenOf(model, el.id).filter((e) => e.kind === 'ActionUsage' && e.role === role);
       if (acts.length > 1) acts.forEach((a) => add(a.id, what + ' has ' + acts.length + ' ' + role + ' actions; a state has one at most.'));
     });
+    // The initial node's transition leaves the entry action by name (transition first init then s1;), so an unnamed
+    // entry action leaves it nowhere to be written.
+    const entry = entryActionOf(model, el.id);
+    if (entry && !entry.name.trim() && childrenOf(model, el.id).some((e) => e.kind === 'InitialNode')) {
+      add(entry.id, 'The entry action of ' + what + ' has no name, so the transition out of the initial node can\'t leave it. Name it.');
+    }
     checkInheritedName(model, el, ids, add);
   }
 
   // -- Successions and transitions.
 
   // A succession or transition statement: the head alone, or with a body holding its doc and, when it has no name a
-  // comment could be about, its notes.
+  // note could be about, its notes.
   function writeBehaviorRel(h, rel, head, depth) {
     const inside = str(rel.name).trim() ? [] : h.notesOn(rel.id);
     if (!str(rel.doc).trim() && !inside.length) { h.line(depth, head + ';'); return; }
     h.line(depth, head + ' {');
     if (str(rel.doc).trim()) h.comment(depth + 1, 'doc', rel.doc);
-    inside.forEach((n) => h.comment(depth + 1, 'comment <n' + n.no + '>', h.noteText(n)));
+    inside.forEach((n) => h.note(depth + 1, n, null));
     h.line(depth, '}');
   }
   // A named succession or transition is a feature of the body it is written in, so its name can't be that of an
@@ -2023,6 +2083,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (a && str(rel.trigger).trim() && a.kind !== 'StateUsage') {
       add(rel.id, 'A transition with a trigger starts at a state; the ' + describeRel(model, rel, ids) + ' starts at ' + describe(model, a, ids) + '. Clear the trigger, or start it at a state.');
     }
+    // The initial node's transition drops its trigger anyway (checkPseudoNode says so); any other is written after accept.
+    if (a && a.kind !== 'InitialNode' && str(rel.trigger).trim()) checkNamedType(model, rel.id, rel.trigger, 'The trigger ' + str(rel.trigger).trim() + ' of the ' + describeRel(model, rel, ids), add);
     checkBehaviorRelName(model, rel, ids, add);
   }
   // transition [name] first src [accept trigger] [if guard] [do effect] then tgt; with a body for a doc or the notes of
@@ -2044,19 +2106,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const head = 'transition ' + (str(rel.name).trim() ? quote(rel.name) + ' ' : '') + 'first ' + source +
       (trigger ? ' accept ' + trigger : '') + (guard ? ' if ' + guard : '') + (effect ? ' do ' + effect : '') + ' then ' + behaviorEndPath(model, ownerId, b, h.ids);
     writeBehaviorRel(h, rel, head, depth);
-  }
-
-  // -- The views.
-
-  // An action flow or state view exposes what it shows by name, every element when it shows every element; the start,
-  // done and initial nodes have no name in the text, so a view that shows some of the model leaves them out.
-  function exposesNamed(model, view, h) {
-    const all = h.exposesOf(view);
-    if (all.length === 1 && all[0].indexOf('::*::**;') >= 0) return all;
-    const ids = index(model);
-    return model.elements
-      .filter((e) => view.layout[e.id] && chain(model, e, ids).every((c) => hasName(c.kind) && c.name.trim()))
-      .map((e) => 'expose ' + qualified(model, e, ids) + ';');
   }
 
   EXTRA.sendWord = function (model, target) { return namesAPort(model, target) ? 'via' : 'to'; };
@@ -2085,16 +2134,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
   EXTRA.messagesInOrder = messagesInOrder;
   EXTRA.eventOrder = eventOrder;
   // A lifeline's events, right after its doc and before its ports and nested parts, as one then chain in time order:
-  // the first has no then, so nothing written before the chain can become its source (critique b05).
+  // the first has no then, so nothing written before the chain can become its source (critique b05). Each is declared
+  // with its doc and what the body writers add (its code links).
   BODY.push(function (model, el, depth, h) {
     if (!hasTrait(el.kind, 'lifeline')) return;
-    eventOrder(model, el.id).forEach((ev, i) => {
-      const head = (i ? 'then ' : '') + h.headOf(ev);
-      if (!ev.doc.trim()) { h.line(depth, head + ';'); return; }
-      h.line(depth, head + ' {');
-      h.comment(depth + 1, 'doc', ev.doc);
-      h.line(depth, '}');
-    });
+    eventOrder(model, el.id).forEach((ev, i) => declare(model, ev, (i ? 'then ' : '') + h.headOf(ev), depth, h));
   });
   // Geometry. A part or item with the spatial trait may carry a shape with its dimensions and a position, numbers in
   // its own unit; a number that isn't set is '' and is neither drawn to scale nor written. The dimensions a shape has
@@ -2103,9 +2147,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const GEO_DIMS = { Box: ['length', 'width', 'height'], Rectangle: ['length', 'width'], CircularCylinder: ['radius', 'height'], Sphere: ['radius'], CircularCone: ['radius', 'height'] };
   const GEO_UNITS = ['m', 'mm', 'cm', 'km', 'ft', 'in'];
   const GEO_METRES = { m: 1, mm: 0.001, cm: 0.01, km: 1000, ft: 0.3048, in: 0.0254 };
-  // The names the text brings in from the library (ShapeItems, SpatialItems, MeasurementReferences, SI, USCustomaryUnits)
-  // when anything is drawn to scale; an element named like one would shadow it in the text.
-  const GEO_LIBRARY_NAMES = new Set(['SpatialItem', 'Translation', 'TranslationRotationSequence'].concat(Object.keys(GEO_DIMS), GEO_UNITS));
+  // The names the text brings in from the library when anything is drawn to scale, and the packages it imports them
+  // from (an element named SI beside private import SI::*; takes the import's place, and no unit resolves); an element
+  // named like one would shadow it in the text.
+  const GEO_LIBRARY_NAMES = new Set(['ShapeItems', 'SpatialItems', 'MeasurementReferences', 'SI', 'USCustomaryUnits', 'SpatialItem', 'Translation', 'TranslationRotationSequence'].concat(Object.keys(GEO_DIMS), GEO_UNITS));
   function geoDims(shape) { return GEO_DIMS[shape] || null; }
   function geoUnitOf(el) { return GEO_UNITS.indexOf(el.unit) >= 0 ? el.unit : 'm'; }
   // A length in one unit, in another.
@@ -2319,6 +2364,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     el.code.forEach((link) => codeLines(depth, link).forEach((l) => h.line(0, l)));
   }
   BODY.push(writeCodeReps);
+  // A note on an element the text can't name (it, or what it is in, has no name) can't be about it by name, so it is
+  // written inside the element's body, where it annotates the element itself: the unnamed connection's form.
+  function writeBodyNotes(model, el, depth, h) {
+    if (nameable(model, el, h.ids)) return;
+    h.notesOn(el.id).forEach((n) => h.note(depth, n, null));
+  }
+  BODY.push(writeBodyNotes);
 
   // The notes the text writes, open and archived together: each with its number (made unique the way tidyNotes does),
   // its target (an id, or null for a note that floats free on the plane), its text, Claude's response, whether it is
@@ -2380,7 +2432,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (el.multiplicity && (!MULTIPLICITY.test(el.multiplicity) || !boundsOk(el.multiplicity))) {
         add(el.id, 'The multiplicity "' + el.multiplicity + '" of ' + describe(model, el, ids) + ' is not like 1, 0..1, or 1..*.');
       }
-      if (name) {
+      // The name rules are for names the text writes: a kind with no name field (a start node, which the page names
+      // start1 for itself) takes no part in them.
+      if (name && hasName(el.kind)) {
         // Two with one name beside each other: both are marked, since either could be the one to rename.
         const key = (el.owner === undefined ? '' : el.owner) + '/' + name;
         const twin = siblings.get(key);
@@ -2556,13 +2610,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
       return true;
     }
     // The expose lines a view's layout gives: everything when every element is shown, else each shown element by its
-    // qualified name (an element with an unnamed owner has none, so it is left out). A kind's exposes hook may build on
-    // them through h.exposesOf(view).
+    // qualified name (a start, done or initial node has no name in the text, nor has anything inside an unnamed
+    // element, so those are left out). A kind's exposes hook may build on them through h.exposesOf(view).
     function exposesOf(v) {
       const shownCount = Object.keys(v.layout).length;
       return shownCount && shownCount === model.elements.length
         ? ['expose ' + quote(model.package.name) + '::*::**;']
-        : model.elements.filter((e) => v.layout[e.id] && chain(model, e, ids).every((c) => c.name.trim())).map((e) => 'expose ' + qualified(model, e, ids) + ';');
+        : model.elements.filter((e) => v.layout[e.id] && nameable(model, e, ids)).map((e) => 'expose ' + qualified(model, e, ids) + ';');
     }
 
     line(0, 'package ' + quote(model.package.name) + ' {');
@@ -2579,13 +2633,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // about what it is on, with its status and Claude's answer about it, a blank line between notes. A note on a
     // specializes or defined-by line, which has no name in the textual notation, is about both of the line's ends,
     // with the line named in the text; a free note is about nothing, so it annotates the package; a note inside an
-    // unnamed relationship's body is written there by the relationship's own toSysML (h.note).
+    // unnamed relationship's body is written there by the relationship's own toSysML (h.note), and a note on an element
+    // the text can't name inside the element's body (writeBodyNotes).
     for (const n of noteList) {
       const el = n.target === null ? null : ids.get(n.target);
       const rel = n.target === null ? null : rels.get(n.target);
       let about = null;
       let text = n.text;
       if (el) {
+        if (!nameable(model, el, ids)) continue; // written inside the element's body
         about = qualified(model, el, ids);
       } else if (rel && RELATIONSHIPS[rel.kind].toSysML) {
         if (!rel.name || !rel.name.trim()) continue; // written inside the relationship's body
@@ -4930,8 +4986,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // The code section, for an element selection: one row per link, with inputs while the page is editable, else the text.
   function renderCodeSection(s, write) {
     const el = s && s.type === 'el' ? s.item : null;
-    codeSection.hidden = !el;
-    if (!el) return;
+    // A kind without the code field (a start, done or initial node) has no line in the text a rep could go in.
+    codeSection.hidden = !el || M.KINDS[el.kind].fields.indexOf('code') < 0;
+    if (codeSection.hidden) return;
     const links = Array.isArray(el.code) ? el.code : [];
     while (codeList.firstChild) codeList.removeChild(codeList.firstChild);
     links.forEach((link, i) => codeList.appendChild(codeItem(link, i, write)));

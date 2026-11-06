@@ -21,6 +21,21 @@ function loadLib(source) {
   return sandbox.SysMLModel;
 }
 
+// A small model for the regression tests: an element is el(id, kind, name, extra) with its owner read from a dotted id
+// (A.a1 is owned by A); the one view (a general view unless `view.kind` says otherwise) shows every element, or the ids
+// in `view.show`, with `view.options` when given.
+function el(id, kind, name, extra) {
+  const dot = id.lastIndexOf('.');
+  return Object.assign({ id, kind, name }, dot >= 0 ? { owner: id.slice(0, dot) } : {}, extra || {});
+}
+function small(elements, relationships, view) {
+  const layout = {};
+  (view && view.show ? view.show : elements.map((e) => e.id)).forEach((id, i) => { layout[id] = { x: 40 + i * 240, y: 40, side: 'right', at: 0.5 }; });
+  return { format: 'stronghold-canvas/2', package: { name: 'P', doc: '' }, elements, relationships: relationships || [],
+    views: [{ id: 'v1', kind: (view && view.kind) || 'GeneralView', name: 'v', layout, options: (view && view.options) || {} }] };
+}
+const note = (no, target, text, extra) => Object.assign({ id: 'n' + no, no, target, text, response: '', resolved: false }, extra || {});
+
 describe('model-lib', () => {
   test('toSysML turns the embedded saved model into a package, and validate finds nothing wrong with it', () => {
     const source = pageSource();
@@ -76,5 +91,119 @@ describe('model-lib', () => {
       assert.equal(problems.length, 0, `${file} validates clean: ${JSON.stringify(problems)}`);
       assert.match(lib.toSysML(model, state.notes || []), /\bpackage\b/, `${file} exports a package`);
     }
+  });
+
+  test('a connection joins parts, ports or items: two actions are refused by the rule and by validate, two items are not', () => {
+    const lib = loadLib(pageSource());
+    const actions = lib.normalize(small([el('A', 'ActionDefinition', 'A'), el('A.a1', 'ActionUsage', 'a1'), el('A.a2', 'ActionUsage', 'a2')],
+      [{ id: 'c', kind: 'ConnectionUsage', from: 'A.a1', to: 'A.a2' }]));
+    const ids = lib.index(actions);
+    assert.match(lib.RELATIONSHIPS.ConnectionUsage.ends(actions, ids.get('A.a1'), ids.get('A.a2'), ids), /two parts, two ports or two items; action a1 in A is none of those/);
+    assert.match(lib.validate(actions).map((p) => p.id + ': ' + p.message).join('\n'), /^c: A connection joins two parts, two ports or two items/m);
+    const items = lib.normalize(small([el('S', 'PartDefinition', 'S'), el('S.a', 'PartUsage', 'a'), el('S.b', 'PartUsage', 'b'), el('S.a.i', 'ItemUsage', 'i'), el('S.b.j', 'ItemUsage', 'j')],
+      [{ id: 'c', kind: 'ConnectionUsage', from: 'S.a.i', to: 'S.b.j' }]));
+    assert.equal(lib.validate(items).length, 0, 'items connect');
+    assert.match(lib.toSysML(items, []), /connect a\.i to b\.j;/);
+  });
+
+  test('a general view showing a start node but not everything exposes the named elements only; a browser rooted at a start node is a problem', () => {
+    const lib = loadLib(pageSource());
+    const els = [el('A', 'ActionDefinition', 'A'), el('A.start1', 'StartNode', 'start1'), el('A.a1', 'ActionUsage', 'a1'), el('Other', 'PartDefinition', 'Other')];
+    const rels = [{ id: 's1', kind: 'SuccessionAsUsage', from: 'A.start1', to: 'A.a1' }];
+    const partial = lib.normalize(small(els, rels, { show: ['A', 'A.start1', 'A.a1'] }));
+    assert.equal(lib.validate(partial).length, 0);
+    const text = lib.toSysML(partial, []);
+    assert.match(text, /expose P::A;\s+expose P::A::a1;\s+\}/, `the action def and the action are exposed:\n${text}`);
+    assert.ok(!/start1/.test(text), `the start node's hidden name is nowhere in the text:\n${text}`);
+    const browser = lib.normalize(small(els, rels, { kind: 'BrowserView', show: [], options: { roots: ['A.start1'], collapsed: [] } }));
+    assert.match(lib.validate(browser).map((p) => p.message).join('\n'), /can't expose its root start in A by name: the text has no name for it/);
+    assert.ok(!/start1/.test(lib.toSysML(browser, [])), 'the browser leaves the root out');
+  });
+
+  test('a named transition out of an initial node with no entry action is a problem, and so is an unnamed entry action; a note on the unnamed transition is written inside the state', () => {
+    const lib = loadLib(pageSource());
+    const els = [el('S', 'StateDefinition', 'S'), el('S.initial1', 'InitialNode', 'initial1'), el('S.s1', 'StateUsage', 's1')];
+    const transition = (extra) => Object.assign({ id: 't0', kind: 'TransitionUsage', from: 'S.initial1', to: 'S.s1' }, extra || {});
+    const named = lib.normalize(small(els, [transition({ name: 'begin' })], { kind: 'StateTransitionView' }));
+    assert.match(lib.validate(named).map((p) => p.id + ': ' + p.message).join('\n'), /^t0: The transition out of the initial node carries a name, a doc or an effect only when it leaves an entry action/m);
+    const entry = lib.normalize(small(els.concat([el('S.init', 'ActionUsage', '', { role: 'entry' })]), [transition()], { kind: 'StateTransitionView' }));
+    assert.match(lib.validate(entry).map((p) => p.message).join('\n'), /The entry action of state def S has no name, so the transition out of the initial node can't leave it/);
+    const unnamed = lib.normalize(small(els, [transition()], { kind: 'StateTransitionView' }));
+    assert.equal(lib.validate(unnamed).length, 0);
+    const text = lib.toSysML(unnamed, [note(1, 't0', 'why start here?')]);
+    assert.match(text, /state def S \{\s+entry;\s+then s1;\s+metadata <n1> : Issue \{ text = "On transition initial node in S to s1: why start here\?"; \}\s+metadata StatusInfo about n1 \{ status = StatusKind::open; \}\s+state s1;/,
+      `the note is inside the state's body:\n${text}`);
+  });
+
+  test('a note on an element the text can\'t name is written inside the element\'s body, never about ::unnamed', () => {
+    const lib = loadLib(pageSource());
+    const model = lib.normalize(small([el('Page', 'PartDefinition', 'Page'), el('Page.p', 'PartUsage', '')]));
+    assert.equal(lib.validate(model).length, 0, 'an unnamed leaf part is legal');
+    const text = lib.toSysML(model, [note(1, 'Page.p', 'what is this?')]);
+    assert.match(text, /part \{\s+metadata <n1> : Issue \{ text = "what is this\?"; \}\s+metadata StatusInfo about n1 \{ status = StatusKind::open; \}\s+\}/, `the note annotates the part from inside:\n${text}`);
+    assert.ok(!/unnamed/.test(text), `nothing is about ::unnamed:\n${text}`);
+  });
+
+  test('an element named like a package the geometry text imports (SI, ShapeItems…) is a problem while anything is drawn to scale', () => {
+    const lib = loadLib(pageSource());
+    const spatial = { shape: 'Box', length: 2, width: 1, height: 1, unit: 'm', posX: 0, posY: 0, posZ: 0 };
+    const model = lib.normalize(small([el('SI', 'PartDefinition', 'SI'), el('room', 'PartUsage', 'room', spatial)], [], { kind: 'GeometryView', show: ['room'], options: { scale: 40, unit: 'm' } }));
+    assert.match(lib.validate(model).map((p) => p.id + ': ' + p.message).join('\n'), /^SI: The name SI is one the geometry text brings in from the library/m);
+    assert.equal(lib.validate(lib.normalize(small([el('SI', 'PartDefinition', 'SI'), el('room', 'PartUsage', 'room')]))).length, 0, 'without geometry the name is free');
+  });
+
+  test('a trigger or an accept payload that names no definition of the model is a problem; a definition, a timing or a condition is not', () => {
+    const lib = loadLib(pageSource());
+    const els = [el('Go', 'PartDefinition', 'Go'), el('S', 'StateDefinition', 'S'), el('S.idle', 'StateUsage', 'idle'), el('S.busy', 'StateUsage', 'busy')];
+    const transition = (trigger) => lib.normalize(small(els, [{ id: 't1', kind: 'TransitionUsage', from: 'S.idle', to: 'S.busy', trigger }], { kind: 'StateTransitionView' }));
+    assert.match(lib.validate(transition('go')).map((p) => p.id + ': ' + p.message).join('\n'), /^t1: The trigger go of the transition idle to busy names go, which is no definition in the model/m);
+    ['Go', 'x : Go', 'after 10 [SI::s]', 'when ready', 'at t'].forEach((t) => assert.equal(lib.validate(transition(t)).length, 0, `${t} is accepted`));
+    const accept = lib.normalize(small([el('A', 'ActionDefinition', 'A'), el('A.wait', 'ActionUsage', 'wait', { actionKind: 'accept', payload: 'sig' })]));
+    assert.match(lib.validate(accept).map((p) => p.message).join('\n'), /The payload sig of action wait in A names sig, which is no definition in the model/);
+  });
+
+  test('a send or accept action is a problem outside an action body, unless it is a state\'s entry, do or exit action', () => {
+    const lib = loadLib(pageSource());
+    const send = { actionKind: 'send', payload: 'new Alert()' };
+    const messages = (elements) => lib.validate(lib.normalize(small([el('Alert', 'ItemDefinition', 'Alert')].concat(elements)))).map((p) => p.message).join('\n');
+    assert.match(messages([el('warn', 'ActionUsage', 'warn', send)]), /An action that sends is written inside an action def or an action, or as a state's entry, do or exit action; action warn is on its own\. Move it\./);
+    assert.match(messages([el('S', 'StateDefinition', 'S'), el('S.warn', 'ActionUsage', 'warn', send)]), /action warn in S is in a state def\. Move it, or give it a role\./);
+    assert.equal(messages([el('A', 'ActionDefinition', 'A'), el('A.warn', 'ActionUsage', 'warn', send)]), '', 'inside an action def');
+    assert.equal(messages([el('S', 'StateDefinition', 'S'), el('S.warn', 'ActionUsage', 'warn', Object.assign({ role: 'entry' }, send))]), '', 'as an entry action');
+  });
+
+  test('a note inside an unnamed flow, succession or message takes the Issue form with its status, like one inside an unnamed connection', () => {
+    const lib = loadLib(pageSource());
+    const model = lib.normalize(small([el('Sys', 'PartDefinition', 'Sys'), el('Sys.a', 'PartUsage', 'a'), el('Sys.b', 'PartUsage', 'b'), el('Sys.a.i', 'ItemUsage', 'i', { direction: 'out' }), el('Sys.b.i', 'ItemUsage', 'i', { direction: 'in' })],
+      [{ id: 'f1', kind: 'FlowConnectionUsage', from: 'Sys.a.i', to: 'Sys.b.i' }, { id: 'm1', kind: 'Message', from: 'Sys.a', to: 'Sys.b' }]));
+    assert.equal(lib.validate(model).length, 0);
+    const archived = note(3, 'f1', 'archived on the flow', { response: 'done', resolved: true, archived: '2026-11-06T00:00:00Z', resolution: 'done' });
+    const text = lib.toSysML(model, [note(1, 'f1', 'on the flow', { response: 'ok', resolved: true }), note(2, 'm1', 'on the message')], [archived]);
+    assert.match(text, /flow from a\.i to b\.i \{\s+metadata <n1> : Issue \{ text = "on the flow"; \}\s+metadata Rationale about n1 \{ text = "ok"; \}\s+metadata StatusInfo about n1 \{ status = StatusKind::done; \}\s+metadata <n3> : Issue[^]*?StatusKind::closed; \}\s+\}/,
+      `the flow's notes, the archived one closed:\n${text}`);
+    assert.match(text, /message from a to b \{\s+metadata <n2> : Issue/, 'the message\'s note');
+    assert.ok(!/comment <n/.test(text), 'no note is a comment any more');
+  });
+
+  test('a typed action\'s own parameter keeps its doc, code and generals in the text, and an event under a lifeline keeps its code', () => {
+    const lib = loadLib(pageSource());
+    const code = (path) => [{ path, language: 'typescript', text: path === 'q.ts' ? 'x' : '' }];
+    const model = lib.normalize(small([el('B', 'ActionDefinition', 'B'), el('B.x', 'ParameterUsage', 'x', { direction: 'in' }), el('A', 'ActionDefinition', 'A'), el('A.a2', 'ActionUsage', 'a2'),
+      el('A.a2.q', 'ParameterUsage', 'q', { direction: 'in', doc: 'the doc of q', code: code('q.ts') }), el('A.a2.r', 'ParameterUsage', 'r', { direction: 'in' }),
+      el('C', 'PartDefinition', 'C'), el('C.p', 'PartUsage', 'p'), el('C.p.e1', 'EventOccurrenceUsage', 'e1', { code: code('e1.ts') })],
+      [{ id: 'ft', kind: 'FeatureTyping', from: 'A.a2', to: 'B' }, { id: 'sp', kind: 'Specialization', from: 'A.a2.r', to: 'A.a2.q' }]));
+    assert.equal(lib.validate(model).length, 0, JSON.stringify(lib.validate(model)));
+    const text = lib.toSysML(model, []);
+    assert.match(text, /action a2 : B \{\s+in item x;\s+in item q \{\s+doc \/\* the doc of q \*\/\s+rep 'q\.ts' language "typescript" \/\* x \*\/\s+\}\s+in item r :> q;\s+\}/, `the parameters:\n${text}`);
+    assert.match(text, /event occurrence e1 \{\s+rep 'e1\.ts' language "typescript" \/\* \*\/\s+\}/, `the event:\n${text}`);
+    assert.ok(!lib.KINDS.StartNode.fields.includes('code'), 'a start node, which the text never declares, carries no code links');
+  });
+
+  test('an action named start1 beside the start node the page named start1 is no duplicate: a kind without a name field takes no part in the name rules', () => {
+    const lib = loadLib(pageSource());
+    const model = lib.normalize(small([el('A', 'ActionDefinition', 'A'), el('A.start1', 'StartNode', 'start1'), el('A.act', 'ActionUsage', 'start1')],
+      [{ id: 's1', kind: 'SuccessionAsUsage', from: 'A.start1', to: 'A.act' }], { kind: 'ActionFlowView' }));
+    assert.equal(lib.validate(model).length, 0, JSON.stringify(lib.validate(model)));
+    assert.match(lib.toSysML(model, []), /action def A \{\s+action start1;\s+first start then start1;\s+\}/);
   });
 });
