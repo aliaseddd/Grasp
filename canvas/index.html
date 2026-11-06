@@ -257,6 +257,45 @@ textarea.text[readonly] { resize: none; background: transparent; }
 /* ==== slice: browser ==== */
 /* ==== end slice: browser ==== */
 /* ==== slice: annotations ==== */
+/* A free note's pin is hollow, since it sits on nothing. While a pin is dragged, the pins and badges let the pointer
+   through to what is under it, and the element or line there is marked as the drop. */
+.sysml .pin.is-free circle { fill: var(--card); stroke: var(--accent); stroke-width: 2; }
+.sysml .pin.is-free text { fill: var(--accent); }
+.sysml .pin.is-free.is-resolved circle { stroke: var(--fg-2); }
+.sysml .pin.is-free.is-resolved text { fill: var(--fg-2); }
+.sysml .pin.is-free.is-active circle { stroke: var(--fg); }
+.sysml .pin.is-dragging { opacity: 0.85; }
+.sysml.is-pinning .pins, .sysml.is-pinning .problems { pointer-events: none; }
+.canvas.is-pinning, .canvas.is-pinning * { cursor: grabbing !important; }
+.sysml .rel.is-drop .line { stroke: var(--accent); stroke-width: 2.75; stroke-dasharray: 5 3; }
+/* The archive, under the notes: a button that opens the list, and each archived note as read-only text with Restore. */
+.archive { display: grid; gap: 10px; }
+.archive-toggle { justify-self: start; padding: 6px 9px; font-size: 12px; }
+.note .archive { padding: 6px 8px; font-size: 12px; color: var(--fg-2); border-color: var(--line); }
+.archived { display: grid; gap: 6px; padding: 10px; border: 1px dashed var(--line-strong); border-radius: 6px; }
+.archived .number { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--fg-2); color: var(--on-accent); font: 600 11px/1 var(--sans); }
+.archived .archived-text { margin: 0; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.archived .restore { padding: 6px 8px; font-size: 12px; }
+/* Code links, under the selection's fields: each a path, a language and the text, in the code font. */
+.code-links { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); min-width: 0; }
+.code-links h3 { margin: 0; display: flex; align-items: baseline; gap: 8px; font: 600 13px/1.3 var(--sans); }
+.code-links .add-code { padding: 6px 9px; font-size: 12px; }
+/* A grid item is at least as wide as its content unless told otherwise, and a textarea that keeps its lines unwrapped
+   would widen the whole panel to its longest line. */
+.code-links .list, .code-link, .code-link .code-text { min-width: 0; }
+.code-link { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
+.code-link .code-row { display: flex; gap: 6px; align-items: center; }
+.code-link .code-path { flex: 1; min-width: 0; }
+.code-link .code-path, .code-link .code-language, .code-link .code-text {
+  font: 400 12.5px/1.4 var(--mono); color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+}
+.code-link .code-language { font: 400 12px/1.4 var(--sans); max-width: 110px; }
+.code-link .code-text { width: 100%; min-height: 38px; resize: vertical; white-space: pre; overflow-x: auto; tab-size: 2; }
+.code-link .code-path:read-only, .code-link .code-text:read-only { background: transparent; }
+.code-link .code-remove { padding: 6px 8px; font-size: 12px; color: var(--fg-2); border-color: var(--line); }
+.code-link .code-remove:hover { color: var(--danger); border-color: var(--danger); }
+.code-link .code-static { margin: 0; font: 400 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* ==== end slice: annotations ==== */
 @media (max-width: 720px) {
   /* On a phone the palette is one row that scrolls sideways, so the bar stays short. */
@@ -413,6 +452,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
         <!-- ==== slice: browser ==== -->
         <!-- ==== end slice: browser ==== -->
         <!-- ==== slice: annotations ==== -->
+        <section id="code" class="code-links" hidden aria-labelledby="code-title">
+          <div class="panel-head">
+            <h3 id="code-title">Code <span class="count" id="code-count"></span></h3>
+            <button type="button" class="add-code" id="add-code" title="Link a file of the code to this element">Add code</button>
+          </div>
+          <p class="empty" id="code-empty">No code linked yet.</p>
+          <ol class="list" id="code-list"></ol>
+          <p class="meta" id="code-hint">Each link exports as a textual representation (rep) inside the element. The one change made to the text: */ is written * /, since it would end the SysML comment.</p>
+        </section>
         <!-- ==== end slice: annotations ==== -->
       </section>
       <section class="notes" aria-labelledby="notes-title">
@@ -436,6 +484,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
         <!-- ==== slice: browser ==== -->
         <!-- ==== end slice: browser ==== -->
         <!-- ==== slice: annotations ==== -->
+        <section id="archive" class="archive" aria-label="Archived notes">
+          <button type="button" class="archive-toggle" id="archive-toggle" hidden aria-expanded="false" aria-controls="archive-list">Archive · 0</button>
+          <ol class="list" id="archive-list" hidden></ol>
+        </section>
         <!-- ==== end slice: annotations ==== -->
       </section>
     </aside>
@@ -661,7 +713,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         if (!rel.doc.trim() && !inside.length) { h.line(depth, head + ';'); return; }
         h.line(depth, head + ' {');
         if (rel.doc.trim()) h.comment(depth + 1, 'doc', rel.doc);
-        inside.forEach((n) => h.comment(depth + 1, 'comment <n' + n.no + '>', h.noteText(n)));
+        inside.forEach((n) => h.note(depth + 1, n, null));
         h.line(depth, '}');
       },
     },
@@ -756,6 +808,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // ==== slice: browser ====
     // ==== end slice: browser ====
     // ==== slice: annotations ====
+    // The code links an element carries: a list of { path, language, text }, read by tidyCode. The annotations slice's
+    // own section of the panel edits them (there is no #f-code input, so renderExtraFields leaves the field alone).
+    code: { type: 'list', label: 'code links', read: tidyCode, fresh: function () { return []; } },
     // ==== end slice: annotations ====
   };
 
@@ -774,6 +829,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ==== slice: browser ====
   // ==== end slice: browser ====
   // ==== slice: annotations ====
+  // Every kind may carry code links, so the panel's code section and the export's textual representations apply to
+  // every element.
+  Object.keys(KINDS).forEach((k) => KINDS[k].fields.push('code'));
   // ==== end slice: annotations ====
 
   const SIDES = ['top', 'right', 'bottom', 'left'];
@@ -1141,6 +1199,81 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ==== slice: browser ====
   // ==== end slice: browser ====
   // ==== slice: annotations ====
+  // The names the notes' forms take from the standard library (private import ModelingMetadata::*): a model element
+  // named like one of them would shadow the import, and the validator then can't type the metadata.
+  ['Issue', 'Rationale', 'StatusInfo', 'StatusKind', 'ModelingMetadata'].forEach((n) => RESERVED_NAMES.add(n));
+
+  // The code links of an element from what a file carries: a list of { path, language, text } strings, the language in
+  // lower case, a link with neither a path nor a text dropped; anything that isn't a list is no links.
+  function tidyCode(raw) {
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    for (const c of raw) {
+      if (!c || typeof c !== 'object') continue;
+      const link = { path: str(c.path), language: str(c.language).toLowerCase(), text: str(c.text) };
+      if (!link.path.trim() && !link.text.trim()) continue;
+      out.push(link);
+    }
+    return out;
+  }
+  // A SysML string literal: double quotes, with the backslash, the quote, the line breaks and the tabs escaped.
+  function metaString(s) {
+    return '"' + String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r\n?/g, '\n').replace(/\n/g, '\\n').replace(/\t/g, '\\t') + '"';
+  }
+  // A code link as a textual representation inside its element's body: rep '<path>' language "<language>", then the
+  // text as the comment body, on the same line when it is one line, else as a block with each line after a star (the
+  // form the pilot reads indentation back from). A link with no path takes the bare form, language "…" /* … */. The
+  // one change made to the text is that */ is written * /, since it would end the comment.
+  function codeLines(depth, link) {
+    const ind = '    '.repeat(depth);
+    const head = (link.path.trim() ? 'rep ' + quote(link.path) + ' ' : '') + 'language ' + metaString(link.language);
+    const text = link.text.replace(/\r\n?/g, '\n').replace(/\*\//g, '* /').replace(/^\n+|\n+$/g, '');
+    if (!text) return [ind + head + ' /* */'];
+    if (text.indexOf('\n') < 0) return [ind + head + ' /* ' + text + ' */'];
+    return [ind + head, ind + '/*'].concat(text.split('\n').map((l) => ind + ' * ' + l)).concat([ind + ' */']);
+  }
+  // The body writer: every element's code links, after its doc.
+  function writeCodeReps(model, el, depth, h) {
+    if (!Array.isArray(el.code)) return;
+    el.code.forEach((link) => codeLines(depth, link).forEach((l) => h.line(0, l)));
+  }
+  BODY.push(writeCodeReps);
+
+  // The notes the text writes, open and archived together: each with its number (made unique the way tidyNotes does),
+  // its target (an id, or null for a note that floats free on the plane), its text, Claude's response, whether it is
+  // resolved, and, for an archived note, that it is and the resolution it was archived with.
+  function noteRecords(notes, archive) {
+    const take = (list, archived) => (Array.isArray(list) ? list : [])
+      .filter((n) => n && typeof n === 'object' && (typeof n.target === 'string' || n.target === null) && typeof n.text === 'string')
+      .map((n) => ({
+        no: n.no >= 1 ? Math.floor(n.no) : 0, target: n.target, text: n.text, response: str(n.response),
+        resolved: n.resolved === true || archived, archived: archived, resolution: archived ? str(n.resolution) : ''
+      }));
+    const list = take(notes, false).concat(take(archive, true)).map((n, i) => Object.assign(n, { i: i })).sort((a, b) => (a.no - b.no) || (a.i - b.i));
+    const used = new Set();
+    let top = list.reduce((m, n) => Math.max(m, n.no), 0);
+    for (const n of list) {
+      if (!n.no || used.has(n.no)) n.no = ++top;
+      used.add(n.no);
+    }
+    return list;
+  }
+  // A note in the standard library's forms (ModelingMetadata): an Issue named <nN> with the note's text, about what
+  // about names (nothing: the statement's owner, which is the package for a free note and the relationship for a note
+  // inside its body); a Rationale about the issue with Claude's response, or with the resolution of an archived note,
+  // when there is one; and a StatusInfo about it: open, done once the note is resolved, closed once it is archived.
+  // text, when given, replaces the note's own (a note on a line that has to be named in it).
+  function noteStatements(n, about, text) {
+    const name = 'n' + n.no;
+    const why = (n.archived ? n.resolution : n.response).trim();
+    const out = ['metadata <' + name + '> : Issue' + (about ? ' about ' + about : '') + ' { text = ' + metaString(text === undefined ? n.text : text) + '; }'];
+    if (why) out.push('metadata Rationale about ' + name + ' { text = ' + metaString(why) + '; }');
+    out.push('metadata StatusInfo about ' + name + ' { status = StatusKind::' + (n.archived ? 'closed' : n.resolved ? 'done' : 'open') + '; }');
+    return out;
+  }
+  EXTRA.tidyCode = tidyCode;
+  EXTRA.noteRecords = noteRecords;
+  EXTRA.noteStatements = noteStatements;
   // ==== end slice: annotations ====
 
   // What keeps the model from being correct SysML. Each problem names the element, relationship, or view it is about
@@ -1249,12 +1382,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return list;
   }
 
-  // The archived notes, the third argument, are not written yet: the annotations slice gives them their form.
+  // The notes and the archived notes are written together, at the end of the package (noteRecords, noteStatements).
   function toSysML(model, notes, archive) {
     model = normalize(model);
     const ids = index(model);
     const rels = relIndex(model);
-    const noteList = tidyNotes(notes);
+    const noteList = noteRecords(notes, archive);
     const out = [];
     const imports = new Set();
     const line = (depth, text) => out.push('    '.repeat(depth) + text);
@@ -1269,6 +1402,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const helpers = {
       ids: ids, line: line, comment: comment, noteText: noteText, quote: quote, featurePath: featurePath, shown: shown,
       notesOn: (id) => noteList.filter((n) => n.target === id),
+      // A note in its standard forms (noteStatements), written at depth through this object's own line, so a hook's
+      // lines land where its other lines do; about null writes it inside the body it is in. Asks for the import.
+      note: function (depth, n, about, text) { noteStatements(n, about, text).forEach((s) => this.line(depth, s)); imports.add('ModelingMetadata::*'); },
       needImport: (qualifiedName) => imports.add(qualifiedName),
       headOf: headOf, declaredIn: declaredIn, exposesOf: exposesOf,
       typingOf: (el) => typingOf(model, el),
@@ -1359,28 +1495,30 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (topRels.length) out.push('');
     topRels.forEach((r) => RELATIONSHIPS[r.kind].toSysML(model, r, null, 1, out, helpers));
 
-    // Notes, as comments at the end of the package. A note on a specializes or defined-by line, which has no name
-    // in the textual notation, is about both of the line's ends, with the line named in the text.
-    let any = false;
+    // Notes, in the standard library's forms at the end of the package (noteStatements): each an Issue named <nN>
+    // about what it is on, with its status and Claude's answer about it, a blank line between notes. A note on a
+    // specializes or defined-by line, which has no name in the textual notation, is about both of the line's ends,
+    // with the line named in the text; a free note is about nothing, so it annotates the package; a note inside an
+    // unnamed relationship's body is written there by the relationship's own toSysML (h.note).
     for (const n of noteList) {
-      const el = ids.get(n.target);
-      const rel = rels.get(n.target);
-      let head;
-      let text = noteText(n);
+      const el = n.target === null ? null : ids.get(n.target);
+      const rel = n.target === null ? null : rels.get(n.target);
+      let about = null;
+      let text = n.text;
       if (el) {
-        head = 'comment <n' + n.no + '> about ' + qualified(model, el, ids);
+        about = qualified(model, el, ids);
       } else if (rel && RELATIONSHIPS[rel.kind].toSysML) {
         if (!rel.name || !rel.name.trim()) continue; // written inside the relationship's body
         const o = RELATIONSHIPS[rel.kind].owner(model, rel, ids);
-        head = 'comment <n' + n.no + '> about ' + (o ? qualified(model, ids.get(o), ids) : quote(model.package.name)) + '::' + quote(rel.name);
+        about = (o ? qualified(model, ids.get(o), ids) : quote(model.package.name)) + '::' + quote(rel.name);
       } else if (rel) {
-        head = 'comment <n' + n.no + '> about ' + qualified(model, ids.get(rel.from), ids) + ', ' + qualified(model, ids.get(rel.to), ids);
+        about = qualified(model, ids.get(rel.from), ids) + ', ' + qualified(model, ids.get(rel.to), ids);
         text = 'On ' + describeRel(model, rel, ids) + ': ' + text;
-      } else {
-        continue; // on nothing the text names: a free note (target null), or a target that is gone
+      } else if (n.target !== null) {
+        continue; // on something that is gone
       }
-      if (!any) { out.push(''); any = true; }
-      comment(1, head, text);
+      out.push('');
+      helpers.note(1, n, about, text);
     }
 
     // The views, each exposing what it shows (exposesOf), unless its kind says itself what the view's body holds (a
@@ -1588,11 +1726,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return {
       model: M.normalize(readJSON('model')),
       notes: data && Array.isArray(data.notes) ? data.notes.filter(isNote).map(tidyNote) : [],
+      archive: data && Array.isArray(data.archive) ? data.archive.filter(isNote).map(tidyArchived) : [],
       saved: data && typeof data.saved === 'string' ? data.saved : null
     };
   }
   function byNumber(a, b) { return (a.no - b.no) || (a.created < b.created ? -1 : a.created > b.created ? 1 : 0); }
-  function nextNumber() { return notes.reduce((top, n) => Math.max(top, n.no || 0), 0) + 1; }
+  function nextNumber() { return notes.concat(archive).reduce((top, n) => Math.max(top, n.no || 0), 0) + 1; }
   function noteById(id) { return notes.find((n) => n.id === id) || null; }
   function relById(id) { return model.relationships.find((r) => r.id === id) || null; }
   function viewById(id) { return model.views.find((v) => v.id === id) || null; }
@@ -2175,6 +2314,467 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ==== slice: browser ====
   // ==== end slice: browser ====
   // ==== slice: annotations ====
+  // ---- Annotations: the Note tool, notes that float free on the plane, pins that can be dragged, the archive of
+  // resolved notes, and the code links an element carries.
+
+  const ARCHIVE = 'archive';                   // the shared store's collection of archived notes
+  const CODE_LANGUAGES = ['typescript', 'javascript', 'json', 'css', 'html', 'sysml', 'kerml', 'markdown', 'shell', 'other'];
+  let archive = saved.archive.slice();         // the archived notes, kept beside notes
+  let archiveOpen = false;                     // whether the panel shows the archive's list
+  let heardArchive = false;                    // whether the shared store has answered about the archive
+  const dirtyArchive = new Map();              // archived note id -> a counter while a change made here hasn't been written
+  const leavingNotes = new Set();              // ids of notes on their way into the archive, until their notes document is gone
+  const leavingArchive = new Set();            // ids of notes on their way back out of it, until their archive document is gone
+  const archiveToggle = $('archive-toggle');
+  const archiveList = $('archive-list');
+  const codeSection = $('code');
+  const codeList = $('code-list');
+  const codeCount = $('code-count');
+  const codeEmpty = $('code-empty');
+  const addCodeButton = $('add-code');
+
+  Object.assign(TOOL_TITLE, { Note: 'A note: on an element or a line, or anywhere on the plane' });
+  Object.assign(TOOL_HINT, { Note: 'Click an element or a line to note it, or the plane to leave a note there.' });
+  // The Note tool: a click on an element or a line notes it, as Add note does for the selection; a click anywhere else
+  // leaves a free note at that point. One note, then the tool is put down.
+  TOOLS.Note = function (hit, p) {
+    if (hit.type === 'el' || hit.type === 'rel') { select({ type: hit.type, id: hit.id }, hit.view); addNote(); }
+    else addFreeNote(p);
+    setTool(null);
+  };
+
+  // An archived note from the store or a file: a note plus when it was archived and the resolution it was archived with.
+  function tidyArchived(n) {
+    return Object.assign(tidyNote(n), { archived: str(n.archived) || str(n.updated) || now(), resolution: str(n.resolution) });
+  }
+
+  // -- Free notes: on nothing, at a point on the plane, where the pin sits.
+  function addFreeNote(p) {
+    if (!editable()) return;
+    const stamp = now();
+    const n = {
+      id: newId('n'), no: nextNumber(), target: null, x: Math.round(p.x), y: Math.round(p.y), targetLabel: 'the plane', text: '', by: 'user',
+      created: stamp, updated: stamp, response: '', resolved: false
+    };
+    notes.push(n);
+    renderNotes();
+    noteChanged(n, null);
+    focusNote(n.id);
+    say('Added note ' + n.no + ' on the plane. Drag its pin onto a box, a port or a line to put it on that.');
+  }
+  // A free note's pin, drawn once at the note's own point (drawPins draws the other pins in every view that shows
+  // their target): hollow, since it sits on nothing.
+  function freePin(n) {
+    const g = node('g', { 'data-note': n.id, 'data-x': f(n.x), 'data-y': f(n.y), transform: pinTransform(n.x, n.y) }, 'pin is-free' + (n.resolved ? ' is-resolved' : ''));
+    const title = node('title');
+    title.textContent = 'Note ' + n.no + ' on the plane. Click to read it; drag to move it, or onto something to put it on that.';
+    const number = node('text');
+    number.textContent = String(n.no);
+    g.appendChild(title);
+    g.appendChild(node('circle', { r: 11 }));
+    g.appendChild(number);
+    return g;
+  }
+
+  // -- Dragging a pin, free or not: the pin follows the pointer and what is under the pointer is marked; on the drop
+  // the note goes onto the element or line there, or free onto the plane where the pin was let go. Pins are not undone.
+  function pinDragStart(hit, p) {
+    const n = noteById(hit.id);
+    const g = n ? svg.querySelector('.pin[data-note="' + n.id + '"]' + (hit.view ? '[data-view="' + hit.view + '"]' : '')) : null;
+    if (!g) return null;
+    return { kind: 'pin', id: n.id, g: g, start: p, at: { x: +g.getAttribute('data-x'), y: +g.getAttribute('data-y') }, moved: false, over: null };
+  }
+  // What a dragged pin is over: the hit of the element or line under the pointer (the pins and badges let it through),
+  // null for the plane, a frame or a control, undefined when the pointer is off the drawing.
+  function underPin(event) {
+    const target = document.elementFromPoint(event.clientX, event.clientY);
+    if (!target || !canvas.contains(target)) return undefined;
+    const hit = hitOf(target);
+    return hit.type === 'el' || hit.type === 'rel' ? hit : null;
+  }
+  function movePin(d, event) {
+    const p = toDrawing(event.clientX, event.clientY);
+    d.g.classList.add('is-dragging');
+    svg.classList.add('is-pinning');
+    canvas.classList.add('is-pinning');
+    d.g.setAttribute('transform', pinTransform(d.at.x + p.x - d.start.x, d.at.y + p.y - d.start.y));
+    const hit = underPin(event);
+    const g = hit ? hit.g : null;
+    if (d.over && d.over !== g) d.over.classList.remove('is-drop');
+    if (g) g.classList.add('is-drop');
+    d.over = g;
+  }
+  function dropPin(d, event) {
+    const hit = underPin(event); // while the pins still let the pointer through to what is under it
+    svg.classList.remove('is-pinning');
+    canvas.classList.remove('is-pinning');
+    if (d.over) d.over.classList.remove('is-drop');
+    const n = noteById(d.id);
+    // The note is gone, or the pin was let go off the drawing: it goes back where it was.
+    if (!n || hit === undefined) { renderPins(); return; }
+    const p = toDrawing(event.clientX, event.clientY);
+    let what = null;
+    if (hit) {
+      const el = hit.type === 'el' ? layout.ids.get(hit.id) : null;
+      if (el && !M.hasName(el.kind)) {
+        say('A ' + M.KINDS[el.kind].label + ' can\'t carry a note. Drop the pin on the element it belongs to instead.');
+      } else if (hit.id !== n.target) {
+        n.target = hit.id;
+        n.targetLabel = M.labelFor(model, hit.id);
+        delete n.x;
+        delete n.y;
+        what = 'Moved note ' + n.no + ' onto ' + n.targetLabel + '.';
+      }
+    } else {
+      const at = { x: Math.round(d.at.x + p.x - d.start.x), y: Math.round(d.at.y + p.y - d.start.y) };
+      if (n.target !== null || n.x !== at.x || n.y !== at.y) {
+        what = n.target === null ? 'Moved note ' + n.no + ' on the plane.'
+          : 'Moved note ' + n.no + ' off ' + (M.labelFor(model, n.target) || n.targetLabel) + ' onto the plane. Drop its pin on something to put it on that.';
+        n.target = null;
+        n.x = at.x;
+        n.y = at.y;
+        n.targetLabel = 'the plane';
+      }
+    }
+    // A drop that changes nothing says nothing; the pin goes back to where the note is.
+    if (!what) { renderPins(); return; }
+    n.updated = now();
+    noteChanged(n, null);
+    renderNotes();
+    say(what);
+  }
+
+  // -- The archive: resolved notes put away. An archived note keeps its number and its answer (the resolution), draws no
+  // pin, and is listed under the notes, read-only, until it is restored.
+  function archivedById(id) { return archive.find((n) => n.id === id) || null; }
+  function archiveNote(id) {
+    const n = noteById(id);
+    if (!n || !editable()) return;
+    if (!n.resolved) { say('Note ' + n.no + ' is still open. It can be archived once it is resolved.'); return; }
+    const a = Object.assign({}, n, { archived: now(), resolution: n.response });
+    notes.splice(notes.indexOf(n), 1);
+    archive.push(a);
+    clearTimeout(noteTimers[id]);
+    delete noteTimers[id];
+    if (mode === 'local') saveLocal();
+    else if (mode === 'shared') moveToArchive(a);
+    renderNotes();
+    say('Archived note ' + n.no + '. It keeps its number and its answer; Restore brings it back.');
+  }
+  function restoreNote(id) {
+    const a = archivedById(id);
+    if (!a || !editable()) return;
+    const n = Object.assign({}, a);
+    delete n.archived;
+    delete n.resolution;
+    archive.splice(archive.indexOf(a), 1);
+    notes.push(n);
+    if (mode === 'local') saveLocal();
+    else if (mode === 'shared') moveToNotes(n);
+    renderNotes();
+    say('Restored note ' + n.no + ' to the notes, on ' + (n.target === null ? 'the plane' : (M.labelFor(model, n.target) || n.targetLabel)) + '.');
+  }
+  // The Archive button a resolved note gets in the notes list.
+  function archiveButton(n) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'archive';
+    b.textContent = 'Archive';
+    b.title = 'Put this resolved note away. It keeps its number and its answer, and Restore brings it back.';
+    b.setAttribute('aria-label', 'Archive note ' + n.no);
+    b.addEventListener('click', () => archiveNote(n.id));
+    return b;
+  }
+  function renderArchive() {
+    const sorted = archive.slice().sort(byNumber);
+    archiveToggle.hidden = !sorted.length;
+    archiveToggle.textContent = 'Archive · ' + sorted.length;
+    archiveToggle.setAttribute('aria-expanded', archiveOpen && sorted.length ? 'true' : 'false');
+    archiveList.hidden = !archiveOpen || !sorted.length;
+    while (archiveList.firstChild) archiveList.removeChild(archiveList.firstChild);
+    sorted.forEach((a) => archiveList.appendChild(archivedItem(a)));
+  }
+  function archivedItem(a) {
+    const li = document.createElement('li');
+    li.className = 'archived';
+    li.setAttribute('data-note', a.id);
+    const head = document.createElement('div');
+    head.className = 'note-head';
+    const number = document.createElement('span');
+    number.className = 'number';
+    number.textContent = String(a.no);
+    number.setAttribute('aria-label', 'Archived note ' + a.no);
+    const on = document.createElement('span');
+    on.className = 'on';
+    on.appendChild(document.createTextNode('on '));
+    const b = document.createElement('b');
+    b.textContent = a.target === null ? 'the plane' : (M.labelFor(model, a.target) || a.targetLabel || 'something no longer in the model');
+    on.appendChild(b);
+    head.appendChild(number);
+    head.appendChild(on);
+    if (editable()) {
+      const restore = document.createElement('button');
+      restore.type = 'button';
+      restore.className = 'restore';
+      restore.textContent = 'Restore';
+      restore.setAttribute('aria-label', 'Restore note ' + a.no + ' to the notes');
+      restore.addEventListener('click', () => restoreNote(a.id));
+      head.appendChild(restore);
+    }
+    li.appendChild(head);
+    const text = document.createElement('p');
+    text.className = 'archived-text';
+    text.textContent = a.text;
+    li.appendChild(text);
+    if (a.resolution) {
+      const resolution = document.createElement('p');
+      resolution.className = 'response';
+      const who = document.createElement('b');
+      who.textContent = 'Resolved: ';
+      resolution.appendChild(who);
+      resolution.appendChild(document.createTextNode(a.resolution));
+      li.appendChild(resolution);
+    }
+    const meta = document.createElement('p');
+    meta.className = 'meta';
+    meta.textContent = 'Archived ' + dateOf(a.archived) + ' · added ' + dateOf(a.created);
+    li.appendChild(meta);
+    return li;
+  }
+  archiveToggle.addEventListener('click', () => {
+    archiveOpen = !archiveOpen;
+    renderArchive();
+    say(archiveOpen ? 'Showing ' + plural(archive.length, 'archived note') + '.' : 'Hid the archive.');
+  });
+
+  // -- The archive in the shared store: the collection archive, one document per note, listened to like the notes.
+  function archivedBody(a) { return Object.assign(noteBody(a), { archived: a.archived, resolution: a.resolution }); }
+  function stageArchived(id) { dirtyArchive.set(id, (dirtyArchive.get(id) || 0) + 1); }
+  function writeArchived(a) {
+    if (!db) return;
+    const seq = dirtyArchive.get(a.id);
+    enqueue(a.id, () => attempt(() => db.collection(ARCHIVE).doc(a.id).set(archivedBody(a)))
+      .then(() => { if (dirtyArchive.get(a.id) === seq) dirtyArchive.delete(a.id); },
+        (error) => { dirtyArchive.delete(a.id); refused(error, 'A change to the archive wasn\'t saved.'); }));
+  }
+  function deleteArchived(id) {
+    if (!db) return;
+    dirtyArchive.delete(id);
+    enqueue(id, () => attempt(() => db.collection(ARCHIVE).doc(id).delete()).catch((error) => refused(error, 'The archived note wasn\'t deleted in the shared store.')));
+  }
+  // Archiving writes the archive document first, then deletes the note's document, so a failure between the two loses
+  // nothing; until the note's document is gone, the notes listener leaves the id out (leavingNotes).
+  function moveToArchive(a) {
+    if (!db) return;
+    dirty.delete(a.id);
+    stageArchived(a.id);
+    leavingNotes.add(a.id);
+    const seq = dirtyArchive.get(a.id);
+    const done = () => { leavingNotes.delete(a.id); if (dirtyArchive.get(a.id) === seq) dirtyArchive.delete(a.id); };
+    enqueue(a.id, () => attempt(() => db.collection(ARCHIVE).doc(a.id).set(archivedBody(a)))
+      .then(() => attempt(() => db.collection(NOTES).doc(a.id).delete()))
+      .then(done, (error) => { done(); refused(error, 'The note wasn\'t archived in the shared store.'); }));
+  }
+  // Restoring is the reverse: the note's document first, then the archive document deleted.
+  function moveToNotes(n) {
+    if (!db) return;
+    dirtyArchive.delete(n.id);
+    stageNote(n.id);
+    leavingArchive.add(n.id);
+    const seq = dirty.get(n.id);
+    const done = () => { leavingArchive.delete(n.id); if (dirty.get(n.id) === seq) dirty.delete(n.id); };
+    enqueue(n.id, () => attempt(() => db.collection(NOTES).doc(n.id).set(noteBody(n)))
+      .then(() => attempt(() => db.collection(ARCHIVE).doc(n.id).delete()))
+      .then(done, (error) => { done(); refused(error, 'The note wasn\'t restored in the shared store.'); }));
+  }
+  // What is dirty here is kept, the rest follows the store, and a note on its way back to the notes is left out until
+  // its archive document is gone. A page published somewhere new has an empty store: the archived notes saved in the
+  // file go into it, once, as the notes do.
+  function listenArchive(writable) {
+    db.collection(ARCHIVE).onSnapshot((snap) => {
+      const first = !heardArchive;
+      if (!snap.metadata.fromCache && !heardArchive) heardArchive = true;
+      const remote = new Map();
+      snap.docs.forEach((doc) => {
+        const body = doc.data();
+        if (!body) return;
+        const n = Object.assign({}, body, { id: doc.id });
+        if (isNote(n)) remote.set(doc.id, tidyArchived(n));
+      });
+      if (first && heardArchive && remote.size === 0 && writable && saved.archive.length) {
+        saved.archive.forEach((n) => { const copy = tidyArchived(n); stageArchived(copy.id); writeArchived(copy); remote.set(copy.id, copy); });
+      }
+      const next = [];
+      archive.forEach((n) => { if (dirtyArchive.has(n.id)) { next.push(n); remote.delete(n.id); } });
+      remote.forEach((n) => { if (!leavingArchive.has(n.id)) next.push(n); });
+      archive = next;
+      renderArchive();
+    }, () => setMode('read', 'The archive stopped updating. Reload the page to see the latest.'));
+  }
+  // An import replaces the archive too: the old archived notes go, the file's come in.
+  function replaceArchive(raw) {
+    const incoming = (Array.isArray(raw) ? raw : []).filter(isNote).map(tidyArchived);
+    if (mode === 'shared') archive.forEach((a) => deleteArchived(a.id));
+    archive = incoming;
+    if (mode === 'shared') archive.forEach((a) => { stageArchived(a.id); writeArchived(a); });
+  }
+
+  // -- Code links: the files of the code behind an element, each a path, a language and a text. They are edited in the
+  // panel's code section, listed in the box's code compartment, and exported as textual representations in the body.
+  COMPARTMENTS.push({
+    applies: function (el) { return Array.isArray(el.code) && el.code.length > 0; }, head: 'code', cls: 'mono',
+    lines: function (el, width) { return el.code.map((c) => fitPath(c.path.trim() || '(no path)', Math.max(8, Math.floor((width - 24) / 6.6)))); }
+  });
+  // A path that fits a compartment line: its end, where the file is named, with an ellipsis in front.
+  function fitPath(path, chars) { return path.length <= chars ? path : '…' + path.slice(path.length - chars + 1); }
+  // The code section, for an element selection: one row per link, with inputs while the page is editable, else the text.
+  function renderCodeSection(s, write) {
+    const el = s && s.type === 'el' ? s.item : null;
+    codeSection.hidden = !el;
+    if (!el) return;
+    const links = Array.isArray(el.code) ? el.code : [];
+    while (codeList.firstChild) codeList.removeChild(codeList.firstChild);
+    links.forEach((link, i) => codeList.appendChild(codeItem(link, i, write)));
+    codeCount.textContent = links.length ? String(links.length) : '';
+    codeEmpty.hidden = links.length > 0;
+    codeEmpty.textContent = write ? 'No code linked yet. Add code links a file of the code to ' + M.describe(model, el) + '.' : 'No code linked.';
+    addCodeButton.hidden = !write;
+  }
+  function codeItem(link, i, write) {
+    const li = document.createElement('li');
+    li.className = 'code-link';
+    li.setAttribute('data-index', String(i));
+    if (!write) {
+      const head = document.createElement('p');
+      head.className = 'code-static';
+      head.textContent = (link.path.trim() || '(no path)') + ' · ' + (link.language || 'no language');
+      li.appendChild(head);
+      if (link.text.trim()) {
+        const text = document.createElement('pre');
+        text.className = 'code-static';
+        text.textContent = link.text;
+        li.appendChild(text);
+      }
+      return li;
+    }
+    const row = document.createElement('div');
+    row.className = 'code-row';
+    const path = document.createElement('input');
+    path.type = 'text';
+    path.className = 'code-path';
+    path.value = link.path;
+    path.placeholder = 'path, e.g. app/src/x.ts';
+    path.autocomplete = 'off';
+    path.spellcheck = false;
+    path.setAttribute('aria-label', 'The path of code link ' + (i + 1));
+    const language = document.createElement('select');
+    language.className = 'code-language';
+    language.setAttribute('aria-label', 'The language of code link ' + (i + 1));
+    // The languages offered, and the link's own when a file brought one that isn't among them.
+    CODE_LANGUAGES.concat(CODE_LANGUAGES.indexOf(link.language) < 0 ? [link.language] : []).forEach((l) => {
+      const o = document.createElement('option');
+      o.value = l;
+      o.textContent = l || '(no language)';
+      language.appendChild(o);
+    });
+    language.value = link.language;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'code-remove';
+    remove.textContent = 'Remove';
+    remove.setAttribute('aria-label', 'Remove code link ' + (i + 1));
+    row.appendChild(path);
+    row.appendChild(language);
+    row.appendChild(remove);
+    const text = document.createElement('textarea');
+    text.className = 'code-text';
+    text.rows = 2;
+    text.value = link.text;
+    text.placeholder = 'the code, or nothing: then the link is just the path';
+    text.spellcheck = false;
+    text.setAttribute('aria-label', 'The text of code link ' + (i + 1));
+    li.appendChild(row);
+    li.appendChild(text);
+    requestAnimationFrame(() => growCodeText(text));
+    return li;
+  }
+  function growCodeText(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(360, textarea.scrollHeight + 2) + 'px';
+  }
+  // The link an event in the code list is about: the selected element and the row's index.
+  function codeLinkOf(event) {
+    const el = selectedElement();
+    const li = event.target.closest ? event.target.closest('li.code-link') : null;
+    if (!el || !li || !Array.isArray(el.code)) return null;
+    const i = +li.getAttribute('data-index');
+    return el.code[i] ? { el: el, i: i, link: el.code[i] } : null;
+  }
+  function codeLinkName(x) { return 'code link ' + (x.i + 1) + ' of ' + M.describe(model, x.el); }
+  // Typing a path or a text is one undo step per field of the link, logged once the field is left; the language
+  // changes at once; Add and Remove are one step each.
+  codeList.addEventListener('input', (event) => {
+    const x = codeLinkOf(event);
+    const input = event.target;
+    const fld = input.classList.contains('code-path') ? 'path' : input.classList.contains('code-text') ? 'text' : null;
+    if (!x || !fld || !editable()) return;
+    const before = snapshot();
+    x.link[fld] = input.value;
+    if (fld === 'text') growCodeText(input);
+    commit('Set the ' + fld + ' of ' + codeLinkName(x), 'code:' + x.el.id + ':' + x.i + ':' + fld, before);
+    render();
+    changed();
+  });
+  codeList.addEventListener('change', (event) => {
+    const x = codeLinkOf(event);
+    const input = event.target;
+    if (!x || !editable()) return;
+    if (input.classList.contains('code-language')) {
+      const before = snapshot();
+      x.link.language = input.value;
+      const what = 'Set the language of ' + codeLinkName(x) + ' to ' + (input.value || 'nothing');
+      commit(what, null, before);
+      logChange(what);
+      render();
+      changed();
+      return;
+    }
+    const fld = input.classList.contains('code-path') ? 'path' : input.classList.contains('code-text') ? 'text' : null;
+    if (!fld) return;
+    logChange('Set the ' + fld + ' of ' + codeLinkName(x) + (fld === 'path' ? ' to ' + (x.link.path.trim() || 'nothing') : ''), 'code:' + x.el.id + ':' + x.i + ':' + fld);
+    endEdit();
+    changed();
+  });
+  codeList.addEventListener('click', (event) => {
+    const button = event.target.closest ? event.target.closest('button.code-remove') : null;
+    const x = button ? codeLinkOf(event) : null;
+    if (!x || !editable()) return;
+    const before = snapshot();
+    x.el.code.splice(x.i, 1);
+    const what = 'Removed the code link ' + (x.link.path.trim() || '(no path)') + ' from ' + M.describe(model, x.el);
+    commit(what, null, before);
+    logChange(what);
+    render();
+    renderInspector();
+    changed();
+    say(what + '. Undo brings it back.');
+  });
+  addCodeButton.addEventListener('click', () => {
+    const el = selectedElement();
+    if (!el || !editable()) return;
+    const before = snapshot();
+    if (!Array.isArray(el.code)) el.code = [];
+    el.code.push({ path: '', language: CODE_LANGUAGES[0], text: '' });
+    const what = 'Added a code link to ' + M.describe(model, el);
+    commit(what, null, before);
+    logChange(what);
+    render();
+    renderInspector();
+    changed();
+    say(what + '. Give it the file\'s path; the text may stay empty.');
+    const path = codeList.querySelector('li.code-link:last-child input.code-path');
+    if (path) path.focus({ preventScroll: true });
+  });
   // ==== end slice: annotations ====
 
   // Where a note's pin sits in view layout L: on the top edge of a box, beside a port's square away from its name, on
@@ -2201,6 +2801,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     while (layer.firstChild) layer.removeChild(layer.firstChild);
     const seen = {};
     for (const n of notes.slice().sort(byNumber)) {
+      if (n.target === null) { layer.appendChild(freePin(n)); continue; } // a free note's pin, once, at its own point
       layout.views.forEach((L) => {
         const key = L.view.id + '/' + n.target;
         const k = seen[key] || 0;
@@ -2784,6 +3385,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     fields.hidden = true;
     viewFields.hidden = true;
     inspectorEmpty.hidden = !!s;
+    renderCodeSection(s, write);
     if (!s) { renderProblemsList(); return; }
     if (s.type === 'view') renderViewFields(s.item, write);
     else renderElementFields(s, write);
@@ -3197,6 +3799,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     notesCount.textContent = notes.length ? String(notes.length) : '';
     showPanel.textContent = notes.length ? 'Panel · ' + notes.length : 'Panel';
     renderPins();
+    renderArchive();
     const again = activeId ? list.querySelector('[data-note="' + activeId + '"] textarea') : null;
     if (again) {
       again.focus({ preventScroll: true });
@@ -3221,13 +3824,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
     badge.setAttribute('aria-label', 'Show note ' + n.no + ' on the drawing');
     const on = document.createElement('span');
     on.className = 'on';
-    const label = M.labelFor(model, n.target) || n.targetLabel || 'something no longer in the model';
+    const label = n.target === null ? 'the plane' : (M.labelFor(model, n.target) || n.targetLabel || 'something no longer in the model');
     on.appendChild(document.createTextNode('on '));
     const b = document.createElement('b');
     b.textContent = label;
     on.appendChild(b);
     head.appendChild(badge);
     head.appendChild(on);
+    if (write && n.resolved) head.appendChild(archiveButton(n)); // a resolved note can be put away
     if (write) {
       const remove = document.createElement('button');
       remove.type = 'button';
@@ -3269,6 +3873,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     meta.textContent = (n.by === 'claude' ? 'From Claude · ' : '') + 'Added ' + dateOf(n.created) + (n.resolved ? ' · resolved' : '');
     li.appendChild(meta);
     badge.addEventListener('click', () => {
+      if (n.target === null) { showPoint(n.x, n.y); say('Showing note ' + n.no + ', on the plane.'); return; } // a free note: its own point
       // The target, in the view that draws it (for a line that isn't drawn, the part or port it starts from).
       const rel = relById(n.target);
       const vid = viewShowing(n.target) || (rel ? viewShowing(rel.from) : null);
@@ -3388,7 +3993,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function storageKey() { return STATE_KEY + (saved.model.revision || 'unsaved'); }
   function saveLocal() {
     try {
-      localStorage.setItem(storageKey(), JSON.stringify({ model: model, notes: notes, changes: changes }));
+      localStorage.setItem(storageKey(), JSON.stringify({ model: model, notes: notes, archive: archive, changes: changes }));
       warning.hidden = true;
     } catch (error) {
       warning.hidden = false;
@@ -3402,6 +4007,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         model = M.normalize(data.model);
         active = model.views[0].id;
         notes = (Array.isArray(data.notes) ? data.notes : []).filter(isNote).map(tidyNote);
+        archive = (Array.isArray(data.archive) ? data.archive : []).filter(isNote).map(tidyArchived);
         changes = Array.isArray(data.changes) ? data.changes.slice(-200) : [];
       }
     } catch (error) { /* start from the file */ }
@@ -3455,10 +4061,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
       }
       const next = [];
       notes.forEach((n) => { if (dirty.has(n.id)) { next.push(n); remote.delete(n.id); } });
-      remote.forEach((n) => next.push(n));
+      remote.forEach((n) => { if (!leavingNotes.has(n.id)) next.push(n); }); // not one on its way into the archive
       notes = next;
       renderNotes();
     }, () => setMode('read', 'The notes stopped updating. Reload the page to see the latest.'));
+    listenArchive(writable);
     chrome();
     render();
     renderInspector();
@@ -3521,7 +4128,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ---- Taking the state out and bringing it in.
 
   function stateFile() {
-    return { format: M.FORMAT, revision: saved.model.revision, saved: now(), model: model, notes: notes, changes: changes };
+    return { format: M.FORMAT, revision: saved.model.revision, saved: now(), model: model, notes: notes, archive: archive, changes: changes };
   }
   downloadButton.addEventListener('click', () => {
     const url = URL.createObjectURL(new Blob([JSON.stringify(stateFile(), null, 2) + '\n'], { type: 'application/json' }));
@@ -3557,6 +4164,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const incoming = (Array.isArray(data.notes) ? data.notes : []).filter(isNote).map(tidyNote);
       notes.slice().forEach((n) => removeNote(n.id, true));
       notes = incoming;
+      replaceArchive(data.archive);
       changes = Array.isArray(data.changes) ? data.changes.slice(-200) : [];
       commit('Imported the state from ' + file.name, null, before);
       logChange('Imported the state from ' + file.name);
@@ -3577,7 +4185,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       li.textContent = p.message;
       exportProblems.appendChild(li);
     });
-    exportText.value = M.toSysML(model, notes);
+    exportText.value = M.toSysML(model, notes, archive);
     exportPanel.hidden = false;
     say(problems.length ? plural(problems.length, 'problem') + ' to fix before this is correct SysML.' : '');
   }
@@ -3651,8 +4259,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
       drag = hit.type === 'tab'
         ? { kind: 'view', id: view.id, view: view.id, start: p, from: { x: view.x, y: view.y }, moved: false }
         : rendererFor(view).dragStart(view, el, p);
-    }
-    gesture = { x: event.clientX, y: event.clientY, cx: camera.x, cy: camera.y, moved: false, hit: hit, pan: !drag };
+    } else if (hit.type === 'pin' && editable() && !tool && event.button !== 1) drag = pinDragStart(hit, p); // a pin moves too
+    gesture ={ x: event.clientX, y: event.clientY, cx: camera.x, cy: camera.y, moved: false, hit: hit, pan: !drag };
   });
   svg.addEventListener('pointermove', (event) => {
     const p = pointers[event.pointerId];
@@ -3692,6 +4300,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function moveDrag(event) {
     const p = toDrawing(event.clientX, event.clientY);
     if (!drag.moved) { drag.moved = true; drag.before = snapshot(); }
+    if (drag.kind === 'pin') { movePin(drag, event); return; }
     if (drag.kind === 'view') {
       const view = viewById(drag.id);
       if (!view) return;
@@ -3711,6 +4320,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
   }
   function finishDrag(event) {
+    if (drag.kind === 'pin') { dropPin(drag, event); return; }
     if (drag.kind === 'view') {
       const view = viewById(drag.id);
       if (!view) return;
