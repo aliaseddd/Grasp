@@ -108,7 +108,7 @@ describe('behavior: action flow view', () => {
     const { page } = ctx;
     const view = await addView(page, 'ActionFlowView');
     assert.match(await page.textContent('.eyebrow'), /action flow view/);
-    assert.equal(await page.locator('.palette button[data-tool]:not([data-tool="Note"])').count(), 11, 'the palette offers the nine kinds, the succession and defined by');
+    assert.equal(await page.locator('.palette button[data-tool]:not([data-tool="Note"])').count(), 13, 'the palette offers the nine kinds, the succession, the flow, the binding and defined by');
     const def = await placeElement(page, 'ActionDefinition', await emptyPointIn(page, view));
     assert.equal(await page.getAttribute(`g[data-el="${def}"]`, 'data-kind'), 'ActionDefinition');
     assert.match(await page.textContent(`g[data-el="${def}"]`), /«action def»/, 'the box says what it is');

@@ -1087,7 +1087,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // ==== slice: behavior ====
     ActionFlowView: { name: 'ActionFlowView', label: 'action flow view', qualified: 'StandardViewDefinitions::ActionFlowView', short: 'afv', renderer: 'graph',
       admits: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'],
-      tools: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', '|', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode', '|', 'SuccessionAsUsage', 'FeatureTyping'], options: {},
+      tools: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', '|', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode', '|', 'SuccessionAsUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'], options: {},
       exposes: exposesNamed },
     StateTransitionView: { name: 'StateTransitionView', label: 'state transition view', qualified: 'StandardViewDefinitions::StateTransitionView', short: 'stv', renderer: 'graph',
       admits: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode'],
@@ -1096,7 +1096,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // ==== end slice: behavior ====
     // ==== slice: sequence ====
     SequenceView: { name: 'SequenceView', label: 'sequence view', qualified: 'StandardViewDefinitions::SequenceView', short: 'sv', renderer: 'sequence',
-      admits: ['PartUsage', 'EventOccurrenceUsage'], tools: ['PartUsage', 'EventOccurrenceUsage', '|', 'Message'], options: { spacing: 56 } },
+      admits: ['PartUsage', 'EventOccurrenceUsage'], tools: ['PartUsage', 'EventOccurrenceUsage', '|', 'Message', 'SuccessionAsUsage'], options: { spacing: 56 } },
     // ==== end slice: sequence ====
     // ==== slice: geometry ====
     GeometryView: { name: 'GeometryView', label: 'geometry view', qualified: 'StandardViewDefinitions::GeometryView', short: 'gev', renderer: 'geometry',
@@ -3377,16 +3377,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
     ItemUsage: 'An item: inside a part def, a part, or a port def, where it has a direction',
     InterfaceDefinition: 'An interface definition: the two ports on its border are its ends',
     InterfaceUsage: 'An interface between two ports, typed by an interface def whose ends they match',
-    FlowConnectionUsage: 'A flow of an item from one port or item to another',
-    BindingConnectorAsUsage: 'A binding: two ports or two items that are one and the same'
+    FlowConnectionUsage: 'A flow of an item from one port, item or parameter to another',
+    BindingConnectorAsUsage: 'A binding: two ports, items or parameters that are one and the same'
   });
   Object.assign(TOOL_HINT, {
     ItemDefinition: 'Click where the item def goes.',
     ItemUsage: 'Click where the item goes: inside a part def, a part, or a port def.',
     InterfaceDefinition: 'Click where the interface def goes, then put two ports on its border.',
     InterfaceUsage: ['Click one port…', 'Now click the port at the other end.'],
-    FlowConnectionUsage: ['Click the port or item the flow starts from…', 'Now click the port or item it arrives at.'],
-    BindingConnectorAsUsage: ['Click one port or item…', 'Now click the one it is bound to.']
+    FlowConnectionUsage: ['Click the port, item or parameter the flow starts from…', 'Now click the one it arrives at.'],
+    BindingConnectorAsUsage: ['Click one port, item or parameter…', 'Now click the one it is bound to.']
   });
   Object.assign(BASE_NAME, { ItemDefinition: 'ItemDef', ItemUsage: 'item', InterfaceDefinition: 'InterfaceDef' });
   // A flow's head: a filled triangle at the target.
@@ -5138,7 +5138,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (tool) return toolHint(tool, pending ? 1 : 0);
     if (!editable()) return 'Drag to move around · scroll to pan · pinch or Ctrl/⌘ + scroll to zoom';
     const view = activeView();
-    if (view && !M.VIEW_KINDS[view.kind].tools.length) return 'Nothing can be drawn in a ' + M.VIEW_KINDS[view.kind].label + ' yet · click another frame to draw there';
+    if (view && !M.VIEW_KINDS[view.kind].tools.length) return 'A ' + M.VIEW_KINDS[view.kind].label + ' fills from its panel, not the palette · click another frame to draw there';
     return NARROW.matches
       ? 'Tap to select · drag a box to move it · drag the plane to move around'
       : 'Click to select · drag a box to move it · drag the plane to move around · Ctrl/⌘ + scroll to zoom';

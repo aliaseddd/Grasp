@@ -72,7 +72,7 @@ describe('sequence view', () => {
     const { page } = ctx;
     const { view, left, right } = await twoLifelines(page);
     const tools = await page.$$eval('.palette button[data-tool]:not([data-tool="Note"])', (bs) => bs.map((b) => b.getAttribute('data-tool')));
-    assert.deepEqual(tools, ['PartUsage', 'EventOccurrenceUsage', 'Message'], 'the palette of a sequence view');
+    assert.deepEqual(tools, ['PartUsage', 'EventOccurrenceUsage', 'Message', 'SuccessionAsUsage'], 'the palette of a sequence view');
     assert.match(await page.textContent('.eyebrow'), /sequence view/);
     const a = await page.locator(`#drawing g.frame[data-view="${view}"] g[data-el="${left}"][data-kind="PartUsage"]`).boundingBox();
     const b = await page.locator(`#drawing g.frame[data-view="${view}"] g[data-el="${right}"][data-kind="PartUsage"]`).boundingBox();
