@@ -31,6 +31,10 @@ Where the notes are kept:
 - **In git**, inside `stronghold-proof.html` between `<!-- notes:start -->` and `<!-- notes:end -->`: the notes and the archive as they were last saved. `node docs/sysml/save-notes.mjs notes.json` writes them there.
 - **Opened as a file** in a browser, the page needs no server. It shows the notes saved in it and keeps the ones you add in that browser. Download notes saves them to a file, which Import notes, or `save-notes.mjs`, takes back.
 
+## The canvas
+
+Since November 6, 2026, the same model can be drawn and changed on the design canvas in `canvas/`, which replaces the hand-laid-out page below for the loop: boxes are placed and lines drawn there rather than in `draw.mjs`, and the drawing exports the textual model instead of being copied from it. This folder keeps the full model, which has attributes and the package `HostFiles` that the canvas's first slice can't draw yet, and the page below as it was.
+
 ## Working on it with Claude
 
 The design is worked on in a loop, and git is its memory between conversations.

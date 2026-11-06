@@ -94,6 +94,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .canvas { position: absolute; inset: 0; touch-action: none; cursor: default; outline: none; }
 .canvas.is-panning, .canvas.is-panning * { cursor: grabbing !important; }
 .canvas.has-tool { cursor: crosshair; }
+.canvas.is-pointer:focus-visible { outline: none; }
+.palette button.is-active:focus-visible, .badge:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
+.stage.has-export .hud { bottom: auto; top: 12px; }
+.panel { z-index: 3; }
+.export-panel { z-index: 2; }
+.show-panel { z-index: 3; }
 .canvas svg { display: block; width: 100%; height: 100%; color: var(--fg); user-select: none; -webkit-user-select: none; }
 .sysml .plane-dot { fill: var(--grid); }
 .sysml.is-far .plane { display: none; }
@@ -223,7 +229,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   .palette .label { display: none; }
   .palette button[data-tool], .actions button { white-space: nowrap; flex: none; }
   .panel { top: auto; left: 12px; right: 12px; width: auto; bottom: 64px; max-height: 46%; }
-  .hud { max-width: calc(100% - 124px); bottom: auto; top: 12px; }
+  .hud { max-width: calc(100% - 136px); bottom: auto; top: 12px; }
+  .show-panel { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .export-panel { bottom: 64px; max-height: 60%; }
   .code { height: 30vh; }
 }
@@ -569,36 +576,81 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return rel ? describeRel(model, rel) : '';
   }
 
+  // The features a type gets from elsewhere, by name: those of what it is defined by and of what it specializes,
+  // all the way up, and, for a usage that redefines a feature of its owner's type, those of that feature.
+  function inheritedFeatures(model, type, ids, seen) {
+    ids = ids || index(model);
+    seen = seen || new Set();
+    const out = new Map();
+    const take = (t) => {
+      if (!t || seen.has(t.id)) return;
+      seen.add(t.id);
+      childrenOf(model, t.id).forEach((c) => { if (c.name.trim() && !out.has(c.name.trim())) out.set(c.name.trim(), c); });
+      inheritedFeatures(model, t, ids, seen).forEach((c, name) => { if (!out.has(name)) out.set(name, c); });
+    };
+    const typing = typingOf(model, type);
+    if (typing) take(ids.get(typing.to));
+    model.relationships.filter((r) => r.kind === 'Specialization' && r.from === type.id).forEach((r) => take(ids.get(r.to)));
+    if (!typing && type.owner !== undefined && type.name.trim()) {
+      const owner = ids.get(type.owner);
+      const redefined = owner ? inheritedFeatures(model, owner, ids, seen).get(type.name.trim()) : null;
+      if (redefined && redefined.kind === type.kind) take(redefined);
+    }
+    return out;
+  }
+  const MAX_BOUND = 2147483647;
+  function boundsOk(mult) {
+    return mult.split('..').every((b) => b === '*' || +b <= MAX_BOUND);
+  }
+  const RESERVED_NAMES = new Set(['StandardViewDefinitions', 'SysML', 'KerML', 'Views', 'Parts', 'Ports', 'Items']);
+
   // What keeps the model from being correct SysML. Each problem names the element or relationship it is about.
   function validate(model) {
     const problems = [];
     const ids = index(model);
     const add = (id, message) => problems.push({ id, message });
     const siblings = new Map();
+    const definitionNames = new Set(model.elements.filter((e) => KINDS[e.kind].definition).map((e) => e.name.trim()).filter(Boolean));
+    const inRelationship = new Set();
+    model.relationships.forEach((r) => { inRelationship.add(r.from); inRelationship.add(r.to); });
+    const pkgName = model.package.name.trim();
     for (const el of model.elements) {
       const kind = KINDS[el.kind];
       const name = el.name.trim();
-      if (!name && kind.definition) add(el.id, 'A ' + kind.label + ' has no name.');
-      if (el.multiplicity && !MULTIPLICITY.test(el.multiplicity)) {
+      const owner = el.owner !== undefined ? ids.get(el.owner) : null;
+      const where = owner ? ' in ' + shown(owner.name) : '';
+      if (!name) {
+        if (kind.definition) add(el.id, 'A ' + kind.label + ' has no name.');
+        else if (inRelationship.has(el.id) || childrenOf(model, el.id).length) add(el.id, 'A ' + kind.label + where + ' has no name, so nothing can refer to it. Name it.');
+      }
+      if (el.multiplicity && (!MULTIPLICITY.test(el.multiplicity) || !boundsOk(el.multiplicity))) {
         add(el.id, 'The multiplicity "' + el.multiplicity + '" of ' + describe(model, el, ids) + ' is not like 1, 0..1, or 1..*.');
       }
       if (name) {
         const key = (el.owner === undefined ? '' : el.owner) + '/' + name;
-        if (siblings.has(key)) {
-          const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-          add(el.id, 'Two elements are named ' + name + (owner ? ' in ' + shown(owner.name) : ' in the package') + '.');
-        } else {
-          siblings.set(key, el);
+        if (siblings.has(key)) add(el.id, 'Two elements are named ' + name + (owner ? where : ' in the package') + '.');
+        else siblings.set(key, el);
+        if (kind.usage && definitionNames.has(name)) add(el.id, describe(model, el, ids) + ' is named like a definition, so the text would mix them up. Rename one.');
+        if (name === pkgName) add(el.id, describe(model, el, ids) + ' is named like the package, so the text would mix them up. Rename one.');
+        if (RESERVED_NAMES.has(name)) add(el.id, 'The name ' + name + ' belongs to the standard library. Rename ' + describe(model, el, ids) + '.');
+        const inherited = owner ? inheritedFeatures(model, owner, ids).get(name) : null;
+        if (inherited && inherited.kind !== el.kind) {
+          add(el.id, describe(model, el, ids) + ' is named like the ' + KINDS[inherited.kind].label + ' ' + name + ' that ' + shown(owner.name) + ' inherits. Rename it.');
         }
       }
     }
+    if (model.view.name && (siblings.has('/' + model.view.name) || model.view.name === pkgName)) {
+      add(null, 'The view is named ' + model.view.name + ', like something else in the package. Rename one.');
+    }
     const typed = new Set();
+    const connectionNames = new Map();
     for (const rel of model.relationships) {
       const a = ids.get(rel.from);
       const b = ids.get(rel.to);
       if (!a || !b) continue;
-      if (rel.kind === 'Specialization' && a.kind !== b.kind) {
-        add(rel.id, describe(model, a, ids) + ' can only specialize another ' + KINDS[a.kind].label + '.');
+      if (rel.kind === 'Specialization') {
+        if (a.kind !== b.kind) add(rel.id, describe(model, a, ids) + ' can only specialize another ' + KINDS[a.kind].label + '.');
+        else if (KINDS[a.kind].usage && a.owner !== b.owner) add(rel.id, describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' must sit in the same box for one to specialize the other.');
       }
       if (rel.kind === 'FeatureTyping') {
         if (!KINDS[a.kind].usage || KINDS[a.kind].definedBy !== b.kind) {
@@ -610,10 +662,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (rel.kind === 'ConnectionUsage') {
         if (!(KINDS[a.kind].usage && KINDS[b.kind].usage) || a.kind !== b.kind) {
           add(rel.id, 'A connection joins two ports or two parts.');
-        } else if (!inUsage(model, a, ids) || !inUsage(model, b, ids)) {
-          add(rel.id, 'The ' + describeRel(model, rel, ids) + ' joins features of a definition. Connect ports or parts inside parts.');
         } else if (commonOwner(model, a, b, ids) === null && (KINDS[chain(model, a, ids)[0].kind].definition || KINDS[chain(model, b, ids)[0].kind].definition)) {
           add(rel.id, 'The ' + describeRel(model, rel, ids) + ' reaches across definitions. Connect things inside the same part def or part.');
+        }
+        const cname = rel.name.trim();
+        if (cname) {
+          const o = commonOwner(model, a, b, ids);
+          const key = (o || '') + '/' + cname;
+          if (siblings.has(key) || connectionNames.has(key)) add(rel.id, 'The connection ' + cname + ' is named like something else beside it. Rename one.');
+          connectionNames.set(key, rel);
         }
       }
     }
@@ -642,11 +699,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return [ind + head, ind + '/*'].concat(wrapText(body, 92 - ind.length).map((l) => ind + ' * ' + l)).concat([ind + ' */']);
   }
 
+  // Notes in number order, each number used once, so each comment's short name is its own.
   function tidyNotes(notes) {
-    return (Array.isArray(notes) ? notes : [])
+    const list = (Array.isArray(notes) ? notes : [])
       .filter((n) => n && typeof n === 'object' && typeof n.target === 'string' && typeof n.text === 'string')
-      .map((n, i) => ({ no: n.no >= 1 ? Math.floor(n.no) : i + 1, target: n.target, text: n.text, response: typeof n.response === 'string' ? n.response : '' }))
-      .sort((a, b) => a.no - b.no);
+      .map((n, i) => ({ no: n.no >= 1 ? Math.floor(n.no) : 0, target: n.target, text: n.text, response: typeof n.response === 'string' ? n.response : '', i }))
+      .sort((a, b) => (a.no - b.no) || (a.i - b.i));
+    const used = new Set();
+    let top = list.reduce((m, n) => Math.max(m, n.no), 0);
+    for (const n of list) {
+      if (!n.no || used.has(n.no)) n.no = ++top;
+      used.add(n.no);
+    }
+    return list;
   }
 
   function toSysML(model, notes) {
@@ -674,27 +739,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     function noteText(n) { return n.text + (n.response.trim() ? '\nClaude: ' + n.response.trim() : ''); }
 
-    // The names a type inherits: the features of what it is defined by and of what it specializes, all the way up.
-    // A feature declared again under one of these names redefines the inherited one, so it is written with :>>.
-    function inheritedNames(type) {
-      const names = new Set();
-      const seen = new Set();
-      const visit = (t, own) => {
-        if (!t || seen.has(t.id)) return;
-        seen.add(t.id);
-        if (own) childrenOf(model, t.id).forEach((c) => { if (c.name.trim()) names.add(c.name.trim()); });
-        const typing = typingOf(model, t);
-        if (typing) visit(ids.get(typing.to), true);
-        model.relationships.filter((r) => r.kind === 'Specialization' && r.from === t.id).forEach((r) => visit(ids.get(r.to), true));
-      };
-      visit(type, false);
-      return names;
-    }
-
+    // A feature declared again under the name of one its owner inherits, of the same kind, redefines it: :>>.
     function element(el, depth) {
       const kind = KINDS[el.kind];
       const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-      const redefines = !!owner && !!el.name.trim() && inheritedNames(owner).has(el.name.trim());
+      const inherited = owner && el.name.trim() ? inheritedFeatures(model, owner, ids).get(el.name.trim()) : null;
+      const redefines = !!inherited && inherited.kind === el.kind;
       // A usage may go unnamed ("part : Host;"); a definition can't, so an unnamed one is written as unnamed.
       const name = el.name.trim() ? quote(el.name) : (kind.definition ? quote('unnamed') : '');
       let head = (el.abstract ? 'abstract ' : '') + kind.keyword + (redefines ? ' :>> ' + quote(el.name) : (name ? ' ' + name : ''));
@@ -765,7 +815,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   root.SysMLModel = Object.freeze({
     FORMAT, KINDS, RELATIONSHIPS, SIDES, MULTIPLICITY, VIEW_DEF,
     blank, normalize, validate, toSysML, index, relIndex, chain, childrenOf, descendants, typingOf, inUsage,
-    commonOwner, featurePath, quote, qualified, describe, describeRel, labelFor, isName, tidyNotes,
+    commonOwner, featurePath, quote, qualified, describe, describeRel, labelFor, isName, tidyNotes, inheritedFeatures,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 </script>
@@ -843,6 +893,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const fileInput = $('import-file');
   const paletteButtons = Array.from(document.querySelectorAll('.palette button[data-tool]'));
 
+  const str = (v, d) => (typeof v === 'string' ? v : (d === undefined ? '' : d));
+
   // ---- State.
 
   const saved = readSaved();     // what this file holds: the model and the notes as last saved
@@ -859,8 +911,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   let hovered = null;
   let drag = null;               // the element being moved
   let db = null;
+  let heardNotes = false;        // whether the shared store has answered about the notes
 
-  const str = (v, d) => (typeof v === 'string' ? v : (d === undefined ? '' : d));
   function now() { return new Date().toISOString(); }
   function say(message) { status.textContent = message; }
   function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
@@ -1135,7 +1187,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (rel.kind === 'Specialization') line.setAttribute('marker-end', 'url(#m-general)');
     if (rel.kind === 'FeatureTyping') line.setAttribute('marker-end', 'url(#m-defined)');
     g.appendChild(line);
-    if (rel.kind === 'ConnectionUsage' && rel.name.trim()) g.appendChild(text(e.mid.x, e.mid.y - 7, rel.name.trim(), 'uname', 'middle'));
+    if (rel.kind === 'ConnectionUsage' && rel.name.trim()) g.appendChild(text(e.mid.x, e.mid.y + 30, rel.name.trim(), 'uname', 'middle'));
     parent.appendChild(g);
   }
   function frameGroup() {
@@ -1159,13 +1211,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
     g.appendChild(t);
     return g;
   }
+  // Where a note's pin sits: on the top edge of a box, beside a port's square away from its name, on the middle of a
+  // line. Pins on the same thing step aside by a screen distance, so they stay apart when zoomed out. A note on a
+  // defined-by line that isn't drawn sits on the part or port the line starts from.
   function pinAnchor(n, k) {
+    const step = 26 / (camera ? camera.k : 1) * k;
     const r = layout.rects.get(n.target);
-    if (r) return r.port ? { x: r.cx + 14 + 26 * k, y: r.cy - 14 } : { x: r.x + r.w - 10 - 26 * k, y: r.y };
+    if (r) {
+      if (!r.port) return { x: r.x + r.w - 10 - step, y: r.y };
+      if (r.side === 'right') return { x: r.cx + 16 + step, y: r.cy + 14 };
+      if (r.side === 'left') return { x: r.cx - 16 - step, y: r.cy - 14 };
+      return { x: r.cx + 18 + step, y: r.cy };
+    }
     const rel = model.relationships.find((x) => x.id === n.target);
-    if (!rel || rel.hidden) return null;
+    if (!rel) return null;
+    if (rel.hidden) { const from = layout.rects.get(rel.from); return from ? { x: (from.port ? from.cx : from.x) + 12 + step, y: (from.port ? from.cy : from.y) - 16 } : null; }
     const e = endpoints(rel);
-    return e ? { x: e.mid.x + 26 * k, y: e.mid.y } : null;
+    return e ? { x: e.mid.x + step, y: e.mid.y } : null;
   }
   function pinTransform(x, y) { return 'translate(' + f(x) + ' ' + f(y) + ') scale(' + (1 / (camera ? camera.k : 1)).toFixed(4) + ')'; }
   function drawPins(layer) {
@@ -1178,7 +1240,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       seen[n.target] = k + 1;
       const g = node('g', { 'data-note': n.id, 'data-x': f(at.x), 'data-y': f(at.y), transform: pinTransform(at.x, at.y) }, 'pin' + (n.resolved ? ' is-resolved' : ''));
       const title = node('title');
-      title.textContent = 'Note ' + n.no + ' on ' + (n.targetLabel || M.labelFor(model, n.target)) + '. Click to read it.';
+      title.textContent = 'Note ' + n.no + ' on ' + (M.labelFor(model, n.target) || n.targetLabel) + '. Click to read it.';
       const circle = node('circle', { r: 11 });
       const number = node('text');
       number.textContent = String(n.no);
@@ -1200,11 +1262,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     svg.appendChild(defs());
     svg.appendChild(node('rect', { x: -100000, y: -100000, width: 200000, height: 200000, fill: 'url(#plane-dots)' }, 'plane'));
     svg.appendChild(frameGroup());
+    // Boxes first, then lines on top of them, so a line between things inside a box shows over the box's fill.
     const rels = node('g', {}, 'rels');
     const els = node('g', {}, 'els');
     const pins = node('g', {}, 'pins');
-    svg.appendChild(rels);
     svg.appendChild(els);
+    svg.appendChild(rels);
     svg.appendChild(pins);
     (layout.kids.get('') || []).forEach((el) => drawBox(el, els));
     model.relationships.forEach((rel) => { if (!rel.hidden) drawRel(rel, rels); });
@@ -1253,7 +1316,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     svg.setAttribute('viewBox', [camera.x, camera.y, s.width / camera.k, s.height / camera.k].map((v) => v.toFixed(2)).join(' '));
     svg.classList.toggle('is-far', camera.k < 0.35);
     zoomLevel.textContent = Math.round(camera.k * 100) + '%';
-    svg.querySelectorAll('.pin').forEach((pin) => pin.setAttribute('transform', pinTransform(+pin.getAttribute('data-x'), +pin.getAttribute('data-y'))));
+    if (layout) renderPins();
     try { localStorage.setItem(CAMERA_KEY, JSON.stringify(camera)); } catch (error) { /* a convenience only */ }
   }
   function fit() {
@@ -1382,7 +1445,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     if (kind === 'ConnectionUsage') {
       if (!(ka.usage && kb.usage) || a.kind !== b.kind) return 'A connection joins two ports or two parts.';
-      if (!M.inUsage(model, a) || !M.inUsage(model, b)) return 'Connect ports or parts inside parts; a definition\'s own features can\'t be connected.';
       if (M.commonOwner(model, a, b) === null && (M.KINDS[M.chain(model, a)[0].kind].definition || M.KINDS[M.chain(model, b)[0].kind].definition)) {
         return 'Connect things inside the same part def or part.';
       }
@@ -1402,6 +1464,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     return false;
   }
+  // What rules out an element as the first end of a line, before the second click is asked for.
+  function firstProblem(kind, a) {
+    const ka = M.KINDS[a.kind];
+    if (kind === 'FeatureTyping' && !ka.usage) return 'Start from a part or a port; a definition is not defined by anything.';
+    if (kind === 'ConnectionUsage' && !ka.usage) return 'Start from a port or a part; a connection joins usages, not definitions.';
+    return null;
+  }
   function connectStep(kind, hit) {
     if (hit.type !== 'el') {
       if (pending) say('Put down: nothing was drawn.');
@@ -1409,6 +1478,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
       return;
     }
     if (!pending) {
+      const problem = firstProblem(kind, layout.ids.get(hit.id));
+      if (problem) { say(problem + ' Escape puts the tool down.'); return; }
       pending = hit.id;
       applyMarks();
       hint.textContent = baseHint();
@@ -1416,18 +1487,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     const a = layout.ids.get(pending);
     const b = layout.ids.get(hit.id);
+    if (!a) { setTool(null); say('The first end is gone. Start the line again.'); return; }
     const problem = pairProblem(kind, a, b);
-    if (problem) { say(problem); return; }
+    if (problem) { say(problem + ' Escape puts the tool down.'); return; }
     createRel(kind, a, b, false);
   }
   function createRel(kind, a, b, hidden) {
-    if (kind === 'FeatureTyping') {
-      const old = M.typingOf(model, a);
-      if (old) model.relationships.splice(model.relationships.indexOf(old), 1);
-    }
     const rel = { id: newId('r'), kind: kind, from: a.id, to: b.id };
     if (kind === 'ConnectionUsage') { rel.name = ''; rel.doc = ''; }
     if (hidden) rel.hidden = true;
+    if (kind === 'FeatureTyping') {
+      // One definition per usage: the old line goes, and the notes on it move to the new one.
+      const old = M.typingOf(model, a);
+      if (old) {
+        model.relationships.splice(model.relationships.indexOf(old), 1);
+        notes.filter((n) => n.target === old.id).forEach((n) => { n.target = rel.id; n.targetLabel = M.describeRel(model, rel); noteChanged(n, ['target', 'targetLabel']); });
+      }
+    }
     model.relationships.push(rel);
     pending = null;
     setTool(null);
@@ -1448,7 +1524,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return rel ? { type: 'rel', item: rel } : null;
   }
   function select(sel) {
+    // A note on a defined-by line that isn't drawn is reached through the part or port the line starts from.
+    if (sel && sel.type === 'rel') { const rel = model.relationships.find((r) => r.id === sel.id); if (rel && rel.hidden) sel = { type: 'el', id: rel.from }; }
     selection = sel && resolve(sel) ? sel : null;
+    say('');
     applyMarks();
     renderInspector();
     if (selection) setPanel(true);
@@ -1519,7 +1598,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const rel = selectedRel();
     if (el) { logChange('Renamed to ' + M.describe(model, el), 'rename:' + el.id); fKind.textContent = M.describe(model, el); fPath.textContent = M.qualified(model, el); }
     else if (rel) { logChange('Named the ' + M.describeRel(model, rel), 'rename:' + rel.id); fKind.textContent = M.describeRel(model, rel); }
+    // The notes' stored labels follow the new name, for Claude, who reads them without the model's names at hand.
+    notes.forEach((n) => {
+      const label = M.labelFor(model, n.target);
+      if (label && label !== n.targetLabel) { n.targetLabel = label; noteChanged(n, ['targetLabel']); }
+    });
     renderNotes();
+    changed();
   });
   fAbstract.addEventListener('change', () => {
     const el = selectedElement();
@@ -1563,7 +1648,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   });
   fMult.addEventListener('change', () => {
     const el = selectedElement();
-    if (el) logChange('Set the multiplicity of ' + M.describe(model, el) + ' to ' + (el.multiplicity || 'nothing'), 'mult:' + el.id);
+    if (el) { logChange('Set the multiplicity of ' + M.describe(model, el) + ' to ' + (el.multiplicity || 'nothing'), 'mult:' + el.id); changed(); }
   });
   fConj.addEventListener('change', () => {
     const el = selectedElement();
@@ -1586,6 +1671,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const rel = selectedRel();
     if (el) logChange('Wrote the doc of ' + M.describe(model, el), 'doc:' + el.id);
     else if (rel) logChange('Wrote the doc of the ' + M.describeRel(model, rel), 'doc:' + rel.id);
+    if (el || rel) changed();
   });
 
   function deleteSelection() {
@@ -1593,6 +1679,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!s || !editable()) return;
     let gone = [];
     let what;
+    let dropped;
     if (s.type === 'el') {
       what = M.describe(model, s.item);
       gone = [s.item].concat(M.descendants(model, s.item.id));
@@ -1601,22 +1688,26 @@ textarea.text[readonly] { resize: none; background: transparent; }
       rels.forEach((r) => ids.add(r.id));
       model.elements = model.elements.filter((e) => !ids.has(e.id));
       model.relationships = model.relationships.filter((r) => !ids.has(r.id));
-      dropNotesOn(ids);
+      if (pending && ids.has(pending)) pending = null;
+      dropped = dropNotesOn(ids);
     } else {
       what = 'the ' + M.describeRel(model, s.item);
       model.relationships = model.relationships.filter((r) => r.id !== s.item.id);
-      dropNotesOn(new Set([s.item.id]));
+      dropped = dropNotesOn(new Set([s.item.id]));
     }
     logChange('Deleted ' + what);
     select(null);
     render();
     renderNotes();
     changed();
-    say('Deleted ' + what + (gone.length > 1 ? ', with ' + plural(gone.length - 1, 'element') + ' inside it' : '') + '.');
+    say('Deleted ' + what + (gone.length > 1 ? ', with ' + plural(gone.length - 1, 'element') + ' inside it' : '') +
+      (dropped ? ', and ' + plural(dropped, 'note') + ' on it' : '') + '.');
   }
   deleteButton.addEventListener('click', deleteSelection);
   function dropNotesOn(ids) {
-    notes.filter((n) => ids.has(n.target)).forEach((n) => removeNote(n.id, true));
+    const on = notes.filter((n) => ids.has(n.target));
+    on.forEach((n) => removeNote(n.id, true));
+    return on.length;
   }
 
   function setPanel(open) {
@@ -1638,9 +1729,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
     while (list.firstChild) list.removeChild(list.firstChild);
     notes.slice().sort(byNumber).forEach((n) => list.appendChild(itemFor(n)));
     notesEmpty.hidden = notes.length > 0;
-    notesEmpty.textContent = mode === 'loading' ? 'Loading the notes…' : editable() ? 'No notes yet. Select a box, a port, or a line, then Add note.' : 'No notes.';
+    const loading = mode === 'loading' || (mode === 'shared' && !heardNotes);
+    notesEmpty.textContent = loading ? 'Loading the notes…' : editable() ? 'No notes yet. Select a box, a port, or a line, then Add note.' : 'No notes.';
     notesCount.textContent = notes.length ? String(notes.length) : '';
-    showPanel.textContent = notes.length ? 'Panel · ' + plural(notes.length, 'note') : 'Panel';
+    showPanel.textContent = notes.length ? 'Panel · ' + notes.length : 'Panel';
     renderPins();
     const again = activeId ? list.querySelector('[data-note="' + activeId + '"] textarea') : null;
     if (again) {
@@ -1717,7 +1809,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const r = layout.rects.get(n.target);
       const rel = model.relationships.find((x) => x.id === n.target);
       let at = r ? center(r) : null;
-      if (!at && rel) { const e = endpoints(rel); at = e ? e.mid : null; }
+      if (!at && rel) { const e = rel.hidden ? null : endpoints(rel); at = e ? e.mid : (layout.rects.get(rel.from) ? center(layout.rects.get(rel.from)) : null); }
       if (at) showPoint(at.x, at.y);
       if (r) select({ type: 'el', id: n.target });
       else if (rel) select({ type: 'rel', id: n.target });
@@ -1844,7 +1936,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const noteQueue = {};
   const dirty = new Map();       // note id -> a counter while a change made here hasn't been written
   let heardModel = false;
-  let heardNotes = false;
 
   function startShared(writable) {
     mode = writable ? 'shared' : 'read';
@@ -1868,6 +1959,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (!first && !snap.metadata.hasPendingWrites) say('The model was updated elsewhere.');
     }, () => setMode('read', 'The shared store stopped answering. Reload the page to see the latest.'));
     db.collection(NOTES).onSnapshot((snap) => {
+      const first = !heardNotes;
       if (!snap.metadata.fromCache && !heardNotes) { heardNotes = true; heard(); }
       const remote = new Map();
       snap.docs.forEach((doc) => {
@@ -1876,6 +1968,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
         const n = Object.assign({}, body, { id: doc.id });
         if (isNote(n)) remote.set(doc.id, tidyNote(n));
       });
+      // A page published somewhere new has an empty store: the notes saved in the file go into it, once.
+      if (first && heardNotes && remote.size === 0 && writable && saved.notes.length) {
+        saved.notes.forEach((n) => { const copy = tidyNote(n); stageNote(copy.id); writeShared(copy, null); remote.set(copy.id, copy); });
+        say('Loaded ' + plural(saved.notes.length, 'note') + ' saved with the page into the shared store.');
+      }
       const next = [];
       notes.forEach((n) => { if (dirty.has(n.id)) { next.push(n); remote.delete(n.id); } });
       remote.forEach((n) => next.push(n));
@@ -1884,6 +1981,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }, () => setMode('read', 'The notes stopped updating. Reload the page to see the latest.'));
     chrome();
     render();
+    renderInspector();
     renderNotes();
   }
   function persist() {
@@ -1953,7 +2051,17 @@ textarea.text[readonly] { resize: none; background: transparent; }
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     say('Downloading the model and ' + plural(notes.length, 'note') + ' as canvas-state.json.');
   });
-  importButton.addEventListener('click', () => fileInput.click());
+  // On the published page an import replaces the shared model and every note, so it asks for a second click.
+  let importArmed = -Infinity;
+  importButton.addEventListener('click', () => {
+    if (mode === 'shared' && performance.now() - importArmed > 5000) {
+      importArmed = performance.now();
+      say('Importing replaces the shared model and deletes every note, Claude\'s answers included. Click Import state again to go on.');
+      return;
+    }
+    importArmed = -Infinity;
+    fileInput.click();
+  });
   fileInput.addEventListener('change', () => {
     const file = fileInput.files && fileInput.files[0];
     fileInput.value = '';
@@ -1990,8 +2098,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     exportPanel.hidden = false;
     say(problems.length ? plural(problems.length, 'problem') + ' to fix before this is correct SysML.' : '');
   }
-  $('export').addEventListener('click', () => { if (exportPanel.hidden) openExport(); else exportPanel.hidden = true; });
-  $('close-export').addEventListener('click', () => { exportPanel.hidden = true; });
+  function closeExport() { exportPanel.hidden = true; document.querySelector('.stage').classList.remove('has-export'); }
+  $('export').addEventListener('click', () => {
+    if (!exportPanel.hidden) { closeExport(); return; }
+    openExport();
+    document.querySelector('.stage').classList.add('has-export');
+  });
+  $('close-export').addEventListener('click', closeExport);
   $('copy-export').addEventListener('click', () => {
     const text = exportText.value;
     const byHand = () => { exportText.focus(); exportText.select(); say('This browser wouldn\'t copy for the page. The text is selected: copy it from there.'); };
@@ -2025,9 +2138,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     canvas.focus({ preventScroll: true });
     pointers[event.pointerId] = { x: event.clientX, y: event.clientY, button: event.button };
     try { svg.setPointerCapture(event.pointerId); } catch (error) { /* not capturable */ }
+    canvas.classList.add('is-pointer');
     if (pointerCount() === 2) {
       const t = twoPointers();
       gesture = { pinch: { mid: t.mid, dist: t.dist, cx: camera.x, cy: camera.y, k: camera.k }, moved: true };
+      if (drag && drag.moved) finishDrag(event); // the move so far stays, and is saved
       drag = null;
       return;
     }
@@ -2083,7 +2198,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     } else {
       el.x = Math.round(drag.from.x + (p.x - drag.start.x));
       el.y = Math.round(drag.from.y + (p.y - drag.start.y));
-      if (el.owner !== undefined) { el.x = Math.max(el.x, PAD); el.y = Math.max(el.y, CHILD_TOP); }
       drag.over = el.kind === 'PartUsage' ? containerAt(p, el) : undefined;
     }
     render();
@@ -2098,6 +2212,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (el.kind === 'PartUsage' && event.type === 'pointerup') {
       const over = containerAt(toDrawing(event.clientX, event.clientY), el);
       const current = el.owner === undefined ? null : el.owner;
+      if (over === current && current !== null) { el.x = Math.max(el.x, PAD); el.y = Math.max(el.y, CHILD_TOP); }
       if (over !== current) {
         const abs = layout.rects.get(el.id);
         if (over === null) { delete el.owner; el.x = Math.round(abs.x); el.y = Math.round(abs.y); }
@@ -2112,6 +2227,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         logChange('Moved ' + M.describe(model, el), 'move:' + el.id);
       }
     } else {
+      if (el.owner !== undefined && !M.KINDS[el.kind].onBorder) { el.x = Math.max(el.x, PAD); el.y = Math.max(el.y, CHILD_TOP); }
       logChange('Moved ' + M.describe(model, el) + (M.KINDS[el.kind].onBorder ? ' to the ' + el.side + ' side' : ''), 'move:' + el.id);
     }
     render();
@@ -2170,6 +2286,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }, { passive: false });
 
   canvas.addEventListener('keydown', (event) => {
+    canvas.classList.remove('is-pointer');
     const step = 80 / camera.k;
     let handled = true;
     switch (event.key) {
@@ -2181,7 +2298,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       case '-': case '_': zoomAtCenter(0.8); break;
       case '0': fit(); break;
       case 'Escape': if (tool) setTool(null); else select(null); break;
-      case 'Delete': case 'Backspace': deleteSelection(); break;
+      case 'Delete': deleteSelection(); break;
       default: handled = false;
     }
     if (handled) event.preventDefault();
@@ -2219,6 +2336,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   if (window.ResizeObserver) new ResizeObserver(() => { if (camera && layout) applyCamera(); }).observe(canvas);
   else window.addEventListener('resize', () => { if (camera && layout) applyCamera(); });
+
+  // A change still waiting for its pause is saved when the page is left or put away.
+  const flush = () => { if (saveTimer) { clearTimeout(saveTimer); persist(); } Object.keys(noteTimers).forEach((id) => { clearTimeout(noteTimers[id]); const n = noteById(id); if (n) writeShared(n, ['text', 'updated']); delete noteTimers[id]; }); };
+  window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
 
   start();
   if (NARROW.matches) setPanel(false);
