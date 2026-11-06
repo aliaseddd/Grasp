@@ -1,10 +1,11 @@
 // Drawing on the plane: placing elements from the palette, what the inspector shows for the selection, renaming,
-// the three relationship tools, a port on a part definition, and deleting with its edges.
+// the three relationship tools, a port on a part definition, deleting with its edges, and a part dragged inside its
+// part definition staying inside it.
 
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import {
-  clickElement, drawRelationship, exportText, finish, launch, openCanvas, placeElement, rename, selectedId, until,
+  clickElement, drawRelationship, exportText, finish, launch, openCanvas, placeElement, rename, selectedId, until, zoomLevel,
 } from './helpers.mjs';
 
 describe('drawing', () => {
@@ -86,6 +87,32 @@ describe('drawing', () => {
     await until(page, (id) => !document.querySelector(`g[data-el="${id}"]`), a, 'A is gone after delete');
     assert.equal(await page.locator(`g[data-rel="${rel}"]`).count(), 0, 'the edge attached to A went with it');
     assert.equal(await page.locator(`g[data-el="${b}"]`).count(), 1, 'B stays');
+    await finish(ctx);
+  });
+
+  test('a part dragged a little down inside its part definition stays inside it, which is drawn to hold it at once', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    const def = await placeElement(page, 'PartDefinition');
+    const box = await page.locator(`g[data-el="${def}"] > rect.outline`).boundingBox();
+    const part = await placeElement(page, 'PartUsage', { x: box.x + box.width / 2, y: box.y + box.height * 0.8 });
+    assert.equal(await page.locator(`g[data-el="${def}"] g[data-el="${part}"]`).count(), 1, 'the part is drawn inside the definition');
+    // Dragged by its header 40 drawing units down: still inside the definition as it was drawn holding the part.
+    const k = (await zoomLevel(page)) / 100;
+    const r = await page.locator(`g[data-el="${part}"] > rect.outline`).boundingBox();
+    const from = { x: r.x + r.width * 0.35, y: r.y + r.height * 0.35 };
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x, from.y + 20 * k, { steps: 4 });
+    await page.mouse.move(from.x, from.y + 40 * k, { steps: 4 });
+    await page.mouse.up();
+    await until(page, () => /^Moved part/.test(document.querySelector('#status').textContent), null, 'the move is reported');
+    assert.match(await page.textContent('#status'), /^Moved part \w+ in \w+\.$/, 'the part stays in its definition');
+    assert.equal(await page.locator(`g[data-el="${def}"] g[data-el="${part}"]`).count(), 1, 'and is still drawn inside it');
+    const rect = (id) => page.$eval(`g[data-el="${id}"] > rect.outline`, (e) => ({ y: +e.getAttribute('y'), h: +e.getAttribute('height') }));
+    const d = await rect(def);
+    const p = await rect(part);
+    assert.ok(d.y + d.h >= p.y + p.h + 12 - 0.01, `right after the drop the definition holds the part: def bottom ${d.y + d.h}, part bottom ${p.y + p.h}`);
     await finish(ctx);
   });
 });

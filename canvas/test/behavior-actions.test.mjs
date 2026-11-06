@@ -1,11 +1,16 @@
 // The action flow view: its palette, an action def with an action, a parameter (with its direction select) and a fork
 // inside it, a fork refused on the plane; a succession drawn and exported as first … then …, and one into a start node
 // refused with its message; a guard typed in the panel as the line's label and in the export, with the decision's
-// if/else block; a send action's head in the export; a fork with two incoming successions marked as a problem.
+// if/else block; a send action's head in the export; a fork with two incoming successions marked as a problem; and, in
+// the release fixture, a parameter and a name that a succession's line runs over taking the click.
 
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import { elementIds, emptyPointIn, exportText, finish, launch, openCanvas, placeElement, relationshipIds, until } from './helpers.mjs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { elementIds, emptyPointIn, exportText, finish, launch, openCanvas, placeElement, relationshipIds, selectedId, until } from './helpers.mjs';
+
+const FIXTURE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'behavior-actions.json');
 
 // Copied from views.test.mjs: New view of a kind; returns the new frame's id.
 async function addView(page, kind) {
@@ -224,6 +229,25 @@ describe('behavior: action flow view', () => {
     const listed = await page.locator('#problems-list li').allTextContents();
     assert.equal(listed.length, 1, `the panel lists the fork's problem: ${JSON.stringify(listed)}`);
     assert.match(listed[0], /One succession leads into a fork/);
+    await finish(ctx);
+  });
+
+  test('a parameter where a succession leaves its action, and a name a succession crosses, take the click from the line over them', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    await page.setInputFiles('#import-file', FIXTURE);
+    await until(page, () => !!document.querySelector('#drawing g.frame[data-view="v-release"] g[data-el="Release.test.passed"]'), null, 'the release flow is drawn');
+    // The succession test → rejoin leaves test's right side at its middle, where the parameter passed sits.
+    const square = await page.locator('#drawing g[data-el="Release.test.passed"] > rect.outline').boundingBox();
+    await page.mouse.click(square.x + square.width / 2, square.y + square.height / 2);
+    await until(page, () => !!document.querySelector('.is-selected[data-el="Release.test.passed"]'), null, 'the parameter is selected');
+    assert.equal(await selectedId(page), 'Release.test.passed', 'clicking the parameter selects it, not the line over it');
+    assert.match(await page.textContent('#f-kind'), /parameter passed/);
+    // The succession publish → collect runs over the name of the send action notify.
+    const name = await page.locator('#drawing g[data-el="Release.notify"] > text.uname').boundingBox();
+    await page.mouse.click(name.x + name.width / 2, name.y + name.height / 2);
+    await until(page, () => !!document.querySelector('.is-selected[data-el="Release.notify"]'), null, 'the action is selected');
+    assert.equal(await selectedId(page), 'Release.notify', 'clicking the name selects the action, not the line over it');
     await finish(ctx);
   });
 });

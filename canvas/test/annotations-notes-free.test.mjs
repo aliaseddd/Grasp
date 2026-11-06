@@ -1,10 +1,11 @@
 // Free notes and the Note tool: with the Note tool armed, a click on the empty plane leaves a note on nothing, pinned
 // where the plane was clicked and listed "on the plane"; dragging that pin onto a box puts the note on the box and the
-// list follows; the Note tool on a box notes the box, as Add note does for the selection.
+// list follows; the Note tool on a box notes the box, as Add note does for the selection; dragging a pin off its box
+// onto the plane makes the note free where the pin was let go.
 
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import { emptyPoint, exportText, finish, launch, openCanvas, placeElement, rename, until } from './helpers.mjs';
+import { addNote, emptyPoint, exportText, finish, launch, openCanvas, placeElement, rename, until } from './helpers.mjs';
 
 /** Arms the Note tool and clicks the point (page pixels), returning the id of the note that appears in the list. */
 async function noteAt(page, point) {
@@ -71,6 +72,29 @@ describe('free notes and the Note tool', () => {
     assert.match(await page.textContent(`#notes-list li[data-note="${note}"] .on`), /part def Vault/, 'the note is on the box');
     assert.equal(await page.locator(`#drawing g.pin[data-note="${note}"]:not(.is-free)`).count(), 1, 'its pin sits on the box, not free');
     assert.match(await exportText(page), /\bmetadata <n\d+> : Issue about StrongholdProof::Vault\b/, 'it exports as an Issue about the box');
+    await finish(ctx);
+  });
+
+  test('dragging a pin off its box onto the plane frees the note where the pin was let go', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    const el = await placeElement(page, 'PartDefinition');
+    await rename(page, el, 'Ledger');
+    const note = await addNote(page);
+    const from = await page.locator(`#drawing g.pin[data-note="${note}"]`).boundingBox();
+    const to = await emptyPoint(page);
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x, to.y, { steps: 12 });
+    await page.mouse.up();
+    await until(page, (id) => !!document.querySelector(`#drawing g.pin.is-free[data-note="${id}"]`), note, 'the pin is free');
+    const pin = page.locator(`#drawing g.pin.is-free[data-note="${note}"]`);
+    assert.equal(await pin.count(), 1, 'the note has one free pin');
+    const box = await pin.boundingBox();
+    assert.ok(Math.abs(box.x + box.width / 2 - to.x) < 4 && Math.abs(box.y + box.height / 2 - to.y) < 4,
+      `the pin sits where it was let go: ${JSON.stringify(box)} against ${JSON.stringify(to)}`);
+    assert.match(await page.textContent(`#notes-list li[data-note="${note}"] .on`), /on the plane/, 'the list says the note is on the plane');
+    assert.match(await page.textContent('#status'), /Moved note \d+ off part def Ledger onto the plane/);
     await finish(ctx);
   });
 });

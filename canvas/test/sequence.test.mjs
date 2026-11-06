@@ -1,15 +1,28 @@
 // The sequence view: a new SequenceView's palette and two lifelines placed left to right; a message drawn between
 // them as a horizontal row that exports as message … from … to …; a second message swapping rows when its order is
 // set in the panel; an event placed on a lifeline, exported inside it; a message refused between lifelines in two
-// contexts; and the sequence fixture imported, drawn in time order with its then chain in the export.
+// contexts; the sequence fixture imported, drawn in time order with its then chain in the export, and a connection
+// drawn in its structure view not counted as drawn in the sequence view; a succession between two events drawn as a
+// line from dot to dot; a refused drag leaving the layout as it was; the pin on a message above its label.
 
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { exportText, finish, launch, openCanvas, placeElement, rename, until } from './helpers.mjs';
+import { embeddedModel, exportText, finish, launch, openCanvas, placeElement, rename, until } from './helpers.mjs';
 
 const FIXTURE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'sequence.json');
+const STATE_KEY = 'stronghold-canvas:' + embeddedModel().revision; // where local mode keeps the page's state
+
+/** The layout entry of an element in a view as the page has persisted it, after its pending save is flushed. */
+async function savedLayout(page, viewId, elId) {
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  return page.evaluate(([key, v, id]) => {
+    const raw = localStorage.getItem(key);
+    const view = raw ? JSON.parse(raw).model.views.find((x) => x.id === v) : null;
+    return view ? view.layout[id] : null;
+  }, [STATE_KEY, viewId, elId]);
+}
 
 async function addView(page, kind) {
   const before = await page.locator('#drawing g.frame[data-view]').count();
@@ -200,6 +213,80 @@ describe('sequence view', () => {
     assert.match(text, /message loggedIn from server to client\.loginDone \{/, 'a message ends on the event by its path');
     assert.match(text, /view loginSequence : StandardViewDefinitions::SequenceView \{/, 'the view is exported');
     assert.equal(await page.locator('#export-problems li').count(), 0, 'no problems');
+    await page.click('#close-export');
+    // A connection drawn in the structure view between two lifelines is drawn there only: the sequence view draws
+    // no such line, so it is not counted as drawn in it.
+    await page.locator('#drawing g.frame[data-view="v-all"] rect.tab').click();
+    await until(page, () => document.querySelector('#drawing g.frame[data-view="v-all"]')?.classList.contains('is-active'), null, 'the structure view is active');
+    await page.click('#zoom-fit'); // the structure view's parts sit under the panel at the import's zoom
+    await page.click('.palette button[data-tool="ConnectionUsage"]');
+    for (const id of ['Login.server', 'Login.auth']) {
+      const box = await page.locator(`#drawing g.frame[data-view="v-all"] g[data-el="${id}"] > rect.outline`).boundingBox();
+      await page.mouse.click(box.x + box.width / 2, box.y + 12);
+    }
+    await until(page, () => /^Drew connection server to auth/.test(document.querySelector('#status').textContent), null, 'the connection is drawn');
+    assert.equal(await page.textContent('#f-views'), 'Drawn in loginStructure', 'the sequence view is not named among the views that draw it');
+    assert.equal(await page.locator('#drawing g.frame[data-view="v-seq"] g[data-rel][data-kind="ConnectionUsage"]').count(), 0, 'and draws no line for it');
+    await finish(ctx);
+  });
+
+  test('a succession between two events is drawn in the sequence frame as a line from dot to dot, and counted as drawn there', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    const { view, left, right } = await twoLifelines(page);
+    const headL = await page.locator(`#drawing g.frame[data-view="${view}"] g[data-el="${left}"] > .outline`).boundingBox();
+    const headR = await page.locator(`#drawing g.frame[data-view="${view}"] g[data-el="${right}"] > .outline`).boundingBox();
+    const sent = await placeElement(page, 'EventOccurrenceUsage', { x: headL.x + headL.width / 2, y: headL.y + headL.height + 70 });
+    await rename(page, sent, 'sent');
+    const got = await placeElement(page, 'EventOccurrenceUsage', { x: headR.x + headR.width / 2, y: headR.y + headR.height + 130 });
+    await rename(page, got, 'got');
+    await page.click('.palette button[data-tool="SuccessionAsUsage"]');
+    assert.match(await page.textContent('#hint'), /Click the action, node or event that comes first/, 'the hint fits a sequence view');
+    const a = await centreOf(page, view, sent);
+    const b = await centreOf(page, view, got);
+    await page.mouse.click(a.x, a.y);
+    await page.mouse.click(b.x, b.y);
+    await until(page, (v) => !!document.querySelector(`#drawing g.frame[data-view="${v}"] g[data-rel][data-kind="SuccessionAsUsage"]`), view, 'the succession is drawn in the sequence frame');
+    assert.match(await page.textContent('#status'), /^Drew succession sent to got\.$/, 'and the status has no doubt about where');
+    assert.match(await page.textContent('#f-views'), /^Drawn in view\d+$/, 'the panel names the sequence view');
+    const d = await page.getAttribute(`#drawing g.frame[data-view="${view}"] g[data-rel][data-kind="SuccessionAsUsage"] path.line`, 'd');
+    assert.equal(points(d).length, 2, `a straight line from dot to dot: ${d}`);
+    assert.match(await exportText(page), /first part1\.sent then part2\.got;/);
+    await finish(ctx);
+  });
+
+  test('a refused drag of an event that a message pins to its row leaves the layout as it was, with nothing new to undo', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    const { view, left, right } = await twoLifelines(page);
+    const head = await page.locator(`#drawing g.frame[data-view="${view}"] g[data-el="${left}"] > .outline`).boundingBox();
+    const event = await placeElement(page, 'EventOccurrenceUsage', { x: head.x + head.width / 2, y: head.y + head.height + 90 });
+    await drawMessage(page, await centreOf(page, view, event), await centreOf(page, view, right));
+    await until(page, () => document.querySelectorAll('g[data-rel][data-kind="Message"]').length === 1, null, 'the message appears');
+    const before = await savedLayout(page, view, event);
+    const title = await page.getAttribute('#undo', 'title');
+    const dot = await centreOf(page, view, event);
+    await page.mouse.move(dot.x, dot.y);
+    await page.mouse.down();
+    await page.mouse.move(dot.x, dot.y + 40, { steps: 5 });
+    await page.mouse.move(dot.x, dot.y + 80, { steps: 5 });
+    await page.mouse.up();
+    await until(page, () => /sits on the row of the message|went back/.test(document.querySelector('#status').textContent), null, 'the drag is refused');
+    assert.deepEqual(await savedLayout(page, view, event), before, 'the event keeps the layout entry it had');
+    assert.equal(await page.getAttribute('#undo', 'title'), title, 'the refused drag is not an undo step');
+    await finish(ctx);
+  });
+
+  test('the pin on a message sits above the label that sits above the line, not on it', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    await page.setInputFiles('#import-file', FIXTURE);
+    await until(page, () => !!document.querySelector('#drawing g.pin[data-note="n1"][data-view="v-seq"]'), null, 'the note on the login message is pinned in the sequence view');
+    const pin = await page.locator('#drawing g.pin[data-note="n1"][data-view="v-seq"] circle').boundingBox();
+    const label = await page.locator('#drawing g.frame[data-view="v-seq"] g[data-rel="m-login"] text.uname').boundingBox();
+    const line = await page.locator('#drawing g.frame[data-view="v-seq"] g[data-rel="m-login"] path.line').boundingBox();
+    assert.ok(label.y + label.height <= line.y + 1, `the label is above the line: label ${JSON.stringify(label)}, line ${JSON.stringify(line)}`);
+    assert.ok(pin.y + pin.height <= label.y, `the pin is above the label, not on it: pin ${JSON.stringify(pin)}, label ${JSON.stringify(label)}`);
     await finish(ctx);
   });
 });
