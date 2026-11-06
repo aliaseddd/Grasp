@@ -196,6 +196,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .fields textarea { min-height: 54px; resize: vertical; }
 .fields input:read-only, .fields textarea:read-only { background: transparent; }
 .fields input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.fields .view-options { display: grid; gap: 10px; }
 .meta { margin: 0; font: 400 11.5px/1.3 var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; }
 .danger { color: var(--danger); border-color: var(--line); }
@@ -242,6 +243,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
   font: 400 12px/1.5 var(--mono); color: var(--fg); background: var(--bg);
   border: 1px solid var(--line-strong); border-radius: 6px; padding: 8px; white-space: pre; overflow: auto;
 }
+/* What the slices add to the look: their shapes, lines, rows and panel sections, one region each. */
+/* ==== slice: interconnection ==== */
+/* ==== end slice: interconnection ==== */
+/* ==== slice: behavior ==== */
+/* ==== end slice: behavior ==== */
+/* ==== slice: sequence ==== */
+/* ==== end slice: sequence ==== */
+/* ==== slice: geometry ==== */
+/* ==== end slice: geometry ==== */
+/* ==== slice: grid ==== */
+/* ==== end slice: grid ==== */
+/* ==== slice: browser ==== */
+/* ==== end slice: browser ==== */
+/* ==== slice: annotations ==== */
+/* ==== end slice: annotations ==== */
 @media (max-width: 720px) {
   /* On a phone the palette is one row that scrolls sideways, so the bar stays short. */
   .top { gap: 8px 12px; }
@@ -276,6 +292,20 @@ textarea.text[readonly] { resize: none; background: transparent; }
       <button type="button" id="undo" disabled title="Nothing to undo">Undo</button>
       <button type="button" id="new-view">New view</button>
       <select id="new-view-kind" aria-label="The kind of the new view"></select>
+      <!-- ==== slice: interconnection ==== -->
+      <!-- ==== end slice: interconnection ==== -->
+      <!-- ==== slice: behavior ==== -->
+      <!-- ==== end slice: behavior ==== -->
+      <!-- ==== slice: sequence ==== -->
+      <!-- ==== end slice: sequence ==== -->
+      <!-- ==== slice: geometry ==== -->
+      <!-- ==== end slice: geometry ==== -->
+      <!-- ==== slice: grid ==== -->
+      <!-- ==== end slice: grid ==== -->
+      <!-- ==== slice: browser ==== -->
+      <!-- ==== end slice: browser ==== -->
+      <!-- ==== slice: annotations ==== -->
+      <!-- ==== end slice: annotations ==== -->
       <button type="button" id="export">Export SysML</button>
       <button type="button" id="download-state" hidden>Download state</button>
       <button type="button" id="import-state" hidden>Import state</button>
@@ -318,6 +348,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
           <label id="l-multiplicity">Multiplicity <input type="text" id="f-multiplicity" autocomplete="off" spellcheck="false" placeholder="1, 0..1, or 1..*"></label>
           <label class="check" id="l-conjugated"><input type="checkbox" id="f-conjugated"> conjugated (~), the other side of the port</label>
           <label id="l-doc">Doc <textarea id="f-doc" rows="2" spellcheck="true"></textarea></label>
+          <!-- Each slice's fields: <label id="l-<field>">… <input id="f-<field>"></label>, one per row of FIELDS. -->
+          <!-- ==== slice: interconnection ==== -->
+          <!-- ==== end slice: interconnection ==== -->
+          <!-- ==== slice: behavior ==== -->
+          <!-- ==== end slice: behavior ==== -->
+          <!-- ==== slice: sequence ==== -->
+          <!-- ==== end slice: sequence ==== -->
+          <!-- ==== slice: geometry ==== -->
+          <!-- ==== end slice: geometry ==== -->
+          <!-- ==== slice: grid ==== -->
+          <!-- ==== end slice: grid ==== -->
+          <!-- ==== slice: browser ==== -->
+          <!-- ==== end slice: browser ==== -->
+          <!-- ==== slice: annotations ==== -->
+          <!-- ==== end slice: annotations ==== -->
           <p class="meta" id="f-path"></p>
           <p class="meta" id="f-views"></p>
           <div class="row">
@@ -332,12 +377,41 @@ textarea.text[readonly] { resize: none; background: transparent; }
           <label id="l-v-doc">Doc <textarea id="v-doc" rows="2" spellcheck="true"></textarea></label>
           <label id="l-v-show">Show in this view <select id="v-show"></select></label>
           <p class="meta" id="v-meta"></p>
+          <!-- Each kind's options, in <div class="view-options" data-view-kind="GridView" hidden>, shown for a view of the kind. -->
+          <!-- ==== slice: interconnection ==== -->
+          <!-- ==== end slice: interconnection ==== -->
+          <!-- ==== slice: behavior ==== -->
+          <!-- ==== end slice: behavior ==== -->
+          <!-- ==== slice: sequence ==== -->
+          <!-- ==== end slice: sequence ==== -->
+          <!-- ==== slice: geometry ==== -->
+          <!-- ==== end slice: geometry ==== -->
+          <!-- ==== slice: grid ==== -->
+          <!-- ==== end slice: grid ==== -->
+          <!-- ==== slice: browser ==== -->
+          <!-- ==== end slice: browser ==== -->
+          <!-- ==== slice: annotations ==== -->
+          <!-- ==== end slice: annotations ==== -->
           <div class="row">
             <button type="button" id="v-show-add">Show it</button>
             <button type="button" class="danger" id="delete-view">Delete view</button>
           </div>
         </div>
         <ul class="problems" id="problems-list" hidden></ul>
+        <!-- ==== slice: interconnection ==== -->
+        <!-- ==== end slice: interconnection ==== -->
+        <!-- ==== slice: behavior ==== -->
+        <!-- ==== end slice: behavior ==== -->
+        <!-- ==== slice: sequence ==== -->
+        <!-- ==== end slice: sequence ==== -->
+        <!-- ==== slice: geometry ==== -->
+        <!-- ==== end slice: geometry ==== -->
+        <!-- ==== slice: grid ==== -->
+        <!-- ==== end slice: grid ==== -->
+        <!-- ==== slice: browser ==== -->
+        <!-- ==== end slice: browser ==== -->
+        <!-- ==== slice: annotations ==== -->
+        <!-- ==== end slice: annotations ==== -->
       </section>
       <section class="notes" aria-labelledby="notes-title">
         <div class="panel-head">
@@ -347,6 +421,20 @@ textarea.text[readonly] { resize: none; background: transparent; }
         <ol class="list" id="notes-list"></ol>
         <p class="where" id="where"></p>
         <p class="warning" id="storage-warning" hidden>This browser isn't keeping your changes. Download the state before you close it.</p>
+        <!-- ==== slice: interconnection ==== -->
+        <!-- ==== end slice: interconnection ==== -->
+        <!-- ==== slice: behavior ==== -->
+        <!-- ==== end slice: behavior ==== -->
+        <!-- ==== slice: sequence ==== -->
+        <!-- ==== end slice: sequence ==== -->
+        <!-- ==== slice: geometry ==== -->
+        <!-- ==== end slice: geometry ==== -->
+        <!-- ==== slice: grid ==== -->
+        <!-- ==== end slice: grid ==== -->
+        <!-- ==== slice: browser ==== -->
+        <!-- ==== end slice: browser ==== -->
+        <!-- ==== slice: annotations ==== -->
+        <!-- ==== end slice: annotations ==== -->
       </section>
     </aside>
 
@@ -441,8 +529,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
 <script id="model-lib" data-lib>
 // The model: what the drawing holds, what is wrong with it, and how it reads as textual SysML v2. Pure functions,
-// shared with export.mjs and save-state.mjs, which run this script in Node. The three tables at the top say what the
-// canvas knows: the element kinds, the relationship kinds, and the view kinds. The later slices add rows to them.
+// shared with export.mjs and save-state.mjs, which run this script in Node. The four tables at the top say what the
+// canvas knows: the element kinds, the relationship kinds, the view kinds, and the fields. Each slice adds its rows
+// in its own region of each table, reaches into other rows in the extensions region after the tables, and adds the
+// functions it needs in the helpers region before validate.
 (function (root) {
   'use strict';
 
@@ -450,23 +540,45 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const VIEW_DEF = 'StandardViewDefinitions::GeneralView';
 
   // Element kinds. contains is the kinds an element may own (false: none); onBorder draws it on its owner's
-  // border; definedBy is the definition kind a usage is typed by; size the default box; shape how the graph
-  // renderer draws it (rect, rounded, port); fields the panel's fields that apply, which normalize also keeps.
+  // border; definedBy is the definition kind a usage is typed by; size the default box; shape names the entry of
+  // the page's SHAPES that draws it (rect, rounded, port; an unknown shape is drawn as a rect, or as a port on a
+  // border); fields the panel's fields that apply, each a row of FIELDS below, which normalize keeps by their types;
+  // traits the words the relationship rules may ask about with hasTrait (connectable, flowEnd, bindable, lifeline…).
+  // A kind may also carry hooks for the export and the checks: head(model, el, h) returns the head of its
+  // declaration, everything before the ' {' or ';' (h.headOf(el) is the generated one, to build on); body(model, el,
+  // depth, h) writes statements inside its body through h.line and h.comment, after the doc and before the children;
+  // check(model, el, ids, add) adds the problems validate doesn't know about.
   const KINDS = {
     // Structure.
     PartDefinition: { keyword: 'part def', label: 'part def', definition: true, usage: false, contains: ['PartUsage', 'PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'] },
     PortDefinition: { keyword: 'port def', label: 'port def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'] },
-    PartUsage: { keyword: 'part', label: 'part', definition: false, usage: true, contains: ['PartUsage', 'PortUsage'], onBorder: false, definedBy: 'PartDefinition', size: [180, 60], shape: 'rounded', fields: ['name', 'type', 'multiplicity', 'doc'] },
-    PortUsage: { keyword: 'port', label: 'port', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16], shape: 'port', fields: ['name', 'type', 'multiplicity', 'conjugated', 'doc'] },
+    PartUsage: { keyword: 'part', label: 'part', definition: false, usage: true, contains: ['PartUsage', 'PortUsage'], onBorder: false, definedBy: 'PartDefinition', size: [180, 60], shape: 'rounded', fields: ['name', 'type', 'multiplicity', 'doc'], traits: ['connectable'] },
+    PortUsage: { keyword: 'port', label: 'port', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16], shape: 'port', fields: ['name', 'type', 'multiplicity', 'conjugated', 'doc'], traits: ['connectable'] },
+    // ==== slice: interconnection ====
+    // ==== end slice: interconnection ====
+    // ==== slice: behavior ====
+    // ==== end slice: behavior ====
+    // ==== slice: sequence ====
+    // ==== end slice: sequence ====
+    // ==== slice: geometry ====
+    // ==== end slice: geometry ====
+    // ==== slice: grid ====
+    // ==== end slice: grid ====
+    // ==== slice: browser ====
+    // ==== end slice: browser ====
+    // ==== slice: annotations ====
+    // ==== end slice: annotations ====
   };
 
-  // Relationship kinds. fields are the string fields normalize keeps; hideable lets the line be left undrawn.
-  // first(model, a, ids) says what rules out a as the first end and ends(model, a, b, ids) what rules out the
-  // pair: a sentence, or null. The palette and validate both ask them, so each rule is stated once. owner(model,
-  // rel, ids) is the element whose body declares the relationship (null: the package). line says how the graph
-  // renderer draws it: the route (straight or elbow), the marker at the end, a class, and a label. toSysML(model,
-  // rel, ownerId, depth, out, h) writes it as a statement in that body; it is null when the relationship is written
-  // in the head of its from element instead (:> for a specialization, : for a typing).
+  // Relationship kinds. fields are the panel's fields that apply (rows of FIELDS), which normalize keeps by their
+  // types; hideable lets the line be left undrawn. first(model, a, ids) says what rules out a as the first end and
+  // ends(model, a, b, ids) what rules out the pair: a sentence, or null. The palette and validate both ask them, so
+  // each rule is stated once; check(model, rel, ids, add), when present, adds the problems that need more than the
+  // pair. owner(model, rel, ids) is the element whose body declares the relationship (null: the package). line says
+  // how the graph renderer draws it: the route (a key of the page's ROUTES: straight or elbow), the marker at the end
+  // and markerStart at the start (keys of the page's MARKERS), a class, and a label. toSysML(model, rel, ownerId,
+  // depth, out, h) writes it as a statement in that body; it is null when the relationship is written in the head
+  // of its from element instead (:> for a specialization, : for a typing).
   const RELATIONSHIPS = {
     // Structure.
     Specialization: {
@@ -493,6 +605,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
         if (KINDS[a.kind].definedBy !== b.kind) return describe(model, a, ids) + ' can only be defined by a ' + KINDS[KINDS[a.kind].definedBy].label + '.';
         return null;
       },
+      // One definition per usage: the first typing of a usage stands, and every later one is the problem.
+      check: function (model, rel, ids, add) {
+        const first = model.relationships.find((r) => r.kind === 'FeatureTyping' && r.from === rel.from && ids.has(r.to));
+        if (first !== rel) add(rel.id, describe(model, ids.get(rel.from), ids) + ' is defined by more than one definition.');
+      },
       owner: function () { return null; },
       line: { route: 'elbow', marker: 'm-defined', cls: 'typing', label: null },
       toSysML: null,
@@ -508,6 +625,17 @@ textarea.text[readonly] { resize: none; background: transparent; }
           return 'A connection between ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' reaches across definitions. Connect things inside the same part def or part.';
         }
         return null;
+      },
+      // A named connection is a feature of the element it is declared in, so its name can't be that of a feature
+      // declared there, or of a connection declared there before it.
+      check: function (model, rel, ids, add) {
+        const cname = rel.name.trim();
+        if (!cname) return;
+        const o = RELATIONSHIPS.ConnectionUsage.owner(model, rel, ids) || '';
+        const taken = model.elements.some((e) => e.name.trim() === cname && (e.owner === undefined ? '' : e.owner) === o) ||
+          model.relationships.slice(0, model.relationships.indexOf(rel)).some((r) => r.kind === 'ConnectionUsage' && r.name.trim() === cname &&
+            ids.has(r.from) && ids.has(r.to) && (RELATIONSHIPS.ConnectionUsage.owner(model, r, ids) || '') === o);
+        if (taken) add(rel.id, 'The connection ' + cname + ' is named like something else beside it. Rename one.');
       },
       owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
       line: { route: 'straight', marker: null, cls: 'connection', label: function (rel) { return rel.name.trim(); } },
@@ -525,30 +653,109 @@ textarea.text[readonly] { resize: none; background: transparent; }
         h.line(depth, '}');
       },
     },
+    // ==== slice: interconnection ====
+    // ==== end slice: interconnection ====
+    // ==== slice: behavior ====
+    // ==== end slice: behavior ====
+    // ==== slice: sequence ====
+    // ==== end slice: sequence ====
+    // ==== slice: geometry ====
+    // ==== end slice: geometry ====
+    // ==== slice: grid ====
+    // ==== end slice: grid ====
+    // ==== slice: browser ====
+    // ==== end slice: browser ====
+    // ==== slice: annotations ====
+    // ==== end slice: annotations ====
   };
 
   // View kinds. renderer names the page's renderer for the kind; admits the element kinds a view of the kind may
   // show (null: every kind); tools the palette, element and relationship kinds with '|' between groups; options
-  // the defaults of the view's own options, which normalize keeps the keys of. In this slice only the general view
-  // admits and draws anything; the other rows are here so a view of each kind can sit on the plane.
+  // the defaults of the view's own options, which normalize keeps the keys of; check(model, view, ids, add), when
+  // present, adds the view's own problems. In this slice only the general view admits and draws anything; the other
+  // rows are here so a view of each kind can sit on the plane, each in the region of the slice that fills it in.
   const VIEW_KINDS = {
     GeneralView: { name: 'GeneralView', label: 'general view', qualified: 'StandardViewDefinitions::GeneralView', short: 'gv', renderer: 'graph',
       admits: null, tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', '|', 'Specialization', 'FeatureTyping', 'ConnectionUsage'], options: {} },
+    // ==== slice: interconnection ====
     InterconnectionView: { name: 'InterconnectionView', label: 'interconnection view', qualified: 'StandardViewDefinitions::InterconnectionView', short: 'iv', renderer: 'graph',
       admits: [], tools: [], options: {} },
+    // ==== end slice: interconnection ====
+    // ==== slice: behavior ====
     ActionFlowView: { name: 'ActionFlowView', label: 'action flow view', qualified: 'StandardViewDefinitions::ActionFlowView', short: 'afv', renderer: 'graph',
       admits: [], tools: [], options: {} },
     StateTransitionView: { name: 'StateTransitionView', label: 'state transition view', qualified: 'StandardViewDefinitions::StateTransitionView', short: 'stv', renderer: 'graph',
       admits: [], tools: [], options: {} },
+    // ==== end slice: behavior ====
+    // ==== slice: sequence ====
     SequenceView: { name: 'SequenceView', label: 'sequence view', qualified: 'StandardViewDefinitions::SequenceView', short: 'sv', renderer: 'sequence',
       admits: [], tools: [], options: { lifelines: [] } },
+    // ==== end slice: sequence ====
+    // ==== slice: geometry ====
     GeometryView: { name: 'GeometryView', label: 'geometry view', qualified: 'StandardViewDefinitions::GeometryView', short: 'gev', renderer: 'geometry',
       admits: [], tools: [], options: { scale: 40, unit: 'm' } },
+    // ==== end slice: geometry ====
+    // ==== slice: grid ====
     GridView: { name: 'GridView', label: 'grid view', qualified: 'StandardViewDefinitions::GridView', short: 'grv', renderer: 'grid',
       admits: [], tools: [], options: { mode: 'table', columns: ['kind', 'name', 'type', 'multiplicity', 'owner', 'doc'], rows: null } },
+    // ==== end slice: grid ====
+    // ==== slice: browser ====
     BrowserView: { name: 'BrowserView', label: 'browser view', qualified: 'StandardViewDefinitions::BrowserView', short: 'bv', renderer: 'browser',
       admits: [], tools: [], options: { roots: null, collapsed: [] } },
+    // ==== end slice: browser ====
+    // ==== slice: annotations ====
+    // ==== end slice: annotations ====
   };
+
+  // The fields the panel can show and normalize keeps, by name, for elements (KINDS[kind].fields) and relationships
+  // (RELATIONSHIPS[kind].fields). type says what the value is: string or text (a string; trim takes the ends off),
+  // bool (true or false), enum (one of values, else the first), number (a finite number, else ''), ref (the id of an
+  // element, else ''; options(model, item) returns the elements the field may name). label is the field's name in
+  // sentences. views, when present, lists the view kinds the field shows in (absent: every kind). core marks the
+  // fields the page handles itself; it reads and writes the others through their rows, each with a <label id="l-
+  // <field>"> holding an <input id="f-<field>"> in the panel. read(raw), when present, replaces the reading by type
+  // (for a value that is none of these, a list say), and fresh(), when present, gives a new element's or
+  // relationship's starting value. The type field is not a value but the page's FeatureTyping relationship, so
+  // stored: false keeps it out of the model.
+  const FIELDS = {
+    name: { type: 'string', label: 'name', core: true },
+    abstract: { type: 'bool', label: 'abstract', core: true },
+    type: { type: 'ref', label: 'definition', core: true, stored: false, options: function (model, item) { return model.elements.filter((e) => e.kind === KINDS[item.kind].definedBy); } },
+    multiplicity: { type: 'string', label: 'multiplicity', core: true, trim: true },
+    conjugated: { type: 'bool', label: 'conjugated', core: true },
+    doc: { type: 'text', label: 'doc', core: true },
+    // ==== slice: interconnection ====
+    // ==== end slice: interconnection ====
+    // ==== slice: behavior ====
+    // ==== end slice: behavior ====
+    // ==== slice: sequence ====
+    // ==== end slice: sequence ====
+    // ==== slice: geometry ====
+    // ==== end slice: geometry ====
+    // ==== slice: grid ====
+    // ==== end slice: grid ====
+    // ==== slice: browser ====
+    // ==== end slice: browser ====
+    // ==== slice: annotations ====
+    // ==== end slice: annotations ====
+  };
+
+  // Extensions: what a slice adds to another slice's rows, now that every table is built (KINDS.PartUsage.contains
+  // .push('ItemUsage'), KINDS.PartUsage.fields.push('shape'), KINDS.ParameterUsage.traits.push('flowEnd')…).
+  // ==== slice: interconnection ====
+  // ==== end slice: interconnection ====
+  // ==== slice: behavior ====
+  // ==== end slice: behavior ====
+  // ==== slice: sequence ====
+  // ==== end slice: sequence ====
+  // ==== slice: geometry ====
+  // ==== end slice: geometry ====
+  // ==== slice: grid ====
+  // ==== end slice: grid ====
+  // ==== slice: browser ====
+  // ==== end slice: browser ====
+  // ==== slice: annotations ====
+  // ==== end slice: annotations ====
 
   const SIDES = ['top', 'right', 'bottom', 'left'];
   const ID = /^[A-Za-z0-9_.:-]{1,64}$/;
@@ -579,6 +786,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function admits(viewKind, elKind) {
     const v = VIEW_KINDS[viewKind];
     return !!v && !!KINDS[elKind] && (v.admits === null || v.admits.indexOf(elKind) >= 0);
+  }
+  // Whether a kind carries a trait, one of the words in its traits; a kind without traits carries none.
+  function hasTrait(kind, trait) {
+    const k = KINDS[kind];
+    return !!(k && k.traits) && k.traits.indexOf(trait) >= 0;
   }
 
   function blank() {
@@ -614,6 +826,33 @@ textarea.text[readonly] { resize: none; background: transparent; }
     roots.forEach(walk);
   }
 
+  // The value of a field from what a file carries, by its row in FIELDS. A ref is kept as the string it names and
+  // checked by checkRefs once the elements are known.
+  function readField(spec, v) {
+    if (spec.read) return spec.read(v);
+    if (spec.type === 'bool') return v === true;
+    if (spec.type === 'enum') return spec.values.indexOf(v) >= 0 ? v : spec.values[0];
+    if (spec.type === 'number') return num(v, '');
+    const s = str(v);
+    return spec.trim ? s.trim() : s;
+  }
+  // Keeps the fields of an element or a relationship from raw on item, each by its row in FIELDS. A field item has
+  // already (name and doc, which every element gets first) and one that is not stored as a value (type) are left alone.
+  function keepFields(fields, raw, item) {
+    for (const f of fields) {
+      const spec = FIELDS[f];
+      if (!spec || spec.stored === false || item[f] !== undefined) continue;
+      item[f] = readField(spec, raw[f]);
+    }
+  }
+  // A ref names an element that exists, or nothing.
+  function checkRefs(fields, item, ids) {
+    for (const f of fields) {
+      const spec = FIELDS[f];
+      if (spec && spec.type === 'ref' && spec.stored !== false && item[f] !== '' && !ids.has(item[f])) item[f] = '';
+    }
+  }
+
   // Takes any JSON and returns a model this page can draw: known kinds, unique ids, owners that exist and can hold
   // what they own, no cycles, relationships whose two ends exist, and views whose layouts place elements the view's
   // kind admits. A format-1 model, whose elements carry their own places, becomes a model with one general view.
@@ -634,9 +873,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const kind = KINDS[e.kind];
       const el = { id: e.id, kind: e.kind, name: str(e.name), doc: str(e.doc) };
       if (typeof e.owner === 'string' && e.owner !== e.id) el.owner = e.owner;
-      if (kind.fields.indexOf('abstract') >= 0) el.abstract = e.abstract === true;
-      if (kind.fields.indexOf('multiplicity') >= 0) el.multiplicity = str(e.multiplicity).trim();
-      if (kind.fields.indexOf('conjugated') >= 0) el.conjugated = e.conjugated === true;
+      keepFields(kind.fields, e, el);
       if (kind.onBorder ? (e.side !== undefined || e.at !== undefined) : (e.x !== undefined || e.y !== undefined)) {
         carried.set(el.id, { view: str(e.view), place: e });
       }
@@ -663,6 +900,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     m.elements = m.elements.filter((el) => !(KINDS[el.kind].onBorder && el.owner === undefined));
     ids = new Map(m.elements.map((e) => [e.id, e]));
+    for (const el of m.elements) checkRefs(KINDS[el.kind].fields, el, ids);
 
     const rseen = new Set();
     for (const x of Array.isArray(r.relationships) ? r.relationships : []) {
@@ -670,7 +908,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (rseen.has(x.id) || seen.has(x.id) || !ids.has(x.from) || !ids.has(x.to) || x.from === x.to) continue;
       const kind = RELATIONSHIPS[x.kind];
       const rel = { id: x.id, kind: x.kind, from: x.from, to: x.to };
-      kind.fields.forEach((f) => { rel[f] = str(x[f]); });
+      keepFields(kind.fields, x, rel);
+      checkRefs(kind.fields, rel, ids);
       if (kind.hideable && x.hidden === true) rel.hidden = true;
       rseen.add(x.id);
       m.relationships.push(rel);
@@ -853,6 +1092,27 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   const RESERVED_NAMES = new Set(['StandardViewDefinitions', 'SysML', 'KerML', 'Views', 'Parts', 'Ports', 'Items']);
 
+  // What the slices add to the library: EXTRA the functions they export on SysMLModel (EXTRA.successionsOf =
+  // successionsOf), BODY the writers run for every element's body in the export (function (model, el, depth, h),
+  // after the doc and before the kind's own body hook: the code links' textual representations, say). The functions
+  // themselves live in the regions below.
+  const EXTRA = {};
+  const BODY = [];
+  // ==== slice: interconnection ====
+  // ==== end slice: interconnection ====
+  // ==== slice: behavior ====
+  // ==== end slice: behavior ====
+  // ==== slice: sequence ====
+  // ==== end slice: sequence ====
+  // ==== slice: geometry ====
+  // ==== end slice: geometry ====
+  // ==== slice: grid ====
+  // ==== end slice: grid ====
+  // ==== slice: browser ====
+  // ==== end slice: browser ====
+  // ==== slice: annotations ====
+  // ==== end slice: annotations ====
+
   // What keeps the model from being correct SysML. Each problem names the element, relationship, or view it is about
   // (null: the package).
   function validate(model) {
@@ -893,18 +1153,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
           add(el.id, describe(model, el, ids) + ' is named like the ' + KINDS[inherited.kind].label + ' ' + name + ' that ' + shown(owner.name) + ' inherits. Rename it.');
         }
       }
+      if (kind.check) kind.check(model, el, ids, add);
     }
-    // Views: named like something at the top of the package, or two with one name.
+    // Views: named like something at the top of the package, or two with one name; then the kind's own checks.
     const viewNames = new Map();
     for (const v of model.views) {
       const vname = v.name.trim();
-      if (!vname) continue;
-      if (siblings.has('/' + vname) || vname === pkgName) add(v.id, 'The view ' + vname + ' is named like something else in the package. Rename one.');
-      if (viewNames.has(vname)) add(v.id, 'Two views are named ' + vname + '. Rename one.');
-      viewNames.set(vname, v);
+      if (vname) {
+        if (siblings.has('/' + vname) || vname === pkgName) add(v.id, 'The view ' + vname + ' is named like something else in the package. Rename one.');
+        if (viewNames.has(vname)) add(v.id, 'Two views are named ' + vname + '. Rename one.');
+        viewNames.set(vname, v);
+      }
+      const vkind = VIEW_KINDS[v.kind];
+      if (vkind && vkind.check) vkind.check(model, v, ids, add);
     }
-    const typed = new Set();
-    const connectionNames = new Map();
+    // Relationships: the kind's rule on the pair of ends, then its own checks.
     for (const rel of model.relationships) {
       const a = ids.get(rel.from);
       const b = ids.get(rel.to);
@@ -912,19 +1175,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const kind = RELATIONSHIPS[rel.kind];
       const problem = kind.ends(model, a, b, ids);
       if (problem) add(rel.id, problem);
-      if (rel.kind === 'FeatureTyping') {
-        if (typed.has(a.id)) add(rel.id, describe(model, a, ids) + ' is defined by more than one definition.');
-        typed.add(a.id);
-      }
-      if (rel.kind === 'ConnectionUsage') {
-        const cname = rel.name.trim();
-        if (cname) {
-          const o = kind.owner(model, rel, ids);
-          const key = (o || '') + '/' + cname;
-          if (siblings.has(key) || connectionNames.has(key)) add(rel.id, 'The connection ' + cname + ' is named like something else beside it. Rename one.');
-          connectionNames.set(key, rel);
-        }
-      }
+      if (kind.check) kind.check(model, rel, ids, add);
     }
     return problems;
   }
@@ -972,16 +1223,31 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const rels = relIndex(model);
     const noteList = tidyNotes(notes);
     const out = [];
+    const imports = new Set();
     const line = (depth, text) => out.push('    '.repeat(depth) + text);
     const comment = (depth, head, text) => commentLines(depth, head, text).forEach((l) => out.push(l));
     const noteText = (n) => n.text + (n.response.trim() ? '\nClaude: ' + n.response.trim() : '');
-    // What a relationship kind's toSysML may use.
-    const helpers = { ids: ids, line: line, comment: comment, noteText: noteText, quote: quote, featurePath: featurePath, notesOn: (id) => noteList.filter((n) => n.target === id) };
     // The relationships written as statements in an element's body (null: the package's), by each kind's own rule.
     const declaredIn = (ownerId) => model.relationships.filter((r) => RELATIONSHIPS[r.kind].toSysML && RELATIONSHIPS[r.kind].owner(model, r, ids) === ownerId);
+    // What the hooks may use (a kind's head and body, a relationship kind's toSysML): line(depth, text) and
+    // comment(depth, head, text) write out; needImport(qualifiedName) asks for a private import at the top of the
+    // package; headOf(el) is the generated head of an element; the rest are the library's functions with the model
+    // and its index filled in.
+    const helpers = {
+      ids: ids, line: line, comment: comment, noteText: noteText, quote: quote, featurePath: featurePath, shown: shown,
+      notesOn: (id) => noteList.filter((n) => n.target === id),
+      needImport: (qualifiedName) => imports.add(qualifiedName),
+      headOf: headOf, declaredIn: declaredIn,
+      typingOf: (el) => typingOf(model, el),
+      childrenOf: (id) => childrenOf(model, id),
+      describe: (el) => describe(model, el, ids),
+      commonOwner: (a, b) => commonOwner(model, a, b, ids),
+      qualified: (el) => qualified(model, el, ids)
+    };
 
-    // A feature declared again under the name of one its owner inherits, of the same kind, redefines it: :>>.
-    function element(el, depth) {
+    // The head of an element's declaration, everything before the ' {' or ';'. A feature declared again under the
+    // name of one its owner inherits, of the same kind, redefines it: :>>.
+    function headOf(el) {
       const kind = KINDS[el.kind];
       const owner = el.owner !== undefined ? ids.get(el.owner) : null;
       const inherited = owner && el.name.trim() ? inheritedFeatures(model, owner, ids).get(el.name.trim()) : null;
@@ -997,13 +1263,27 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const general = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === el.id)
         .map((r) => quote(ids.get(r.to).name));
       if (general.length) head += ' :> ' + general.join(', ');
+      return head;
+    }
+    // An element: its head (the kind's own when it has one), then, when there is anything to put in it, a body with
+    // the doc, what the body writers and the kind's body hook add, the border items, the nested boxes, and the
+    // relationships declared here.
+    function element(el, depth) {
+      const kind = KINDS[el.kind];
+      const head = kind.head ? kind.head(model, el, helpers) : headOf(el);
       const kids = childrenOf(model, el.id);
       const ports = kids.filter((k) => KINDS[k.kind].onBorder);
       const parts = kids.filter((k) => !KINDS[k.kind].onBorder);
       const declared = declaredIn(el.id);
-      if (!el.doc.trim() && !kids.length && !declared.length) { line(depth, head + ';'); return; }
+      // The hooks write into lines of their own first, so an element with nothing else gets a body when they add to it.
+      const extra = [];
+      const into = Object.assign({}, helpers, { line: (d, t) => extra.push('    '.repeat(d) + t), comment: (d, h, t) => commentLines(d, h, t).forEach((l) => extra.push(l)) });
+      BODY.forEach((write) => write(model, el, depth + 1, into));
+      if (kind.body) kind.body(model, el, depth + 1, into);
+      if (!el.doc.trim() && !extra.length && !kids.length && !declared.length) { line(depth, head + ';'); return; }
       line(depth, head + ' {');
       if (el.doc.trim()) comment(depth + 1, 'doc', el.doc);
+      extra.forEach((l) => out.push(l));
       ports.forEach((k) => element(k, depth + 1));
       parts.forEach((k) => element(k, depth + 1));
       declared.forEach((r) => RELATIONSHIPS[r.kind].toSysML(model, r, el.id, depth + 1, out, helpers));
@@ -1012,6 +1292,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
     line(0, 'package ' + quote(model.package.name) + ' {');
     if (model.package.doc.trim()) comment(1, 'doc', model.package.doc);
+    const importAt = out.length; // where the imports the bodies ask for go, once they are known
     const top = childrenOf(model, null);
     const ordered = top.filter((e) => KINDS[e.kind].definition).concat(top.filter((e) => !KINDS[e.kind].definition));
     ordered.forEach((el) => { out.push(''); element(el, 1); });
@@ -1060,15 +1341,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
       line(1, '}');
     }
     line(0, '}');
+    // The imports the bodies asked for: private, sorted, right after the package's doc, then a blank line unless the
+    // next line is one already. Nothing asks for one yet, so the text is as it was.
+    if (imports.size) {
+      const lines = Array.from(imports).sort().map((q) => '    private import ' + q + ';');
+      if (out[importAt] !== '') lines.push('');
+      out.splice.apply(out, [importAt, 0].concat(lines));
+    }
     return out.join('\n') + '\n';
   }
 
-  root.SysMLModel = Object.freeze({
-    FORMAT, KINDS, RELATIONSHIPS, VIEW_KINDS, SIDES, MULTIPLICITY, VIEW_DEF,
-    blank, normalize, validate, toSysML, placement, canContain, admits, index, relIndex, viewIndex, shownIn, chain, childrenOf,
+  // The library, with what the slices put in EXTRA beside it.
+  root.SysMLModel = Object.freeze(Object.assign({
+    FORMAT, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, VIEW_DEF,
+    blank, normalize, validate, toSysML, placement, canContain, admits, hasTrait, index, relIndex, viewIndex, shownIn, chain, childrenOf,
     descendants, typingOf, inUsage, specializes, commonOwner, featurePath, quote, qualified, describe, describeRel, describeView,
     labelFor, isName, tidyNotes, inheritedFeatures,
-  });
+  }, EXTRA));
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 </script>
 
@@ -1123,6 +1412,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
     ConnectionUsage: ['Click one port or part…', 'Now click the other end.']
   };
   const BASE_NAME = { PartDefinition: 'PartDef', PortDefinition: 'PortDef', PartUsage: 'part', PortUsage: 'port' };
+  // Tools that are neither an element kind to place nor a relationship kind to draw (the Note tool): on a click with
+  // the tool armed, TOOLS[tool](hit, p, event) runs, with what was clicked, the point on the plane, and the event.
+  const TOOLS = {};
+  // What a click on a drawn thing with data-action does: ACTIONS[action](hit, p, event), where hit.id is the thing's
+  // data-for and hit.view the view it is drawn in. A renderer's own controls (the browser's disclosure) go here.
+  const ACTIONS = {};
+  // The panel's options for a kind of view: VIEW_PANELS[kind](view, write) fills the kind's div.view-options in
+  // #view-fields, which renderViewFields shows for the selected view's kind and hides for the others.
+  const VIEW_PANELS = {};
 
   const $ = (id) => document.getElementById(id);
   const canvas = $('canvas');
@@ -1276,7 +1574,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   // The layout of one graph view: rects in plane coordinates for the elements it shows, kids by their parent in
-  // the view ('' for the view's own ground), parentOf the other way round, docs the wrapped doc lines.
+  // the view ('' for the view's own ground), parentOf the other way round, comps the compartments of each box.
   function graphLayout(view, ids) {
     const order = new Map(model.elements.map((e, i) => [e.id, i]));
     const shown = new Set(Object.keys(view.layout).filter((id) => ids.has(id)));
@@ -1296,12 +1594,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const portsOf = (key) => (kids.get(key) || []).filter((e) => M.KINDS[e.kind].onBorder);
     const sizes = new Map();
     const rects = new Map();
-    const docs = new Map();
+    const comps = new Map();
     function size(el) {
       const lay = view.layout[el.id];
-      const lines = wrap(el.doc, Math.max(12, Math.floor((lay.w - 24) / 6.1)));
-      docs.set(el.id, lines);
-      let bottom = HEADER + (lines.length ? HEAD_H + LEAD * lines.length + 6 : 0);
+      const shape = SHAPES[M.KINDS[el.kind].shape] || SHAPES.rect;
+      const blocks = shape.compartments ? compartmentsOf(el, lay.w) : [];
+      comps.set(el.id, blocks);
+      let bottom = HEADER + blocks.reduce((h, c) => h + HEAD_H + LEAD * c.lines.length + 6, 0);
       let right = 0;
       for (const kid of boxesOf(el.id)) {
         const s = size(kid);
@@ -1333,7 +1632,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         x2: Math.max(box.x2, r.x + r.w), y2: Math.max(box.y2, r.y + r.h)
       } : { x: r.x, y: r.y, x2: r.x + r.w, y2: r.y + r.h };
     }
-    return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, docs: docs, frameRect: frameAround(view, box) };
+    return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: comps, frameRect: frameAround(view, box) };
   }
   // The frame around a view's content: its bounding box plus the margin, never smaller than the minimum. An empty
   // view's frame starts at the view's origin.
@@ -1357,7 +1656,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const L = rendererFor(view).layout(view, ids);
       views.set(view.id, L);
       L.shown.forEach((id) => drawnIn(id, view.id));
-      model.relationships.forEach((rel) => { if (!rel.hidden && L.rects.has(rel.from) && L.rects.has(rel.to)) drawnIn(rel.id, view.id); });
+      model.relationships.forEach((rel) => { if (!rel.hidden && ((L.lines && L.lines.has(rel.id)) || (L.rects.has(rel.from) && L.rects.has(rel.to)))) drawnIn(rel.id, view.id); });
       const fr = L.frameRect;
       b = b ? { x: Math.min(b.x, fr.x), y: Math.min(b.y, fr.y), x2: Math.max(b.x2, fr.x + fr.w), y2: Math.max(b.y2, fr.y + fr.h) }
         : { x: fr.x, y: fr.y, x2: fr.x + fr.w, y2: fr.y + fr.h };
@@ -1401,13 +1700,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (rb.x + rb.w <= ra.x) { const m = (ra.x + rb.x + rb.w) / 2; return [{ x: ra.x, y: ay }, { x: m, y: ay }, { x: m, y: by }, { x: rb.x + rb.w, y: by }]; }
     return null;
   }
+  // How a line is routed between the rects of its two ends, by the name in RELATIONSHIPS[kind].line.route: a function
+  // of the two rects returning the points. An unknown route is drawn straight. The slices add their own.
+  const ROUTES = {
+    straight: straight,
+    elbow: function (ra, rb) { return elbow(ra, rb) || straight(ra, rb); }
+  };
   // Where a relationship's line goes in view layout L: its points, and the middle of it, where a label or a pin sits.
+  // A renderer that routes its lines itself puts their points in L.lines (relationship id → points), which come
+  // first; else the line is routed between the rects of its ends, and there is none when either isn't drawn.
   function endpoints(rel, L) {
-    const ra = L.rects.get(rel.from);
-    const rb = L.rects.get(rel.to);
-    if (!ra || !rb) return null;
-    const route = M.RELATIONSHIPS[rel.kind].line.route;
-    const pts = (route === 'elbow' ? elbow(ra, rb) : null) || straight(ra, rb);
+    let pts = L.lines ? L.lines.get(rel.id) : null;
+    if (!pts) {
+      const ra = L.rects.get(rel.from);
+      const rb = L.rects.get(rel.to);
+      if (!ra || !rb) return null;
+      pts = (ROUTES[M.RELATIONSHIPS[rel.kind].line.route] || ROUTES.straight)(ra, rb);
+    }
     const i = Math.floor(pts.length / 2) - 1;
     const mid = { x: (pts[i].x + pts[i + 1].x) / 2, y: (pts[i].y + pts[i + 1].y) / 2 };
     return { pts: pts, a: pts[0], b: pts[pts.length - 1], mid: mid };
@@ -1459,14 +1768,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
     t.textContent = content;
     return t;
   }
+  // The markers a line may carry at its end or its start (RELATIONSHIPS[kind].line.marker and markerStart): each id
+  // and its <marker> markup, put into the drawing's <defs> on every render. The slices add the flow arrow and the rest.
+  const MARKERS = {
+    'm-general': '<marker id="m-general" viewBox="0 0 18 16" refX="17" refY="8" markerWidth="18" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto" overflow="visible">' +
+      '<path class="head" d="M3,1.5 L17,8 L3,14.5 Z"/></marker>',
+    'm-defined': '<marker id="m-defined" viewBox="0 0 24 16" refX="23" refY="8" markerWidth="24" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto" overflow="visible">' +
+      '<path class="head" d="M9,1.5 L23,8 L9,14.5 Z"/><circle class="dot" cx="4" cy="4.5" r="1.6"/><circle class="dot" cx="4" cy="11.5" r="1.6"/></marker>'
+  };
   function defs() {
     const d = node('defs');
     d.innerHTML =
       '<pattern id="plane-dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle class="plane-dot" cx="1" cy="1" r="1.1"/></pattern>' +
-      '<marker id="m-general" viewBox="0 0 18 16" refX="17" refY="8" markerWidth="18" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto" overflow="visible">' +
-      '<path class="head" d="M3,1.5 L17,8 L3,14.5 Z"/></marker>' +
-      '<marker id="m-defined" viewBox="0 0 24 16" refX="23" refY="8" markerWidth="24" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto" overflow="visible">' +
-      '<path class="head" d="M9,1.5 L23,8 L9,14.5 Z"/><circle class="dot" cx="4" cy="4.5" r="1.6"/><circle class="dot" cx="4" cy="11.5" r="1.6"/></marker>';
+      Object.keys(MARKERS).map((id) => MARKERS[id]).join('');
     return d;
   }
   function nameLine(el) {
@@ -1481,48 +1795,98 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     return s;
   }
+  // How the graph renderer draws an element of each shape, by the name in KINDS[kind].shape: draw(el, r, g, L) puts
+  // the outline and the header (the keyword line, the name line) into the element's group g, for its rect r in plane
+  // coordinates; compartments says whether the generic compartments (COMPARTMENTS) are drawn under the header and
+  // counted in the box's height; cls, when present, is added to the group's classes. A box whose shape is unknown is
+  // drawn as a rect, a border item as a port. The slices add diamond, bar, dot, a parameter's square and the rest.
+  function boxShape(radius) {
+    return function (el, r, g) {
+      const kind = M.KINDS[el.kind];
+      const cx = r.x + r.w / 2;
+      g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: radius }, 'outline'));
+      g.appendChild(text(cx, r.y + 16, '«' + (el.abstract ? 'abstract ' : '') + kind.keyword + '»', 'kw', 'middle'));
+      g.appendChild(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle'));
+    };
+  }
+  const SHAPES = {
+    rect: { draw: boxShape(0), compartments: true },
+    rounded: { draw: boxShape(10), compartments: true },
+    // A port: a small square on its owner's border, a glyph in it, and its name outside the owner.
+    port: {
+      draw: function (p, r, g) {
+        g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: r.w, height: r.h, rx: 2.5 }, 'outline'));
+        // The glyph inside the square: both directions, since the slice doesn't say which way a port's features go.
+        const h = r.side === 'left' || r.side === 'right';
+        const c = r.cx;
+        const cy = r.cy;
+        const glyph = h
+          ? 'M' + f(c - 4.5) + ',' + f(cy) + ' H' + f(c + 4.5) + ' M' + f(c - 2) + ',' + f(cy - 2.5) + ' L' + f(c - 4.5) + ',' + f(cy) + ' L' + f(c - 2) + ',' + f(cy + 2.5) +
+            ' M' + f(c + 2) + ',' + f(cy - 2.5) + ' L' + f(c + 4.5) + ',' + f(cy) + ' L' + f(c + 2) + ',' + f(cy + 2.5)
+          : 'M' + f(c) + ',' + f(cy - 4.5) + ' V' + f(cy + 4.5) + ' M' + f(c - 2.5) + ',' + f(cy - 2) + ' L' + f(c) + ',' + f(cy - 4.5) + ' L' + f(c + 2.5) + ',' + f(cy - 2) +
+            ' M' + f(c - 2.5) + ',' + f(cy + 2) + ' L' + f(c) + ',' + f(cy + 4.5) + ' L' + f(c + 2.5) + ',' + f(cy + 2);
+        g.appendChild(node('path', { d: glyph }, 'glyph'));
+        // The name sits outside the owner, beside the square: above and to the right of a port on the right border,
+        // below and to the left on the left border (so two ports facing each other never share a line), above on the
+        // top, below on the bottom.
+        const label = nameLine(p);
+        if (r.side === 'right') g.appendChild(text(c + 12, cy - 6, label, 'mono', 'start'));
+        else if (r.side === 'left') g.appendChild(text(c - 12, cy + 15, label, 'mono', 'end'));
+        else if (r.side === 'top') g.appendChild(text(c, cy - 13, label, 'mono', 'middle'));
+        else g.appendChild(text(c, cy + 22, label, 'mono', 'middle'));
+      },
+      compartments: false
+    }
+  };
+  // The compartments a box may show under its header, in this order: applies(el) says whether the element has one,
+  // head is its title (a string, or a function of the element), lines(el, width) its text as lines wrapped for a box
+  // width px wide (none: no compartment), and cls, when present, the class of its lines (doc, the 11px sans, unless
+  // said otherwise; mono is the code font). Each takes HEAD_H + LEAD per line + 6 of the box's height. The doc is the
+  // first; the slices push the code links, a state's actions and the rest.
+  const COMPARTMENTS = [
+    { applies: function (el) { return M.KINDS[el.kind].fields.indexOf('doc') >= 0 && el.doc.trim() !== ''; }, head: 'doc', cls: 'doc',
+      lines: function (el, width) { return wrap(el.doc, Math.max(12, Math.floor((width - 24) / 6.1))); } }
+  ];
+  // The compartments an element shows in a box width px wide: those that apply and have lines, as { head, lines, cls }.
+  function compartmentsOf(el, width) {
+    const out = [];
+    COMPARTMENTS.forEach((c) => {
+      if (!c.applies(el)) return;
+      const lines = c.lines(el, width);
+      if (lines.length) out.push({ head: typeof c.head === 'function' ? c.head(el) : c.head, lines: lines, cls: c.cls || 'doc' });
+    });
+    return out;
+  }
+  // A box: its shape's outline and header, its compartments when the shape has them, then what is inside it.
   function drawBox(el, parent, L) {
     const kind = M.KINDS[el.kind];
+    const shape = SHAPES[kind.shape] || SHAPES.rect;
     const r = L.rects.get(el.id);
-    const g = node('g', { 'data-el': el.id, 'data-kind': el.kind, 'data-view': L.view.id }, 'el ' + (kind.definition ? 'def' : 'usage') + (el.abstract ? ' is-abstract' : ''));
-    g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: kind.shape === 'rounded' ? 10 : 0 }, 'outline'));
-    const cx = r.x + r.w / 2;
-    g.appendChild(text(cx, r.y + 16, '«' + (el.abstract ? 'abstract ' : '') + kind.keyword + '»', 'kw', 'middle'));
-    g.appendChild(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle'));
-    const lines = L.docs.get(el.id) || [];
-    if (lines.length) {
-      const y = r.y + HEADER;
-      g.appendChild(node('line', { x1: f(r.x), y1: f(y), x2: f(r.x + r.w), y2: f(y) }, 'rule'));
-      g.appendChild(text(cx, y + 13, 'doc', 'head-c', 'middle'));
-      lines.forEach((l, i) => g.appendChild(text(r.x + PAD, y + HEAD_H + 11 + i * LEAD, l, 'doc')));
-    }
+    const g = node('g', { 'data-el': el.id, 'data-kind': el.kind, 'data-view': L.view.id }, 'el ' + (kind.definition ? 'def' : 'usage') + (el.abstract ? ' is-abstract' : '') + (shape.cls ? ' ' + shape.cls : ''));
+    shape.draw(el, r, g, L);
+    if (shape.compartments) drawCompartments(el, r, g, L);
     const kids = L.kids.get(el.id) || [];
     kids.filter((k) => !M.KINDS[k.kind].onBorder).forEach((k) => drawBox(k, g, L));
     kids.filter((k) => M.KINDS[k.kind].onBorder).forEach((k) => drawPort(k, g, L));
     parent.appendChild(g);
   }
+  // The compartments under a box's header, one block each, stacked: a rule, the head in italics, then the lines.
+  function drawCompartments(el, r, g, L) {
+    const cx = r.x + r.w / 2;
+    let y = r.y + HEADER;
+    (L.comps.get(el.id) || []).forEach((c) => {
+      g.appendChild(node('line', { x1: f(r.x), y1: f(y), x2: f(r.x + r.w), y2: f(y) }, 'rule'));
+      g.appendChild(text(cx, y + 13, c.head, 'head-c', 'middle'));
+      c.lines.forEach((l, i) => g.appendChild(text(r.x + PAD, y + HEAD_H + 11 + i * LEAD, l, c.cls)));
+      y += HEAD_H + LEAD * c.lines.length + 6;
+    });
+  }
+  // A border item, by its kind's shape (a port unless the shape is known).
   function drawPort(p, parent, L) {
+    const shape = SHAPES[M.KINDS[p.kind].shape] || SHAPES.port;
     const r = L.rects.get(p.id);
-    const g = node('g', { 'data-el': p.id, 'data-kind': p.kind, 'data-view': L.view.id }, 'el port');
-    g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: r.w, height: r.h, rx: 2.5 }, 'outline'));
-    // The glyph inside the square: both directions, since the slice doesn't say which way a port's features go.
-    const h = r.side === 'left' || r.side === 'right';
-    const c = r.cx;
-    const cy = r.cy;
-    const glyph = h
-      ? 'M' + f(c - 4.5) + ',' + f(cy) + ' H' + f(c + 4.5) + ' M' + f(c - 2) + ',' + f(cy - 2.5) + ' L' + f(c - 4.5) + ',' + f(cy) + ' L' + f(c - 2) + ',' + f(cy + 2.5) +
-        ' M' + f(c + 2) + ',' + f(cy - 2.5) + ' L' + f(c + 4.5) + ',' + f(cy) + ' L' + f(c + 2) + ',' + f(cy + 2.5)
-      : 'M' + f(c) + ',' + f(cy - 4.5) + ' V' + f(cy + 4.5) + ' M' + f(c - 2.5) + ',' + f(cy - 2) + ' L' + f(c) + ',' + f(cy - 4.5) + ' L' + f(c + 2.5) + ',' + f(cy - 2) +
-        ' M' + f(c - 2.5) + ',' + f(cy + 2) + ' L' + f(c) + ',' + f(cy + 4.5) + ' L' + f(c + 2.5) + ',' + f(cy + 2);
-    g.appendChild(node('path', { d: glyph }, 'glyph'));
-    // The name sits outside the owner, beside the square: above and to the right of a port on the right border,
-    // below and to the left on the left border (so two ports facing each other never share a line), above on the
-    // top, below on the bottom.
-    const label = nameLine(p);
-    if (r.side === 'right') g.appendChild(text(c + 12, cy - 6, label, 'mono', 'start'));
-    else if (r.side === 'left') g.appendChild(text(c - 12, cy + 15, label, 'mono', 'end'));
-    else if (r.side === 'top') g.appendChild(text(c, cy - 13, label, 'mono', 'middle'));
-    else g.appendChild(text(c, cy + 22, label, 'mono', 'middle'));
+    const g = node('g', { 'data-el': p.id, 'data-kind': p.kind, 'data-view': L.view.id }, 'el port' + (shape.cls ? ' ' + shape.cls : ''));
+    shape.draw(p, r, g, L);
     parent.appendChild(g);
   }
   function drawRel(rel, parent, L) {
@@ -1534,6 +1898,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     g.appendChild(node('path', { d: d }, 'hit'));
     const line = node('path', { d: d }, 'line');
     if (how.marker) line.setAttribute('marker-end', 'url(#' + how.marker + ')');
+    if (how.markerStart) line.setAttribute('marker-start', 'url(#' + how.markerStart + ')');
     g.appendChild(line);
     const label = how.label ? how.label(rel) : '';
     if (label) g.appendChild(text(e.mid.x, e.mid.y + 30, label, 'uname', 'middle'));
@@ -1569,13 +1934,20 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return g;
   }
 
-  // The renderers, by the name a view kind gives in VIEW_KINDS. Each lays a view out (layout(view, ids) returns
-  // what graphLayout returns: at least view, shown, rects, kids, frameRect), draws its content into the frame's
-  // group, and, when the view's elements can be placed and moved by hand, places one (place(view, kind, p, hit)
-  // adds the element to the model and the view's layout, or says why not and returns null), starts a drag of one
-  // (dragStart(view, el, p) returns the drag record or null), moves it (drag(view, el, d, p)), and finishes
-  // (drop(view, el, d, p, event) returns { undo, text, key, say } for the undo entry, the change log and the status,
-  // or null when nothing changed). The later slices add sequence, geometry, grid and browser here.
+  // The renderers, by the name a view kind gives in VIEW_KINDS. Each lays a view out: layout(view, ids) returns
+  // { view, shown (a Set of the ids of the elements drawn), kids (a parent's id, or '' for the view's ground → the
+  // elements in it), parentOf (the other way round), rects (element id → its rect in plane coordinates; a border
+  // item's has cx, cy, side and port: true), comps (element id → its compartments, [{ head, lines, cls }]), frameRect
+  // (from frameAround), and lines (optional: relationship id → the points of a line the renderer routed itself) }.
+  // Pins, badges, lines, the Show list and the panel read shown, rects, comps and endpoints(), so a renderer that
+  // fills them gets all of that for free. It draws its content into the frame's group (draw(view, g, L)) and, when
+  // the view's elements can be placed and moved by hand, places one (place(view, kind, p, hit) adds the element to
+  // the model and the view's layout, or says why not and returns null), starts a drag of one (dragStart(view, el, p)
+  // returns the drag record or null), moves it (drag(view, el, d, p)), and finishes (drop(view, el, d, p, event)
+  // returns { undo, text, key, say } for the undo entry, the change log and the status, or null when nothing
+  // changed). A renderer that shows every element of the model whatever the view's layout says (the browser) carries
+  // showsAll: true: the Show list and Remove from view then say so. The slices add sequence, geometry, grid and
+  // browser in their regions below (RENDERERS.sequence = {…}).
   const RENDERERS = {
     graph: {
       layout: graphLayout,
@@ -1675,7 +2047,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // A view whose kind has no renderer yet: the frame at its minimum size, saying so.
     pending: {
       layout: function (view) {
-        return { view: view, shown: new Set(), kids: new Map(), parentOf: new Map(), rects: new Map(), docs: new Map(), frameRect: frameAround(view, null) };
+        return { view: view, shown: new Set(), kids: new Map(), parentOf: new Map(), rects: new Map(), comps: new Map(), frameRect: frameAround(view, null) };
       },
       draw: function (view, g, L) {
         const fr = L.frameRect;
@@ -1687,15 +2059,43 @@ textarea.text[readonly] { resize: none; background: transparent; }
       drop: function () { return null; }
     }
   };
-  // A new element of a kind, with the fields its kind has.
+  // A new element of a kind, with the fields its kind has, each at its starting value.
   function freshElement(kind, name) {
-    const k = M.KINDS[kind];
     const el = { id: newId('e'), kind: kind, name: name, doc: '' };
-    if (k.fields.indexOf('abstract') >= 0) el.abstract = false;
-    if (k.fields.indexOf('multiplicity') >= 0) el.multiplicity = '';
-    if (k.fields.indexOf('conjugated') >= 0) el.conjugated = false;
+    M.KINDS[kind].fields.forEach((fld) => { if (el[fld] === undefined) blankField(el, fld); });
     return el;
   }
+  // Gives item the starting value of a field, by its row in FIELDS: what fresh() returns when the row has one, else
+  // false for a bool, the first value of an enum, '' for the rest; a field that isn't stored as a value (type) gets
+  // nothing, and so does a field with no row.
+  function blankField(item, fld) {
+    const spec = M.FIELDS[fld];
+    if (!spec || spec.stored === false) return;
+    if (spec.fresh) item[fld] = spec.fresh();
+    else if (spec.type === 'bool') item[fld] = false;
+    else if (spec.type === 'enum') item[fld] = spec.values[0];
+    else item[fld] = '';
+  }
+
+  // ---- The slices' regions: everything a slice adds to the page goes in its own, in this order. The tables above
+  // are const objects, so assigning into them works here (SHAPES.diamond = …, RENDERERS.sequence = {…}, Object.assign(
+  // TOOL_TITLE, {…}), COMPARTMENTS.push(…), MARKERS['m-flow'] = …, ROUTES.x = …, ACTIONS.toggle = …, VIEW_PANELS.
+  // GridView = …, TOOLS.Note = …), function declarations hoist, so a slice may call any function of this script, and
+  // start() runs at the end of the script, after every region.
+  // ==== slice: interconnection ====
+  // ==== end slice: interconnection ====
+  // ==== slice: behavior ====
+  // ==== end slice: behavior ====
+  // ==== slice: sequence ====
+  // ==== end slice: sequence ====
+  // ==== slice: geometry ====
+  // ==== end slice: geometry ====
+  // ==== slice: grid ====
+  // ==== end slice: grid ====
+  // ==== slice: browser ====
+  // ==== end slice: browser ====
+  // ==== slice: annotations ====
+  // ==== end slice: annotations ====
 
   // Where a note's pin sits in view layout L: on the top edge of a box, beside a port's square away from its name, on
   // the middle of a line. Pins on the same thing step aside by a screen distance, so they stay apart when zoomed out.
@@ -1974,6 +2374,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function toolHint(kind, step) {
     const h = TOOL_HINT[kind];
     if (M.KINDS[kind]) return h || 'Click where the ' + M.KINDS[kind].label + ' goes.';
+    if (typeof h === 'string') return h; // a tool of TOOLS, with one hint
     return (h || ['Click the first end…', 'Now click the other end.'])[step];
   }
   function baseHint() {
@@ -2095,7 +2496,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function createRel(kind, a, b, hidden, what, viewId) {
     const before = snapshot();
     const rel = { id: newId('r'), kind: kind, from: a.id, to: b.id };
-    M.RELATIONSHIPS[kind].fields.forEach((fld) => { rel[fld] = ''; });
+    M.RELATIONSHIPS[kind].fields.forEach((fld) => blankField(rel, fld));
     if (hidden && M.RELATIONSHIPS[kind].hideable) rel.hidden = true;
     if (kind === 'FeatureTyping') {
       // One definition per usage: the old line goes, and the notes on it move to the new one.
@@ -2177,6 +2578,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const vid = activeView().layout[el.id] ? active : viewShowing(el.id);
     const view = viewById(vid);
     if (!view) { say(M.describe(model, el) + ' is not drawn in any view.'); return; }
+    if (rendererFor(view).showsAll) { say(M.describeView(model, view) + ' shows every element, so nothing can be taken out of it.'); return; }
     const before = snapshot();
     const gone = [el].concat(M.descendants(model, el.id)).filter((e) => view.layout[e.id]);
     gone.forEach((e) => { delete view.layout[e.id]; });
@@ -2191,8 +2593,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
       (elsewhere.length ? ' and in ' + elsewhere.join(', ') : '') + '; the view\'s Show list brings it back.');
   }
   removeFromViewButton.addEventListener('click', () => removeFromView(selectedElement()));
-  // The elements a view could show and doesn't: those its kind admits, border items only once their owner is shown.
+  // The elements a view could show and doesn't: those its kind admits, border items only once their owner is shown;
+  // none for a view whose renderer shows everything.
   function showable(view) {
+    if (rendererFor(view).showsAll) return [];
     return model.elements.filter((e) => !view.layout[e.id] && M.admits(view.kind, e.kind) &&
       (!M.KINDS[e.kind].onBorder || (e.owner !== undefined && view.layout[e.owner])));
   }
@@ -2311,14 +2715,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
       problemsList.appendChild(li);
     });
   }
+  // The panel for an element or a line: the core fields (name, abstract, defined by, multiplicity, conjugated, doc)
+  // the page fills itself; every other field of the kind goes through its row in FIELDS (renderExtraFields).
   function renderElementFields(s, write) {
     fields.hidden = false;
-    ['l-name', 'l-abstract', 'l-type', 'l-type-line', 'l-multiplicity', 'l-conjugated', 'l-doc'].forEach((id) => { $(id).hidden = true; });
+    fields.querySelectorAll('label[id^="l-"]').forEach((l) => { l.hidden = true; });
     if (s.type === 'el') {
       const el = s.item;
       const k = M.KINDS[el.kind];
       fKind.textContent = M.describe(model, el);
-      k.fields.forEach((fld) => { const l = $('l-' + fld); if (l) l.hidden = false; });
+      k.fields.forEach((fld) => { const l = $('l-' + fld); if (l && M.FIELDS[fld] && M.FIELDS[fld].core) l.hidden = false; });
       fName.value = el.name;
       if (k.fields.indexOf('abstract') >= 0) fAbstract.checked = !!el.abstract;
       if (k.fields.indexOf('type') >= 0) {
@@ -2357,11 +2763,106 @@ textarea.text[readonly] { resize: none; background: transparent; }
       fViews.textContent = views.length ? 'Drawn in ' + views.map((v) => v.name.trim() || '(unnamed view)').join(', ') : 'Drawn in no view: none shows both ends.';
       removeFromViewButton.hidden = true;
     }
+    renderExtraFields(s.item, s.type === 'el' ? M.KINDS[s.item.kind].fields : M.RELATIONSHIPS[s.item.kind].fields, write);
     [fName, fMult, fDoc].forEach((i) => { i.readOnly = !write; });
     [fAbstract, fType, fTypeLine, fConj].forEach((i) => { i.disabled = !write; });
     deleteButton.hidden = !write;
     addNoteButton.hidden = !write;
   }
+  // The kind of the view a field's views are checked against: the view that shows the selection, else the active one.
+  function viewKindShowing(id) {
+    const view = viewById(viewShowing(id) || active);
+    return view ? view.kind : null;
+  }
+  // The fields of the selection the page doesn't handle itself, each through its row in FIELDS and its slice's
+  // <label id="l-<field>"> holding <input id="f-<field>"> in #fields: a bool is a checkbox, a ref a select of the
+  // elements its options allow with nothing first, the rest take the value as text. A field with views shows only
+  // while the selection is drawn in a view of one of those kinds. A field with no input in the panel is its slice's.
+  function renderExtraFields(item, named, write) {
+    const kind = viewKindShowing(item.id);
+    named.forEach((fld) => {
+      const spec = M.FIELDS[fld];
+      const input = $('f-' + fld);
+      const label = $('l-' + fld);
+      if (!spec || spec.core || !input || !label) return;
+      if (spec.views && spec.views.indexOf(kind) < 0) return;
+      const v = item[fld];
+      if (spec.type === 'bool') input.checked = v === true;
+      else if (spec.type === 'ref') {
+        while (input.firstChild) input.removeChild(input.firstChild);
+        const none = document.createElement('option');
+        none.value = '';
+        none.textContent = 'nothing';
+        input.appendChild(none);
+        spec.options(model, item).forEach((e) => {
+          const o = document.createElement('option');
+          o.value = e.id;
+          o.textContent = e.name.trim() || '(unnamed)';
+          input.appendChild(o);
+        });
+        input.value = typeof v === 'string' ? v : '';
+      } else if (spec.type === 'enum') input.value = spec.values.indexOf(v) >= 0 ? v : spec.values[0];
+      else input.value = v === undefined || v === null ? '' : String(v);
+      if (input.tagName === 'SELECT' || input.type === 'checkbox') input.disabled = !write; else input.readOnly = !write;
+      label.hidden = false;
+    });
+  }
+  // The field an input or change event in #fields is about, when it is one of those: null for a core field, which has
+  // listeners of its own, and for anything that isn't a field of the selection.
+  function extraFieldOf(event) {
+    const input = event.target;
+    const id = input && input.id ? input.id : '';
+    if (id.indexOf('f-') !== 0) return null;
+    const fld = id.slice(2);
+    const spec = M.FIELDS[fld];
+    const el = selectedElement();
+    const rel = selectedRel();
+    const item = el || rel;
+    if (!spec || spec.core || !item) return null;
+    const named = el ? M.KINDS[el.kind].fields : M.RELATIONSHIPS[rel.kind].fields;
+    if (named.indexOf(fld) < 0) return null;
+    return { item: item, fld: fld, spec: spec, input: input, what: el ? M.describe(model, el) : 'the ' + M.describeRel(model, rel) };
+  }
+  function readInput(spec, input) {
+    if (spec.type === 'bool') return input.checked;
+    if (spec.type === 'number') return input.value.trim() !== '' && Number.isFinite(+input.value) ? +input.value : '';
+    return input.value;
+  }
+  function fieldChangeText(x) {
+    const v = x.item[x.fld];
+    let value = v === '' || v === undefined || v === null ? 'nothing' : String(v);
+    if (x.spec.type === 'ref' && v) { const e = layout.ids.get(v); value = e ? (e.name.trim() || '(unnamed)') : 'nothing'; }
+    return 'Set the ' + x.spec.label + ' of ' + x.what + ' to ' + value;
+  }
+  // One pair of listeners for all of those fields: typing in a string, text or number field is one undo step per field,
+  // logged once the field is left; a bool, enum or ref changes at once.
+  fields.addEventListener('input', (event) => {
+    const x = extraFieldOf(event);
+    if (!x || !editable() || ['string', 'text', 'number'].indexOf(x.spec.type) < 0) return;
+    const before = snapshot();
+    x.item[x.fld] = readInput(x.spec, x.input);
+    commit(fieldChangeText(x), x.fld + ':' + x.item.id, before);
+    render();
+    changed();
+  });
+  fields.addEventListener('change', (event) => {
+    const x = extraFieldOf(event);
+    if (!x) return;
+    if (['string', 'text', 'number'].indexOf(x.spec.type) >= 0) {
+      logChange(fieldChangeText(x), x.fld + ':' + x.item.id);
+      endEdit();
+      changed();
+      return;
+    }
+    if (!editable()) return;
+    const before = snapshot();
+    x.item[x.fld] = readInput(x.spec, x.input);
+    const what = fieldChangeText(x);
+    commit(what, null, before);
+    logChange(what);
+    render();
+    changed();
+  });
   function renderViewFields(view, write) {
     viewFields.hidden = false;
     vKind.textContent = view.kind;
@@ -2372,9 +2873,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!candidates.length) {
       const o = document.createElement('option');
       o.value = '';
-      o.textContent = M.VIEW_KINDS[view.kind].admits !== null && !M.VIEW_KINDS[view.kind].admits.length
-        ? 'Nothing can be shown in a ' + M.VIEW_KINDS[view.kind].label + ' yet'
-        : 'Everything it can show is shown';
+      o.textContent = rendererFor(view).showsAll ? 'This view shows every element'
+        : M.VIEW_KINDS[view.kind].admits !== null && !M.VIEW_KINDS[view.kind].admits.length
+          ? 'Nothing can be shown in a ' + M.VIEW_KINDS[view.kind].label + ' yet'
+          : 'Everything it can show is shown';
       vShow.appendChild(o);
     }
     candidates.forEach((e) => {
@@ -2383,12 +2885,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
       o.textContent = M.describe(model, e);
       vShow.appendChild(o);
     });
-    vMeta.textContent = plural(Object.keys(view.layout).length, 'element') + ' shown · ' + M.VIEW_KINDS[view.kind].label +
+    const L = viewLayout(view.id);
+    vMeta.textContent = plural(L ? L.shown.size : Object.keys(view.layout).length, 'element') + ' shown · ' + M.VIEW_KINDS[view.kind].label +
       (view.id === active ? ' · active' : '');
     [vName, vDoc].forEach((i) => { i.readOnly = !write; });
     vShow.disabled = !write || !candidates.length;
     vShowAdd.disabled = !write || !candidates.length;
     deleteViewButton.hidden = !write;
+    // The kind's own options: its div.view-options is shown, the other kinds' hidden, and its function fills it.
+    viewFields.querySelectorAll('.view-options').forEach((d) => { d.hidden = d.getAttribute('data-view-kind') !== view.kind; });
+    if (VIEW_PANELS[view.kind]) VIEW_PANELS[view.kind](view, write);
   }
   function selectedElement() { const s = resolve(selection); return s && s.type === 'el' ? s.item : null; }
   function selectedRel() { const s = resolve(selection); return s && s.type === 'rel' ? s.item : null; }
@@ -3005,8 +3511,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const b = pointers[ids[1]];
     return { mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, dist: Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1) };
   }
-  // What is under the pointer: a pin, a problem's badge, an element, a line, a frame's tab, or the plane; with the
-  // view it belongs to, from the frame it is drawn in.
+  // What is under the pointer: a pin, a problem's badge, a renderer's own control (anything with data-action, run
+  // through ACTIONS; never dragged), an element, a line, a frame's tab, or the plane; with the view it belongs to,
+  // from the frame it is drawn in.
   function hitOf(target) {
     const closest = (sel) => (target.closest ? target.closest(sel) : null);
     const frame = closest('.frame');
@@ -3015,6 +3522,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (pin) return { type: 'pin', id: pin.getAttribute('data-note'), view: pin.getAttribute('data-view') };
     const badge = closest('.problem');
     if (badge) return { type: 'problem', id: badge.getAttribute('data-for'), view: badge.getAttribute('data-view') };
+    const action = closest('[data-action]');
+    if (action) return { type: 'action', action: action.getAttribute('data-action'), id: action.getAttribute('data-for'), g: action, view: view, hint: action.getAttribute('data-hint') };
     const elG = closest('[data-el]');
     if (elG) return { type: 'el', id: elG.getAttribute('data-el'), g: elG, view: view };
     const relG = closest('[data-rel]');
@@ -3158,8 +3667,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   svg.addEventListener('pointerup', endPointer);
   svg.addEventListener('pointercancel', endPointer);
-  // A click: with a tool, it places or draws; without one, it selects what is under it. The empty plane inside a
-  // frame selects the view; outside every frame it clears the selection and leaves the active view as it is.
+  // A click: on a renderer's control, its action runs; with a tool, it places or draws (or does what a tool of TOOLS
+  // does); without one, it selects what is under it. The empty plane inside a frame selects the view; outside every
+  // frame it clears the selection and leaves the active view as it is.
   function click(hit, event) {
     if (hit.type === 'pin') { focusNote(hit.id); return; }
     const p = toDrawing(event.clientX, event.clientY);
@@ -3169,7 +3679,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
       say(problems.filter((q) => marksFor(q).indexOf(hit.id) >= 0).map((q) => q.message).join(' '));
       return;
     }
+    if (hit.type === 'action') { if (ACTIONS[hit.action]) ACTIONS[hit.action](hit, p, event); return; }
     if (tool && !editable()) { setTool(null); return; }
+    if (tool && TOOLS[tool]) { TOOLS[tool](hit, p, event); return; }
     if (tool && M.KINDS[tool]) { place(tool, hit, p); return; }
     if (tool) { connectStep(tool, hit); return; }
     if (hit.type === 'el' || hit.type === 'rel') { select({ type: hit.type, id: hit.id }, hit.view); return; }
@@ -3229,6 +3741,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const hit = hitOf(event.target);
     if (hit.type === 'pin') { setHover(null); hint.textContent = 'Click the pin to read its note.'; return; }
     if (hit.type === 'problem') { setHover(null); hint.textContent = 'Click the badge to select what has the problem; the panel says what it is.'; return; }
+    if (hit.type === 'action') { setHover(null); hint.textContent = hit.hint || baseHint(); return; }
     if (hit.type === 'tab') {
       setHover(null);
       const view = viewById(hit.id);
