@@ -1,0 +1,2228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stronghold Design Canvas</title>
+<!-- A SysML v2 model drawn as one general view on an endless plane, with notes on its elements and lines, and an
+     export to textual SysML v2. Open this file in a browser; it needs no server. The model between the model markers
+     and the notes between the notes markers are written by save-state.mjs. Published on claude.ai, the page keeps the
+     working model and the notes in the page's database, where Claude reads them. README.md in this folder says how. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: a bar with the palette along the top, the plane under it, and panels floating on the plane.
+   Stronghold's design tokens (app/src/design/tokens.css), with a dark set made from the same ink and teal. */
+:root {
+  --bg: #EEF2F4;
+  --card: #FFFFFF;
+  --fg: #182630;
+  --fg-2: #5B6973;
+  --line: #E2E7EB;
+  --line-strong: #CBD3D9;
+  --grid: #B9C3CB;
+  --accent: #176B61;
+  --accent-soft: #E7F1EF;
+  --on-accent: #FFFFFF;
+  --danger: #B23C3C;
+  --shadow: 0 1px 2px rgba(24, 38, 48, 0.12), 0 8px 24px -8px rgba(24, 38, 48, 0.22);
+  --sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1317; --card: #162128; --fg: #E2E7EB; --fg-2: #A9B4BC; --line: #26343D; --line-strong: #3A4A55;
+    --grid: #2C3A44; --accent: #6CB8A9; --accent-soft: #1C3833; --on-accent: #10181D; --danger: #F08A8A;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0C1317; --card: #162128; --fg: #E2E7EB; --fg-2: #A9B4BC; --line: #26343D; --line-strong: #3A4A55;
+  --grid: #2C3A44; --accent: #6CB8A9; --accent-soft: #1C3833; --on-accent: #10181D; --danger: #F08A8A;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 14px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); }
+
+/* The bar along the top: the name, the palette, and the actions. */
+.top {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px;
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--card); border-bottom: 1px solid var(--line);
+}
+.title { display: grid; gap: 2px; min-width: 0; margin-right: auto; }
+.eyebrow { margin: 0; font: 500 11px/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+h1 { margin: 0; font: 600 17px/1.25 var(--sans); }
+.palette { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.palette .label { font: 500 11px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-2); margin-right: 2px; }
+.palette .sep { width: 1px; height: 22px; background: var(--line-strong); margin: 0 4px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button {
+  font: 600 13px/1 var(--sans);
+  color: var(--fg);
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+button:disabled:hover { border-color: var(--line-strong); color: var(--fg); }
+.palette button[data-tool] { font: 500 12.5px/1 var(--mono); padding: 8px 10px; }
+.palette button.is-active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .canvas:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: -2px;
+}
+
+/* The plane: it fills the window under the bar, and everything else floats on it. */
+.stage { position: relative; min-height: 0; overflow: hidden; }
+.canvas { position: absolute; inset: 0; touch-action: none; cursor: default; outline: none; }
+.canvas.is-panning, .canvas.is-panning * { cursor: grabbing !important; }
+.canvas.has-tool { cursor: crosshair; }
+.canvas svg { display: block; width: 100%; height: 100%; color: var(--fg); user-select: none; -webkit-user-select: none; }
+.sysml .plane-dot { fill: var(--grid); }
+.sysml.is-far .plane { display: none; }
+.sysml text { fill: currentColor; }
+.sysml .kw { font: 400 10.5px var(--sans); fill-opacity: 0.72; }
+.sysml .name { font: 600 13px var(--sans); }
+.sysml .uname { font: 500 12.5px var(--sans); }
+.sysml .is-abstract > .name { font-style: italic; }
+.sysml .head-c { font: italic 400 10.5px var(--sans); fill-opacity: 0.66; }
+.sysml .doc { font: 400 11px var(--sans); fill-opacity: 0.86; }
+.sysml .mono { font: 400 11px var(--mono); }
+.sysml .rule { stroke: currentColor; stroke-width: 0.75; stroke-opacity: 0.45; }
+.sysml .frame .outline { fill: none; stroke: currentColor; stroke-width: 1; stroke-opacity: 0.55; pointer-events: none; }
+.sysml .frame text { pointer-events: none; }
+.sysml .frame-name { font: 600 12px var(--sans); }
+.sysml .el { cursor: pointer; }
+.sysml .el > .outline { fill: var(--card); stroke: currentColor; stroke-width: 1.25; }
+.sysml .el.is-hover > .outline { stroke: var(--accent); }
+.sysml .el.is-drop > .outline { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 3; }
+.sysml .el.is-source > .outline { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; }
+.sysml .el.is-selected > .outline { stroke: var(--accent); stroke-width: 2.5; }
+.sysml .port > .outline { fill: var(--card); stroke: var(--accent); stroke-width: 1.5; }
+.sysml .port .glyph { fill: none; stroke: var(--accent); stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.sysml .rel { cursor: pointer; }
+.sysml .rel .hit { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; }
+.sysml .rel .line { fill: none; stroke: currentColor; stroke-width: 1.25; }
+.sysml .rel.connection .line { stroke: var(--accent); stroke-width: 1.75; }
+.sysml .rel.is-hover .line { stroke: var(--accent); }
+.sysml .rel.is-selected .line { stroke: var(--accent); stroke-width: 2.75; }
+.sysml .head { fill: var(--card); stroke: currentColor; stroke-width: 1.25; stroke-linejoin: round; }
+.sysml .dot { fill: currentColor; }
+.sysml .pin { cursor: pointer; }
+.sysml .pin circle { fill: var(--accent); stroke: var(--card); stroke-width: 2; }
+.sysml .pin.is-resolved circle { fill: var(--fg-2); }
+.sysml .pin.is-active circle { stroke: var(--fg); stroke-width: 2.5; }
+.sysml .pin text { fill: var(--on-accent); font: 600 11px/1 var(--sans); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+
+.float { position: absolute; background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
+.hud {
+  left: max(12px, env(safe-area-inset-left, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  max-width: min(560px, calc(100% - 240px)); padding: 8px 12px; display: grid; gap: 2px;
+}
+.hint { margin: 0; font: 400 12.5px/1.4 var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
+.status { margin: 0; font-size: 13px; color: var(--fg); min-height: 0; }
+.status:empty { display: none; }
+.zoom {
+  right: max(12px, env(safe-area-inset-right, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 4px; padding: 4px;
+}
+.zoom button { padding: 7px 10px; border-color: transparent; }
+.zoom button:hover { border-color: var(--line-strong); }
+.zoom output { min-width: 48px; text-align: center; font: 500 12px/1 var(--mono); color: var(--fg-2); font-variant-numeric: tabular-nums; }
+
+/* The panel: what is selected, then the notes. */
+.panel {
+  top: 12px; right: max(12px, env(safe-area-inset-right, 0px)); width: 340px; max-height: calc(100% - 84px); overflow: auto;
+  display: grid; gap: 14px; align-content: start; padding: 14px;
+}
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.panel h2 { margin: 0; display: flex; align-items: baseline; gap: 8px; font: 600 15px/1.3 var(--sans); }
+.count { font: 500 12px/1 var(--mono); color: var(--fg-2); }
+.hide { padding: 6px 9px; font-size: 12px; }
+.show-panel { position: absolute; top: 12px; right: max(12px, env(safe-area-inset-right, 0px)); box-shadow: var(--shadow); }
+.empty { margin: 0; font-size: 13.5px; color: var(--fg-2); }
+.kind { margin: 0; font: 500 12px/1.3 var(--mono); color: var(--accent); overflow-wrap: anywhere; }
+.fields { display: grid; gap: 10px; }
+.fields label { display: grid; gap: 4px; font: 500 11px/1.2 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); }
+.fields label.check { grid-template-columns: auto 1fr; align-items: center; gap: 8px; text-transform: none; letter-spacing: 0; font: 400 13px/1.3 var(--sans); color: var(--fg); }
+.fields input[type="text"], .fields select, .fields textarea {
+  width: 100%; font: 400 13.5px/1.4 var(--sans); color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px;
+}
+.fields textarea { min-height: 54px; resize: vertical; }
+.fields input:read-only, .fields textarea:read-only { background: transparent; }
+.fields input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.meta { margin: 0; font: 400 11.5px/1.3 var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+.danger { color: var(--danger); border-color: var(--line); }
+.danger:hover { color: var(--danger); border-color: var(--danger); }
+.notes { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.note { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
+.note.is-active { border-color: var(--accent); }
+.note.is-resolved { border-style: dashed; }
+.note-head { display: flex; align-items: center; gap: 8px; }
+.badge {
+  flex: none; width: 24px; height: 24px; padding: 0; border: none; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--accent); color: var(--on-accent); font: 600 11px/1 var(--sans);
+}
+.badge:hover { color: var(--on-accent); box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
+.is-resolved .badge { background: var(--fg-2); }
+.on { flex: 1; min-width: 0; font-size: 12.5px; color: var(--fg-2); overflow-wrap: anywhere; }
+.on b { font-weight: 600; color: var(--fg); }
+.remove { padding: 6px 8px; font-size: 12px; color: var(--fg-2); border-color: var(--line); }
+.remove:hover { color: var(--danger); border-color: var(--danger); }
+textarea.text {
+  width: 100%; min-height: 60px; resize: vertical;
+  font: 400 13.5px/1.5 var(--sans); color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
+}
+textarea.text[readonly] { resize: none; background: transparent; }
+.response { margin: 0; padding: 6px 10px; border-left: 2px solid var(--accent); font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.response b { font-weight: 600; color: var(--accent); }
+.where { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--fg-2); }
+.where:empty { display: none; }
+.warning { margin: 0; font-size: 13px; color: var(--danger); }
+
+/* The export: the model as textual SysML v2, in a sheet along the bottom. */
+.export-panel {
+  left: max(12px, env(safe-area-inset-left, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  width: min(760px, calc(100% - 24px)); max-height: calc(100% - 24px);
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 10px; padding: 14px;
+}
+.problems { margin: 0; padding: 0 0 0 18px; color: var(--danger); font-size: 13px; line-height: 1.45; }
+.problems:empty { display: none; }
+.code {
+  width: 100%; min-height: 160px; height: 38vh; resize: vertical;
+  font: 400 12px/1.5 var(--mono); color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line-strong); border-radius: 6px; padding: 8px; white-space: pre; overflow: auto;
+}
+@media (max-width: 720px) {
+  /* On a phone the palette is one row that scrolls sideways, so the bar stays short. */
+  .top { gap: 8px 12px; }
+  .title { flex: 1 1 100%; }
+  .palette, .actions { flex: 1 1 100%; min-width: 0; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+  .palette .label { display: none; }
+  .palette button[data-tool], .actions button { white-space: nowrap; flex: none; }
+  .panel { top: auto; left: 12px; right: 12px; width: auto; bottom: 64px; max-height: 46%; }
+  .hud { max-width: calc(100% - 124px); bottom: auto; top: 12px; }
+  .export-panel { bottom: 64px; max-height: 60%; }
+  .code { height: 30vh; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sysml .el > .outline, .sysml .rel .line { transition: stroke 120ms ease; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="title">
+      <p class="eyebrow">SysML v2 · general view</p>
+      <h1>Stronghold Design Canvas</h1>
+    </div>
+    <div class="palette" role="toolbar" aria-label="Draw">
+      <span class="label">Add</span>
+      <button type="button" data-tool="PartDefinition" title="A part definition: square corners">part def</button>
+      <button type="button" data-tool="PortDefinition" title="A port definition">port def</button>
+      <button type="button" data-tool="PartUsage" title="A part: rounded corners, on the plane or inside a part def or part">part</button>
+      <button type="button" data-tool="PortUsage" title="A port: a small square on the border of a part def or part">port</button>
+      <span class="sep" aria-hidden="true"></span>
+      <button type="button" data-tool="Specialization" title="One definition specializes another, or one part or port subsets another">specializes</button>
+      <button type="button" data-tool="FeatureTyping" title="A part is defined by a part def; a port by a port def">defined by</button>
+      <button type="button" data-tool="ConnectionUsage" title="A connection between two ports or two parts">connection</button>
+    </div>
+    <div class="actions">
+      <button type="button" id="export">Export SysML</button>
+      <button type="button" id="download-state" hidden>Download state</button>
+      <button type="button" id="import-state" hidden>Import state</button>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing, Escape puts a tool down, Delete removes the selection.">
+      <svg id="drawing" class="sysml" viewBox="0 0 1200 800" role="img" aria-label="A SysML v2 general view"></svg>
+    </div>
+
+    <div class="float hud">
+      <p class="hint" id="hint"></p>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </div>
+
+    <div class="float zoom" role="group" aria-label="Zoom">
+      <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+      <output id="zoom-level">100%</output>
+      <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+      <button type="button" id="zoom-fit">Fit</button>
+    </div>
+
+    <button type="button" class="show-panel" id="show-panel" hidden>Panel</button>
+    <aside class="float panel" id="panel" aria-label="Selection and notes">
+      <section id="inspector" aria-labelledby="inspector-title">
+        <div class="panel-head">
+          <h2 id="inspector-title">Selection</h2>
+          <button type="button" class="hide" id="hide-panel">Hide</button>
+        </div>
+        <p class="empty" id="inspector-empty">Nothing selected. Click a box, a port, or a line.</p>
+        <div class="fields" id="fields" hidden>
+          <p class="kind" id="f-kind"></p>
+          <label id="l-name">Name <input type="text" id="f-name" autocomplete="off" spellcheck="false"></label>
+          <label class="check" id="l-abstract"><input type="checkbox" id="f-abstract"> abstract</label>
+          <label id="l-type">Defined by <select id="f-type"></select></label>
+          <label class="check" id="l-type-line"><input type="checkbox" id="f-type-line"> draw the defined-by line</label>
+          <label id="l-multiplicity">Multiplicity <input type="text" id="f-multiplicity" autocomplete="off" spellcheck="false" placeholder="1, 0..1, or 1..*"></label>
+          <label class="check" id="l-conjugated"><input type="checkbox" id="f-conjugated"> conjugated (~), the other side of the port</label>
+          <label id="l-doc">Doc <textarea id="f-doc" rows="2" spellcheck="true"></textarea></label>
+          <p class="meta" id="f-path"></p>
+          <div class="row">
+            <button type="button" id="add-note">Add note</button>
+            <button type="button" class="danger" id="delete-selected">Delete</button>
+          </div>
+        </div>
+      </section>
+      <section class="notes" aria-labelledby="notes-title">
+        <div class="panel-head">
+          <h2 id="notes-title">Notes <span class="count" id="notes-count"></span></h2>
+        </div>
+        <p class="empty" id="notes-empty">Loading the notes…</p>
+        <ol class="list" id="notes-list"></ol>
+        <p class="where" id="where"></p>
+        <p class="warning" id="storage-warning" hidden>This browser isn't keeping your changes. Download the state before you close it.</p>
+      </section>
+    </aside>
+
+    <div class="float export-panel" id="export-panel" hidden aria-labelledby="export-title">
+      <div class="panel-head">
+        <h2 id="export-title">Textual SysML v2</h2>
+        <div class="row">
+          <button type="button" id="copy-export">Copy</button>
+          <button type="button" class="hide" id="close-export">Close</button>
+        </div>
+      </div>
+      <ul class="problems" id="export-problems"></ul>
+      <textarea class="code" id="export-text" readonly spellcheck="false" aria-label="The model as textual SysML v2"></textarea>
+    </div>
+  </div>
+</div>
+
+<!-- model:start -->
+<script type="application/json" id="model">
+{
+  "format": "stronghold-canvas/1",
+  "revision": "2026-11-06T06:40:00.000Z",
+  "package": {
+    "name": "StrongholdProof",
+    "doc": "One app, built once with current tools, and thin hosts that load it into a page the same way. The names follow the code: app/, hosts/server, hosts/online, hosts/dev."
+  },
+  "view": { "name": "proofStructure" },
+  "elements": [
+    { "id": "Page", "kind": "PartDefinition", "name": "Page", "abstract": false, "x": 32, "y": 72, "w": 760, "h": 250,
+      "doc": "A page with Stronghold on it: a SharePoint Server page, a SharePoint Online page, a Teams tab, or the dev page. Every Stronghold web part on the page mounts the same app, because the first entry file to load wins (app/src/host/load-app.ts)." },
+    { "id": "Page.hosts", "kind": "PartUsage", "name": "hosts", "owner": "Page", "multiplicity": "1..*", "x": 96, "y": 104, "w": 180, "h": 110, "doc": "" },
+    { "id": "Page.hosts.api", "kind": "PortUsage", "name": "api", "owner": "Page.hosts", "side": "right", "at": 0.5, "conjugated": true, "multiplicity": "", "doc": "" },
+    { "id": "Page.app", "kind": "PartUsage", "name": "app", "owner": "Page", "multiplicity": "1", "x": 568, "y": 104, "w": 180, "h": 110, "doc": "" },
+    { "id": "Page.app.api", "kind": "PortUsage", "name": "api", "owner": "Page.app", "side": "left", "at": 0.5, "conjugated": false, "multiplicity": "", "doc": "" },
+    { "id": "Host", "kind": "PartDefinition", "name": "Host", "abstract": true, "x": 32, "y": 400, "w": 368, "h": 130,
+      "doc": "hosts/: the small piece of code that plugs the app into one place. It works out where its package's files are, loads the entry file with the shared loader, and calls mount. It has no settings: it only ever loads the app from its own package." },
+    { "id": "Host.api", "kind": "PortUsage", "name": "api", "owner": "Host", "side": "right", "at": 0.5, "conjugated": true, "multiplicity": "", "doc": "" },
+    { "id": "App", "kind": "PartDefinition", "name": "App", "abstract": false, "x": 600, "y": 400, "w": 368, "h": 130,
+      "doc": "app/: Stronghold itself, built once with webpack 5 and TypeScript 5.9. Nothing in it knows about SharePoint." },
+    { "id": "App.api", "kind": "PortUsage", "name": "api", "owner": "App", "side": "right", "at": 0.5, "conjugated": false, "multiplicity": "", "doc": "" },
+    { "id": "StrongholdApp", "kind": "PortDefinition", "name": "StrongholdApp", "abstract": false, "x": 840, "y": 72, "w": 368, "h": 100,
+      "doc": "What the app's entry file registers on window.Stronghold." },
+    { "id": "ServerHost", "kind": "PartDefinition", "name": "ServerHost", "abstract": false, "x": 32, "y": 620, "w": 368, "h": 100,
+      "doc": "hosts/server: the web part for SharePoint Server." },
+    { "id": "OnlineHost", "kind": "PartDefinition", "name": "OnlineHost", "abstract": false, "x": 436, "y": 620, "w": 368, "h": 100,
+      "doc": "hosts/online: the web part for SharePoint Online, which is also the Teams tab." },
+    { "id": "DevHost", "kind": "PartDefinition", "name": "DevHost", "abstract": false, "x": 840, "y": 620, "w": 368, "h": 100,
+      "doc": "hosts/dev: a plain page that mounts the app the way the SharePoint hosts do. It never ships." }
+  ],
+  "relationships": [
+    { "id": "t-hosts", "kind": "FeatureTyping", "from": "Page.hosts", "to": "Host" },
+    { "id": "t-app", "kind": "FeatureTyping", "from": "Page.app", "to": "App" },
+    { "id": "t-hosts-api", "kind": "FeatureTyping", "from": "Page.hosts.api", "to": "StrongholdApp", "hidden": true },
+    { "id": "t-app-api", "kind": "FeatureTyping", "from": "Page.app.api", "to": "StrongholdApp", "hidden": true },
+    { "id": "t-Host-api", "kind": "FeatureTyping", "from": "Host.api", "to": "StrongholdApp", "hidden": true },
+    { "id": "t-App-api", "kind": "FeatureTyping", "from": "App.api", "to": "StrongholdApp", "hidden": true },
+    { "id": "s-ServerHost", "kind": "Specialization", "from": "ServerHost", "to": "Host" },
+    { "id": "s-OnlineHost", "kind": "Specialization", "from": "OnlineHost", "to": "Host" },
+    { "id": "s-DevHost", "kind": "Specialization", "from": "DevHost", "to": "Host" },
+    { "id": "mount", "kind": "ConnectionUsage", "name": "mount", "from": "Page.hosts.api", "to": "Page.app.api", "doc": "" }
+  ]
+}
+</script>
+<!-- model:end -->
+
+<!-- notes:start -->
+<script type="application/json" id="saved-notes">
+{
+  "saved": null,
+  "notes": []
+}
+</script>
+<!-- notes:end -->
+
+<script id="model-lib">
+// The model: what the drawing holds, what is wrong with it, and how it reads as textual SysML v2. Pure functions,
+// shared with export.mjs and save-state.mjs, which run this script in Node.
+(function (root) {
+  'use strict';
+
+  const FORMAT = 'stronghold-canvas/1';
+  const VIEW_DEF = 'StandardViewDefinitions::GeneralView';
+  const KINDS = {
+    PartDefinition: { keyword: 'part def', label: 'part def', definition: true, usage: false, contains: true, onBorder: false, size: [220, 72] },
+    PortDefinition: { keyword: 'port def', label: 'port def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72] },
+    PartUsage: { keyword: 'part', label: 'part', definition: false, usage: true, contains: true, onBorder: false, definedBy: 'PartDefinition', size: [180, 60] },
+    PortUsage: { keyword: 'port', label: 'port', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16] },
+  };
+  const RELATIONSHIPS = {
+    Specialization: { label: 'specializes' },
+    FeatureTyping: { label: 'defined by' },
+    ConnectionUsage: { label: 'connection' },
+  };
+  const SIDES = ['top', 'right', 'bottom', 'left'];
+  const ID = /^[A-Za-z0-9_.:-]{1,64}$/;
+  const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+  const MULTIPLICITY = /^(\d+|\*)(\.\.(\d+|\*))?$/;
+  // Words the textual notation reserves. A name that is one of these, or that isn't a plain identifier, is quoted.
+  const KEYWORDS = new Set(('about abstract accept action actor after alias all allocate allocation analysis and as ' +
+    'assert assign assume at attribute bind binding by calc case comment concern connect connection constant ' +
+    'constraint crosses decide def default defined dependency derived do doc else end entry enum event exhibit exit ' +
+    'expose false filter first flow for fork frame from hastype if implies import in include individual inout ' +
+    'interface istype item join language library locale loop merge message meta metadata new nonunique not null ' +
+    'objective occurrence of or ordered out package parallel part perform port private protected public redefines ' +
+    'ref references render rendering rep require requirement return satisfy send snapshot specializes stakeholder ' +
+    'standard state subject subsets succession terminate then timeslice to transition true until use variant ' +
+    'variation verification verify via view viewpoint when while xor').split(' '));
+
+  const str = (v, d) => (typeof v === 'string' ? v : (d === undefined ? '' : d));
+  const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v
+    : (typeof v === 'string' && v.trim() !== '' && Number.isFinite(+v) ? +v : d));
+  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+
+  function blank() {
+    return { format: FORMAT, revision: null, package: { name: 'Model', doc: '' }, view: { name: '' }, elements: [], relationships: [] };
+  }
+
+  // Takes any JSON and returns a model this page can draw: known kinds, unique ids, owners that exist and can hold
+  // what they own, no cycles, and relationships whose two ends exist.
+  function normalize(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const m = blank();
+    m.revision = typeof r.revision === 'string' ? r.revision : null;
+    const pkg = r.package && typeof r.package === 'object' ? r.package : {};
+    m.package.name = str(pkg.name).trim() || 'Model';
+    m.package.doc = str(pkg.doc);
+    const view = r.view && typeof r.view === 'object' ? r.view : {};
+    m.view.name = str(view.name).trim();
+
+    const seen = new Set();
+    for (const e of Array.isArray(r.elements) ? r.elements : []) {
+      if (!e || typeof e !== 'object' || !KINDS[e.kind] || typeof e.id !== 'string' || !ID.test(e.id) || seen.has(e.id)) continue;
+      const kind = KINDS[e.kind];
+      const el = { id: e.id, kind: e.kind, name: str(e.name), doc: str(e.doc) };
+      if (typeof e.owner === 'string' && e.owner !== e.id) el.owner = e.owner;
+      if (kind.onBorder) {
+        el.side = SIDES.includes(e.side) ? e.side : 'right';
+        el.at = clamp(num(e.at, 0.5), 0.05, 0.95);
+      } else {
+        el.x = Math.round(num(e.x, 0));
+        el.y = Math.round(num(e.y, 0));
+        el.w = Math.round(clamp(num(e.w, kind.size[0]), 80, 4000));
+        el.h = Math.round(clamp(num(e.h, kind.size[1]), 40, 4000));
+      }
+      if (kind.definition) el.abstract = e.abstract === true;
+      if (kind.usage) el.multiplicity = str(e.multiplicity).trim();
+      if (kind.onBorder) el.conjugated = e.conjugated === true;
+      seen.add(el.id);
+      m.elements.push(el);
+    }
+
+    let ids = new Map(m.elements.map((e) => [e.id, e]));
+    for (const el of m.elements) {
+      if (KINDS[el.kind].definition) { delete el.owner; continue; }
+      if (el.owner !== undefined) {
+        const o = ids.get(el.owner);
+        if (!o || !KINDS[o.kind].contains) delete el.owner;
+      }
+    }
+    for (const el of m.elements) {
+      const walked = new Set([el.id]);
+      let cur = el;
+      while (cur && cur.owner !== undefined) {
+        if (walked.has(cur.owner)) { delete el.owner; break; }
+        walked.add(cur.owner);
+        cur = ids.get(cur.owner);
+      }
+    }
+    m.elements = m.elements.filter((el) => !(KINDS[el.kind].onBorder && el.owner === undefined));
+    ids = new Map(m.elements.map((e) => [e.id, e]));
+
+    const rseen = new Set();
+    for (const x of Array.isArray(r.relationships) ? r.relationships : []) {
+      if (!x || typeof x !== 'object' || !RELATIONSHIPS[x.kind] || typeof x.id !== 'string' || !ID.test(x.id)) continue;
+      if (rseen.has(x.id) || seen.has(x.id) || !ids.has(x.from) || !ids.has(x.to) || x.from === x.to) continue;
+      const rel = { id: x.id, kind: x.kind, from: x.from, to: x.to };
+      if (x.kind === 'ConnectionUsage') { rel.name = str(x.name); rel.doc = str(x.doc); }
+      if (x.kind === 'FeatureTyping' && x.hidden === true) rel.hidden = true;
+      rseen.add(x.id);
+      m.relationships.push(rel);
+    }
+    return m;
+  }
+
+  function index(model) { return new Map(model.elements.map((e) => [e.id, e])); }
+  function relIndex(model) { return new Map(model.relationships.map((r) => [r.id, r])); }
+
+  // The element and its owners, outermost first.
+  function chain(model, el, ids) {
+    ids = ids || index(model);
+    const out = [];
+    const guard = new Set();
+    let cur = el;
+    while (cur && !guard.has(cur.id)) {
+      guard.add(cur.id);
+      out.unshift(cur);
+      cur = cur.owner !== undefined ? ids.get(cur.owner) : null;
+    }
+    return out;
+  }
+  function childrenOf(model, id) {
+    return model.elements.filter((e) => (id === null || id === undefined ? e.owner === undefined : e.owner === id));
+  }
+  function descendants(model, id) {
+    const out = [];
+    const walk = (parent) => childrenOf(model, parent).forEach((c) => { out.push(c); walk(c.id); });
+    walk(id);
+    return out;
+  }
+  function typingOf(model, el) {
+    return model.relationships.find((r) => r.kind === 'FeatureTyping' && r.from === el.id) || null;
+  }
+  function inUsage(model, el, ids) { return chain(model, el, ids).some((e) => e.kind === 'PartUsage'); }
+
+  // The owner a connection is declared in: the innermost element that holds both ends, or null for the package.
+  function commonOwner(model, a, b, ids) {
+    ids = ids || index(model);
+    const ca = chain(model, a, ids).slice(0, -1).map((e) => e.id);
+    const cb = new Set(chain(model, b, ids).slice(0, -1).map((e) => e.id));
+    let found = null;
+    for (const id of ca) if (cb.has(id)) found = id;
+    return found;
+  }
+
+  function isName(s) { return NAME.test(s) && !KEYWORDS.has(s); }
+  function quote(name) {
+    const n = String(name == null ? '' : name).trim() || 'unnamed';
+    return isName(n) ? n : "'" + n.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
+  }
+  function shown(name) { return String(name == null ? '' : name).trim() || '(unnamed)'; }
+  function qualified(model, el, ids) {
+    return [model.package.name].concat(chain(model, el, ids).map((e) => e.name)).map(quote).join('::');
+  }
+  // The path to a feature from the element it is declared in: hosts.api from Page.
+  function featurePath(model, ownerId, el, ids) {
+    const c = chain(model, el, ids);
+    const start = ownerId === null ? 0 : c.findIndex((e) => e.id === ownerId) + 1;
+    return c.slice(start).map((e) => quote(e.name)).join('.');
+  }
+
+  function describe(model, el, ids) {
+    ids = ids || index(model);
+    const owner = el.owner !== undefined ? ids.get(el.owner) : null;
+    return KINDS[el.kind].label + ' ' + shown(el.name) + (owner ? ' in ' + shown(owner.name) : '');
+  }
+  function describeRel(model, rel, ids) {
+    ids = ids || index(model);
+    const a = ids.get(rel.from);
+    const b = ids.get(rel.to);
+    const an = a ? shown(a.name) : '?';
+    const bn = b ? shown(b.name) : '?';
+    if (rel.kind === 'Specialization') return an + ' specializes ' + bn;
+    if (rel.kind === 'FeatureTyping') return an + ' defined by ' + bn;
+    return 'connection ' + (rel.name && rel.name.trim() ? rel.name.trim() + ', ' : '') + an + ' to ' + bn;
+  }
+  function labelFor(model, targetId) {
+    const el = index(model).get(targetId);
+    if (el) return describe(model, el);
+    const rel = relIndex(model).get(targetId);
+    return rel ? describeRel(model, rel) : '';
+  }
+
+  // What keeps the model from being correct SysML. Each problem names the element or relationship it is about.
+  function validate(model) {
+    const problems = [];
+    const ids = index(model);
+    const add = (id, message) => problems.push({ id, message });
+    const siblings = new Map();
+    for (const el of model.elements) {
+      const kind = KINDS[el.kind];
+      const name = el.name.trim();
+      if (!name && kind.definition) add(el.id, 'A ' + kind.label + ' has no name.');
+      if (el.multiplicity && !MULTIPLICITY.test(el.multiplicity)) {
+        add(el.id, 'The multiplicity "' + el.multiplicity + '" of ' + describe(model, el, ids) + ' is not like 1, 0..1, or 1..*.');
+      }
+      if (name) {
+        const key = (el.owner === undefined ? '' : el.owner) + '/' + name;
+        if (siblings.has(key)) {
+          const owner = el.owner !== undefined ? ids.get(el.owner) : null;
+          add(el.id, 'Two elements are named ' + name + (owner ? ' in ' + shown(owner.name) : ' in the package') + '.');
+        } else {
+          siblings.set(key, el);
+        }
+      }
+    }
+    const typed = new Set();
+    for (const rel of model.relationships) {
+      const a = ids.get(rel.from);
+      const b = ids.get(rel.to);
+      if (!a || !b) continue;
+      if (rel.kind === 'Specialization' && a.kind !== b.kind) {
+        add(rel.id, describe(model, a, ids) + ' can only specialize another ' + KINDS[a.kind].label + '.');
+      }
+      if (rel.kind === 'FeatureTyping') {
+        if (!KINDS[a.kind].usage || KINDS[a.kind].definedBy !== b.kind) {
+          add(rel.id, describe(model, a, ids) + ' can only be defined by a ' + (KINDS[a.kind].definedBy ? KINDS[KINDS[a.kind].definedBy].label : 'definition') + '.');
+        }
+        if (typed.has(a.id)) add(rel.id, describe(model, a, ids) + ' is defined by more than one definition.');
+        typed.add(a.id);
+      }
+      if (rel.kind === 'ConnectionUsage') {
+        if (!(KINDS[a.kind].usage && KINDS[b.kind].usage) || a.kind !== b.kind) {
+          add(rel.id, 'A connection joins two ports or two parts.');
+        } else if (!inUsage(model, a, ids) || !inUsage(model, b, ids)) {
+          add(rel.id, 'The ' + describeRel(model, rel, ids) + ' joins features of a definition. Connect ports or parts inside parts.');
+        } else if (commonOwner(model, a, b, ids) === null && (KINDS[chain(model, a, ids)[0].kind].definition || KINDS[chain(model, b, ids)[0].kind].definition)) {
+          add(rel.id, 'The ' + describeRel(model, rel, ids) + ' reaches across definitions. Connect things inside the same part def or part.');
+        }
+      }
+    }
+    return problems;
+  }
+
+  // ---- Textual SysML v2.
+
+  // Breaks a paragraph into lines of at most `width` characters, at spaces.
+  function wrapText(text, width) {
+    const out = [];
+    for (const para of text.split('\n')) {
+      let line = '';
+      for (const word of para.split(/\s+/).filter(Boolean)) {
+        if (line && (line + ' ' + word).length > width) { out.push(line); line = word; }
+        else line = line ? line + ' ' + word : word;
+      }
+      out.push(line);
+    }
+    return out;
+  }
+  function commentLines(depth, head, text) {
+    const body = String(text == null ? '' : text).replace(/\r\n?/g, '\n').replace(/\*\//g, '* /').trim();
+    const ind = '    '.repeat(depth);
+    if (!body.includes('\n') && (ind + head + body).length <= 96) return [ind + head + ' /* ' + body + ' */'];
+    return [ind + head, ind + '/*'].concat(wrapText(body, 92 - ind.length).map((l) => ind + ' * ' + l)).concat([ind + ' */']);
+  }
+
+  function tidyNotes(notes) {
+    return (Array.isArray(notes) ? notes : [])
+      .filter((n) => n && typeof n === 'object' && typeof n.target === 'string' && typeof n.text === 'string')
+      .map((n, i) => ({ no: n.no >= 1 ? Math.floor(n.no) : i + 1, target: n.target, text: n.text, response: typeof n.response === 'string' ? n.response : '' }))
+      .sort((a, b) => a.no - b.no);
+  }
+
+  function toSysML(model, notes) {
+    model = normalize(model);
+    const ids = index(model);
+    const rels = relIndex(model);
+    const noteList = tidyNotes(notes);
+    const out = [];
+    const line = (depth, text) => out.push('    '.repeat(depth) + text);
+    const connectionsIn = (ownerId) => model.relationships.filter((r) => r.kind === 'ConnectionUsage' &&
+      commonOwner(model, ids.get(r.from), ids.get(r.to), ids) === ownerId);
+
+    // A note on an unnamed connection can't be about it by name, so it goes inside the connection's body.
+    function connection(rel, ownerId, depth) {
+      const a = ids.get(rel.from);
+      const b = ids.get(rel.to);
+      const head = (rel.name.trim() ? 'connection ' + quote(rel.name) + ' ' : '') +
+        'connect ' + featurePath(model, ownerId, a, ids) + ' to ' + featurePath(model, ownerId, b, ids);
+      const inside = rel.name.trim() ? [] : noteList.filter((n) => n.target === rel.id);
+      if (!rel.doc.trim() && !inside.length) { line(depth, head + ';'); return; }
+      line(depth, head + ' {');
+      if (rel.doc.trim()) commentLines(depth + 1, 'doc', rel.doc).forEach((l) => out.push(l));
+      inside.forEach((n) => commentLines(depth + 1, 'comment <n' + n.no + '>', noteText(n)).forEach((l) => out.push(l)));
+      line(depth, '}');
+    }
+    function noteText(n) { return n.text + (n.response.trim() ? '\nClaude: ' + n.response.trim() : ''); }
+
+    // The names a type inherits: the features of what it is defined by and of what it specializes, all the way up.
+    // A feature declared again under one of these names redefines the inherited one, so it is written with :>>.
+    function inheritedNames(type) {
+      const names = new Set();
+      const seen = new Set();
+      const visit = (t, own) => {
+        if (!t || seen.has(t.id)) return;
+        seen.add(t.id);
+        if (own) childrenOf(model, t.id).forEach((c) => { if (c.name.trim()) names.add(c.name.trim()); });
+        const typing = typingOf(model, t);
+        if (typing) visit(ids.get(typing.to), true);
+        model.relationships.filter((r) => r.kind === 'Specialization' && r.from === t.id).forEach((r) => visit(ids.get(r.to), true));
+      };
+      visit(type, false);
+      return names;
+    }
+
+    function element(el, depth) {
+      const kind = KINDS[el.kind];
+      const owner = el.owner !== undefined ? ids.get(el.owner) : null;
+      const redefines = !!owner && !!el.name.trim() && inheritedNames(owner).has(el.name.trim());
+      // A usage may go unnamed ("part : Host;"); a definition can't, so an unnamed one is written as unnamed.
+      const name = el.name.trim() ? quote(el.name) : (kind.definition ? quote('unnamed') : '');
+      let head = (el.abstract ? 'abstract ' : '') + kind.keyword + (redefines ? ' :>> ' + quote(el.name) : (name ? ' ' + name : ''));
+      if (kind.usage) {
+        const typing = typingOf(model, el);
+        if (typing) head += ' : ' + (el.conjugated ? '~' : '') + quote(ids.get(typing.to).name);
+        if (el.multiplicity && MULTIPLICITY.test(el.multiplicity)) head += ' [' + el.multiplicity + ']';
+      }
+      const general = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === el.id)
+        .map((r) => quote(ids.get(r.to).name));
+      if (general.length) head += ' :> ' + general.join(', ');
+      const kids = childrenOf(model, el.id);
+      const ports = kids.filter((k) => KINDS[k.kind].onBorder);
+      const parts = kids.filter((k) => !KINDS[k.kind].onBorder);
+      const conns = connectionsIn(el.id);
+      if (!el.doc.trim() && !kids.length && !conns.length) { line(depth, head + ';'); return; }
+      line(depth, head + ' {');
+      if (el.doc.trim()) commentLines(depth + 1, 'doc', el.doc).forEach((l) => out.push(l));
+      ports.forEach((k) => element(k, depth + 1));
+      parts.forEach((k) => element(k, depth + 1));
+      conns.forEach((r) => connection(r, el.id, depth + 1));
+      line(depth, '}');
+    }
+
+    line(0, 'package ' + quote(model.package.name) + ' {');
+    if (model.package.doc.trim()) commentLines(1, 'doc', model.package.doc).forEach((l) => out.push(l));
+    const top = childrenOf(model, null);
+    const ordered = top.filter((e) => KINDS[e.kind].definition).concat(top.filter((e) => !KINDS[e.kind].definition));
+    ordered.forEach((el) => { out.push(''); element(el, 1); });
+    const topConns = connectionsIn(null);
+    if (topConns.length) out.push('');
+    topConns.forEach((r) => connection(r, null, 1));
+
+    // Notes, as comments at the end of the package. A note on a specializes or defined-by line, which has no name
+    // in the textual notation, is about both of the line's ends, with the line named in the text.
+    let any = false;
+    for (const n of noteList) {
+      const el = ids.get(n.target);
+      const rel = rels.get(n.target);
+      let head;
+      let text = noteText(n);
+      if (el) {
+        head = 'comment <n' + n.no + '> about ' + qualified(model, el, ids);
+      } else if (rel && rel.kind === 'ConnectionUsage') {
+        if (!rel.name.trim()) continue; // written inside the connection's body
+        const o = commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids);
+        head = 'comment <n' + n.no + '> about ' + (o ? qualified(model, ids.get(o), ids) : quote(model.package.name)) + '::' + quote(rel.name);
+      } else if (rel) {
+        head = 'comment <n' + n.no + '> about ' + qualified(model, ids.get(rel.from), ids) + ', ' + qualified(model, ids.get(rel.to), ids);
+        text = 'On ' + describeRel(model, rel, ids) + ': ' + text;
+      } else {
+        continue;
+      }
+      if (!any) { out.push(''); any = true; }
+      commentLines(1, head, text).forEach((l) => out.push(l));
+    }
+
+    if (model.view.name) {
+      out.push('');
+      line(1, 'view ' + quote(model.view.name) + ' : ' + VIEW_DEF + ' {');
+      line(2, 'expose ' + quote(model.package.name) + '::*::**;');
+      line(1, '}');
+    }
+    line(0, '}');
+    return out.join('\n') + '\n';
+  }
+
+  root.SysMLModel = Object.freeze({
+    FORMAT, KINDS, RELATIONSHIPS, SIDES, MULTIPLICITY, VIEW_DEF,
+    blank, normalize, validate, toSysML, index, relIndex, chain, childrenOf, descendants, typingOf, inUsage,
+    commonOwner, featurePath, quote, qualified, describe, describeRel, labelFor, isName, tidyNotes,
+  });
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+</script>
+
+<script>
+(function () {
+  'use strict';
+
+  const M = window.SysMLModel;
+  const NS = 'http://www.w3.org/2000/svg';
+  const STATE_KEY = 'stronghold-canvas:';          // + the revision of the saved model, when the page is opened as a file
+  const CAMERA_KEY = 'stronghold-canvas-camera:v1';
+  const WORKING = 'model/working';                   // the shared store's document for the working model
+  const NOTES = 'notes';                             // the shared store's collection of notes
+  const PAUSE = 800;                                 // how long a change waits before it is saved, in ms
+  const MIN_ZOOM = 0.1;
+  const MAX_ZOOM = 6;
+  const HEADER = 40;      // the keyword and the name
+  const HEAD_H = 18;      // a compartment's heading
+  const LEAD = 15;        // a line in a compartment
+  const PAD = 12;         // inside a box
+  const CHILD_TOP = 48;   // where a nested box may start
+  const PORT = 16;        // a port's square
+  const MARGIN = 48;      // from the drawing to the view's frame
+  const NARROW = window.matchMedia('(max-width: 720px)');
+  const WHERE = {
+    loading: '',
+    shared: 'Changes and notes save as you work, into this page\'s shared store, where Claude reads them. Ask Claude to save the model to GitHub.',
+    local: 'This browser keeps your changes and notes. Download the state to keep it, or to hand it to Claude.',
+    read: 'You can look at this model here but not change it.'
+  };
+  const TOOL_HINT = {
+    PartDefinition: 'Click where the part def goes.',
+    PortDefinition: 'Click where the port def goes.',
+    PartUsage: 'Click where the part goes: on the plane, or inside a part def or a part.',
+    PortUsage: 'Click a part def or a part to put a port on its border.',
+    Specialization: ['Click the element that specializes…', 'Now click the element it specializes.'],
+    FeatureTyping: ['Click a part or a port…', 'Now click the definition it is defined by.'],
+    ConnectionUsage: ['Click one port or part…', 'Now click the other end.']
+  };
+  const BASE_NAME = { PartDefinition: 'PartDef', PortDefinition: 'PortDef', PartUsage: 'part', PortUsage: 'port' };
+
+  const $ = (id) => document.getElementById(id);
+  const canvas = $('canvas');
+  const svg = $('drawing');
+  const hint = $('hint');
+  const status = $('status');
+  const zoomLevel = $('zoom-level');
+  const hud = document.querySelector('.hud');
+  const panel = $('panel');
+  const showPanel = $('show-panel');
+  const inspectorEmpty = $('inspector-empty');
+  const fields = $('fields');
+  const fKind = $('f-kind');
+  const fName = $('f-name');
+  const fAbstract = $('f-abstract');
+  const fType = $('f-type');
+  const fTypeLine = $('f-type-line');
+  const fMult = $('f-multiplicity');
+  const fConj = $('f-conjugated');
+  const fDoc = $('f-doc');
+  const fPath = $('f-path');
+  const addNoteButton = $('add-note');
+  const deleteButton = $('delete-selected');
+  const list = $('notes-list');
+  const notesEmpty = $('notes-empty');
+  const notesCount = $('notes-count');
+  const where = $('where');
+  const warning = $('storage-warning');
+  const exportPanel = $('export-panel');
+  const exportText = $('export-text');
+  const exportProblems = $('export-problems');
+  const downloadButton = $('download-state');
+  const importButton = $('import-state');
+  const fileInput = $('import-file');
+  const paletteButtons = Array.from(document.querySelectorAll('.palette button[data-tool]'));
+
+  // ---- State.
+
+  const saved = readSaved();     // what this file holds: the model and the notes as last saved
+  let model = saved.model;
+  let notes = saved.notes.slice();
+  let changes = [];              // what was done since the last save, for Claude to read
+  let selection = null;          // { type: 'el' | 'rel', id }
+  let tool = null;               // a kind to add, a relationship to draw, or null to select and move
+  let pending = null;            // the first end of a relationship being drawn
+  let mode = 'loading';          // 'shared': the page's store · 'local': this browser · 'read': look only
+  let reason = '';
+  let camera = readCamera();     // the top-left corner of the window in drawing units, and pixels per unit
+  let layout = null;             // where everything is, computed by each render
+  let hovered = null;
+  let drag = null;               // the element being moved
+  let db = null;
+
+  const str = (v, d) => (typeof v === 'string' ? v : (d === undefined ? '' : d));
+  function now() { return new Date().toISOString(); }
+  function say(message) { status.textContent = message; }
+  function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
+  function editable() { return mode === 'shared' || mode === 'local'; }
+  function f(n) { return (Math.round(n * 100) / 100).toString(); }
+  function newId(prefix) { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+
+  function readJSON(id) {
+    const block = document.getElementById(id);
+    try { return block ? JSON.parse(block.textContent) : null; } catch (error) { return null; }
+  }
+  function isNote(n) {
+    return !!n && typeof n === 'object' && typeof n.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(n.id) &&
+      typeof n.target === 'string' && typeof n.text === 'string';
+  }
+  function tidyNote(n) {
+    const created = str(n.created) || now();
+    return {
+      id: n.id, no: n.no >= 1 ? Math.floor(n.no) : 0, target: n.target, targetLabel: str(n.targetLabel), text: n.text,
+      by: n.by === 'claude' ? 'claude' : 'user', created: created, updated: str(n.updated) || created,
+      response: str(n.response), resolved: n.resolved === true
+    };
+  }
+  function readSaved() {
+    const data = readJSON('saved-notes');
+    return {
+      model: M.normalize(readJSON('model')),
+      notes: data && Array.isArray(data.notes) ? data.notes.filter(isNote).map(tidyNote) : [],
+      saved: data && typeof data.saved === 'string' ? data.saved : null
+    };
+  }
+  function byNumber(a, b) { return (a.no - b.no) || (a.created < b.created ? -1 : a.created > b.created ? 1 : 0); }
+  function nextNumber() { return notes.reduce((top, n) => Math.max(top, n.no || 0), 0) + 1; }
+  function noteById(id) { return notes.find((n) => n.id === id) || null; }
+
+  // ---- Where everything is. Boxes nest the way the model's elements do, a box grows to hold what it owns, and a
+  // port sits on its owner's border.
+
+  function wrap(text, maxChars) {
+    const out = [];
+    for (const para of String(text || '').replace(/\r\n?/g, '\n').split('\n')) {
+      let line = '';
+      for (const word of para.split(/\s+/).filter(Boolean)) {
+        if (line && (line + ' ' + word).length > maxChars) { out.push(line); line = word; }
+        else line = line ? line + ' ' + word : word;
+      }
+      if (line || !para.trim()) out.push(line);
+    }
+    while (out.length && !out[out.length - 1]) out.pop();
+    return out;
+  }
+
+  function portRect(p, r) {
+    let cx;
+    let cy;
+    if (p.side === 'top') { cx = r.x + p.at * r.w; cy = r.y; }
+    else if (p.side === 'bottom') { cx = r.x + p.at * r.w; cy = r.y + r.h; }
+    else if (p.side === 'left') { cx = r.x; cy = r.y + p.at * r.h; }
+    else { cx = r.x + r.w; cy = r.y + p.at * r.h; }
+    return { x: cx - PORT / 2, y: cy - PORT / 2, w: PORT, h: PORT, cx: cx, cy: cy, side: p.side, port: true };
+  }
+
+  function computeLayout() {
+    const ids = M.index(model);
+    const kids = new Map();
+    for (const el of model.elements) {
+      const key = el.owner === undefined ? '' : el.owner;
+      if (!kids.has(key)) kids.set(key, []);
+      kids.get(key).push(el);
+    }
+    const boxesOf = (id) => (kids.get(id) || []).filter((e) => !M.KINDS[e.kind].onBorder);
+    const portsOf = (id) => (kids.get(id) || []).filter((e) => M.KINDS[e.kind].onBorder);
+    const sizes = new Map();
+    const rects = new Map();
+    const docs = new Map();
+    function size(el) {
+      const lines = wrap(el.doc, Math.max(12, Math.floor((el.w - 24) / 6.1)));
+      docs.set(el.id, lines);
+      let bottom = HEADER + (lines.length ? HEAD_H + LEAD * lines.length + 6 : 0);
+      let right = 0;
+      for (const kid of boxesOf(el.id)) {
+        const s = size(kid);
+        // A box grows to hold what it owns, except the box being dragged, which may be on its way out.
+        if (drag && drag.id === kid.id) continue;
+        bottom = Math.max(bottom, kid.y + s.h + PAD);
+        right = Math.max(right, kid.x + s.w + PAD);
+      }
+      const s = { w: Math.max(el.w, right), h: Math.max(el.h, bottom) };
+      sizes.set(el.id, s);
+      return s;
+    }
+    function place(el, ox, oy) {
+      const s = sizes.get(el.id);
+      const r = { x: ox + el.x, y: oy + el.y, w: s.w, h: s.h };
+      rects.set(el.id, r);
+      for (const p of portsOf(el.id)) rects.set(p.id, portRect(p, r));
+      for (const kid of boxesOf(el.id)) place(kid, r.x, r.y);
+    }
+    let frame = null;
+    for (const el of kids.get('') || []) {
+      size(el);
+      place(el, 0, 0);
+      const r = rects.get(el.id);
+      frame = frame ? {
+        x: Math.min(frame.x, r.x), y: Math.min(frame.y, r.y),
+        x2: Math.max(frame.x2, r.x + r.w), y2: Math.max(frame.y2, r.y + r.h)
+      } : { x: r.x, y: r.y, x2: r.x + r.w, y2: r.y + r.h };
+    }
+    const frameRect = frame
+      ? { x: frame.x - MARGIN, y: frame.y - MARGIN - 12, w: frame.x2 - frame.x + 2 * MARGIN, h: frame.y2 - frame.y + 2 * MARGIN + 12 }
+      : { x: -220, y: -140, w: 440, h: 280 };
+    return { ids: ids, kids: kids, rects: rects, docs: docs, frameRect: frameRect };
+  }
+
+  function center(r) { return r.port ? { x: r.cx, y: r.cy } : { x: r.x + r.w / 2, y: r.y + r.h / 2 }; }
+  // Where a line from the middle of box r toward `toward` leaves the box.
+  function edgePoint(r, toward) {
+    const c = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+    const dx = toward.x - c.x;
+    const dy = toward.y - c.y;
+    if (!dx && !dy) return { x: c.x, y: r.y };
+    const t = Math.min(dx ? (r.w / 2) / Math.abs(dx) : Infinity, dy ? (r.h / 2) / Math.abs(dy) : Infinity);
+    return { x: c.x + dx * t, y: c.y + dy * t };
+  }
+  // A straight line between the borders of two boxes, or from the edge of a port's square.
+  function straight(ra, rb) {
+    const ca = center(ra);
+    const cb = center(rb);
+    let a = ra.port ? ca : edgePoint(ra, cb);
+    let b = rb.port ? cb : edgePoint(rb, ca);
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const u = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
+    if (ra.port) a = { x: a.x + u.x * (PORT / 2 + 1), y: a.y + u.y * (PORT / 2 + 1) };
+    if (rb.port) b = { x: b.x - u.x * (PORT / 2 + 1), y: b.y - u.y * (PORT / 2 + 1) };
+    return [a, b];
+  }
+  // A line of three straight pieces, out of one box's side and into the facing side of the other, so lines to the
+  // same definition from a row of boxes meet in one bus. Null when the boxes overlap in both directions.
+  function elbow(ra, rb) {
+    const ax = ra.x + ra.w / 2;
+    const ay = ra.y + ra.h / 2;
+    const bx = rb.x + rb.w / 2;
+    const by = rb.y + rb.h / 2;
+    if (rb.y + rb.h <= ra.y) { const m = (ra.y + rb.y + rb.h) / 2; return [{ x: ax, y: ra.y }, { x: ax, y: m }, { x: bx, y: m }, { x: bx, y: rb.y + rb.h }]; }
+    if (rb.y >= ra.y + ra.h) { const m = (ra.y + ra.h + rb.y) / 2; return [{ x: ax, y: ra.y + ra.h }, { x: ax, y: m }, { x: bx, y: m }, { x: bx, y: rb.y }]; }
+    if (rb.x >= ra.x + ra.w) { const m = (ra.x + ra.w + rb.x) / 2; return [{ x: ra.x + ra.w, y: ay }, { x: m, y: ay }, { x: m, y: by }, { x: rb.x, y: by }]; }
+    if (rb.x + rb.w <= ra.x) { const m = (ra.x + rb.x + rb.w) / 2; return [{ x: ra.x, y: ay }, { x: m, y: ay }, { x: m, y: by }, { x: rb.x + rb.w, y: by }]; }
+    return null;
+  }
+  // Where a relationship's line goes: its points, and the middle of it, where a label or a pin sits.
+  function endpoints(rel) {
+    const ra = layout.rects.get(rel.from);
+    const rb = layout.rects.get(rel.to);
+    if (!ra || !rb) return null;
+    const pts = (rel.kind === 'ConnectionUsage' ? null : elbow(ra, rb)) || straight(ra, rb);
+    const i = Math.floor(pts.length / 2) - 1;
+    const mid = { x: (pts[i].x + pts[i + 1].x) / 2, y: (pts[i].y + pts[i + 1].y) / 2 };
+    return { pts: pts, a: pts[0], b: pts[pts.length - 1], mid: mid };
+  }
+  function nearestBorder(r, p) {
+    const d = [
+      { side: 'top', dist: Math.abs(p.y - r.y), at: (p.x - r.x) / r.w },
+      { side: 'bottom', dist: Math.abs(p.y - (r.y + r.h)), at: (p.x - r.x) / r.w },
+      { side: 'left', dist: Math.abs(p.x - r.x), at: (p.y - r.y) / r.h },
+      { side: 'right', dist: Math.abs(p.x - (r.x + r.w)), at: (p.y - r.y) / r.h }
+    ].sort((m, n) => m.dist - n.dist)[0];
+    return { side: d.side, at: Math.round(clamp(d.at, 0.05, 0.95) * 100) / 100 };
+  }
+  function contains(r, p) { return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; }
+  // The innermost part def or part under point p, leaving out `except` and everything inside it. Null: the plane.
+  function containerAt(p, except) {
+    const skip = new Set();
+    if (except) { skip.add(except.id); M.descendants(model, except.id).forEach((d) => skip.add(d.id)); }
+    let best = null;
+    for (const el of model.elements) {
+      if (!M.KINDS[el.kind].contains || skip.has(el.id)) continue;
+      const r = layout.rects.get(el.id);
+      if (!r || !contains(r, p)) continue;
+      if (!best || r.w * r.h < best.area) best = { id: el.id, area: r.w * r.h };
+    }
+    return best ? best.id : null;
+  }
+
+  // ---- Drawing.
+
+  function node(tag, attrs, cls) {
+    const n = document.createElementNS(NS, tag);
+    for (const key in attrs) if (attrs[key] !== undefined && attrs[key] !== null) n.setAttribute(key, String(attrs[key]));
+    if (cls) n.setAttribute('class', cls);
+    return n;
+  }
+  function text(x, y, content, cls, anchor) {
+    const t = node('text', { x: f(x), y: f(y), 'text-anchor': anchor || null }, cls);
+    t.textContent = content;
+    return t;
+  }
+  function defs() {
+    const d = node('defs');
+    d.innerHTML =
+      '<pattern id="plane-dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle class="plane-dot" cx="1" cy="1" r="1.1"/></pattern>' +
+      '<marker id="m-general" viewBox="0 0 18 16" refX="17" refY="8" markerWidth="18" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto" overflow="visible">' +
+      '<path class="head" d="M3,1.5 L17,8 L3,14.5 Z"/></marker>' +
+      '<marker id="m-defined" viewBox="0 0 24 16" refX="23" refY="8" markerWidth="24" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto" overflow="visible">' +
+      '<path class="head" d="M9,1.5 L23,8 L9,14.5 Z"/><circle class="dot" cx="4" cy="4.5" r="1.6"/><circle class="dot" cx="4" cy="11.5" r="1.6"/></marker>';
+    return d;
+  }
+  function nameLine(el) {
+    let s = el.name.trim() || '(unnamed)';
+    if (M.KINDS[el.kind].usage) {
+      const typing = M.typingOf(model, el);
+      if (typing) {
+        const def = layout.ids.get(typing.to);
+        s += ' : ' + (el.conjugated ? '~' : '') + (def ? def.name.trim() || '(unnamed)' : '?');
+      }
+      if (el.multiplicity) s += ' [' + el.multiplicity + ']';
+    }
+    return s;
+  }
+  function drawBox(el, parent) {
+    const kind = M.KINDS[el.kind];
+    const r = layout.rects.get(el.id);
+    const g = node('g', { 'data-el': el.id, 'data-kind': el.kind }, 'el ' + (kind.definition ? 'def' : 'usage') + (el.abstract ? ' is-abstract' : ''));
+    g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: kind.definition ? 0 : 10 }, 'outline'));
+    const cx = r.x + r.w / 2;
+    g.appendChild(text(cx, r.y + 16, '«' + (el.abstract ? 'abstract ' : '') + kind.keyword + '»', 'kw', 'middle'));
+    g.appendChild(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle'));
+    const lines = layout.docs.get(el.id) || [];
+    if (lines.length) {
+      const y = r.y + HEADER;
+      g.appendChild(node('line', { x1: f(r.x), y1: f(y), x2: f(r.x + r.w), y2: f(y) }, 'rule'));
+      g.appendChild(text(cx, y + 13, 'doc', 'head-c', 'middle'));
+      lines.forEach((l, i) => g.appendChild(text(r.x + PAD, y + HEAD_H + 11 + i * LEAD, l, 'doc')));
+    }
+    const kids = layout.kids.get(el.id) || [];
+    kids.filter((k) => !M.KINDS[k.kind].onBorder).forEach((k) => drawBox(k, g));
+    kids.filter((k) => M.KINDS[k.kind].onBorder).forEach((k) => drawPort(k, g));
+    parent.appendChild(g);
+  }
+  function drawPort(p, parent) {
+    const r = layout.rects.get(p.id);
+    const g = node('g', { 'data-el': p.id, 'data-kind': p.kind }, 'el port');
+    g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: r.w, height: r.h, rx: 2.5 }, 'outline'));
+    // The glyph inside the square: both directions, since the slice doesn't say which way a port's features go.
+    const h = r.side === 'left' || r.side === 'right';
+    const c = r.cx;
+    const cy = r.cy;
+    const glyph = h
+      ? 'M' + f(c - 4.5) + ',' + f(cy) + ' H' + f(c + 4.5) + ' M' + f(c - 2) + ',' + f(cy - 2.5) + ' L' + f(c - 4.5) + ',' + f(cy) + ' L' + f(c - 2) + ',' + f(cy + 2.5) +
+        ' M' + f(c + 2) + ',' + f(cy - 2.5) + ' L' + f(c + 4.5) + ',' + f(cy) + ' L' + f(c + 2) + ',' + f(cy + 2.5)
+      : 'M' + f(c) + ',' + f(cy - 4.5) + ' V' + f(cy + 4.5) + ' M' + f(c - 2.5) + ',' + f(cy - 2) + ' L' + f(c) + ',' + f(cy - 4.5) + ' L' + f(c + 2.5) + ',' + f(cy - 2) +
+        ' M' + f(c - 2.5) + ',' + f(cy + 2) + ' L' + f(c) + ',' + f(cy + 4.5) + ' L' + f(c + 2.5) + ',' + f(cy + 2);
+    g.appendChild(node('path', { d: glyph }, 'glyph'));
+    // The name sits outside the owner, beside the square: above and to the right of a port on the right border,
+    // below and to the left on the left border (so two ports facing each other never share a line), above on the
+    // top, below on the bottom.
+    const label = nameLine(p);
+    if (r.side === 'right') g.appendChild(text(c + 12, cy - 6, label, 'mono', 'start'));
+    else if (r.side === 'left') g.appendChild(text(c - 12, cy + 15, label, 'mono', 'end'));
+    else if (r.side === 'top') g.appendChild(text(c, cy - 13, label, 'mono', 'middle'));
+    else g.appendChild(text(c, cy + 22, label, 'mono', 'middle'));
+    parent.appendChild(g);
+  }
+  function drawRel(rel, parent) {
+    const e = endpoints(rel);
+    if (!e) return;
+    const cls = rel.kind === 'ConnectionUsage' ? 'connection' : rel.kind === 'Specialization' ? 'specialization' : 'typing';
+    const g = node('g', { 'data-rel': rel.id, 'data-kind': rel.kind }, 'rel ' + cls);
+    const d = e.pts.map((p, i) => (i ? ' L' : 'M') + f(p.x) + ',' + f(p.y)).join('');
+    g.appendChild(node('path', { d: d }, 'hit'));
+    const line = node('path', { d: d }, 'line');
+    if (rel.kind === 'Specialization') line.setAttribute('marker-end', 'url(#m-general)');
+    if (rel.kind === 'FeatureTyping') line.setAttribute('marker-end', 'url(#m-defined)');
+    g.appendChild(line);
+    if (rel.kind === 'ConnectionUsage' && rel.name.trim()) g.appendChild(text(e.mid.x, e.mid.y - 7, rel.name.trim(), 'uname', 'middle'));
+    parent.appendChild(g);
+  }
+  function frameGroup() {
+    const fr = layout.frameRect;
+    const g = node('g', {}, 'frame');
+    g.appendChild(node('rect', { x: f(fr.x), y: f(fr.y), width: f(fr.w), height: f(fr.h), rx: 12 }, 'outline'));
+    const name = model.view.name || 'view';
+    const label = '«view» ' + name + ' : GeneralView';
+    const tabW = Math.min(fr.w - 24, 16 + label.length * 6.6);
+    g.appendChild(node('path', { d: 'M' + f(fr.x) + ',' + f(fr.y + 26) + ' H' + f(fr.x + tabW) + ' A8,8 0 0 0 ' + f(fr.x + tabW + 8) + ',' + f(fr.y + 18) + ' V' + f(fr.y) }, 'outline'));
+    const t = node('text', { x: f(fr.x + 12), y: f(fr.y + 18) });
+    const a = node('tspan', {}, 'kw');
+    a.textContent = '«view» ';
+    const b = node('tspan', {}, 'frame-name');
+    b.textContent = name;
+    const c = node('tspan', {}, 'kw');
+    c.textContent = ' : GeneralView';
+    t.appendChild(a);
+    t.appendChild(b);
+    t.appendChild(c);
+    g.appendChild(t);
+    return g;
+  }
+  function pinAnchor(n, k) {
+    const r = layout.rects.get(n.target);
+    if (r) return r.port ? { x: r.cx + 14 + 26 * k, y: r.cy - 14 } : { x: r.x + r.w - 10 - 26 * k, y: r.y };
+    const rel = model.relationships.find((x) => x.id === n.target);
+    if (!rel || rel.hidden) return null;
+    const e = endpoints(rel);
+    return e ? { x: e.mid.x + 26 * k, y: e.mid.y } : null;
+  }
+  function pinTransform(x, y) { return 'translate(' + f(x) + ' ' + f(y) + ') scale(' + (1 / (camera ? camera.k : 1)).toFixed(4) + ')'; }
+  function drawPins(layer) {
+    while (layer.firstChild) layer.removeChild(layer.firstChild);
+    const seen = {};
+    for (const n of notes.slice().sort(byNumber)) {
+      const k = seen[n.target] || 0;
+      const at = pinAnchor(n, k);
+      if (!at) continue;
+      seen[n.target] = k + 1;
+      const g = node('g', { 'data-note': n.id, 'data-x': f(at.x), 'data-y': f(at.y), transform: pinTransform(at.x, at.y) }, 'pin' + (n.resolved ? ' is-resolved' : ''));
+      const title = node('title');
+      title.textContent = 'Note ' + n.no + ' on ' + (n.targetLabel || M.labelFor(model, n.target)) + '. Click to read it.';
+      const circle = node('circle', { r: 11 });
+      const number = node('text');
+      number.textContent = String(n.no);
+      g.appendChild(title);
+      g.appendChild(circle);
+      g.appendChild(number);
+      layer.appendChild(g);
+    }
+  }
+  function renderPins() {
+    const layer = svg.querySelector('.pins');
+    if (layer) drawPins(layer);
+  }
+
+  // Redraws the whole drawing from the model. The panel is drawn separately, so typing in it isn't interrupted.
+  function render() {
+    layout = computeLayout();
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.appendChild(defs());
+    svg.appendChild(node('rect', { x: -100000, y: -100000, width: 200000, height: 200000, fill: 'url(#plane-dots)' }, 'plane'));
+    svg.appendChild(frameGroup());
+    const rels = node('g', {}, 'rels');
+    const els = node('g', {}, 'els');
+    const pins = node('g', {}, 'pins');
+    svg.appendChild(rels);
+    svg.appendChild(els);
+    svg.appendChild(pins);
+    (layout.kids.get('') || []).forEach((el) => drawBox(el, els));
+    model.relationships.forEach((rel) => { if (!rel.hidden) drawRel(rel, rels); });
+    drawPins(pins);
+    applyMarks();
+    if (camera) applyCamera(); else fit();
+  }
+  function groupFor(sel) {
+    if (!sel) return null;
+    return svg.querySelector(sel.type === 'el' ? '[data-el="' + sel.id + '"]' : '[data-rel="' + sel.id + '"]');
+  }
+  function applyMarks() {
+    svg.querySelectorAll('.is-selected, .is-source').forEach((g) => { g.classList.remove('is-selected'); g.classList.remove('is-source'); });
+    const g = groupFor(selection);
+    if (g) g.classList.add('is-selected');
+    const source = pending ? svg.querySelector('[data-el="' + pending + '"]') : null;
+    if (source) source.classList.add('is-source');
+  }
+
+  // ---- The camera.
+
+  function readCamera() {
+    try {
+      const c = JSON.parse(localStorage.getItem(CAMERA_KEY) || 'null');
+      if (c && isFinite(c.x) && isFinite(c.y) && isFinite(c.k) && c.k > 0) return { x: +c.x, y: +c.y, k: clamp(+c.k, MIN_ZOOM, MAX_ZOOM) };
+    } catch (error) { /* start fitted */ }
+    return null;
+  }
+  function stageSize() {
+    const r = canvas.getBoundingClientRect();
+    return { left: r.left, top: r.top, width: Math.max(r.width, 1), height: Math.max(r.height, 1) };
+  }
+  // The part of the window the panel doesn't cover.
+  function openArea() {
+    const s = stageSize();
+    const area = { x: 0, y: 0, width: s.width, height: s.height };
+    if (!panel.hidden && s.width > 720) area.width = Math.max(200, s.width - panel.offsetWidth - 24);
+    if (s.width <= 720) {
+      area.y = hud.offsetHeight + 20;
+      area.height = Math.max(160, s.height - area.y - 60 - (panel.hidden ? 0 : panel.offsetHeight + 12));
+    }
+    return area;
+  }
+  function applyCamera() {
+    const s = stageSize();
+    svg.setAttribute('viewBox', [camera.x, camera.y, s.width / camera.k, s.height / camera.k].map((v) => v.toFixed(2)).join(' '));
+    svg.classList.toggle('is-far', camera.k < 0.35);
+    zoomLevel.textContent = Math.round(camera.k * 100) + '%';
+    svg.querySelectorAll('.pin').forEach((pin) => pin.setAttribute('transform', pinTransform(+pin.getAttribute('data-x'), +pin.getAttribute('data-y'))));
+    try { localStorage.setItem(CAMERA_KEY, JSON.stringify(camera)); } catch (error) { /* a convenience only */ }
+  }
+  function fit() {
+    if (!layout) render();
+    const area = openArea();
+    const fr = layout.frameRect;
+    const k = clamp(Math.min(area.width / fr.w, area.height / fr.h) * 0.94, MIN_ZOOM, MAX_ZOOM);
+    camera = { k: k, x: fr.x + fr.w / 2 - (area.x + area.width / 2) / k, y: fr.y + fr.h / 2 - (area.y + area.height / 2) / k };
+    applyCamera();
+  }
+  function zoomAt(factor, clientX, clientY) {
+    const s = stageSize();
+    const px = clientX - s.left;
+    const py = clientY - s.top;
+    const wx = camera.x + px / camera.k;
+    const wy = camera.y + py / camera.k;
+    const k = clamp(camera.k * factor, MIN_ZOOM, MAX_ZOOM);
+    camera = { k: k, x: wx - px / k, y: wy - py / k };
+    applyCamera();
+  }
+  function zoomAtCenter(factor) {
+    const s = stageSize();
+    const area = openArea();
+    zoomAt(factor, s.left + area.x + area.width / 2, s.top + area.y + area.height / 2);
+  }
+  function showPoint(x, y) {
+    const area = openArea();
+    camera = { k: camera.k, x: x - (area.x + area.width / 2) / camera.k, y: y - (area.y + area.height / 2) / camera.k };
+    applyCamera();
+  }
+  function toDrawing(clientX, clientY) {
+    const point = new DOMPoint(clientX, clientY).matrixTransform(svg.getScreenCTM().inverse());
+    return { x: point.x, y: point.y };
+  }
+
+  // ---- Changes: what was done, for Claude to read, and when to save.
+
+  let saveTimer = null;
+  function logChange(what, coalesceKey) {
+    const entry = { at: now(), text: what };
+    if (coalesceKey) {
+      entry.key = coalesceKey;
+      const last = changes[changes.length - 1];
+      if (last && last.key === coalesceKey) { changes[changes.length - 1] = entry; return; }
+    }
+    changes.push(entry);
+    if (changes.length > 200) changes = changes.slice(-200);
+  }
+  function changed() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(persist, PAUSE);
+  }
+
+  // ---- Tools: adding elements and drawing relationships.
+
+  function setTool(next) {
+    tool = tool === next ? null : next;
+    pending = null;
+    paletteButtons.forEach((b) => b.classList.toggle('is-active', b.getAttribute('data-tool') === tool));
+    canvas.classList.toggle('has-tool', !!tool);
+    applyMarks();
+    hint.textContent = baseHint();
+  }
+  function baseHint() {
+    if (tool && M.KINDS[tool]) return TOOL_HINT[tool];
+    if (tool) return TOOL_HINT[tool][pending ? 1 : 0];
+    if (!editable()) return 'Drag to move around · scroll to pan · pinch or Ctrl/⌘ + scroll to zoom';
+    return NARROW.matches
+      ? 'Tap to select · drag a box to move it · drag the plane to move around'
+      : 'Click to select · drag a box to move it · drag the plane to move around · Ctrl/⌘ + scroll to zoom';
+  }
+  function freeName(kind, ownerId) {
+    const base = BASE_NAME[kind];
+    const taken = new Set(M.childrenOf(model, ownerId).map((e) => e.name.trim()));
+    let i = 1;
+    while (taken.has(base + i)) i++;
+    return base + i;
+  }
+  function place(kind, hit, p) {
+    const k = M.KINDS[kind];
+    let el;
+    if (k.onBorder) {
+      const under = hit.type === 'el' ? layout.ids.get(hit.id) : null;
+      let host = under && M.KINDS[under.kind].contains ? under.id : containerAt(p, null);
+      if (under && M.KINDS[under.kind].onBorder) host = under.owner;
+      if (!host) { say('Click a part def or a part to put a port on its border.'); return; }
+      const b = nearestBorder(layout.rects.get(host), p);
+      el = { id: newId('e'), kind: kind, name: freeName(kind, host), doc: '', owner: host, side: b.side, at: b.at, multiplicity: '', conjugated: false };
+    } else {
+      const w = k.size[0];
+      const h = k.size[1];
+      el = { id: newId('e'), kind: kind, name: '', doc: '', x: Math.round(p.x - w / 2), y: Math.round(p.y - 20), w: w, h: h };
+      if (k.definition) el.abstract = false;
+      else el.multiplicity = '';
+      const host = kind === 'PartUsage' ? containerAt(p, null) : null;
+      if (host) {
+        const r = layout.rects.get(host);
+        el.owner = host;
+        el.x = Math.max(PAD, Math.round(p.x - r.x - w / 2));
+        el.y = Math.max(CHILD_TOP, Math.round(p.y - r.y - 20));
+      }
+      el.name = freeName(kind, host);
+    }
+    model.elements.push(el);
+    logChange('Added ' + M.describe(model, el));
+    setTool(null);
+    render();
+    select({ type: 'el', id: el.id });
+    changed();
+    say('Added ' + M.describe(model, el) + '. Name it in the panel.');
+    fName.focus({ preventScroll: true });
+    fName.select();
+  }
+  function pairProblem(kind, a, b) {
+    if (a.id === b.id) return 'Pick two different elements.';
+    const ka = M.KINDS[a.kind];
+    const kb = M.KINDS[b.kind];
+    if (kind === 'Specialization') {
+      if (a.kind !== b.kind) return M.describe(model, a) + ' can only specialize another ' + ka.label + '.';
+      if (model.relationships.some((r) => r.kind === kind && r.from === a.id && r.to === b.id)) return 'That is already drawn.';
+      if (generalizes(a, b)) return 'That would go round in a circle: ' + M.describe(model, b) + ' already specializes ' + M.describe(model, a) + '.';
+    }
+    if (kind === 'FeatureTyping') {
+      if (!ka.usage) return 'Start from a part or a port; a definition is not defined by anything.';
+      if (ka.definedBy !== b.kind) return M.describe(model, a) + ' can only be defined by a ' + M.KINDS[ka.definedBy].label + '.';
+    }
+    if (kind === 'ConnectionUsage') {
+      if (!(ka.usage && kb.usage) || a.kind !== b.kind) return 'A connection joins two ports or two parts.';
+      if (!M.inUsage(model, a) || !M.inUsage(model, b)) return 'Connect ports or parts inside parts; a definition\'s own features can\'t be connected.';
+      if (M.commonOwner(model, a, b) === null && (M.KINDS[M.chain(model, a)[0].kind].definition || M.KINDS[M.chain(model, b)[0].kind].definition)) {
+        return 'Connect things inside the same part def or part.';
+      }
+    }
+    return null;
+  }
+  // Whether b specializes a, directly or through others.
+  function generalizes(a, b) {
+    const seen = new Set();
+    const stack = [b.id];
+    while (stack.length) {
+      const id = stack.pop();
+      if (id === a.id) return true;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      model.relationships.filter((r) => r.kind === 'Specialization' && r.from === id).forEach((r) => stack.push(r.to));
+    }
+    return false;
+  }
+  function connectStep(kind, hit) {
+    if (hit.type !== 'el') {
+      if (pending) say('Put down: nothing was drawn.');
+      setTool(null);
+      return;
+    }
+    if (!pending) {
+      pending = hit.id;
+      applyMarks();
+      hint.textContent = baseHint();
+      return;
+    }
+    const a = layout.ids.get(pending);
+    const b = layout.ids.get(hit.id);
+    const problem = pairProblem(kind, a, b);
+    if (problem) { say(problem); return; }
+    createRel(kind, a, b, false);
+  }
+  function createRel(kind, a, b, hidden) {
+    if (kind === 'FeatureTyping') {
+      const old = M.typingOf(model, a);
+      if (old) model.relationships.splice(model.relationships.indexOf(old), 1);
+    }
+    const rel = { id: newId('r'), kind: kind, from: a.id, to: b.id };
+    if (kind === 'ConnectionUsage') { rel.name = ''; rel.doc = ''; }
+    if (hidden) rel.hidden = true;
+    model.relationships.push(rel);
+    pending = null;
+    setTool(null);
+    logChange('Drew ' + M.describeRel(model, rel));
+    render();
+    select({ type: 'rel', id: rel.id });
+    changed();
+    say('Drew ' + M.describeRel(model, rel) + (kind === 'ConnectionUsage' ? '. Name it in the panel.' : '.'));
+    return rel;
+  }
+
+  // ---- Selecting, moving, and the panel.
+
+  function resolve(sel) {
+    if (!sel) return null;
+    if (sel.type === 'el') { const el = layout.ids.get(sel.id); return el ? { type: 'el', item: el } : null; }
+    const rel = model.relationships.find((r) => r.id === sel.id);
+    return rel ? { type: 'rel', item: rel } : null;
+  }
+  function select(sel) {
+    selection = sel && resolve(sel) ? sel : null;
+    applyMarks();
+    renderInspector();
+    if (selection) setPanel(true);
+  }
+  function renderInspector() {
+    const s = resolve(selection);
+    const write = editable();
+    if (!s) { fields.hidden = true; inspectorEmpty.hidden = false; return; }
+    fields.hidden = false;
+    inspectorEmpty.hidden = true;
+    const hideAll = () => ['l-name', 'l-abstract', 'l-type', 'l-type-line', 'l-multiplicity', 'l-conjugated', 'l-doc'].forEach((id) => { $(id).hidden = true; });
+    hideAll();
+    if (s.type === 'el') {
+      const el = s.item;
+      const k = M.KINDS[el.kind];
+      fKind.textContent = M.describe(model, el);
+      $('l-name').hidden = false;
+      fName.value = el.name;
+      if (k.definition) { $('l-abstract').hidden = false; fAbstract.checked = !!el.abstract; }
+      if (k.usage) {
+        $('l-type').hidden = false;
+        while (fType.firstChild) fType.removeChild(fType.firstChild);
+        const none = document.createElement('option');
+        none.value = '';
+        none.textContent = 'nothing yet';
+        fType.appendChild(none);
+        const typing = M.typingOf(model, el);
+        model.elements.filter((e) => e.kind === k.definedBy).forEach((d) => {
+          const o = document.createElement('option');
+          o.value = d.id;
+          o.textContent = d.name.trim() || '(unnamed)';
+          fType.appendChild(o);
+        });
+        fType.value = typing ? typing.to : '';
+        if (typing) { $('l-type-line').hidden = false; fTypeLine.checked = !typing.hidden; }
+        $('l-multiplicity').hidden = false;
+        fMult.value = el.multiplicity || '';
+      }
+      if (k.onBorder) { $('l-conjugated').hidden = false; fConj.checked = !!el.conjugated; }
+      $('l-doc').hidden = false;
+      fDoc.value = el.doc;
+      fPath.textContent = M.qualified(model, el);
+    } else {
+      const rel = s.item;
+      const conn = rel.kind === 'ConnectionUsage';
+      fKind.textContent = M.describeRel(model, rel);
+      if (conn) { $('l-name').hidden = false; fName.value = rel.name; $('l-doc').hidden = false; fDoc.value = rel.doc; }
+      fPath.textContent = '';
+    }
+    [fName, fMult, fDoc].forEach((i) => { i.readOnly = !write; });
+    [fAbstract, fType, fTypeLine, fConj].forEach((i) => { i.disabled = !write; });
+    deleteButton.hidden = !write;
+    addNoteButton.hidden = !write;
+  }
+  function selectedElement() { const s = resolve(selection); return s && s.type === 'el' ? s.item : null; }
+  function selectedRel() { const s = resolve(selection); return s && s.type === 'rel' ? s.item : null; }
+
+  fName.addEventListener('input', () => {
+    const el = selectedElement();
+    const rel = selectedRel();
+    if (!editable() || (!el && !rel)) return;
+    (el || rel).name = fName.value;
+    render();
+    changed();
+  });
+  fName.addEventListener('change', () => {
+    const el = selectedElement();
+    const rel = selectedRel();
+    if (el) { logChange('Renamed to ' + M.describe(model, el), 'rename:' + el.id); fKind.textContent = M.describe(model, el); fPath.textContent = M.qualified(model, el); }
+    else if (rel) { logChange('Named the ' + M.describeRel(model, rel), 'rename:' + rel.id); fKind.textContent = M.describeRel(model, rel); }
+    renderNotes();
+  });
+  fAbstract.addEventListener('change', () => {
+    const el = selectedElement();
+    if (!el || !editable()) return;
+    el.abstract = fAbstract.checked;
+    logChange((el.abstract ? 'Made abstract: ' : 'Made concrete: ') + M.describe(model, el));
+    render();
+    changed();
+  });
+  fType.addEventListener('change', () => {
+    const el = selectedElement();
+    if (!el || !editable()) return;
+    const old = M.typingOf(model, el);
+    if (!fType.value) {
+      if (old) { model.relationships.splice(model.relationships.indexOf(old), 1); logChange('Undefined ' + M.describe(model, el)); }
+      render();
+      changed();
+      renderInspector();
+      return;
+    }
+    const def = layout.ids.get(fType.value);
+    if (!def) return;
+    const rel = createRel('FeatureTyping', el, def, old ? !!old.hidden : true);
+    select({ type: 'el', id: el.id });
+    say('Defined ' + M.describe(model, el) + ' by ' + def.name + '.' + (rel.hidden ? ' It shows as text; tick the box to draw the line too.' : ''));
+  });
+  fTypeLine.addEventListener('change', () => {
+    const el = selectedElement();
+    const typing = el ? M.typingOf(model, el) : null;
+    if (!typing || !editable()) return;
+    if (fTypeLine.checked) delete typing.hidden; else typing.hidden = true;
+    render();
+    changed();
+  });
+  fMult.addEventListener('input', () => {
+    const el = selectedElement();
+    if (!el || !editable()) return;
+    el.multiplicity = fMult.value.trim();
+    render();
+    changed();
+  });
+  fMult.addEventListener('change', () => {
+    const el = selectedElement();
+    if (el) logChange('Set the multiplicity of ' + M.describe(model, el) + ' to ' + (el.multiplicity || 'nothing'), 'mult:' + el.id);
+  });
+  fConj.addEventListener('change', () => {
+    const el = selectedElement();
+    if (!el || !editable()) return;
+    el.conjugated = fConj.checked;
+    logChange((el.conjugated ? 'Conjugated ' : 'Unconjugated ') + M.describe(model, el));
+    render();
+    changed();
+  });
+  fDoc.addEventListener('input', () => {
+    const el = selectedElement();
+    const rel = selectedRel();
+    if (!editable() || (!el && !rel)) return;
+    (el || rel).doc = fDoc.value;
+    render();
+    changed();
+  });
+  fDoc.addEventListener('change', () => {
+    const el = selectedElement();
+    const rel = selectedRel();
+    if (el) logChange('Wrote the doc of ' + M.describe(model, el), 'doc:' + el.id);
+    else if (rel) logChange('Wrote the doc of the ' + M.describeRel(model, rel), 'doc:' + rel.id);
+  });
+
+  function deleteSelection() {
+    const s = resolve(selection);
+    if (!s || !editable()) return;
+    let gone = [];
+    let what;
+    if (s.type === 'el') {
+      what = M.describe(model, s.item);
+      gone = [s.item].concat(M.descendants(model, s.item.id));
+      const ids = new Set(gone.map((e) => e.id));
+      const rels = model.relationships.filter((r) => ids.has(r.from) || ids.has(r.to));
+      rels.forEach((r) => ids.add(r.id));
+      model.elements = model.elements.filter((e) => !ids.has(e.id));
+      model.relationships = model.relationships.filter((r) => !ids.has(r.id));
+      dropNotesOn(ids);
+    } else {
+      what = 'the ' + M.describeRel(model, s.item);
+      model.relationships = model.relationships.filter((r) => r.id !== s.item.id);
+      dropNotesOn(new Set([s.item.id]));
+    }
+    logChange('Deleted ' + what);
+    select(null);
+    render();
+    renderNotes();
+    changed();
+    say('Deleted ' + what + (gone.length > 1 ? ', with ' + plural(gone.length - 1, 'element') + ' inside it' : '') + '.');
+  }
+  deleteButton.addEventListener('click', deleteSelection);
+  function dropNotesOn(ids) {
+    notes.filter((n) => ids.has(n.target)).forEach((n) => removeNote(n.id, true));
+  }
+
+  function setPanel(open) {
+    panel.hidden = !open;
+    showPanel.hidden = open;
+  }
+  $('hide-panel').addEventListener('click', () => setPanel(false));
+  showPanel.addEventListener('click', () => setPanel(true));
+
+  // ---- Notes: on an element or a line, listed in the panel, pinned on the drawing.
+
+  const noteTimers = {};
+  function renderNotes() {
+    const active = document.activeElement;
+    const activeLi = active && active.closest ? active.closest('.note') : null;
+    const activeId = activeLi ? activeLi.getAttribute('data-note') : null;
+    const selStart = activeId ? active.selectionStart : 0;
+    const selEnd = activeId ? active.selectionEnd : 0;
+    while (list.firstChild) list.removeChild(list.firstChild);
+    notes.slice().sort(byNumber).forEach((n) => list.appendChild(itemFor(n)));
+    notesEmpty.hidden = notes.length > 0;
+    notesEmpty.textContent = mode === 'loading' ? 'Loading the notes…' : editable() ? 'No notes yet. Select a box, a port, or a line, then Add note.' : 'No notes.';
+    notesCount.textContent = notes.length ? String(notes.length) : '';
+    showPanel.textContent = notes.length ? 'Panel · ' + plural(notes.length, 'note') : 'Panel';
+    renderPins();
+    const again = activeId ? list.querySelector('[data-note="' + activeId + '"] textarea') : null;
+    if (again) {
+      again.focus({ preventScroll: true });
+      try { again.setSelectionRange(selStart, selEnd); } catch (error) { /* not a text field */ }
+    }
+  }
+  function dateOf(iso) {
+    return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+  function itemFor(n) {
+    const write = editable();
+    const li = document.createElement('li');
+    li.className = 'note' + (n.resolved ? ' is-resolved' : '');
+    li.setAttribute('data-note', n.id);
+    const head = document.createElement('div');
+    head.className = 'note-head';
+    const badge = document.createElement('button');
+    badge.type = 'button';
+    badge.className = 'badge';
+    badge.textContent = String(n.no);
+    badge.title = 'Show what this note is on';
+    badge.setAttribute('aria-label', 'Show note ' + n.no + ' on the drawing');
+    const on = document.createElement('span');
+    on.className = 'on';
+    const label = M.labelFor(model, n.target) || n.targetLabel || 'something no longer in the model';
+    on.appendChild(document.createTextNode('on '));
+    const b = document.createElement('b');
+    b.textContent = label;
+    on.appendChild(b);
+    head.appendChild(badge);
+    head.appendChild(on);
+    if (write) {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'remove';
+      remove.textContent = 'Delete';
+      remove.setAttribute('aria-label', 'Delete note ' + n.no);
+      remove.addEventListener('click', () => { removeNote(n.id, false); renderNotes(); say('Deleted note ' + n.no + '.'); });
+      head.appendChild(remove);
+    }
+    const textarea = document.createElement('textarea');
+    textarea.className = 'text';
+    textarea.rows = 2;
+    textarea.value = n.text;
+    textarea.readOnly = !write || n.by === 'claude';
+    textarea.placeholder = write ? 'Write the note' : '';
+    textarea.setAttribute('aria-label', 'Note ' + n.no + ', on ' + label);
+    textarea.addEventListener('input', () => {
+      n.text = textarea.value;
+      n.updated = now();
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 2 + 'px';
+      noteChanged(n, ['text', 'updated']);
+    });
+    textarea.addEventListener('focus', () => markNote(n, true));
+    textarea.addEventListener('blur', () => markNote(n, false));
+    li.appendChild(head);
+    li.appendChild(textarea);
+    if (n.response) {
+      const response = document.createElement('p');
+      response.className = 'response';
+      const who = document.createElement('b');
+      who.textContent = 'Claude: ';
+      response.appendChild(who);
+      response.appendChild(document.createTextNode(n.response));
+      li.appendChild(response);
+    }
+    const meta = document.createElement('p');
+    meta.className = 'meta';
+    meta.textContent = (n.by === 'claude' ? 'From Claude · ' : '') + 'Added ' + dateOf(n.created) + (n.resolved ? ' · resolved' : '');
+    li.appendChild(meta);
+    badge.addEventListener('click', () => {
+      const r = layout.rects.get(n.target);
+      const rel = model.relationships.find((x) => x.id === n.target);
+      let at = r ? center(r) : null;
+      if (!at && rel) { const e = endpoints(rel); at = e ? e.mid : null; }
+      if (at) showPoint(at.x, at.y);
+      if (r) select({ type: 'el', id: n.target });
+      else if (rel) select({ type: 'rel', id: n.target });
+      say('Showing note ' + n.no + ', on ' + label + '.');
+    });
+    li.addEventListener('mouseenter', () => markNote(n, true));
+    li.addEventListener('mouseleave', () => markNote(n, li.contains(document.activeElement)));
+    requestAnimationFrame(() => { textarea.style.height = 'auto'; textarea.style.height = textarea.scrollHeight + 2 + 'px'; });
+    return li;
+  }
+  function markNote(n, on) {
+    const li = list.querySelector('[data-note="' + n.id + '"]');
+    const pin = svg.querySelector('.pin[data-note="' + n.id + '"]');
+    if (li) li.classList.toggle('is-active', on);
+    if (pin) pin.classList.toggle('is-active', on);
+    const g = svg.querySelector('[data-el="' + n.target + '"], [data-rel="' + n.target + '"]');
+    if (g) g.classList.toggle('is-hover', on);
+  }
+  function focusNote(id) {
+    setPanel(true);
+    const textarea = list.querySelector('[data-note="' + id + '"] textarea');
+    if (!textarea) return;
+    textarea.focus({ preventScroll: true });
+    textarea.closest('li').scrollIntoView({ block: 'nearest' });
+  }
+  function addNote() {
+    const s = resolve(selection);
+    if (!s || !editable()) return;
+    const stamp = now();
+    const n = {
+      id: newId('n'), no: nextNumber(), target: s.item.id, targetLabel: M.labelFor(model, s.item.id), text: '', by: 'user',
+      created: stamp, updated: stamp, response: '', resolved: false
+    };
+    notes.push(n);
+    renderNotes();
+    noteChanged(n, null);
+    focusNote(n.id);
+    say('Added note ' + n.no + ' on ' + n.targetLabel + '.');
+  }
+  addNoteButton.addEventListener('click', addNote);
+  function removeNote(id, quiet) {
+    const n = noteById(id);
+    if (!n) return;
+    notes.splice(notes.indexOf(n), 1);
+    clearTimeout(noteTimers[id]);
+    if (mode === 'local') saveLocal();
+    else if (mode === 'shared') deleteShared(id);
+    if (!quiet) renderPins();
+  }
+  // A note changed here: `fields` says which of its fields, or null for a new note.
+  function noteChanged(n, fieldsChanged) {
+    if (mode === 'local') { saveLocal(); return; }
+    if (mode !== 'shared') return;
+    if (!fieldsChanged) { stageNote(n.id); writeShared(n, null); return; }
+    stageNote(n.id);
+    clearTimeout(noteTimers[n.id]);
+    noteTimers[n.id] = setTimeout(() => writeShared(n, fieldsChanged), PAUSE);
+  }
+
+  // ---- Where the model and the notes are kept. Published on claude.ai: the page's store, which Claude reads too.
+  // Opened as a file: this browser, starting from what is saved in the file.
+
+  function start() {
+    const claude = window.claude;
+    if (!claude || typeof claude.use !== 'function') { startLocal(); return; }
+    chrome();
+    render();
+    renderNotes();
+    claude.use('db').then((found) => {
+      if (!found) {
+        setMode('read', 'This view can\'t reach the shared store, so this is the model as it was saved in the page.');
+        return null;
+      }
+      db = found;
+      return claude.use('user').then((user) => (user ? user.can('data.write') : null)).then((allowed) => startShared(allowed !== false));
+    }).catch(() => {
+      if (mode === 'loading') setMode('read', 'The shared store couldn\'t be reached. Reload the page to try again.');
+    });
+  }
+  function setMode(next, why) {
+    mode = next;
+    reason = why || '';
+    chrome();
+    renderInspector();
+    renderNotes();
+  }
+  function chrome() {
+    const write = editable();
+    where.textContent = reason || WHERE[mode];
+    downloadButton.hidden = mode !== 'local';
+    importButton.hidden = !write;
+    paletteButtons.forEach((b) => { b.disabled = !write; });
+    hint.textContent = baseHint();
+  }
+
+  // -- This browser.
+  function storageKey() { return STATE_KEY + (saved.model.revision || 'unsaved'); }
+  function saveLocal() {
+    try {
+      localStorage.setItem(storageKey(), JSON.stringify({ model: model, notes: notes, changes: changes }));
+      warning.hidden = true;
+    } catch (error) {
+      warning.hidden = false;
+    }
+  }
+  function startLocal() {
+    mode = 'local';
+    try {
+      const data = JSON.parse(localStorage.getItem(storageKey()) || 'null');
+      if (data && data.model) {
+        model = M.normalize(data.model);
+        notes = (Array.isArray(data.notes) ? data.notes : []).filter(isNote).map(tidyNote);
+        changes = Array.isArray(data.changes) ? data.changes.slice(-200) : [];
+      }
+    } catch (error) { /* start from the file */ }
+    chrome();
+    render();
+    renderNotes();
+  }
+
+  // -- The page's store: one document with the working model, and a collection with one document per note.
+  let lastWritten = null;        // the model as last written or read, to tell our own writes coming back
+  let modelQueue = Promise.resolve();
+  const noteQueue = {};
+  const dirty = new Map();       // note id -> a counter while a change made here hasn't been written
+  let heardModel = false;
+  let heardNotes = false;
+
+  function startShared(writable) {
+    mode = writable ? 'shared' : 'read';
+    reason = '';
+    const slow = setTimeout(() => { if (!heardModel || !heardNotes) say('The shared store can\'t be reached yet, so this may be out of date.'); }, 10000);
+    const heard = () => { if (heardModel && heardNotes) { clearTimeout(slow); if (status.textContent.indexOf('shared store') >= 0) say(''); } };
+    db.doc(WORKING).onSnapshot((snap) => {
+      const first = !heardModel;
+      if (!snap.metadata.fromCache && !heardModel) { heardModel = true; heard(); }
+      const data = snap.exists ? snap.data() : null;
+      if (!data || data.baseRevision !== saved.model.revision || !data.model) return;
+      const json = JSON.stringify(data.model);
+      if (json === lastWritten) return;
+      if (drag || saveTimer) return;
+      lastWritten = json;
+      model = M.normalize(data.model);
+      if (Array.isArray(data.changes)) changes = data.changes.slice(-200);
+      render();
+      renderInspector();
+      renderNotes();
+      if (!first && !snap.metadata.hasPendingWrites) say('The model was updated elsewhere.');
+    }, () => setMode('read', 'The shared store stopped answering. Reload the page to see the latest.'));
+    db.collection(NOTES).onSnapshot((snap) => {
+      if (!snap.metadata.fromCache && !heardNotes) { heardNotes = true; heard(); }
+      const remote = new Map();
+      snap.docs.forEach((doc) => {
+        const body = doc.data();
+        if (!body) return;
+        const n = Object.assign({}, body, { id: doc.id });
+        if (isNote(n)) remote.set(doc.id, tidyNote(n));
+      });
+      const next = [];
+      notes.forEach((n) => { if (dirty.has(n.id)) { next.push(n); remote.delete(n.id); } });
+      remote.forEach((n) => next.push(n));
+      notes = next;
+      renderNotes();
+    }, () => setMode('read', 'The notes stopped updating. Reload the page to see the latest.'));
+    chrome();
+    render();
+    renderNotes();
+  }
+  function persist() {
+    saveTimer = null;
+    if (mode === 'local') { saveLocal(); return; }
+    if (mode !== 'shared') return;
+    const body = { baseRevision: saved.model.revision, model: JSON.parse(JSON.stringify(model)), changes: changes.slice(-200), updated: now() };
+    lastWritten = JSON.stringify(body.model);
+    modelQueue = modelQueue.then(() => attempt(() => db.doc(WORKING).set(body))).catch((error) => refused(error, 'The change to the model wasn\'t saved.'));
+  }
+  function noteBody(n) {
+    return { no: n.no, target: n.target, targetLabel: n.targetLabel, text: n.text, by: n.by, created: n.created, updated: n.updated, response: n.response, resolved: n.resolved };
+  }
+  function stageNote(id) { dirty.set(id, (dirty.get(id) || 0) + 1); }
+  function enqueue(id, job) {
+    const next = (noteQueue[id] || Promise.resolve()).then(job, job);
+    noteQueue[id] = next;
+    const done = () => { if (noteQueue[id] === next) delete noteQueue[id]; };
+    next.then(done, done);
+  }
+  function writeShared(n, fieldsChanged) {
+    if (!db) return;
+    const seq = dirty.get(n.id);
+    const body = noteBody(n);
+    const ref = db.collection(NOTES).doc(n.id);
+    const picked = {};
+    (fieldsChanged || []).forEach((k) => { picked[k] = body[k]; });
+    enqueue(n.id, () => attempt(() => (fieldsChanged ? ref.update(picked) : ref.set(body)))
+      .catch((error) => {
+        if (fieldsChanged && error && error.code === 'invalid_argument') return attempt(() => ref.set(body));
+        throw error;
+      })
+      .then(() => { if (dirty.get(n.id) === seq) dirty.delete(n.id); },
+        (error) => { dirty.delete(n.id); refused(error, 'A change to the notes wasn\'t saved.'); }));
+  }
+  function deleteShared(id) {
+    if (!db) return;
+    dirty.delete(id);
+    enqueue(id, () => attempt(() => db.collection(NOTES).doc(id).delete()).catch((error) => refused(error, 'The note wasn\'t deleted in the shared store.')));
+  }
+  function attempt(fn) {
+    return Promise.resolve().then(fn).catch((error) => {
+      if (!error || error.code !== 'unavailable') throw error;
+      return new Promise((resolve) => setTimeout(resolve, 400 + Math.random() * 800)).then(fn);
+    });
+  }
+  function refused(error, fallback) {
+    const code = error && error.code;
+    if (code === 'invalid_argument' || code === 'revoked' || code === 'not_granted') setMode('read', 'You can look at this model here but not change it.');
+    else if (code === 'quota_exceeded') say('The shared store is full. Delete some notes, then try again.');
+    else say(fallback + ' Check your connection, then try again.');
+  }
+
+  // ---- Taking the state out and bringing it in.
+
+  function stateFile() {
+    return { format: M.FORMAT, revision: saved.model.revision, saved: now(), model: model, notes: notes, changes: changes };
+  }
+  downloadButton.addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(stateFile(), null, 2) + '\n'], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'canvas-state.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    say('Downloading the model and ' + plural(notes.length, 'note') + ' as canvas-state.json.');
+  });
+  importButton.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files && fileInput.files[0];
+    fileInput.value = '';
+    if (!file || !editable()) return;
+    file.text().then((raw) => {
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== 'object' || !data.model) throw new Error('no model');
+      model = M.normalize(data.model);
+      const incoming = (Array.isArray(data.notes) ? data.notes : []).filter(isNote).map(tidyNote);
+      notes.slice().forEach((n) => removeNote(n.id, true));
+      notes = incoming;
+      changes = Array.isArray(data.changes) ? data.changes.slice(-200) : [];
+      logChange('Imported the state from ' + file.name);
+      select(null);
+      render();
+      renderNotes();
+      if (mode === 'shared') notes.forEach((n) => { stageNote(n.id); writeShared(n, null); });
+      changed();
+      say('Imported ' + plural(model.elements.length, 'element') + ' and ' + plural(notes.length, 'note') + ' from ' + file.name + '.');
+    }).catch(() => say(file.name + ' isn\'t a state file from this page.'));
+  });
+
+  // ---- The export: the model as textual SysML v2.
+
+  function openExport() {
+    const problems = M.validate(model);
+    while (exportProblems.firstChild) exportProblems.removeChild(exportProblems.firstChild);
+    problems.forEach((p) => {
+      const li = document.createElement('li');
+      li.textContent = p.message;
+      exportProblems.appendChild(li);
+    });
+    exportText.value = M.toSysML(model, notes);
+    exportPanel.hidden = false;
+    say(problems.length ? plural(problems.length, 'problem') + ' to fix before this is correct SysML.' : '');
+  }
+  $('export').addEventListener('click', () => { if (exportPanel.hidden) openExport(); else exportPanel.hidden = true; });
+  $('close-export').addEventListener('click', () => { exportPanel.hidden = true; });
+  $('copy-export').addEventListener('click', () => {
+    const text = exportText.value;
+    const byHand = () => { exportText.focus(); exportText.select(); say('This browser wouldn\'t copy for the page. The text is selected: copy it from there.'); };
+    try { navigator.clipboard.writeText(text).then(() => say('Copied the model as textual SysML v2.'), byHand); } catch (error) { byHand(); }
+  });
+
+  // ---- Moving around and pointing at things.
+
+  const pointers = {};
+  let gesture = null;
+  function pointerCount() { return Object.keys(pointers).length; }
+  function twoPointers() {
+    const ids = Object.keys(pointers);
+    const a = pointers[ids[0]];
+    const b = pointers[ids[1]];
+    return { mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, dist: Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1) };
+  }
+  function hitOf(target) {
+    const pin = target.closest ? target.closest('.pin') : null;
+    if (pin) return { type: 'pin', id: pin.getAttribute('data-note') };
+    const elG = target.closest ? target.closest('[data-el]') : null;
+    if (elG) return { type: 'el', id: elG.getAttribute('data-el'), g: elG };
+    const relG = target.closest ? target.closest('[data-rel]') : null;
+    if (relG) return { type: 'rel', id: relG.getAttribute('data-rel'), g: relG };
+    return { type: 'plane' };
+  }
+
+  svg.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'mouse' && event.button > 1) return;
+    event.preventDefault();
+    canvas.focus({ preventScroll: true });
+    pointers[event.pointerId] = { x: event.clientX, y: event.clientY, button: event.button };
+    try { svg.setPointerCapture(event.pointerId); } catch (error) { /* not capturable */ }
+    if (pointerCount() === 2) {
+      const t = twoPointers();
+      gesture = { pinch: { mid: t.mid, dist: t.dist, cx: camera.x, cy: camera.y, k: camera.k }, moved: true };
+      drag = null;
+      return;
+    }
+    if (pointerCount() > 2) return;
+    const hit = hitOf(event.target);
+    const el = hit.type === 'el' ? layout.ids.get(hit.id) : null;
+    const pan = event.button === 1 || !el || !!tool || !editable();
+    gesture = { x: event.clientX, y: event.clientY, cx: camera.x, cy: camera.y, moved: false, hit: hit, pan: pan };
+    drag = pan ? null : { id: el.id, start: toDrawing(event.clientX, event.clientY), from: { x: el.x, y: el.y }, moved: false, over: undefined };
+  });
+  svg.addEventListener('pointermove', (event) => {
+    const p = pointers[event.pointerId];
+    if (!p) { hover(event); return; }
+    p.x = event.clientX;
+    p.y = event.clientY;
+    if (!gesture) return;
+    if (gesture.pinch) {
+      if (pointerCount() < 2) return;
+      const s = stageSize();
+      const t = twoPointers();
+      const g = gesture.pinch;
+      const k = clamp(g.k * t.dist / g.dist, MIN_ZOOM, MAX_ZOOM);
+      const wx = g.cx + (g.mid.x - s.left) / g.k;
+      const wy = g.cy + (g.mid.y - s.top) / g.k;
+      camera = { k: k, x: wx - (t.mid.x - s.left) / k, y: wy - (t.mid.y - s.top) / k };
+      applyCamera();
+      return;
+    }
+    const dx = p.x - gesture.x;
+    const dy = p.y - gesture.y;
+    if (!gesture.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+    if (!gesture.moved) {
+      gesture.moved = true;
+      if (gesture.pan) canvas.classList.add('is-panning');
+      setHover(null);
+    }
+    if (gesture.pan) {
+      camera = { k: camera.k, x: gesture.cx - dx / camera.k, y: gesture.cy - dy / camera.k };
+      applyCamera();
+    } else if (drag) {
+      moveDrag(event);
+    }
+  });
+  function moveDrag(event) {
+    const el = layout.ids.get(drag.id);
+    if (!el) return;
+    const p = toDrawing(event.clientX, event.clientY);
+    drag.moved = true;
+    if (M.KINDS[el.kind].onBorder) {
+      const b = nearestBorder(layout.rects.get(el.owner), p);
+      el.side = b.side;
+      el.at = b.at;
+    } else {
+      el.x = Math.round(drag.from.x + (p.x - drag.start.x));
+      el.y = Math.round(drag.from.y + (p.y - drag.start.y));
+      if (el.owner !== undefined) { el.x = Math.max(el.x, PAD); el.y = Math.max(el.y, CHILD_TOP); }
+      drag.over = el.kind === 'PartUsage' ? containerAt(p, el) : undefined;
+    }
+    render();
+    if (drag.over) {
+      const g = svg.querySelector('[data-el="' + drag.over + '"]');
+      if (g) g.classList.add('is-drop');
+    }
+  }
+  function finishDrag(event) {
+    const el = layout.ids.get(drag.id);
+    if (!el) return;
+    if (el.kind === 'PartUsage' && event.type === 'pointerup') {
+      const over = containerAt(toDrawing(event.clientX, event.clientY), el);
+      const current = el.owner === undefined ? null : el.owner;
+      if (over !== current) {
+        const abs = layout.rects.get(el.id);
+        if (over === null) { delete el.owner; el.x = Math.round(abs.x); el.y = Math.round(abs.y); }
+        else {
+          const o = layout.rects.get(over);
+          el.owner = over;
+          el.x = Math.max(PAD, Math.round(abs.x - o.x));
+          el.y = Math.max(CHILD_TOP, Math.round(abs.y - o.y));
+        }
+        logChange('Moved ' + M.describe(model, el) + (over ? ' into ' + M.describe(model, layout.ids.get(over)) : ' out onto the plane'));
+      } else {
+        logChange('Moved ' + M.describe(model, el), 'move:' + el.id);
+      }
+    } else {
+      logChange('Moved ' + M.describe(model, el) + (M.KINDS[el.kind].onBorder ? ' to the ' + el.side + ' side' : ''), 'move:' + el.id);
+    }
+    render();
+    renderInspector();
+    changed();
+  }
+  function endPointer(event) {
+    const p = pointers[event.pointerId];
+    if (!p) return;
+    delete pointers[event.pointerId];
+    const left = pointerCount();
+    if (left === 1) {
+      const q = pointers[Object.keys(pointers)[0]];
+      gesture = { x: q.x, y: q.y, cx: camera.x, cy: camera.y, moved: true, hit: { type: 'plane' }, pan: true };
+      drag = null;
+      return;
+    }
+    if (left > 0) return;
+    const g = gesture;
+    gesture = null;
+    canvas.classList.remove('is-panning');
+    if (!g || g.pinch) { drag = null; return; }
+    if (g.moved) {
+      if (drag && drag.moved) finishDrag(event);
+      drag = null;
+      return;
+    }
+    drag = null;
+    if (event.type !== 'pointerup' || p.button !== 0) return;
+    click(g.hit, event);
+  }
+  svg.addEventListener('pointerup', endPointer);
+  svg.addEventListener('pointercancel', endPointer);
+  function click(hit, event) {
+    if (hit.type === 'pin') { focusNote(hit.id); return; }
+    const p = toDrawing(event.clientX, event.clientY);
+    if (tool && !editable()) { setTool(null); return; }
+    if (tool && M.KINDS[tool]) { place(tool, hit, p); return; }
+    if (tool) { connectStep(tool, hit); return; }
+    if (hit.type === 'el' || hit.type === 'rel') select({ type: hit.type, id: hit.id });
+    else select(null);
+  }
+
+  canvas.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    const scale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stageSize().height : 1;
+    let dx = event.deltaX * scale;
+    let dy = event.deltaY * scale;
+    if (event.ctrlKey || event.metaKey) {
+      zoomAt(Math.exp(-dy * 0.01), event.clientX, event.clientY);
+    } else {
+      if (event.shiftKey && !dx) { dx = dy; dy = 0; }
+      camera = { k: camera.k, x: camera.x + dx / camera.k, y: camera.y + dy / camera.k };
+      applyCamera();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('keydown', (event) => {
+    const step = 80 / camera.k;
+    let handled = true;
+    switch (event.key) {
+      case 'ArrowLeft': camera.x -= step; applyCamera(); break;
+      case 'ArrowRight': camera.x += step; applyCamera(); break;
+      case 'ArrowUp': camera.y -= step; applyCamera(); break;
+      case 'ArrowDown': camera.y += step; applyCamera(); break;
+      case '+': case '=': zoomAtCenter(1.25); break;
+      case '-': case '_': zoomAtCenter(0.8); break;
+      case '0': fit(); break;
+      case 'Escape': if (tool) setTool(null); else select(null); break;
+      case 'Delete': case 'Backspace': deleteSelection(); break;
+      default: handled = false;
+    }
+    if (handled) event.preventDefault();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && tool && !(event.target.closest && event.target.closest('input, textarea, select'))) setTool(null);
+  });
+  $('zoom-in').addEventListener('click', () => zoomAtCenter(1.25));
+  $('zoom-out').addEventListener('click', () => zoomAtCenter(0.8));
+  $('zoom-fit').addEventListener('click', fit);
+  paletteButtons.forEach((b) => b.addEventListener('click', () => {
+    if (!editable()) return;
+    setTool(b.getAttribute('data-tool'));
+    canvas.focus({ preventScroll: true });
+    if (tool) say('');
+  }));
+
+  function setHover(g) {
+    if (hovered === g) return;
+    if (hovered) hovered.classList.remove('is-hover');
+    hovered = g;
+    if (g) g.classList.add('is-hover');
+  }
+  function hover(event) {
+    const hit = hitOf(event.target);
+    if (hit.type === 'pin') { setHover(null); hint.textContent = 'Click the pin to read its note.'; return; }
+    if (hit.type === 'plane') { setHover(null); hint.textContent = baseHint(); return; }
+    setHover(hit.g);
+    const what = M.labelFor(model, hit.id);
+    if (tool) hint.textContent = what + ' · ' + baseHint();
+    else if (hit.type === 'el') hint.textContent = what + (editable() ? ' · click to select, drag to move' : ' · click to select');
+    else hint.textContent = what + ' · click to select';
+  }
+  svg.addEventListener('pointerleave', () => { setHover(null); hint.textContent = baseHint(); });
+
+  if (window.ResizeObserver) new ResizeObserver(() => { if (camera && layout) applyCamera(); }).observe(canvas);
+  else window.addEventListener('resize', () => { if (camera && layout) applyCamera(); });
+
+  start();
+  if (NARROW.matches) setPanel(false);
+})();
+</script>
+</body>
+</html>

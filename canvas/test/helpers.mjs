@@ -1,0 +1,225 @@
+// Shared by the canvas tests: where the page is, how to open it (in local mode, or in shared mode behind the fake
+// window.claude from fake-claude.mjs), the moves a test makes on it, and the waits. Everything here speaks the page's
+// DOM contract: the palette's data-tool buttons, g[data-el] and g[data-rel] in svg#drawing, is-selected, the inspector
+// fields, #notes-list and the pins, #export and #export-text, #status.
+
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { installFakeClaude } from './fake-claude.mjs';
+
+// Playwright is installed globally in this container, where only require() finds it: ESM imports ignore NODE_PATH.
+const { chromium } = createRequire(import.meta.url)('playwright');
+
+export const PAGE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html');
+export const PAGE_URL = pathToFileURL(PAGE).href;
+/** How long a wait may take, in ms: past the page's 2 s debounced store write, short enough to fail fast. */
+export const WAIT = 5000;
+
+export function assertPageExists() {
+  assert.ok(fs.existsSync(PAGE), `No canvas page at ${PAGE}. These tests drive canvas/index.html; build it first.`);
+}
+
+/** Launches Chromium for a test file, after checking the page is there, so a missing page fails before any browser work. */
+export function launch() {
+  assertPageExists();
+  return chromium.launch();
+}
+
+// The page's source, read from disk: the model it embeds and its model library.
+
+export function pageSource() {
+  assertPageExists();
+  return fs.readFileSync(PAGE, 'utf8');
+}
+
+/** The saved model in <script type="application/json" id="model">, parsed. */
+export function embeddedModel(source = pageSource()) {
+  const match = source.match(/<script\b[^>]*\bid=["']model["'][^>]*>([\s\S]*?)<\/script>/);
+  assert.ok(match, 'index.html embeds the saved model in <script type="application/json" id="model">');
+  return JSON.parse(match[1]);
+}
+
+/** The text of the classic <script id="model-lib">, which sets window.SysMLModel. */
+export function modelLibSource(source = pageSource()) {
+  const match = source.match(/<script\b[^>]*\bid=["']model-lib["'][^>]*>([\s\S]*?)<\/script>/);
+  assert.ok(match, 'index.html holds the model library in <script id="model-lib">');
+  return match[1];
+}
+
+/** The ids of a model's elements, whether `elements` is an array of {id, ...} or a map keyed by id. */
+export function modelElementIds(model) {
+  const elements = model?.elements;
+  if (Array.isArray(elements)) return elements.map((element) => element.id);
+  return elements ? Object.keys(elements) : [];
+}
+
+// Opening and closing the page.
+
+/**
+ * Opens the page on a fresh browser context (so a fresh localStorage), 1400 x 900. With `shared`, the fake window.claude
+ * is installed first, its store holding `seed` (documents by path), and the call returns once the page has read
+ * model/working from the store. Dialogs are accepted. Uncaught errors in the page are collected for finish().
+ */
+export async function openCanvas(browser, { shared = false, seed = {} } = {}) {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('dialog', (dialog) => dialog.accept());
+  if (shared) await page.addInitScript(installFakeClaude, seed);
+  await page.goto(PAGE_URL);
+  await page.waitForSelector('#canvas svg#drawing', { state: 'attached', timeout: WAIT });
+  if (shared) {
+    await until(page, () => window.__store.log.some((entry) =>
+      (entry.op === 'get' || entry.op === 'onSnapshot') && (entry.path === 'model/working' || entry.path === 'model')),
+    null, 'the page reads model/working from the store (shared mode)');
+  }
+  return { page, errors };
+}
+
+/** Ends a test: the page threw no uncaught error, then it closes. */
+export async function finish({ page, errors }) {
+  assert.deepEqual(errors, [], 'the page threw no uncaught errors');
+  await page.close();
+}
+
+/**
+ * Waits until predicate(arg), run in the page, is truthy. On a timeout it fails with `what`, plus the status line and
+ * the fake store's documents when there is one, instead of Playwright's bare timeout.
+ */
+export async function until(page, predicate, arg, what) {
+  try {
+    await page.waitForFunction(predicate, arg, { timeout: WAIT, polling: 50 });
+  } catch (error) {
+    if (error.name !== 'TimeoutError') throw error;
+    const status = await page.textContent('#status').catch(() => '(no #status)');
+    const store = await page.evaluate(() => (window.__store ? JSON.stringify(window.__store.dump(), null, 1) : ''));
+    assert.fail(`Waited ${WAIT} ms for: ${what}.\n#status: ${status}${store ? `\nstore: ${store}` : ''}`);
+  }
+}
+
+// Reading the page.
+
+export const viewBox = (page) => page.getAttribute('#drawing', 'viewBox');
+export const elementIds = (page) => page.$$eval('g[data-el]', (groups) => groups.map((g) => g.getAttribute('data-el')));
+export const relationshipIds = (page) => page.$$eval('g[data-rel]', (groups) => groups.map((g) => g.getAttribute('data-rel')));
+/** The id (data-el or data-rel) of what carries is-selected, or null. */
+export const selectedId = (page) => page.evaluate(() => {
+  const selected = document.querySelector('.is-selected');
+  return selected ? selected.getAttribute('data-el') ?? selected.getAttribute('data-rel') : null;
+});
+
+/** The zoom shown in #zoom-level, as a number: 100 for "100%". */
+export async function zoomLevel(page) {
+  const text = await page.textContent('#zoom-level');
+  const match = text.match(/(\d+(?:\.\d+)?)\s*%/);
+  assert.ok(match, `#zoom-level shows a percentage, not "${text}"`);
+  return Number(match[1]);
+}
+
+/** Opens the export panel and returns its textual SysML v2. */
+export async function exportText(page) {
+  await page.click('#export');
+  await page.waitForSelector('#export-panel', { state: 'visible', timeout: WAIT });
+  await until(page, () => document.querySelector('#export-text')?.value.trim().length > 0, null, '#export-text holds the export');
+  return page.inputValue('#export-text');
+}
+
+// Moving on the plane.
+
+/** Runs in the page: a point in page pixels with nothing drawn within 170 x 110 of it, inside the visible plane, or null. */
+function findEmptyPoint() {
+  const canvas = document.getElementById('canvas');
+  const svg = document.getElementById('drawing');
+  const box = svg.getBoundingClientRect();
+  const RX = 170;
+  const RY = 110;
+  // The panel grows when something is selected, so its whole column counts as taken, not just where it is now.
+  const panel = document.getElementById('panel');
+  const panelLeft = panel && !panel.hidden ? panel.getBoundingClientRect().left : Infinity;
+  const drawn = (x, y) => {
+    if (x >= panelLeft) return true;
+    const hit = document.elementFromPoint(x, y);
+    return !hit || !canvas.contains(hit) || Boolean(hit.closest('[data-el],[data-rel],[data-note],.pin,button,input,textarea,select,a'));
+  };
+  for (let y = Math.max(box.top, 0) + RY + 4; y <= Math.min(box.bottom, innerHeight) - RY - 4; y += 60) {
+    for (let x = Math.max(box.left, 0) + RX + 4; x <= Math.min(box.right, innerWidth) - RX - 4; x += 60) {
+      let clear = true;
+      for (let dy = -RY; dy <= RY && clear; dy += RY / 2) {
+        for (let dx = -RX; dx <= RX && clear; dx += RX / 2) if (drawn(x + dx, y + dy)) clear = false;
+      }
+      if (clear) return { x, y };
+    }
+  }
+  return null;
+}
+
+/** A point on the empty plane, in page pixels. When the visible plane is full, wheel-pans down and looks again. */
+export async function emptyPoint(page) {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const point = await page.evaluate(findEmptyPoint);
+    if (point) return point;
+    const canvas = await page.locator('#canvas').boundingBox();
+    await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
+    await page.mouse.wheel(0, 600);
+  }
+  assert.fail('found no empty spot on the plane to click, even after panning down six times');
+}
+
+/** Clicks an element, off its centre so an edge drawn centre to centre is not what gets hit. */
+export async function clickElement(page, id) {
+  const group = page.locator(`g[data-el="${id}"]`).first();
+  const box = await group.boundingBox();
+  assert.ok(box, `element ${id} has a bounding box`);
+  await group.click({ position: { x: box.width * 0.35, y: box.height * 0.35 } });
+}
+
+/** Arms an element tool and clicks the plane (an empty spot, or `point`), returning the new element's id. */
+export async function placeElement(page, tool, point) {
+  const before = await elementIds(page);
+  await page.click(`.palette button[data-tool="${tool}"]`);
+  const { x, y } = point ?? await emptyPoint(page);
+  await page.mouse.click(x, y);
+  await until(page, (count) => document.querySelectorAll('g[data-el]').length > count, before.length, `a ${tool} appears after placing it`);
+  const added = (await elementIds(page)).filter((id) => !before.includes(id));
+  assert.equal(added.length, 1, `placing a ${tool} added one element, not ${JSON.stringify(added)}`);
+  return added[0];
+}
+
+/** Arms a relationship tool, clicks the source element then the target, and returns the new edge's id. */
+export async function drawRelationship(page, tool, sourceId, targetId) {
+  const before = await relationshipIds(page);
+  await page.click(`.palette button[data-tool="${tool}"]`);
+  await clickElement(page, sourceId);
+  await clickElement(page, targetId);
+  await until(page, (count) => document.querySelectorAll('g[data-rel]').length > count, before.length, `a ${tool} edge appears after drawing it`);
+  await page.keyboard.press('Escape'); // in case the tool stays armed for another edge; the contract leaves that open
+  const added = (await relationshipIds(page)).filter((id) => !before.includes(id));
+  assert.equal(added.length, 1, `drawing a ${tool} added one edge, not ${JSON.stringify(added)}`);
+  return added[0];
+}
+
+/** Types a new name into the inspector for the selected element and waits for the drawing to show it. */
+export async function rename(page, id, name) {
+  await page.fill('#f-name', name);
+  await until(page, ([elementId, newName]) => document.querySelector(`g[data-el="${elementId}"]`)?.textContent.includes(newName),
+    [id, name], `the drawing shows ${id} renamed to "${name}"`);
+}
+
+/** Adds a note on the selection and returns its id, once its li and pin are there. */
+export async function addNote(page) {
+  const before = await page.$$eval('#notes-list li[data-note]', (items) => items.map((li) => li.getAttribute('data-note')));
+  await page.click('#add-note');
+  await until(page, (count) => document.querySelectorAll('#notes-list li[data-note]').length > count, before.length, 'a note appears in #notes-list');
+  const ids = await page.$$eval('#notes-list li[data-note]', (items) => items.map((li) => li.getAttribute('data-note')));
+  const added = ids.filter((id) => !before.includes(id));
+  assert.equal(added.length, 1, `adding a note added one li, not ${JSON.stringify(added)}`);
+  return added[0];
+}
+
+// The fake store, from the test's side.
+
+export const storeDoc = (page, docPath) => page.evaluate((p) => window.__store.get(p), docPath);
+export const storeDump = (page) => page.evaluate(() => window.__store.dump());
