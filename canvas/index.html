@@ -244,7 +244,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   border: 1px solid var(--line-strong); border-radius: 6px; padding: 8px; white-space: pre; overflow: auto;
 }
 /* What the slices add to the look: their shapes, lines, rows and panel sections, one region each. */
-/* ==== slice: interconnection ==== */
 /* Interconnection: an interface is a connector with a name tag, a flow a thin line with a filled head at the target, a
    binding a line with an equals sign on it. */
 .sysml .rel.interface .line { stroke: var(--accent); stroke-width: 2; }
@@ -252,8 +251,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .sysml .flow-head { fill: currentColor; stroke: none; }
 .sysml .rel.binding .line { stroke: currentColor; stroke-width: 1.5; }
 .sysml .rel.binding .uname { font: 600 14px var(--sans); }
-/* ==== end slice: interconnection ==== */
-/* ==== slice: behavior ==== */
 /* Behavior: a succession is dashed with an open arrowhead, a transition solid with the same head; fork and join are
    filled bars, decision and merge hollow diamonds; start, done's centre and a state's initial node are filled; a send
    or accept action carries its glyph beside the header; a control node's name sits under it in the code font. */
@@ -261,8 +258,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .sysml .open-head { fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
 .sysml .el.bar > .outline, .sysml .el.start > .outline, .sysml .el.initial > .outline, .sysml .el.done > .centre { fill: currentColor; }
 .sysml .el.action > .action-glyph { fill: currentColor; }
-/* ==== end slice: behavior ==== */
-/* ==== slice: sequence ==== */
 /* The sequence view: a dashed lifeline under each head, the event dots on it, the message's arrowhead, and the two
    small arrows under a message that move its row. */
 .sysml .lifeline { fill: none; stroke: currentColor; stroke-width: 1; stroke-dasharray: 4 4; stroke-opacity: 0.7; pointer-events: none; }
@@ -271,8 +266,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .sysml .message-head { fill: var(--card); stroke: currentColor; stroke-width: 1.25; stroke-linejoin: round; }
 .sysml .message-order { font: 600 9px var(--sans); fill: currentColor; fill-opacity: 0.4; cursor: pointer; }
 .sysml .message-order:hover { fill: var(--accent); fill-opacity: 1; }
-/* ==== end slice: sequence ==== */
-/* ==== slice: geometry ==== */
 /* The geometry view: a plan with a coordinate frame and the parts' footprints to scale. A footprint that isn't to scale
    (no shape, or its dimensions not set yet) is dashed. */
 .sysml .geo-axis { fill: none; stroke: currentColor; stroke-width: 1; stroke-opacity: 0.6; pointer-events: none; }
@@ -286,8 +279,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
 /* The spatial fields sit in rows, as many columns as the row has fields showing; a row with none showing takes no room. */
 .fields .geo-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
 .fields .geo-row:not(:has(label:not([hidden]))) { display: none; }
-/* ==== end slice: geometry ==== */
-/* ==== slice: grid ==== */
 /* The grid view: a sheet with a header row and a row per element, or a matrix of the elements against each other. A
    row is an element group (el grid-row), so the core's hover, selection and problem marks apply to it; it has no
    outline of its own, only its zebra fill, and the marks are said again for it, since its own rule would hide them. */
@@ -314,8 +305,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .fields .grid-columns legend { padding: 0 4px; font: 500 11px/1.2 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); }
 .fields .grid-columns label.check { font-size: 12.5px; }
 .fields .grid-kind-row select { width: auto; flex: 1 1 120px; min-width: 0; }
-/* ==== end slice: grid ==== */
-/* ==== slice: browser ==== */
 /* The browser view: the model as a tree of rows. Each row has a fill (alternating) and, inset, the outline the core's
    marks land on (is-hover, is-selected, is-problem, is-source), on element and relationship rows alike. */
 .sysml .browser-row .browser-fill { fill: var(--card); stroke: none; }
@@ -336,8 +325,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .sysml .browser-toggle .browser-arrow { fill: currentColor; fill-opacity: 0.75; }
 .sysml .browser-toggle:hover .browser-arrow { fill: var(--accent); fill-opacity: 1; }
 .sysml .browser-empty { font: italic 400 12.5px var(--sans); fill-opacity: 0.6; pointer-events: none; }
-/* ==== end slice: browser ==== */
-/* ==== slice: annotations ==== */
 /* A free note's pin is hollow, since it sits on nothing. While a pin is dragged, the pins and badges let the pointer
    through to what is under it, and the element or line there is marked as the drop. */
 .sysml .pin.is-free circle { fill: var(--card); stroke: var(--accent); stroke-width: 2; }
@@ -377,7 +364,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .code-link .code-remove { padding: 6px 8px; font-size: 12px; color: var(--fg-2); border-color: var(--line); }
 .code-link .code-remove:hover { color: var(--danger); border-color: var(--danger); }
 .code-link .code-static { margin: 0; font: 400 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
-/* ==== end slice: annotations ==== */
 @media (max-width: 720px) {
   /* On a phone the palette is one row that scrolls sideways, so the bar stays short. */
   .top { gap: 8px 12px; }
@@ -412,20 +398,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
       <button type="button" id="undo" disabled title="Nothing to undo">Undo</button>
       <button type="button" id="new-view">New view</button>
       <select id="new-view-kind" aria-label="The kind of the new view"></select>
-      <!-- ==== slice: interconnection ==== -->
-      <!-- ==== end slice: interconnection ==== -->
-      <!-- ==== slice: behavior ==== -->
-      <!-- ==== end slice: behavior ==== -->
-      <!-- ==== slice: sequence ==== -->
-      <!-- ==== end slice: sequence ==== -->
-      <!-- ==== slice: geometry ==== -->
-      <!-- ==== end slice: geometry ==== -->
-      <!-- ==== slice: grid ==== -->
-      <!-- ==== end slice: grid ==== -->
-      <!-- ==== slice: browser ==== -->
-      <!-- ==== end slice: browser ==== -->
-      <!-- ==== slice: annotations ==== -->
-      <!-- ==== end slice: annotations ==== -->
       <button type="button" id="export">Export SysML</button>
       <button type="button" id="download-state" hidden>Download state</button>
       <button type="button" id="import-state" hidden>Import state</button>
@@ -471,10 +443,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
           <label id="l-direction">Direction <select id="f-direction"><option value="">undirected</option><option value="in">in</option><option value="out">out</option><option value="inout">inout</option></select></label>
           <label id="l-item">Item (the payload) <select id="f-item"></select></label>
           <!-- Each slice's fields: <label id="l-<field>">… <input id="f-<field>"></label>, one per row of FIELDS. -->
-          <!-- ==== slice: interconnection ==== -->
           <label id="l-interfaceDef">Interface def <select id="f-interfaceDef"></select></label>
-          <!-- ==== end slice: interconnection ==== -->
-          <!-- ==== slice: behavior ==== -->
           <label id="l-actionKind">Kind of action <select id="f-actionKind"><option value="plain">plain</option><option value="send">send</option><option value="accept">accept</option></select></label>
           <label id="l-payload">Payload <input type="text" id="f-payload" autocomplete="off" spellcheck="false" placeholder="new Alert() to send; x : Type or after 10 [SI::s] to accept"></label>
           <label id="l-target">Target (via a port, to anything else) <input type="text" id="f-target" autocomplete="off" spellcheck="false" placeholder="a port, a part or an action"></label>
@@ -483,11 +452,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
           <label id="l-trigger">Trigger (the accept part) <input type="text" id="f-trigger" autocomplete="off" spellcheck="false" placeholder="StartSignal · x : Sig via port · after 48 [SI::h] · when ready"></label>
           <label id="l-effect">Effect <input type="text" id="f-effect" autocomplete="off" spellcheck="false" placeholder="action name, send new X() to y, assign a := b"></label>
           <label class="check" id="l-parallel"><input type="checkbox" id="f-parallel"> parallel: its regions run at the same time</label>
-          <!-- ==== end slice: behavior ==== -->
-          <!-- ==== slice: sequence ==== -->
           <label id="l-order">Order (the message's place in time, top to bottom) <input type="text" id="f-order" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="1, 2, 3…"></label>
-          <!-- ==== end slice: sequence ==== -->
-          <!-- ==== slice: geometry ==== -->
           <!-- The spatial fields of a part drawn in a geometry view: its shape and unit, the dimensions its shape has (in
                that unit), and the position of its origin in its owner's frame. -->
           <div class="geo-row">
@@ -505,13 +470,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
             <label id="l-posY">Position y <input type="text" id="f-posY" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
             <label id="l-posZ">Position z <input type="text" id="f-posZ" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
           </div>
-          <!-- ==== end slice: geometry ==== -->
-          <!-- ==== slice: grid ==== -->
-          <!-- ==== end slice: grid ==== -->
-          <!-- ==== slice: browser ==== -->
-          <!-- ==== end slice: browser ==== -->
-          <!-- ==== slice: annotations ==== -->
-          <!-- ==== end slice: annotations ==== -->
           <p class="meta" id="f-path"></p>
           <p class="meta" id="f-views"></p>
           <div class="row">
@@ -527,24 +485,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
           <label id="l-v-show">Show in this view <select id="v-show"></select></label>
           <p class="meta" id="v-meta"></p>
           <!-- Each kind's options, in <div class="view-options" data-view-kind="GridView" hidden>, shown for a view of the kind. -->
-          <!-- ==== slice: interconnection ==== -->
-          <!-- ==== end slice: interconnection ==== -->
-          <!-- ==== slice: behavior ==== -->
-          <!-- ==== end slice: behavior ==== -->
-          <!-- ==== slice: sequence ==== -->
           <div class="view-options" data-view-kind="SequenceView" hidden>
             <label id="l-sv-spacing">Row spacing (between messages, in drawing units) <input type="text" id="sv-spacing" inputmode="numeric" autocomplete="off" spellcheck="false"></label>
           </div>
-          <!-- ==== end slice: sequence ==== -->
-          <!-- ==== slice: geometry ==== -->
           <div class="view-options" data-view-kind="GeometryView" hidden>
             <div class="geo-row">
               <label id="l-g-scale">Pixels per unit <input type="text" id="g-scale" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
               <label id="l-g-unit">Unit <select id="g-unit"><option value="m">m</option><option value="mm">mm</option><option value="cm">cm</option><option value="km">km</option><option value="ft">ft</option><option value="in">in</option></select></label>
             </div>
           </div>
-          <!-- ==== end slice: geometry ==== -->
-          <!-- ==== slice: grid ==== -->
           <div class="view-options" data-view-kind="GridView" hidden>
             <label id="l-grid-mode">Grid <select id="grid-mode"><option value="table">table: a row per element</option><option value="matrix">matrix: the elements against each other</option></select></label>
             <fieldset class="grid-columns" id="grid-columns">
@@ -567,8 +516,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
               <button type="button" id="grid-show-kind" title="Every element of the chosen kind becomes a row">Show kind</button>
             </div>
           </div>
-          <!-- ==== end slice: grid ==== -->
-          <!-- ==== slice: browser ==== -->
           <div class="view-options" data-view-kind="BrowserView" hidden>
             <label id="l-browser-roots">Roots of the tree <select id="browser-roots" multiple size="6" aria-describedby="browser-roots-help"></select></label>
             <p class="meta" id="browser-roots-help">The whole package, or the elements the tree starts from; Ctrl or ⌘ + click picks several. Click the whole package to show everything again.</p>
@@ -576,28 +523,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
               <button type="button" id="browser-expand-all" title="Nothing is folded in this view">Expand all</button>
             </div>
           </div>
-          <!-- ==== end slice: browser ==== -->
-          <!-- ==== slice: annotations ==== -->
-          <!-- ==== end slice: annotations ==== -->
           <div class="row">
             <button type="button" id="v-show-add">Show it</button>
             <button type="button" class="danger" id="delete-view">Delete view</button>
           </div>
         </div>
         <ul class="problems" id="problems-list" hidden></ul>
-        <!-- ==== slice: interconnection ==== -->
-        <!-- ==== end slice: interconnection ==== -->
-        <!-- ==== slice: behavior ==== -->
-        <!-- ==== end slice: behavior ==== -->
-        <!-- ==== slice: sequence ==== -->
-        <!-- ==== end slice: sequence ==== -->
-        <!-- ==== slice: geometry ==== -->
-        <!-- ==== end slice: geometry ==== -->
-        <!-- ==== slice: grid ==== -->
-        <!-- ==== end slice: grid ==== -->
-        <!-- ==== slice: browser ==== -->
-        <!-- ==== end slice: browser ==== -->
-        <!-- ==== slice: annotations ==== -->
         <section id="code" class="code-links" hidden aria-labelledby="code-title">
           <div class="panel-head">
             <h3 id="code-title">Code <span class="count" id="code-count"></span></h3>
@@ -607,7 +538,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
           <ol class="list" id="code-list"></ol>
           <p class="meta" id="code-hint">Each link exports as a textual representation (rep) inside the element. The one change made to the text: */ is written * /, since it would end the SysML comment.</p>
         </section>
-        <!-- ==== end slice: annotations ==== -->
       </section>
       <section class="notes" aria-labelledby="notes-title">
         <div class="panel-head">
@@ -617,24 +547,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
         <ol class="list" id="notes-list"></ol>
         <p class="where" id="where"></p>
         <p class="warning" id="storage-warning" hidden>This browser isn't keeping your changes. Download the state before you close it.</p>
-        <!-- ==== slice: interconnection ==== -->
-        <!-- ==== end slice: interconnection ==== -->
-        <!-- ==== slice: behavior ==== -->
-        <!-- ==== end slice: behavior ==== -->
-        <!-- ==== slice: sequence ==== -->
-        <!-- ==== end slice: sequence ==== -->
-        <!-- ==== slice: geometry ==== -->
-        <!-- ==== end slice: geometry ==== -->
-        <!-- ==== slice: grid ==== -->
-        <!-- ==== end slice: grid ==== -->
-        <!-- ==== slice: browser ==== -->
-        <!-- ==== end slice: browser ==== -->
-        <!-- ==== slice: annotations ==== -->
         <section id="archive" class="archive" aria-label="Archived notes">
           <button type="button" class="archive-toggle" id="archive-toggle" hidden aria-expanded="false" aria-controls="archive-list">Archive · 0</button>
           <ol class="list" id="archive-list" hidden></ol>
         </section>
-        <!-- ==== end slice: annotations ==== -->
       </section>
     </aside>
 
@@ -758,7 +674,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     PortDefinition: { keyword: 'port def', label: 'port def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
     PartUsage: { keyword: 'part', label: 'part', definition: false, usage: true, contains: ['PartUsage', 'PortUsage'], onBorder: false, definedBy: 'PartDefinition', size: [180, 60], shape: 'rounded', fields: ['name', 'type', 'multiplicity', 'doc'], traits: ['connectable'] },
     PortUsage: { keyword: 'port', label: 'port', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16], shape: 'port', fields: ['name', 'type', 'multiplicity', 'conjugated', 'doc'], traits: ['connectable'] },
-    // ==== slice: interconnection ====
     // Interconnection: items (what flows, and what a part holds) and interface definitions, whose ports are their ends.
     ItemDefinition: { keyword: 'item def', label: 'item def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
     // An item's head carries its direction (in item x : T). On a port def it must have one: a port def may own only
@@ -776,8 +691,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
         const ends = childrenOf(model, el.id).filter((c) => KINDS[c.kind].onBorder);
         if (ends.length < 2) add(el.id, describe(model, el, ids) + ' needs two ports on its border, its ends; it has ' + (ends.length ? 'one' : 'none') + '.');
       } },
-    // ==== end slice: interconnection ====
-    // ==== slice: behavior ====
     // Behavior: the action flow view's kinds (an action def, actions with their parameters on the border, the four
     // control nodes, and start and done) and the state view's (a state def, states, the initial node). Start, done
     // and the initial node have no name field: they stand for the start and done every action and state inherits,
@@ -802,8 +715,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     StateUsage: { keyword: 'state', label: 'state', definition: false, usage: true, contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, definedBy: 'StateDefinition', size: [180, 60], shape: 'state',
       fields: ['name', 'type', 'multiplicity', 'parallel', 'doc'], traits: ['transitionEnd'], head: stateHead, body: stateBody, check: checkState },
     InitialNode: { keyword: 'entry', label: 'initial node', definition: false, usage: true, contains: false, onBorder: false, size: [28, 16], shape: 'entry', fields: [], traits: ['transitionEnd'], head: noHead, check: checkPseudoNode },
-    // ==== end slice: behavior ====
-    // ==== slice: sequence ====
     // Sequence: an event occurrence on a lifeline, the dot a message starts or ends on. A lifeline writes its events
     // itself, as one then chain in time order (the BODY writer in the helpers region), so an event owned by a
     // lifeline has no head of its own; one owned by nothing (a general view may put it in the package) is written
@@ -822,15 +733,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
           add(el.id, 'An event' + (owner ? ' in ' + shown(owner.name) : '') + ' has no name. Name it, so a message can start or end on it.');
         }
       } },
-    // ==== end slice: sequence ====
-    // ==== slice: geometry ====
-    // ==== end slice: geometry ====
-    // ==== slice: grid ====
-    // ==== end slice: grid ====
-    // ==== slice: browser ====
-    // ==== end slice: browser ====
-    // ==== slice: annotations ====
-    // ==== end slice: annotations ====
   };
 
   // Relationship kinds. fields are the panel's fields that apply (rows of FIELDS), which normalize keeps by their
@@ -922,7 +824,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
         h.line(depth, '}');
       },
     },
-    // ==== slice: interconnection ====
     // Interconnection: an interface between two ports, typed by an interface def whose ends they match; a flow of an
     // item from one port or item to another; a binding of two ports or items that are one thing. Each is declared in
     // the innermost element that holds both ends, as a connection is, and may carry a doc. The rules on the ends and
@@ -1016,8 +917,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
         connectorStatement(rel, head, depth, h);
       },
     },
-    // ==== end slice: interconnection ====
-    // ==== slice: behavior ====
     // Behavior: a succession between actions and control nodes (dashed, an open arrowhead, [guard] or else as the
     // label) and a transition between states (solid, the same head, trigger [guard] / effect as the label). Both are
     // written in the innermost body that holds their two ends; the rules and the writers are in the behavior helpers.
@@ -1035,8 +934,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
       line: { route: 'straight', marker: 'm-open', cls: 'transition', label: transitionLabel, labelOffset: -8 },
       toSysML: writeTransition,
     },
-    // ==== end slice: behavior ====
-    // ==== slice: sequence ====
     // Sequence: a message between two occurrences (an event, or a lifeline itself), declared in the innermost
     // element that holds both ends, its context: a part def, a part, or the package. It may carry a payload (item, an
     // item def) and has a place in time (order), the row the sequence renderer draws it at.
@@ -1090,15 +987,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
         h.line(depth, '}');
       },
     },
-    // ==== end slice: sequence ====
-    // ==== slice: geometry ====
-    // ==== end slice: geometry ====
-    // ==== slice: grid ====
-    // ==== end slice: grid ====
-    // ==== slice: browser ====
-    // ==== end slice: browser ====
-    // ==== slice: annotations ====
-    // ==== end slice: annotations ====
   };
 
   // View kinds. renderer names the page's renderer for the kind; admits the element kinds a view of the kind may
@@ -1111,7 +999,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const VIEW_KINDS = {
     GeneralView: { name: 'GeneralView', label: 'general view', qualified: 'StandardViewDefinitions::GeneralView', short: 'gv', renderer: 'graph',
       admits: null, tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', '|', 'Specialization', 'FeatureTyping', 'ConnectionUsage'], options: {} },
-    // ==== slice: interconnection ====
     // The interconnection view: parts and part defs as nodes, their ports and items, the item, port and interface
     // defs beside them, and the connectors between the ports and items. A port def is admitted too, since the items
     // that flow are drawn in it.
@@ -1119,8 +1006,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
       admits: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition'],
       tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition', '|', 'ConnectionUsage', 'InterfaceUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'],
       options: {} },
-    // ==== end slice: interconnection ====
-    // ==== slice: behavior ====
     ActionFlowView: { name: 'ActionFlowView', label: 'action flow view', qualified: 'StandardViewDefinitions::ActionFlowView', short: 'afv', renderer: 'graph',
       admits: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'],
       tools: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', '|', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode', '|', 'SuccessionAsUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'], options: {},
@@ -1129,17 +1014,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
       admits: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode'],
       tools: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode', '|', 'TransitionUsage', 'FeatureTyping'], options: {},
       exposes: exposesNamed },
-    // ==== end slice: behavior ====
-    // ==== slice: sequence ====
     SequenceView: { name: 'SequenceView', label: 'sequence view', qualified: 'StandardViewDefinitions::SequenceView', short: 'sv', renderer: 'sequence',
       admits: ['PartUsage', 'EventOccurrenceUsage'], tools: ['PartUsage', 'EventOccurrenceUsage', '|', 'Message', 'SuccessionAsUsage'], options: { spacing: 56 } },
-    // ==== end slice: sequence ====
-    // ==== slice: geometry ====
     // A plan of parts (and items, once that kind is in) drawn to scale: scale is the pixels per unit of the view's unit.
     GeometryView: { name: 'GeometryView', label: 'geometry view', qualified: 'StandardViewDefinitions::GeometryView', short: 'gev', renderer: 'geometry',
-      admits: ['PartUsage', 'ItemUsage'], tools: ['PartUsage'], options: { scale: 40, unit: 'm' } },
-    // ==== end slice: geometry ====
-    // ==== slice: grid ====
+      admits: ['PartUsage', 'ItemUsage'], tools: ['PartUsage', 'ItemUsage'], options: { scale: 40, unit: 'm' } },
     // Any element may be a row, and nothing is drawn by hand: the rows come from the view's Show list and the panel's
     // Show all buttons. The options: mode (table, a row per element; matrix, the elements against each other), the
     // table's columns (keys of GRID_COLUMNS, in its order), and sort (a column, with a leading - for descending; null
@@ -1155,8 +1034,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
         if (gridOptions(view).mode === 'table') lines.push('render Views::asElementTable;');
         return lines;
       } },
-    // ==== end slice: grid ====
-    // ==== slice: browser ====
     // A browser view shows the whole model as a tree, so it admits every kind and places nothing by hand: roots is null
     // for the whole package (every element at the top) or the ids of the elements whose subtrees the tree shows, and
     // collapsed the ids whose insides are folded away.
@@ -1181,9 +1058,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
         lines.push('render Views::asTreeDiagram;');
         return lines;
       } },
-    // ==== end slice: browser ====
-    // ==== slice: annotations ====
-    // ==== end slice: annotations ====
   };
 
   // The fields the panel can show and normalize keeps, by name, for elements (KINDS[kind].fields) and relationships
@@ -1208,11 +1082,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // brings it). No core kind lists them, so the panel shows neither until a slice's kind does.
     direction: { type: 'enum', label: 'direction', values: ['', 'in', 'out', 'inout'] },
     item: { type: 'ref', label: 'item', options: function (model) { return model.elements.filter((e) => e.kind === 'ItemDefinition'); } },
-    // ==== slice: interconnection ====
     // The interface def an interface is typed by.
     interfaceDef: { type: 'ref', label: 'interface def', options: function (model) { return model.elements.filter((e) => e.kind === 'InterfaceDefinition'); } },
-    // ==== end slice: interconnection ====
-    // ==== slice: behavior ====
     // Behavior: what an action does (plain, send, accept) with its payload and its target, its role under a state
     // (entry, do, exit), a succession's guard (the text of a Boolean expression, or else), a transition's trigger,
     // guard and effect (the texts after accept, if and do), and whether a state runs its regions in parallel.
@@ -1224,12 +1095,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     trigger: { type: 'string', label: 'trigger', trim: true },
     effect: { type: 'string', label: 'effect', trim: true },
     parallel: { type: 'bool', label: 'parallel' },
-    // ==== end slice: behavior ====
-    // ==== slice: sequence ====
     // Sequence: a message's place in time, a number; the messages with one come first, the lowest at the top.
     order: { type: 'number', label: 'order' },
-    // ==== end slice: sequence ====
-    // ==== slice: geometry ====
     // The spatial fields of a part or item drawn to scale in a geometry view: its shape (a ShapeItems kind whose
     // dimensions are plain attributes; Box is RectangularCuboid), the dimensions that shape has, the position of the
     // shape's origin in its owner's frame, all numbers in the element's own unit. The panel shows them only while the
@@ -1243,21 +1110,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     posY: { type: 'number', label: 'y position', views: ['GeometryView'] },
     posZ: { type: 'number', label: 'z position', views: ['GeometryView'] },
     unit: { type: 'enum', label: 'unit', values: ['m', 'mm', 'cm', 'km', 'ft', 'in'], views: ['GeometryView'] },
-    // ==== end slice: geometry ====
-    // ==== slice: grid ====
-    // ==== end slice: grid ====
-    // ==== slice: browser ====
-    // ==== end slice: browser ====
-    // ==== slice: annotations ====
     // The code links an element carries: a list of { path, language, text }, read by tidyCode. The annotations slice's
     // own section of the panel edits them (there is no #f-code input, so renderExtraFields leaves the field alone).
     code: { type: 'list', label: 'code links', read: tidyCode, fresh: function () { return []; } },
-    // ==== end slice: annotations ====
   };
 
   // Extensions: what a slice adds to another slice's rows, now that every table is built (KINDS.PartUsage.contains
   // .push('ItemUsage'), KINDS.PartUsage.fields.push('shape'), KINDS.ParameterUsage.traits.push('flowEnd')…).
-  // ==== slice: interconnection ====
   // Interconnection: items live in part defs, parts and port defs; a port is an interface's, a flow's and a binding's
   // end; a port on an interface def is written as its end; a port's glyph follows the directed items of its port def;
   // and a connection can't be declared inside a port def, whose owned usages must be referential. Each hook on a core
@@ -1287,34 +1146,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
       return o !== null && ids.get(o).kind === 'PortDefinition' ? 'A connection can\'t be declared inside ' + describe(model, ids.get(o), ids) + '; connect the ports of parts instead.' : null;
     };
   })();
-  // ==== end slice: interconnection ====
-  // ==== slice: behavior ====
   // Behavior: a part def and a part hold actions and states too (actions in parts: afv10, b06; states: stv-12).
   KINDS.PartDefinition.contains.push('ActionUsage', 'StateUsage');
   KINDS.PartUsage.contains.push('ActionUsage', 'StateUsage');
-  // ==== end slice: behavior ====
-  // ==== slice: sequence ====
   // Sequence: a part is a lifeline, an occurrence a message may start or end on, and it may own event occurrences.
   KINDS.PartUsage.contains.push('EventOccurrenceUsage');
   KINDS.PartUsage.traits.push('lifeline', 'occurrence');
-  // ==== end slice: sequence ====
-  // ==== slice: geometry ====
   // A part, and an item once that kind is in, can be drawn to scale: the spatial trait and the spatial fields.
   ['PartUsage', 'ItemUsage'].forEach((k) => {
     if (!KINDS[k]) return;
     KINDS[k].traits.push('spatial');
     KINDS[k].fields.push('shape', 'length', 'width', 'height', 'radius', 'posX', 'posY', 'posZ', 'unit');
   });
-  // ==== end slice: geometry ====
-  // ==== slice: grid ====
-  // ==== end slice: grid ====
-  // ==== slice: browser ====
-  // ==== end slice: browser ====
-  // ==== slice: annotations ====
   // Every kind may carry code links, so the panel's code section and the export's textual representations apply to
   // every element.
   Object.keys(KINDS).forEach((k) => KINDS[k].fields.push('code'));
-  // ==== end slice: annotations ====
 
   const SIDES = ['top', 'right', 'bottom', 'left'];
   const ID = /^[A-Za-z0-9_.:-]{1,64}$/;
@@ -1668,7 +1514,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // themselves live in the regions below.
   const EXTRA = {};
   const BODY = [];
-  // ==== slice: interconnection ====
   // ---- Interconnection: what a port or item is defined by, the directed items a port carries, the ends of flows
   // and interfaces, and the statement a connector is written as.
 
@@ -1842,8 +1687,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   EXTRA.portItems = portItems;
   EXTRA.portWay = portWay;
   EXTRA.flowEnd = flowEnd;
-  // ==== end slice: interconnection ====
-  // ==== slice: behavior ====
   // Behavior: the action flow and the state transition views. The head of a start, done or initial node is null: the
   // text has them already, as the start and done every action and state inherits and as a state's entry.
   function noHead() { return null; }
@@ -2217,8 +2060,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   EXTRA.sendWord = function (model, target) { return namesAPort(model, target) ? 'via' : 'to'; };
-  // ==== end slice: behavior ====
-  // ==== slice: sequence ====
   // Sequence: the time order. The messages in order: those with a numeric order first, by it, then the rest as the
   // model has them, so a new message, with no order yet, lands last.
   function messagesInOrder(model) {
@@ -2255,8 +2096,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
       h.line(depth, '}');
     });
   });
-  // ==== end slice: sequence ====
-  // ==== slice: geometry ====
   // Geometry. A part or item with the spatial trait may carry a shape with its dimensions and a position, numbers in
   // its own unit; a number that isn't set is '' and is neither drawn to scale nor written. The dimensions a shape has
   // are exactly those its ShapeItems kind owns (Box is RectangularCuboid), so a dimension always names a feature of the
@@ -2381,8 +2220,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   EXTRA.geoConvert = geoConvert;
   EXTRA.geoPlaced = geoPlaced;
   EXTRA.geoNumber = geoNumber;
-  // ==== end slice: geometry ====
-  // ==== slice: grid ====
   // The grid view's columns, in the order a table shows them, and a view's grid options read safely, whatever a file
   // carries: mode is table unless it says matrix, columns are the known ones in this order (the defaults when none is
   // known), and sort is a column name, with a leading - for descending, or null for the model's order. The page draws
@@ -2398,8 +2235,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   EXTRA.GRID_COLUMNS = GRID_COLUMNS;
   EXTRA.gridOptions = gridOptions;
-  // ==== end slice: grid ====
-  // ==== slice: browser ====
   // ---- The browser view: the model as a tree.
   // The elements a browser view's tree starts from: null for the whole package (every element at the top), else the
   // elements its roots option names that are in the model, in model order, leaving out one that sits inside another
@@ -2445,8 +2280,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   EXTRA.browserRoots = browserRoots;
   EXTRA.browserRows = browserRows;
-  // ==== end slice: browser ====
-  // ==== slice: annotations ====
   // The names the notes' forms take from the standard library (private import ModelingMetadata::*): a model element
   // named like one of them would shadow the import, and the validator then can't type the metadata.
   ['Issue', 'Rationale', 'StatusInfo', 'StatusKind', 'ModelingMetadata'].forEach((n) => RESERVED_NAMES.add(n));
@@ -2522,7 +2355,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   EXTRA.tidyCode = tidyCode;
   EXTRA.noteRecords = noteRecords;
   EXTRA.noteStatements = noteStatements;
-  // ==== end slice: annotations ====
 
   // What keeps the model from being correct SysML. Each problem names the element, relationship, or view it is about
   // (null: the package).
@@ -3549,7 +3381,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // TOOL_TITLE, {…}), COMPARTMENTS.push(…), MARKERS['m-flow'] = …, ROUTES.x = …, ACTIONS.toggle = …, VIEW_PANELS.
   // GridView = …, TOOLS.Note = …), function declarations hoist, so a slice may call any function of this script, and
   // start() runs at the end of the script, after every region.
-  // ==== slice: interconnection ====
   // ---- Interconnection: the words for its tools, the item's shape, the flow's head, and a direction for an item
   // placed on a port def.
   Object.assign(TOOL_TITLE, {
@@ -3595,8 +3426,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
       return el;
     };
   })();
-  // ==== end slice: interconnection ====
-  // ==== slice: behavior ====
   // Behavior: the action flow and state transition views on the page: the words for their tools, the shapes of
   // actions, states, parameters and nodes, the open arrowhead, the send or accept compartment, and what placing one of
   // their kinds needs beyond the graph renderer's own placing.
@@ -3756,8 +3585,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     lay.y = Math.max(CHILD_TOP, Math.round(p.y - base.y - lay.h / 2));
     return el;
   };
-  // ==== end slice: behavior ====
-  // ==== slice: sequence ====
   // ---- Sequence: the sequence view's words, the event's shape, the message's arrowhead, the renderer, the row
   // controls under a message, and the view's option.
   Object.assign(TOOL_TITLE, {
@@ -4064,8 +3891,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     endEdit();
     changed();
   });
-  // ==== end slice: sequence ====
-  // ==== slice: geometry ====
   // The geometry view: a plan of the parts it shows, each drawn as its shape's footprint to scale, x to the right and y
   // up from a coordinate frame at the view's origin. A Box or Rectangle stands on its origin corner, length along x and
   // width along y, as the pilot's own vehicle example has it; a round shape (a cylinder, a sphere, a cone) is centred on
@@ -4291,8 +4116,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     changed();
     say(what + '. The scale is now ' + M.geoNumber(geoScale(view)) + ' px per ' + gUnit.value + ', so the drawing keeps its size; new parts are measured in ' + gUnit.value + '.');
   });
-  // ==== end slice: geometry ====
-  // ==== slice: grid ====
   // ---- The grid view: a table with a row per shown element, or a matrix of the shown elements against each other
   // with the relationship kinds between them in the cells. Nothing is placed or moved by hand: the rows come from the
   // view's Show list and from the panel's Show all and Show kind buttons. A row is an element group (el grid-row with
@@ -4604,8 +4427,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     changed();
     say(what + '.');
   };
-  // ==== end slice: grid ====
-  // ==== slice: browser ====
   // ---- The browser view: the model as a tree of rows, one per element with what it owns under it and the
   // relationships declared in it, each a row the core's marks, pins and badges land on (its rect is the row's text
   // band, so a pin on its top edge and a badge at its corner sit inside the row). Rows are BROWSER_ROW high and step
@@ -4793,8 +4614,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     changed();
     say(what + '.');
   });
-  // ==== end slice: browser ====
-  // ==== slice: annotations ====
   // ---- Annotations: the Note tool, notes that float free on the plane, pins that can be dragged, the archive of
   // resolved notes, and the code links an element carries.
 
@@ -5256,7 +5075,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const path = codeList.querySelector('li.code-link:last-child input.code-path');
     if (path) path.focus({ preventScroll: true });
   });
-  // ==== end slice: annotations ====
 
   // Where a note's pin sits in view layout L: on the top edge of a box, beside a port's square away from its name, on
   // the middle of a line. Pins on the same thing step aside by a screen distance, so they stay apart when zoomed out.

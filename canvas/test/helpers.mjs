@@ -267,17 +267,3 @@ export const storeDoc = (page, docPath) => page.evaluate((p) => window.__store.g
 export const storeDump = (page) => page.evaluate(() => window.__store.dump());
 
 // Helpers a slice's tests share with no other, one region per slice.
-// ==== slice: interconnection ====
-// ==== end slice: interconnection ====
-// ==== slice: behavior ====
-// ==== end slice: behavior ====
-// ==== slice: sequence ====
-// ==== end slice: sequence ====
-// ==== slice: geometry ====
-// ==== end slice: geometry ====
-// ==== slice: grid ====
-// ==== end slice: grid ====
-// ==== slice: browser ====
-// ==== end slice: browser ====
-// ==== slice: annotations ====
-// ==== end slice: annotations ====

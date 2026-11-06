@@ -49,7 +49,7 @@ describe('geometry view', () => {
     const { page } = ctx;
     const view = await addView(page, 'GeometryView');
     const tools = page.locator('.palette button[data-tool]:not([data-tool="Note"])');
-    assert.equal(await tools.count(), 1, 'one tool of its own');
+    assert.equal(await tools.count(), 2, 'two tools of its own: a part and an item');
     assert.equal(await tools.first().getAttribute('data-tool'), 'PartUsage');
     assert.match(await page.textContent('.eyebrow'), /geometry view/);
     assert.equal(await page.locator(`#drawing g.frame[data-view="${view}"] .geo-axes`).count(), 1, 'the frame draws the coordinate frame');
