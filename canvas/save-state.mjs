@@ -33,10 +33,13 @@ const isNote = (n) => !!n && typeof n === 'object' && typeof n.id === 'string' &
   typeof n.target === 'string' && typeof n.text === 'string';
 const known = new Set(model.elements.map((e) => e.id).concat(model.relationships.map((r) => r.id)));
 const NOTE = ['id', 'no', 'target', 'targetLabel', 'text', 'by', 'created', 'updated', 'response', 'resolved'];
-const notes = (Array.isArray(input.notes) ? input.notes : [])
+const ARCHIVED = NOTE.concat(['archived', 'resolution']);
+const tidy = (list, fields) => (Array.isArray(list) ? list : [])
   .filter(isNote)
-  .map((n) => Object.fromEntries(NOTE.filter((k) => n[k] !== undefined).map((k) => [k, n[k]])))
+  .map((n) => Object.fromEntries(fields.filter((k) => n[k] !== undefined).map((k) => [k, n[k]])))
   .sort((a, b) => (a.no || 0) - (b.no || 0));
+const notes = tidy(input.notes, NOTE);
+const archive = tidy(input.archive, ARCHIVED);
 const orphans = notes.filter((n) => !known.has(n.target)).length;
 
 // `<` is written as < so no text can end the script element early.
@@ -51,10 +54,11 @@ const replaceBetween = (text, start, end, block) => {
 let out = replaceBetween(html, '<!-- model:start -->', '<!-- model:end -->',
   `\n<script type="application/json" id="model">\n${json(model)}\n</script>\n`);
 out = replaceBetween(out, '<!-- notes:start -->', '<!-- notes:end -->',
-  `\n<script type="application/json" id="saved-notes">\n${json({ saved: model.revision, notes })}\n</script>\n`);
+  `\n<script type="application/json" id="saved-notes">\n${json({ saved: model.revision, notes, archive })}\n</script>\n`);
 fs.writeFileSync(PAGE, out);
 
 const problems = lib.validate(model);
-console.log(`Saved ${model.elements.length} elements, ${model.relationships.length} relationships, and ${notes.length} notes` +
-  `${orphans ? ` (${orphans} on things no longer in the model)` : ''} into ${path.relative(process.cwd(), PAGE)}, revision ${model.revision}.`);
+console.log(`Saved ${model.elements.length} elements, ${model.relationships.length} relationships, ${model.views.length} views, ` +
+  `${notes.length} notes${orphans ? ` (${orphans} on things no longer in the model)` : ''}, and ${archive.length} archived notes ` +
+  `into ${path.relative(process.cwd(), PAGE)}, revision ${model.revision}.`);
 for (const p of problems) console.log(`problem: ${p.message}`);

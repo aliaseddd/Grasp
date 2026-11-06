@@ -16,13 +16,14 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PAGE = path.join(here, 'index.html');
 
-// The <script id="model-lib"> block of the page, run in its own context. Returns window.SysMLModel.
+// The page's library blocks, every <script … data-lib> in order (the model library first, then any block a view kind
+// adds), run in one context of their own. Returns window.SysMLModel.
 export function loadLib(html = fs.readFileSync(PAGE, 'utf8')) {
-  const match = html.match(/<script id="model-lib">([\s\S]*?)<\/script>/);
-  if (!match) throw new Error(`No <script id="model-lib"> in ${PAGE}.`);
+  const blocks = [...html.matchAll(/<script\b[^>]*\bdata-lib\b[^>]*>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+  if (!blocks.length) throw new Error(`No <script data-lib> in ${PAGE}.`);
   const context = vm.createContext({});
-  vm.runInContext(match[1], context, { filename: 'model-lib.js' });
-  if (!context.SysMLModel) throw new Error('model-lib did not define SysMLModel.');
+  blocks.forEach((code, i) => vm.runInContext(code, context, { filename: `lib-${i}.js` }));
+  if (!context.SysMLModel) throw new Error('The library blocks did not define SysMLModel.');
   return context.SysMLModel;
 }
 
@@ -32,17 +33,19 @@ export function readBlock(html, id) {
   return JSON.parse(match[1]);
 }
 
-// The model and the notes saved in the page.
+const listOf = (value) => (Array.isArray(value) ? value : []);
+
+// The model, the notes, and the archived notes saved in the page.
 export function readPage(html = fs.readFileSync(PAGE, 'utf8')) {
   const model = readBlock(html, 'model');
   const saved = readBlock(html, 'saved-notes');
-  return { model, notes: Array.isArray(saved.notes) ? saved.notes : [] };
+  return { model, notes: listOf(saved.notes), archive: listOf(saved.archive) };
 }
 
 export function readState(file) {
   const data = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (!data || typeof data !== 'object' || !data.model) throw new Error(`${file} has no model.`);
-  return { model: data.model, notes: Array.isArray(data.notes) ? data.notes : [] };
+  return { model: data.model, notes: listOf(data.notes), archive: listOf(data.archive) };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

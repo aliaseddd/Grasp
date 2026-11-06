@@ -4,10 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Stronghold Design Canvas</title>
-<!-- A SysML v2 model drawn as one general view on an endless plane, with notes on its elements and lines, and an
-     export to textual SysML v2. Open this file in a browser; it needs no server. The model between the model markers
-     and the notes between the notes markers are written by save-state.mjs. Published on claude.ai, the page keeps the
-     working model and the notes in the page's database, where Claude reads them. README.md in this folder says how. -->
+<!-- A SysML v2 model drawn as views on an endless plane, each view a frame with its own layout of the model's
+     elements, with notes on its elements and lines, checks while drawing, undo, and an export to textual SysML v2. Open
+     this file in a browser; it needs no server. The model between the model markers and the notes between the notes
+     markers are written by save-state.mjs. Published on claude.ai, the page keeps the working model and the notes in
+     the page's database, where Claude reads them. README.md in this folder says how. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:ital,wght@0,400;0,500;0,600;1,400&display=swap">
@@ -70,7 +71,11 @@ h1 { margin: 0; font: 600 17px/1.25 var(--sans); }
 .palette { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .palette .label { font: 500 11px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-2); margin-right: 2px; }
 .palette .sep { width: 1px; height: 22px; background: var(--line-strong); margin: 0 4px; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.actions select {
+  font: 500 13px/1 var(--sans); color: var(--fg); background: var(--card);
+  border: 1px solid var(--line-strong); border-radius: 6px; padding: 8px 6px; max-width: 170px;
+}
 button {
   font: 600 13px/1 var(--sans);
   color: var(--fg);
@@ -112,9 +117,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .sysml .doc { font: 400 11px var(--sans); fill-opacity: 0.86; }
 .sysml .mono { font: 400 11px var(--mono); }
 .sysml .rule { stroke: currentColor; stroke-width: 0.75; stroke-opacity: 0.45; }
-.sysml .frame .outline { fill: none; stroke: currentColor; stroke-width: 1; stroke-opacity: 0.55; pointer-events: none; }
-.sysml .frame text { pointer-events: none; }
+/* A view's frame holds its content, so these rules name the frame's own children; the content's rules are below. */
+.sysml .frame > .outline { fill: none; stroke: currentColor; stroke-width: 1; stroke-opacity: 0.55; pointer-events: none; }
+.sysml .frame.is-active > .outline { stroke-opacity: 0.95; }
+.sysml .frame.is-selected > .outline { stroke: var(--accent); stroke-width: 2; stroke-opacity: 1; }
+.sysml .frame.is-problem > .outline { stroke: var(--danger); stroke-opacity: 1; }
+.sysml .frame > text { pointer-events: none; }
 .sysml .frame-name { font: 600 12px var(--sans); }
+/* The header tab takes the pointer through a clear rectangle over it, so a view can be selected and moved by it. */
+.sysml .frame > .tab { fill: transparent; stroke: none; pointer-events: all; cursor: grab; }
+.sysml .frame > .pending { font: italic 400 12.5px var(--sans); fill-opacity: 0.6; pointer-events: none; }
 .sysml .el { cursor: pointer; }
 .sysml .el > .outline { fill: var(--card); stroke: currentColor; stroke-width: 1.25; }
 .sysml .el.is-hover > .outline { stroke: var(--accent); }
@@ -136,6 +148,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .sysml .pin.is-resolved circle { fill: var(--fg-2); }
 .sysml .pin.is-active circle { stroke: var(--fg); stroke-width: 2.5; }
 .sysml .pin text { fill: var(--on-accent); font: 600 11px/1 var(--sans); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+/* What the checks found: the offender's outline turns the danger color (even while selected or hovered), and a badge
+   beside it says there is something to read in the panel. */
+.sysml .el.is-problem > .outline { stroke: var(--danger); }
+.sysml .rel.is-problem .line { stroke: var(--danger); }
+.sysml .problem { cursor: pointer; }
+.sysml .problem circle { fill: var(--danger); stroke: var(--card); stroke-width: 2; }
+.sysml .problem text { fill: var(--on-accent); font: 700 11px/1 var(--sans); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 
 .float { position: absolute; background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); }
 .hud {
@@ -145,6 +164,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .hint { margin: 0; font: 400 12.5px/1.4 var(--mono); color: var(--fg-2); overflow-wrap: anywhere; }
 .status { margin: 0; font-size: 13px; color: var(--fg); min-height: 0; }
 .status:empty { display: none; }
+.problems-button { justify-self: start; margin-top: 4px; padding: 5px 9px; font-size: 12px; color: var(--danger); border-color: var(--line); }
+.problems-button:hover { color: var(--danger); border-color: var(--danger); }
 .zoom {
   right: max(12px, env(safe-area-inset-right, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px));
   display: flex; align-items: center; gap: 4px; padding: 4px;
@@ -246,18 +267,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
       <p class="eyebrow">SysML v2 · general view</p>
       <h1>Stronghold Design Canvas</h1>
     </div>
+    <!-- The palette's buttons are made by the page from the active view's kind: button[data-tool] per tool, span.sep
+         between groups. -->
     <div class="palette" role="toolbar" aria-label="Draw">
       <span class="label">Add</span>
-      <button type="button" data-tool="PartDefinition" title="A part definition: square corners">part def</button>
-      <button type="button" data-tool="PortDefinition" title="A port definition">port def</button>
-      <button type="button" data-tool="PartUsage" title="A part: rounded corners, on the plane or inside a part def or part">part</button>
-      <button type="button" data-tool="PortUsage" title="A port: a small square on the border of a part def or part">port</button>
-      <span class="sep" aria-hidden="true"></span>
-      <button type="button" data-tool="Specialization" title="One definition specializes another, or one part or port subsets another">specializes</button>
-      <button type="button" data-tool="FeatureTyping" title="A part is defined by a part def; a port by a port def">defined by</button>
-      <button type="button" data-tool="ConnectionUsage" title="A connection between two ports or two parts">connection</button>
     </div>
     <div class="actions">
+      <button type="button" id="undo" disabled title="Nothing to undo">Undo</button>
+      <button type="button" id="new-view">New view</button>
+      <select id="new-view-kind" aria-label="The kind of the new view"></select>
       <button type="button" id="export">Export SysML</button>
       <button type="button" id="download-state" hidden>Download state</button>
       <button type="button" id="import-state" hidden>Import state</button>
@@ -266,13 +284,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
   </header>
 
   <div class="stage">
-    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing, Escape puts a tool down, Delete removes the selection.">
-      <svg id="drawing" class="sysml" viewBox="0 0 1200 800" role="img" aria-label="A SysML v2 general view"></svg>
+    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing, Escape puts a tool down, Delete removes the selection, Ctrl+Z undoes.">
+      <svg id="drawing" class="sysml" viewBox="0 0 1200 800" role="img" aria-label="SysML v2 views on a plane"></svg>
     </div>
 
     <div class="float hud">
       <p class="hint" id="hint"></p>
       <p class="status" id="status" role="status" aria-live="polite"></p>
+      <button type="button" class="problems-button" id="problems" hidden title="Select what has a problem; click again for the next">0 problems</button>
     </div>
 
     <div class="float zoom" role="group" aria-label="Zoom">
@@ -300,11 +319,25 @@ textarea.text[readonly] { resize: none; background: transparent; }
           <label class="check" id="l-conjugated"><input type="checkbox" id="f-conjugated"> conjugated (~), the other side of the port</label>
           <label id="l-doc">Doc <textarea id="f-doc" rows="2" spellcheck="true"></textarea></label>
           <p class="meta" id="f-path"></p>
+          <p class="meta" id="f-views"></p>
           <div class="row">
             <button type="button" id="add-note">Add note</button>
+            <button type="button" id="remove-from-view" title="Take it out of this view. It stays in the model and in the other views.">Remove from view</button>
             <button type="button" class="danger" id="delete-selected">Delete</button>
           </div>
         </div>
+        <div class="fields" id="view-fields" hidden>
+          <p class="kind" id="v-kind"></p>
+          <label id="l-v-name">Name <input type="text" id="v-name" autocomplete="off" spellcheck="false"></label>
+          <label id="l-v-doc">Doc <textarea id="v-doc" rows="2" spellcheck="true"></textarea></label>
+          <label id="l-v-show">Show in this view <select id="v-show"></select></label>
+          <p class="meta" id="v-meta"></p>
+          <div class="row">
+            <button type="button" id="v-show-add">Show it</button>
+            <button type="button" class="danger" id="delete-view">Delete view</button>
+          </div>
+        </div>
+        <ul class="problems" id="problems-list" hidden></ul>
       </section>
       <section class="notes" aria-labelledby="notes-title">
         <div class="panel-head">
@@ -334,33 +367,32 @@ textarea.text[readonly] { resize: none; background: transparent; }
 <!-- model:start -->
 <script type="application/json" id="model">
 {
-  "format": "stronghold-canvas/1",
-  "revision": "2026-11-06T06:40:00.000Z",
+  "format": "stronghold-canvas/2",
+  "revision": "2026-11-06T11:57:16.000Z",
   "package": {
     "name": "StrongholdProof",
     "doc": "One app, built once with current tools, and thin hosts that load it into a page the same way. The names follow the code: app/, hosts/server, hosts/online, hosts/dev."
   },
-  "view": { "name": "proofStructure" },
   "elements": [
-    { "id": "Page", "kind": "PartDefinition", "name": "Page", "abstract": false, "x": 32, "y": 72, "w": 760, "h": 250,
+    { "id": "Page", "kind": "PartDefinition", "name": "Page", "abstract": false,
       "doc": "A page with Stronghold on it: a SharePoint Server page, a SharePoint Online page, a Teams tab, or the dev page. Every Stronghold web part on the page mounts the same app, because the first entry file to load wins (app/src/host/load-app.ts)." },
-    { "id": "Page.hosts", "kind": "PartUsage", "name": "hosts", "owner": "Page", "multiplicity": "1..*", "x": 96, "y": 104, "w": 180, "h": 110, "doc": "" },
-    { "id": "Page.hosts.api", "kind": "PortUsage", "name": "api", "owner": "Page.hosts", "side": "right", "at": 0.5, "conjugated": true, "multiplicity": "", "doc": "" },
-    { "id": "Page.app", "kind": "PartUsage", "name": "app", "owner": "Page", "multiplicity": "1", "x": 568, "y": 104, "w": 180, "h": 110, "doc": "" },
-    { "id": "Page.app.api", "kind": "PortUsage", "name": "api", "owner": "Page.app", "side": "left", "at": 0.5, "conjugated": false, "multiplicity": "", "doc": "" },
-    { "id": "Host", "kind": "PartDefinition", "name": "Host", "abstract": true, "x": 32, "y": 400, "w": 368, "h": 130,
+    { "id": "Page.hosts", "kind": "PartUsage", "name": "hosts", "owner": "Page", "multiplicity": "1..*", "doc": "" },
+    { "id": "Page.hosts.api", "kind": "PortUsage", "name": "api", "owner": "Page.hosts", "conjugated": true, "multiplicity": "", "doc": "" },
+    { "id": "Page.app", "kind": "PartUsage", "name": "app", "owner": "Page", "multiplicity": "1", "doc": "" },
+    { "id": "Page.app.api", "kind": "PortUsage", "name": "api", "owner": "Page.app", "conjugated": false, "multiplicity": "", "doc": "" },
+    { "id": "Host", "kind": "PartDefinition", "name": "Host", "abstract": true,
       "doc": "hosts/: the small piece of code that plugs the app into one place. It works out where its package's files are, loads the entry file with the shared loader, and calls mount. It has no settings: it only ever loads the app from its own package." },
-    { "id": "Host.api", "kind": "PortUsage", "name": "api", "owner": "Host", "side": "right", "at": 0.5, "conjugated": true, "multiplicity": "", "doc": "" },
-    { "id": "App", "kind": "PartDefinition", "name": "App", "abstract": false, "x": 600, "y": 400, "w": 368, "h": 130,
+    { "id": "Host.api", "kind": "PortUsage", "name": "api", "owner": "Host", "conjugated": true, "multiplicity": "", "doc": "" },
+    { "id": "App", "kind": "PartDefinition", "name": "App", "abstract": false,
       "doc": "app/: Stronghold itself, built once with webpack 5 and TypeScript 5.9. Nothing in it knows about SharePoint." },
-    { "id": "App.api", "kind": "PortUsage", "name": "api", "owner": "App", "side": "right", "at": 0.5, "conjugated": false, "multiplicity": "", "doc": "" },
-    { "id": "StrongholdApp", "kind": "PortDefinition", "name": "StrongholdApp", "abstract": false, "x": 840, "y": 72, "w": 368, "h": 100,
+    { "id": "App.api", "kind": "PortUsage", "name": "api", "owner": "App", "conjugated": false, "multiplicity": "", "doc": "" },
+    { "id": "StrongholdApp", "kind": "PortDefinition", "name": "StrongholdApp", "abstract": false,
       "doc": "What the app's entry file registers on window.Stronghold." },
-    { "id": "ServerHost", "kind": "PartDefinition", "name": "ServerHost", "abstract": false, "x": 32, "y": 620, "w": 368, "h": 100,
+    { "id": "ServerHost", "kind": "PartDefinition", "name": "ServerHost", "abstract": false,
       "doc": "hosts/server: the web part for SharePoint Server." },
-    { "id": "OnlineHost", "kind": "PartDefinition", "name": "OnlineHost", "abstract": false, "x": 436, "y": 620, "w": 368, "h": 100,
+    { "id": "OnlineHost", "kind": "PartDefinition", "name": "OnlineHost", "abstract": false,
       "doc": "hosts/online: the web part for SharePoint Online, which is also the Teams tab." },
-    { "id": "DevHost", "kind": "PartDefinition", "name": "DevHost", "abstract": false, "x": 840, "y": 620, "w": 368, "h": 100,
+    { "id": "DevHost", "kind": "PartDefinition", "name": "DevHost", "abstract": false,
       "doc": "hosts/dev: a plain page that mounts the app the way the SharePoint hosts do. It never ships." }
   ],
   "relationships": [
@@ -374,6 +406,25 @@ textarea.text[readonly] { resize: none; background: transparent; }
     { "id": "s-OnlineHost", "kind": "Specialization", "from": "OnlineHost", "to": "Host" },
     { "id": "s-DevHost", "kind": "Specialization", "from": "DevHost", "to": "Host" },
     { "id": "mount", "kind": "ConnectionUsage", "name": "mount", "from": "Page.hosts.api", "to": "Page.app.api", "doc": "" }
+  ],
+  "views": [
+    { "id": "v-proof", "kind": "GeneralView", "name": "proofStructure", "doc": "", "x": 0, "y": 0,
+      "layout": {
+        "Page": { "x": 32, "y": 72, "w": 760, "h": 250 },
+        "Page.hosts": { "x": 96, "y": 104, "w": 180, "h": 110 },
+        "Page.hosts.api": { "side": "right", "at": 0.5 },
+        "Page.app": { "x": 568, "y": 104, "w": 180, "h": 110 },
+        "Page.app.api": { "side": "left", "at": 0.5 },
+        "Host": { "x": 32, "y": 400, "w": 368, "h": 130 },
+        "Host.api": { "side": "right", "at": 0.5 },
+        "App": { "x": 600, "y": 400, "w": 368, "h": 130 },
+        "App.api": { "side": "right", "at": 0.5 },
+        "StrongholdApp": { "x": 840, "y": 72, "w": 368, "h": 100 },
+        "ServerHost": { "x": 32, "y": 620, "w": 368, "h": 100 },
+        "OnlineHost": { "x": 436, "y": 620, "w": 368, "h": 100 },
+        "DevHost": { "x": 840, "y": 620, "w": 368, "h": 100 }
+      },
+      "options": {} }
   ]
 }
 </script>
@@ -388,25 +439,117 @@ textarea.text[readonly] { resize: none; background: transparent; }
 </script>
 <!-- notes:end -->
 
-<script id="model-lib">
+<script id="model-lib" data-lib>
 // The model: what the drawing holds, what is wrong with it, and how it reads as textual SysML v2. Pure functions,
-// shared with export.mjs and save-state.mjs, which run this script in Node.
+// shared with export.mjs and save-state.mjs, which run this script in Node. The three tables at the top say what the
+// canvas knows: the element kinds, the relationship kinds, and the view kinds. The later slices add rows to them.
 (function (root) {
   'use strict';
 
-  const FORMAT = 'stronghold-canvas/1';
+  const FORMAT = 'stronghold-canvas/2';
   const VIEW_DEF = 'StandardViewDefinitions::GeneralView';
+
+  // Element kinds. contains is the kinds an element may own (false: none); onBorder draws it on its owner's
+  // border; definedBy is the definition kind a usage is typed by; size the default box; shape how the graph
+  // renderer draws it (rect, rounded, port); fields the panel's fields that apply, which normalize also keeps.
   const KINDS = {
-    PartDefinition: { keyword: 'part def', label: 'part def', definition: true, usage: false, contains: true, onBorder: false, size: [220, 72] },
-    PortDefinition: { keyword: 'port def', label: 'port def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72] },
-    PartUsage: { keyword: 'part', label: 'part', definition: false, usage: true, contains: true, onBorder: false, definedBy: 'PartDefinition', size: [180, 60] },
-    PortUsage: { keyword: 'port', label: 'port', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16] },
+    // Structure.
+    PartDefinition: { keyword: 'part def', label: 'part def', definition: true, usage: false, contains: ['PartUsage', 'PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'] },
+    PortDefinition: { keyword: 'port def', label: 'port def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'] },
+    PartUsage: { keyword: 'part', label: 'part', definition: false, usage: true, contains: ['PartUsage', 'PortUsage'], onBorder: false, definedBy: 'PartDefinition', size: [180, 60], shape: 'rounded', fields: ['name', 'type', 'multiplicity', 'doc'] },
+    PortUsage: { keyword: 'port', label: 'port', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16], shape: 'port', fields: ['name', 'type', 'multiplicity', 'conjugated', 'doc'] },
   };
+
+  // Relationship kinds. fields are the string fields normalize keeps; hideable lets the line be left undrawn.
+  // first(model, a, ids) says what rules out a as the first end and ends(model, a, b, ids) what rules out the
+  // pair: a sentence, or null. The palette and validate both ask them, so each rule is stated once. owner(model,
+  // rel, ids) is the element whose body declares the relationship (null: the package). line says how the graph
+  // renderer draws it: the route (straight or elbow), the marker at the end, a class, and a label. toSysML(model,
+  // rel, ownerId, depth, out, h) writes it as a statement in that body; it is null when the relationship is written
+  // in the head of its from element instead (:> for a specialization, : for a typing).
   const RELATIONSHIPS = {
-    Specialization: { label: 'specializes' },
-    FeatureTyping: { label: 'defined by' },
-    ConnectionUsage: { label: 'connection' },
+    // Structure.
+    Specialization: {
+      label: 'specializes', fields: [], hideable: false,
+      first: function () { return null; },
+      ends: function (model, a, b, ids) {
+        if (a.kind !== b.kind) return describe(model, a, ids) + ' can only specialize another ' + KINDS[a.kind].label + '.';
+        if (KINDS[a.kind].usage && a.owner !== b.owner) return describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' must sit in the same box for one to specialize the other.';
+        if (specializes(model, b, a)) return 'Specializing ' + describe(model, b, ids) + ' would go round in a circle: it already specializes ' + describe(model, a, ids) + '.';
+        return null;
+      },
+      owner: function () { return null; },
+      line: { route: 'elbow', marker: 'm-general', cls: 'specialization', label: null },
+      toSysML: null,
+    },
+    FeatureTyping: {
+      label: 'defined by', fields: [], hideable: true,
+      first: function (model, a, ids) {
+        return KINDS[a.kind].usage ? null : 'Only a part or a port is defined by something; ' + describe(model, a, ids) + ' is a definition.';
+      },
+      ends: function (model, a, b, ids) {
+        const problem = RELATIONSHIPS.FeatureTyping.first(model, a, ids);
+        if (problem) return problem;
+        if (KINDS[a.kind].definedBy !== b.kind) return describe(model, a, ids) + ' can only be defined by a ' + KINDS[KINDS[a.kind].definedBy].label + '.';
+        return null;
+      },
+      owner: function () { return null; },
+      line: { route: 'elbow', marker: 'm-defined', cls: 'typing', label: null },
+      toSysML: null,
+    },
+    ConnectionUsage: {
+      label: 'connection', fields: ['name', 'doc'], hideable: false,
+      first: function (model, a, ids) {
+        return KINDS[a.kind].usage ? null : 'A connection joins ports or parts, not definitions; ' + describe(model, a, ids) + ' is a definition.';
+      },
+      ends: function (model, a, b, ids) {
+        if (!(KINDS[a.kind].usage && KINDS[b.kind].usage) || a.kind !== b.kind) return 'A connection joins two ports or two parts.';
+        if (commonOwner(model, a, b, ids) === null && (KINDS[chain(model, a, ids)[0].kind].definition || KINDS[chain(model, b, ids)[0].kind].definition)) {
+          return 'A connection between ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' reaches across definitions. Connect things inside the same part def or part.';
+        }
+        return null;
+      },
+      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
+      line: { route: 'straight', marker: null, cls: 'connection', label: function (rel) { return rel.name.trim(); } },
+      toSysML: function (model, rel, ownerId, depth, out, h) {
+        const a = h.ids.get(rel.from);
+        const b = h.ids.get(rel.to);
+        const head = (rel.name.trim() ? 'connection ' + quote(rel.name) + ' ' : '') +
+          'connect ' + featurePath(model, ownerId, a, h.ids) + ' to ' + featurePath(model, ownerId, b, h.ids);
+        // A note on an unnamed connection can't be about it by name, so it goes inside the connection's body.
+        const inside = rel.name.trim() ? [] : h.notesOn(rel.id);
+        if (!rel.doc.trim() && !inside.length) { h.line(depth, head + ';'); return; }
+        h.line(depth, head + ' {');
+        if (rel.doc.trim()) h.comment(depth + 1, 'doc', rel.doc);
+        inside.forEach((n) => h.comment(depth + 1, 'comment <n' + n.no + '>', h.noteText(n)));
+        h.line(depth, '}');
+      },
+    },
   };
+
+  // View kinds. renderer names the page's renderer for the kind; admits the element kinds a view of the kind may
+  // show (null: every kind); tools the palette, element and relationship kinds with '|' between groups; options
+  // the defaults of the view's own options, which normalize keeps the keys of. In this slice only the general view
+  // admits and draws anything; the other rows are here so a view of each kind can sit on the plane.
+  const VIEW_KINDS = {
+    GeneralView: { name: 'GeneralView', label: 'general view', qualified: 'StandardViewDefinitions::GeneralView', short: 'gv', renderer: 'graph',
+      admits: null, tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', '|', 'Specialization', 'FeatureTyping', 'ConnectionUsage'], options: {} },
+    InterconnectionView: { name: 'InterconnectionView', label: 'interconnection view', qualified: 'StandardViewDefinitions::InterconnectionView', short: 'iv', renderer: 'graph',
+      admits: [], tools: [], options: {} },
+    ActionFlowView: { name: 'ActionFlowView', label: 'action flow view', qualified: 'StandardViewDefinitions::ActionFlowView', short: 'afv', renderer: 'graph',
+      admits: [], tools: [], options: {} },
+    StateTransitionView: { name: 'StateTransitionView', label: 'state transition view', qualified: 'StandardViewDefinitions::StateTransitionView', short: 'stv', renderer: 'graph',
+      admits: [], tools: [], options: {} },
+    SequenceView: { name: 'SequenceView', label: 'sequence view', qualified: 'StandardViewDefinitions::SequenceView', short: 'sv', renderer: 'sequence',
+      admits: [], tools: [], options: { lifelines: [] } },
+    GeometryView: { name: 'GeometryView', label: 'geometry view', qualified: 'StandardViewDefinitions::GeometryView', short: 'gev', renderer: 'geometry',
+      admits: [], tools: [], options: { scale: 40, unit: 'm' } },
+    GridView: { name: 'GridView', label: 'grid view', qualified: 'StandardViewDefinitions::GridView', short: 'grv', renderer: 'grid',
+      admits: [], tools: [], options: { mode: 'table', columns: ['kind', 'name', 'type', 'multiplicity', 'owner', 'doc'], rows: null } },
+    BrowserView: { name: 'BrowserView', label: 'browser view', qualified: 'StandardViewDefinitions::BrowserView', short: 'bv', renderer: 'browser',
+      admits: [], tools: [], options: { roots: null, collapsed: [] } },
+  };
+
   const SIDES = ['top', 'right', 'bottom', 'left'];
   const ID = /^[A-Za-z0-9_.:-]{1,64}$/;
   const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -426,41 +569,77 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v
     : (typeof v === 'string' && v.trim() !== '' && Number.isFinite(+v) ? +v : d));
   const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+  const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+  const copy = (v) => JSON.parse(JSON.stringify(v));
+
+  function canContain(ownerKind, childKind) {
+    const k = KINDS[ownerKind];
+    return !!(k && k.contains) && k.contains.indexOf(childKind) >= 0;
+  }
+  function admits(viewKind, elKind) {
+    const v = VIEW_KINDS[viewKind];
+    return !!v && !!KINDS[elKind] && (v.admits === null || v.admits.indexOf(elKind) >= 0);
+  }
 
   function blank() {
-    return { format: FORMAT, revision: null, package: { name: 'Model', doc: '' }, view: { name: '' }, elements: [], relationships: [] };
+    return { format: FORMAT, revision: null, package: { name: 'Model', doc: '' }, elements: [], relationships: [], views: [] };
+  }
+
+  // A layout entry for an element in a view: a border item's side and place along it, or a box's place and size.
+  function placement(el, p) {
+    const kind = KINDS[el.kind];
+    p = isObject(p) ? p : {};
+    if (kind.onBorder) return { side: SIDES.includes(p.side) ? p.side : 'right', at: clamp(num(p.at, 0.5), 0.05, 0.95) };
+    return {
+      x: Math.round(num(p.x, 0)), y: Math.round(num(p.y, 0)),
+      w: Math.round(clamp(num(p.w, kind.size[0]), 80, 4000)), h: Math.round(clamp(num(p.h, kind.size[1]), 40, 4000))
+    };
+  }
+
+  // Places for the elements a view doesn't place yet: top-level boxes in rows of three, nested boxes in a row inside
+  // their owner, border items spread along their owner's right side.
+  function gridPlace(model, view) {
+    const roots = childrenOf(model, null).filter((e) => !KINDS[e.kind].onBorder);
+    roots.filter((e) => !view.layout[e.id]).forEach((el, i) => {
+      view.layout[el.id] = placement(el, { x: 32 + (i % 3) * 320, y: 72 + Math.floor(i / 3) * 220 });
+    });
+    const walk = (parent) => {
+      const kids = childrenOf(model, parent.id);
+      const boxes = kids.filter((k) => !KINDS[k.kind].onBorder);
+      const ports = kids.filter((k) => KINDS[k.kind].onBorder);
+      boxes.filter((k) => !view.layout[k.id]).forEach((k, i) => { view.layout[k.id] = placement(k, { x: 12 + i * 200, y: 48 }); });
+      ports.filter((k) => !view.layout[k.id]).forEach((k, i) => { view.layout[k.id] = placement(k, { side: 'right', at: (i + 1) / (ports.length + 1) }); });
+      boxes.forEach(walk);
+    };
+    roots.forEach(walk);
   }
 
   // Takes any JSON and returns a model this page can draw: known kinds, unique ids, owners that exist and can hold
-  // what they own, no cycles, and relationships whose two ends exist.
+  // what they own, no cycles, relationships whose two ends exist, and views whose layouts place elements the view's
+  // kind admits. A format-1 model, whose elements carry their own places, becomes a model with one general view.
   function normalize(raw) {
     const r = raw && typeof raw === 'object' ? raw : {};
     const m = blank();
     m.revision = typeof r.revision === 'string' ? r.revision : null;
-    const pkg = r.package && typeof r.package === 'object' ? r.package : {};
+    const pkg = isObject(r.package) ? r.package : {};
     m.package.name = str(pkg.name).trim() || 'Model';
     m.package.doc = str(pkg.doc);
-    const view = r.view && typeof r.view === 'object' ? r.view : {};
-    m.view.name = str(view.name).trim();
 
+    // Elements. A place an element carries itself (format 1, or a convenience for edits made outside the page) is
+    // kept aside and goes into a view's layout below.
+    const carried = new Map();
     const seen = new Set();
     for (const e of Array.isArray(r.elements) ? r.elements : []) {
       if (!e || typeof e !== 'object' || !KINDS[e.kind] || typeof e.id !== 'string' || !ID.test(e.id) || seen.has(e.id)) continue;
       const kind = KINDS[e.kind];
       const el = { id: e.id, kind: e.kind, name: str(e.name), doc: str(e.doc) };
       if (typeof e.owner === 'string' && e.owner !== e.id) el.owner = e.owner;
-      if (kind.onBorder) {
-        el.side = SIDES.includes(e.side) ? e.side : 'right';
-        el.at = clamp(num(e.at, 0.5), 0.05, 0.95);
-      } else {
-        el.x = Math.round(num(e.x, 0));
-        el.y = Math.round(num(e.y, 0));
-        el.w = Math.round(clamp(num(e.w, kind.size[0]), 80, 4000));
-        el.h = Math.round(clamp(num(e.h, kind.size[1]), 40, 4000));
+      if (kind.fields.indexOf('abstract') >= 0) el.abstract = e.abstract === true;
+      if (kind.fields.indexOf('multiplicity') >= 0) el.multiplicity = str(e.multiplicity).trim();
+      if (kind.fields.indexOf('conjugated') >= 0) el.conjugated = e.conjugated === true;
+      if (kind.onBorder ? (e.side !== undefined || e.at !== undefined) : (e.x !== undefined || e.y !== undefined)) {
+        carried.set(el.id, { view: str(e.view), place: e });
       }
-      if (kind.definition) el.abstract = e.abstract === true;
-      if (kind.usage) el.multiplicity = str(e.multiplicity).trim();
-      if (kind.onBorder) el.conjugated = e.conjugated === true;
       seen.add(el.id);
       m.elements.push(el);
     }
@@ -470,7 +649,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (KINDS[el.kind].definition) { delete el.owner; continue; }
       if (el.owner !== undefined) {
         const o = ids.get(el.owner);
-        if (!o || !KINDS[o.kind].contains) delete el.owner;
+        if (!o || !canContain(o.kind, el.kind)) delete el.owner;
       }
     }
     for (const el of m.elements) {
@@ -489,17 +668,71 @@ textarea.text[readonly] { resize: none; background: transparent; }
     for (const x of Array.isArray(r.relationships) ? r.relationships : []) {
       if (!x || typeof x !== 'object' || !RELATIONSHIPS[x.kind] || typeof x.id !== 'string' || !ID.test(x.id)) continue;
       if (rseen.has(x.id) || seen.has(x.id) || !ids.has(x.from) || !ids.has(x.to) || x.from === x.to) continue;
+      const kind = RELATIONSHIPS[x.kind];
       const rel = { id: x.id, kind: x.kind, from: x.from, to: x.to };
-      if (x.kind === 'ConnectionUsage') { rel.name = str(x.name); rel.doc = str(x.doc); }
-      if (x.kind === 'FeatureTyping' && x.hidden === true) rel.hidden = true;
+      kind.fields.forEach((f) => { rel[f] = str(x[f]); });
+      if (kind.hideable && x.hidden === true) rel.hidden = true;
       rseen.add(x.id);
       m.relationships.push(rel);
+    }
+
+    // Views. Ids are unique across elements, relationships, and views; a view with no id, or one already taken, gets
+    // the first free v1, v2…, so a model written by hand without ids still reads the same way every time.
+    const taken = new Set();
+    seen.forEach((id) => taken.add(id));
+    rseen.forEach((id) => taken.add(id));
+    const vseen = new Set();
+    let serial = 0;
+    const freeViewId = () => { do { serial += 1; } while (taken.has('v' + serial) || vseen.has('v' + serial)); return 'v' + serial; };
+    for (const v of Array.isArray(r.views) ? r.views : []) {
+      if (!isObject(v)) continue;
+      const kindName = v.kind === undefined || v.kind === null || v.kind === '' ? 'GeneralView' : v.kind;
+      const kind = VIEW_KINDS[kindName];
+      if (!kind) continue;
+      const id = typeof v.id === 'string' && ID.test(v.id) && !taken.has(v.id) && !vseen.has(v.id) ? v.id : freeViewId();
+      const view = { id: id, kind: kindName, name: str(v.name).trim(), doc: str(v.doc), x: Math.round(num(v.x, 0)), y: Math.round(num(v.y, 0)), layout: {}, options: copy(kind.options) };
+      if (isObject(v.options)) for (const key in view.options) if (v.options[key] !== undefined) view.options[key] = copy(v.options[key]);
+      const lay = isObject(v.layout) ? v.layout : {};
+      for (const eid in lay) {
+        const el = ids.get(eid);
+        if (!el || !admits(kindName, el.kind) || !isObject(lay[eid])) continue;
+        view.layout[eid] = placement(el, lay[eid]);
+      }
+      vseen.add(id);
+      m.views.push(view);
+    }
+    // Places carried by elements go into the view their view field names, else the first view.
+    carried.forEach((c, eid) => {
+      const el = ids.get(eid);
+      if (!el) return;
+      const view = m.views.find((v) => v.id === c.view) || m.views[0];
+      if (!view || view.layout[eid] || !admits(view.kind, el.kind)) return;
+      view.layout[eid] = placement(el, c.place);
+    });
+    // A model with no views (format 1, or one written without them) gets one general view showing every element, at
+    // the places the elements carried, else in a grid, so nothing is invisible after a load.
+    if (!m.views.length) {
+      const old = isObject(r.view) ? r.view : {};
+      const view = { id: freeViewId(), kind: 'GeneralView', name: str(old.name).trim(), doc: '', x: 0, y: 0, layout: {}, options: {} };
+      carried.forEach((c, eid) => { const el = ids.get(eid); if (el) view.layout[eid] = placement(el, c.place); });
+      gridPlace(m, view);
+      m.views.push(view);
+    }
+    // A border item is shown only where its owner is.
+    for (const view of m.views) {
+      for (const eid in view.layout) {
+        const el = ids.get(eid);
+        if (KINDS[el.kind].onBorder && !(el.owner !== undefined && view.layout[el.owner])) delete view.layout[eid];
+      }
     }
     return m;
   }
 
   function index(model) { return new Map(model.elements.map((e) => [e.id, e])); }
   function relIndex(model) { return new Map(model.relationships.map((r) => [r.id, r])); }
+  function viewIndex(model) { return new Map(model.views.map((v) => [v.id, v])); }
+  // The ids of the views that show an element.
+  function shownIn(model, id) { return model.views.filter((v) => !!v.layout[id]).map((v) => v.id); }
 
   // The element and its owners, outermost first.
   function chain(model, el, ids) {
@@ -527,6 +760,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return model.relationships.find((r) => r.kind === 'FeatureTyping' && r.from === el.id) || null;
   }
   function inUsage(model, el, ids) { return chain(model, el, ids).some((e) => e.kind === 'PartUsage'); }
+  // Whether sub specializes general, directly or through others.
+  function specializes(model, sub, general) {
+    const seen = new Set();
+    const stack = [sub.id];
+    while (stack.length) {
+      const id = stack.pop();
+      if (id === general.id) return true;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      model.relationships.filter((r) => r.kind === 'Specialization' && r.from === id).forEach((r) => stack.push(r.to));
+    }
+    return false;
+  }
 
   // The owner a connection is declared in: the innermost element that holds both ends, or null for the package.
   function commonOwner(model, a, b, ids) {
@@ -567,13 +813,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const bn = b ? shown(b.name) : '?';
     if (rel.kind === 'Specialization') return an + ' specializes ' + bn;
     if (rel.kind === 'FeatureTyping') return an + ' defined by ' + bn;
-    return 'connection ' + (rel.name && rel.name.trim() ? rel.name.trim() + ', ' : '') + an + ' to ' + bn;
+    return RELATIONSHIPS[rel.kind].label + ' ' + (rel.name && rel.name.trim() ? rel.name.trim() + ', ' : '') + an + ' to ' + bn;
   }
+  function describeView(model, view) { return 'view ' + shown(view.name); }
   function labelFor(model, targetId) {
     const el = index(model).get(targetId);
     if (el) return describe(model, el);
     const rel = relIndex(model).get(targetId);
-    return rel ? describeRel(model, rel) : '';
+    if (rel) return describeRel(model, rel);
+    const view = viewIndex(model).get(targetId);
+    return view ? describeView(model, view) : '';
   }
 
   // The features a type gets from elsewhere, by name: those of what it is defined by and of what it specializes,
@@ -604,7 +853,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   const RESERVED_NAMES = new Set(['StandardViewDefinitions', 'SysML', 'KerML', 'Views', 'Parts', 'Ports', 'Items']);
 
-  // What keeps the model from being correct SysML. Each problem names the element or relationship it is about.
+  // What keeps the model from being correct SysML. Each problem names the element, relationship, or view it is about
+  // (null: the package).
   function validate(model) {
     const problems = [];
     const ids = index(model);
@@ -627,9 +877,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
         add(el.id, 'The multiplicity "' + el.multiplicity + '" of ' + describe(model, el, ids) + ' is not like 1, 0..1, or 1..*.');
       }
       if (name) {
+        // Two with one name beside each other: both are marked, since either could be the one to rename.
         const key = (el.owner === undefined ? '' : el.owner) + '/' + name;
-        if (siblings.has(key)) add(el.id, 'Two elements are named ' + name + (owner ? where : ' in the package') + '.');
-        else siblings.set(key, el);
+        const twin = siblings.get(key);
+        if (twin) {
+          const message = 'Two elements are named ' + name + (owner ? where : ' in the package') + '.';
+          if (!twin.marked) { twin.marked = true; add(twin.el.id, message); }
+          add(el.id, message);
+        } else siblings.set(key, { el: el, marked: false });
         if (kind.usage && definitionNames.has(name)) add(el.id, describe(model, el, ids) + ' is named like a definition, so the text would mix them up. Rename one.');
         if (name === pkgName) add(el.id, describe(model, el, ids) + ' is named like the package, so the text would mix them up. Rename one.');
         if (RESERVED_NAMES.has(name)) add(el.id, 'The name ' + name + ' belongs to the standard library. Rename ' + describe(model, el, ids) + '.');
@@ -639,8 +894,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
         }
       }
     }
-    if (model.view.name && (siblings.has('/' + model.view.name) || model.view.name === pkgName)) {
-      add(null, 'The view is named ' + model.view.name + ', like something else in the package. Rename one.');
+    // Views: named like something at the top of the package, or two with one name.
+    const viewNames = new Map();
+    for (const v of model.views) {
+      const vname = v.name.trim();
+      if (!vname) continue;
+      if (siblings.has('/' + vname) || vname === pkgName) add(v.id, 'The view ' + vname + ' is named like something else in the package. Rename one.');
+      if (viewNames.has(vname)) add(v.id, 'Two views are named ' + vname + '. Rename one.');
+      viewNames.set(vname, v);
     }
     const typed = new Set();
     const connectionNames = new Map();
@@ -648,26 +909,17 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const a = ids.get(rel.from);
       const b = ids.get(rel.to);
       if (!a || !b) continue;
-      if (rel.kind === 'Specialization') {
-        if (a.kind !== b.kind) add(rel.id, describe(model, a, ids) + ' can only specialize another ' + KINDS[a.kind].label + '.');
-        else if (KINDS[a.kind].usage && a.owner !== b.owner) add(rel.id, describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' must sit in the same box for one to specialize the other.');
-      }
+      const kind = RELATIONSHIPS[rel.kind];
+      const problem = kind.ends(model, a, b, ids);
+      if (problem) add(rel.id, problem);
       if (rel.kind === 'FeatureTyping') {
-        if (!KINDS[a.kind].usage || KINDS[a.kind].definedBy !== b.kind) {
-          add(rel.id, describe(model, a, ids) + ' can only be defined by a ' + (KINDS[a.kind].definedBy ? KINDS[KINDS[a.kind].definedBy].label : 'definition') + '.');
-        }
         if (typed.has(a.id)) add(rel.id, describe(model, a, ids) + ' is defined by more than one definition.');
         typed.add(a.id);
       }
       if (rel.kind === 'ConnectionUsage') {
-        if (!(KINDS[a.kind].usage && KINDS[b.kind].usage) || a.kind !== b.kind) {
-          add(rel.id, 'A connection joins two ports or two parts.');
-        } else if (commonOwner(model, a, b, ids) === null && (KINDS[chain(model, a, ids)[0].kind].definition || KINDS[chain(model, b, ids)[0].kind].definition)) {
-          add(rel.id, 'The ' + describeRel(model, rel, ids) + ' reaches across definitions. Connect things inside the same part def or part.');
-        }
         const cname = rel.name.trim();
         if (cname) {
-          const o = commonOwner(model, a, b, ids);
+          const o = kind.owner(model, rel, ids);
           const key = (o || '') + '/' + cname;
           if (siblings.has(key) || connectionNames.has(key)) add(rel.id, 'The connection ' + cname + ' is named like something else beside it. Rename one.');
           connectionNames.set(key, rel);
@@ -679,7 +931,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   // ---- Textual SysML v2.
 
-  // Breaks a paragraph into lines of at most `width` characters, at spaces.
+  // Breaks a paragraph into lines of at most width characters, at spaces.
   function wrapText(text, width) {
     const out = [];
     for (const para of text.split('\n')) {
@@ -721,23 +973,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const noteList = tidyNotes(notes);
     const out = [];
     const line = (depth, text) => out.push('    '.repeat(depth) + text);
-    const connectionsIn = (ownerId) => model.relationships.filter((r) => r.kind === 'ConnectionUsage' &&
-      commonOwner(model, ids.get(r.from), ids.get(r.to), ids) === ownerId);
-
-    // A note on an unnamed connection can't be about it by name, so it goes inside the connection's body.
-    function connection(rel, ownerId, depth) {
-      const a = ids.get(rel.from);
-      const b = ids.get(rel.to);
-      const head = (rel.name.trim() ? 'connection ' + quote(rel.name) + ' ' : '') +
-        'connect ' + featurePath(model, ownerId, a, ids) + ' to ' + featurePath(model, ownerId, b, ids);
-      const inside = rel.name.trim() ? [] : noteList.filter((n) => n.target === rel.id);
-      if (!rel.doc.trim() && !inside.length) { line(depth, head + ';'); return; }
-      line(depth, head + ' {');
-      if (rel.doc.trim()) commentLines(depth + 1, 'doc', rel.doc).forEach((l) => out.push(l));
-      inside.forEach((n) => commentLines(depth + 1, 'comment <n' + n.no + '>', noteText(n)).forEach((l) => out.push(l)));
-      line(depth, '}');
-    }
-    function noteText(n) { return n.text + (n.response.trim() ? '\nClaude: ' + n.response.trim() : ''); }
+    const comment = (depth, head, text) => commentLines(depth, head, text).forEach((l) => out.push(l));
+    const noteText = (n) => n.text + (n.response.trim() ? '\nClaude: ' + n.response.trim() : '');
+    // What a relationship kind's toSysML may use.
+    const helpers = { ids: ids, line: line, comment: comment, noteText: noteText, quote: quote, featurePath: featurePath, notesOn: (id) => noteList.filter((n) => n.target === id) };
+    // The relationships written as statements in an element's body (null: the package's), by each kind's own rule.
+    const declaredIn = (ownerId) => model.relationships.filter((r) => RELATIONSHIPS[r.kind].toSysML && RELATIONSHIPS[r.kind].owner(model, r, ids) === ownerId);
 
     // A feature declared again under the name of one its owner inherits, of the same kind, redefines it: :>>.
     function element(el, depth) {
@@ -759,24 +1000,24 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const kids = childrenOf(model, el.id);
       const ports = kids.filter((k) => KINDS[k.kind].onBorder);
       const parts = kids.filter((k) => !KINDS[k.kind].onBorder);
-      const conns = connectionsIn(el.id);
-      if (!el.doc.trim() && !kids.length && !conns.length) { line(depth, head + ';'); return; }
+      const declared = declaredIn(el.id);
+      if (!el.doc.trim() && !kids.length && !declared.length) { line(depth, head + ';'); return; }
       line(depth, head + ' {');
-      if (el.doc.trim()) commentLines(depth + 1, 'doc', el.doc).forEach((l) => out.push(l));
+      if (el.doc.trim()) comment(depth + 1, 'doc', el.doc);
       ports.forEach((k) => element(k, depth + 1));
       parts.forEach((k) => element(k, depth + 1));
-      conns.forEach((r) => connection(r, el.id, depth + 1));
+      declared.forEach((r) => RELATIONSHIPS[r.kind].toSysML(model, r, el.id, depth + 1, out, helpers));
       line(depth, '}');
     }
 
     line(0, 'package ' + quote(model.package.name) + ' {');
-    if (model.package.doc.trim()) commentLines(1, 'doc', model.package.doc).forEach((l) => out.push(l));
+    if (model.package.doc.trim()) comment(1, 'doc', model.package.doc);
     const top = childrenOf(model, null);
     const ordered = top.filter((e) => KINDS[e.kind].definition).concat(top.filter((e) => !KINDS[e.kind].definition));
     ordered.forEach((el) => { out.push(''); element(el, 1); });
-    const topConns = connectionsIn(null);
-    if (topConns.length) out.push('');
-    topConns.forEach((r) => connection(r, null, 1));
+    const topRels = declaredIn(null);
+    if (topRels.length) out.push('');
+    topRels.forEach((r) => RELATIONSHIPS[r.kind].toSysML(model, r, null, 1, out, helpers));
 
     // Notes, as comments at the end of the package. A note on a specializes or defined-by line, which has no name
     // in the textual notation, is about both of the line's ends, with the line named in the text.
@@ -788,9 +1029,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
       let text = noteText(n);
       if (el) {
         head = 'comment <n' + n.no + '> about ' + qualified(model, el, ids);
-      } else if (rel && rel.kind === 'ConnectionUsage') {
-        if (!rel.name.trim()) continue; // written inside the connection's body
-        const o = commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids);
+      } else if (rel && RELATIONSHIPS[rel.kind].toSysML) {
+        if (!rel.name || !rel.name.trim()) continue; // written inside the relationship's body
+        const o = RELATIONSHIPS[rel.kind].owner(model, rel, ids);
         head = 'comment <n' + n.no + '> about ' + (o ? qualified(model, ids.get(o), ids) : quote(model.package.name)) + '::' + quote(rel.name);
       } else if (rel) {
         head = 'comment <n' + n.no + '> about ' + qualified(model, ids.get(rel.from), ids) + ', ' + qualified(model, ids.get(rel.to), ids);
@@ -799,13 +1040,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
         continue;
       }
       if (!any) { out.push(''); any = true; }
-      commentLines(1, head, text).forEach((l) => out.push(l));
+      comment(1, head, text);
     }
 
-    if (model.view.name) {
+    // The views, each exposing what it shows: everything when it shows every element, else each shown element by
+    // its qualified name (an element with an unnamed owner has none, so it is left out).
+    for (const v of model.views) {
+      if (!v.name.trim()) continue;
+      const head = 'view ' + quote(v.name) + ' : ' + VIEW_KINDS[v.kind].qualified;
+      const shownCount = Object.keys(v.layout).length;
+      const exposes = shownCount && shownCount === model.elements.length
+        ? ['expose ' + quote(model.package.name) + '::*::**;']
+        : model.elements.filter((e) => v.layout[e.id] && chain(model, e, ids).every((c) => c.name.trim())).map((e) => 'expose ' + qualified(model, e, ids) + ';');
       out.push('');
-      line(1, 'view ' + quote(model.view.name) + ' : ' + VIEW_DEF + ' {');
-      line(2, 'expose ' + quote(model.package.name) + '::*::**;');
+      if (!v.doc.trim() && !exposes.length) { line(1, head + ';'); continue; }
+      line(1, head + ' {');
+      if (v.doc.trim()) comment(2, 'doc', v.doc);
+      exposes.forEach((x) => line(2, x));
       line(1, '}');
     }
     line(0, '}');
@@ -813,9 +1064,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   root.SysMLModel = Object.freeze({
-    FORMAT, KINDS, RELATIONSHIPS, SIDES, MULTIPLICITY, VIEW_DEF,
-    blank, normalize, validate, toSysML, index, relIndex, chain, childrenOf, descendants, typingOf, inUsage,
-    commonOwner, featurePath, quote, qualified, describe, describeRel, labelFor, isName, tidyNotes, inheritedFeatures,
+    FORMAT, KINDS, RELATIONSHIPS, VIEW_KINDS, SIDES, MULTIPLICITY, VIEW_DEF,
+    blank, normalize, validate, toSysML, placement, canContain, admits, index, relIndex, viewIndex, shownIn, chain, childrenOf,
+    descendants, typingOf, inUsage, specializes, commonOwner, featurePath, quote, qualified, describe, describeRel, describeView,
+    labelFor, isName, tidyNotes, inheritedFeatures,
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 </script>
@@ -840,12 +1092,26 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const CHILD_TOP = 48;   // where a nested box may start
   const PORT = 16;        // a port's square
   const MARGIN = 48;      // from the drawing to the view's frame
+  const MIN_FRAME = [440, 280];  // a frame is never smaller than this
+  const VIEW_GAP = 96;    // between a new frame and the one to its left
+  const HISTORY = 100;    // how many changes undo remembers
   const NARROW = window.matchMedia('(max-width: 720px)');
   const WHERE = {
     loading: '',
     shared: 'Changes and notes save as you work, into this page\'s shared store, where Claude reads them. Ask Claude to save the model to GitHub.',
     local: 'This browser keeps your changes and notes. Download the state to keep it, or to hand it to Claude.',
     read: 'You can look at this model here but not change it.'
+  };
+  // What the palette's buttons say on hover, and what the HUD says while a tool is armed. A tool without an entry
+  // gets a plain sentence made from its label.
+  const TOOL_TITLE = {
+    PartDefinition: 'A part definition: square corners',
+    PortDefinition: 'A port definition',
+    PartUsage: 'A part: rounded corners, on the plane or inside a part def or part',
+    PortUsage: 'A port: a small square on the border of a part def or part',
+    Specialization: 'One definition specializes another, or one part or port subsets another',
+    FeatureTyping: 'A part is defined by a part def; a port by a port def',
+    ConnectionUsage: 'A connection between two ports or two parts'
   };
   const TOOL_HINT = {
     PartDefinition: 'Click where the part def goes.',
@@ -865,6 +1131,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const status = $('status');
   const zoomLevel = $('zoom-level');
   const hud = document.querySelector('.hud');
+  const eyebrow = document.querySelector('.eyebrow');
+  const palette = document.querySelector('.palette');
   const panel = $('panel');
   const showPanel = $('show-panel');
   const inspectorEmpty = $('inspector-empty');
@@ -878,8 +1146,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const fConj = $('f-conjugated');
   const fDoc = $('f-doc');
   const fPath = $('f-path');
+  const fViews = $('f-views');
   const addNoteButton = $('add-note');
+  const removeFromViewButton = $('remove-from-view');
   const deleteButton = $('delete-selected');
+  const viewFields = $('view-fields');
+  const vKind = $('v-kind');
+  const vName = $('v-name');
+  const vDoc = $('v-doc');
+  const vShow = $('v-show');
+  const vMeta = $('v-meta');
+  const vShowAdd = $('v-show-add');
+  const deleteViewButton = $('delete-view');
+  const problemsList = $('problems-list');
+  const problemsButton = $('problems');
+  const undoButton = $('undo');
+  const newViewButton = $('new-view');
+  const newViewKind = $('new-view-kind');
   const list = $('notes-list');
   const notesEmpty = $('notes-empty');
   const notesCount = $('notes-count');
@@ -891,7 +1174,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const downloadButton = $('download-state');
   const importButton = $('import-state');
   const fileInput = $('import-file');
-  const paletteButtons = Array.from(document.querySelectorAll('.palette button[data-tool]'));
 
   const str = (v, d) => (typeof v === 'string' ? v : (d === undefined ? '' : d));
 
@@ -901,15 +1183,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
   let model = saved.model;
   let notes = saved.notes.slice();
   let changes = [];              // what was done since the last save, for Claude to read
-  let selection = null;          // { type: 'el' | 'rel', id }
+  let history = [];              // the model before each change made here, newest last, for Undo
+  let selection = null;          // { type: 'el' | 'rel' | 'view', id }
+  let active = model.views[0].id; // the view tools add into
   let tool = null;               // a kind to add, a relationship to draw, or null to select and move
   let pending = null;            // the first end of a relationship being drawn
   let mode = 'loading';          // 'shared': the page's store · 'local': this browser · 'read': look only
   let reason = '';
   let camera = readCamera();     // the top-left corner of the window in drawing units, and pixels per unit
-  let layout = null;             // where everything is, computed by each render
+  let layout = null;             // where everything is, in every view, computed by each render
+  let problems = [];             // what validate found last, shown on the drawing and in the panel
+  let problemCursor = -1;        // which problem the HUD's button showed last
   let hovered = null;
-  let drag = null;               // the element being moved
+  let drag = null;               // the element or view being moved
   let db = null;
   let heardNotes = false;        // whether the shared store has answered about the notes
 
@@ -920,6 +1206,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function f(n) { return (Math.round(n * 100) / 100).toString(); }
   function newId(prefix) { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
   function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+  function paletteButtons() { return Array.from(palette.querySelectorAll('button[data-tool]')); }
 
   function readJSON(id) {
     const block = document.getElementById(id);
@@ -948,9 +1235,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function byNumber(a, b) { return (a.no - b.no) || (a.created < b.created ? -1 : a.created > b.created ? 1 : 0); }
   function nextNumber() { return notes.reduce((top, n) => Math.max(top, n.no || 0), 0) + 1; }
   function noteById(id) { return notes.find((n) => n.id === id) || null; }
+  function relById(id) { return model.relationships.find((r) => r.id === id) || null; }
+  function viewById(id) { return model.views.find((v) => v.id === id) || null; }
+  function activeView() { return viewById(active) || model.views[0]; }
+  function viewLayout(id) { return layout ? layout.views.get(id) || null : null; }
+  // The view an element or line is drawn in that the page would rather point at: the active one, else the first.
+  function viewShowing(id) {
+    const list = layout ? layout.where.get(id) || [] : [];
+    return list.indexOf(active) >= 0 ? active : (list[0] || null);
+  }
+  function rendererFor(view) { return RENDERERS[M.VIEW_KINDS[view.kind].renderer] || RENDERERS.pending; }
 
-  // ---- Where everything is. Boxes nest the way the model's elements do, a box grows to hold what it owns, and a
-  // port sits on its owner's border.
+  // ---- Where everything is. Each view lays out the elements it shows from its own origin, by its kind's renderer.
+  // In a graph view boxes nest the way the model's elements do, as far as the view shows them: a shown box sits in
+  // its nearest owner that is shown too, else at the view's ground; a box grows to hold what it holds; a port sits on
+  // its owner's border.
 
   function wrap(text, maxChars) {
     const out = [];
@@ -976,60 +1275,99 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return { x: cx - PORT / 2, y: cy - PORT / 2, w: PORT, h: PORT, cx: cx, cy: cy, side: p.side, port: true };
   }
 
-  function computeLayout() {
-    const ids = M.index(model);
+  // The layout of one graph view: rects in plane coordinates for the elements it shows, kids by their parent in
+  // the view ('' for the view's own ground), parentOf the other way round, docs the wrapped doc lines.
+  function graphLayout(view, ids) {
+    const order = new Map(model.elements.map((e, i) => [e.id, i]));
+    const shown = new Set(Object.keys(view.layout).filter((id) => ids.has(id)));
     const kids = new Map();
-    for (const el of model.elements) {
-      const key = el.owner === undefined ? '' : el.owner;
+    const parentOf = new Map();
+    for (const id of shown) {
+      const el = ids.get(id);
+      let p = el.owner;
+      while (p !== undefined && !shown.has(p)) { const o = ids.get(p); p = o ? o.owner : undefined; }
+      const key = p === undefined ? '' : p;
+      parentOf.set(id, key);
       if (!kids.has(key)) kids.set(key, []);
       kids.get(key).push(el);
     }
-    const boxesOf = (id) => (kids.get(id) || []).filter((e) => !M.KINDS[e.kind].onBorder);
-    const portsOf = (id) => (kids.get(id) || []).filter((e) => M.KINDS[e.kind].onBorder);
+    kids.forEach((group) => group.sort((a, b) => order.get(a.id) - order.get(b.id)));
+    const boxesOf = (key) => (kids.get(key) || []).filter((e) => !M.KINDS[e.kind].onBorder);
+    const portsOf = (key) => (kids.get(key) || []).filter((e) => M.KINDS[e.kind].onBorder);
     const sizes = new Map();
     const rects = new Map();
     const docs = new Map();
     function size(el) {
-      const lines = wrap(el.doc, Math.max(12, Math.floor((el.w - 24) / 6.1)));
+      const lay = view.layout[el.id];
+      const lines = wrap(el.doc, Math.max(12, Math.floor((lay.w - 24) / 6.1)));
       docs.set(el.id, lines);
       let bottom = HEADER + (lines.length ? HEAD_H + LEAD * lines.length + 6 : 0);
       let right = 0;
       for (const kid of boxesOf(el.id)) {
         const s = size(kid);
-        // A box grows to hold what it owns, except the box being dragged, which may be on its way out.
-        if (drag && drag.id === kid.id) continue;
-        bottom = Math.max(bottom, kid.y + s.h + PAD);
-        right = Math.max(right, kid.x + s.w + PAD);
+        const kl = view.layout[kid.id];
+        // A box grows to hold what it holds, except the box being dragged, which may be on its way out.
+        if (drag && drag.id === kid.id && drag.view === view.id) continue;
+        bottom = Math.max(bottom, kl.y + s.h + PAD);
+        right = Math.max(right, kl.x + s.w + PAD);
       }
-      const s = { w: Math.max(el.w, right), h: Math.max(el.h, bottom) };
+      const s = { w: Math.max(lay.w, right), h: Math.max(lay.h, bottom) };
       sizes.set(el.id, s);
       return s;
     }
     function place(el, ox, oy) {
+      const lay = view.layout[el.id];
       const s = sizes.get(el.id);
-      const r = { x: ox + el.x, y: oy + el.y, w: s.w, h: s.h };
+      const r = { x: ox + lay.x, y: oy + lay.y, w: s.w, h: s.h };
       rects.set(el.id, r);
-      for (const p of portsOf(el.id)) rects.set(p.id, portRect(p, r));
+      for (const p of portsOf(el.id)) rects.set(p.id, portRect(view.layout[p.id], r));
       for (const kid of boxesOf(el.id)) place(kid, r.x, r.y);
     }
-    let frame = null;
-    for (const el of kids.get('') || []) {
+    let box = null;
+    for (const el of boxesOf('')) {
       size(el);
-      place(el, 0, 0);
+      place(el, view.x, view.y);
       const r = rects.get(el.id);
-      frame = frame ? {
-        x: Math.min(frame.x, r.x), y: Math.min(frame.y, r.y),
-        x2: Math.max(frame.x2, r.x + r.w), y2: Math.max(frame.y2, r.y + r.h)
+      box = box ? {
+        x: Math.min(box.x, r.x), y: Math.min(box.y, r.y),
+        x2: Math.max(box.x2, r.x + r.w), y2: Math.max(box.y2, r.y + r.h)
       } : { x: r.x, y: r.y, x2: r.x + r.w, y2: r.y + r.h };
     }
-    const frameRect = frame
-      ? { x: frame.x - MARGIN, y: frame.y - MARGIN - 12, w: frame.x2 - frame.x + 2 * MARGIN, h: frame.y2 - frame.y + 2 * MARGIN + 12 }
-      : { x: -220, y: -140, w: 440, h: 280 };
-    return { ids: ids, kids: kids, rects: rects, docs: docs, frameRect: frameRect };
+    return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, docs: docs, frameRect: frameAround(view, box) };
+  }
+  // The frame around a view's content: its bounding box plus the margin, never smaller than the minimum. An empty
+  // view's frame starts at the view's origin.
+  function frameAround(view, box) {
+    const fr = box
+      ? { x: box.x - MARGIN, y: box.y - MARGIN - 12, w: box.x2 - box.x + 2 * MARGIN, h: box.y2 - box.y + 2 * MARGIN + 12 }
+      : { x: view.x - MARGIN, y: view.y - MARGIN - 12, w: MIN_FRAME[0], h: MIN_FRAME[1] };
+    fr.w = Math.max(fr.w, MIN_FRAME[0]);
+    fr.h = Math.max(fr.h, MIN_FRAME[1]);
+    return fr;
+  }
+  // Every view's layout, plus where: for each element and drawn line, the views it is drawn in; and bounds, the
+  // box around every frame.
+  function computeLayout() {
+    const ids = M.index(model);
+    const views = new Map();
+    const where = new Map();
+    const drawnIn = (id, viewId) => { if (!where.has(id)) where.set(id, []); where.get(id).push(viewId); };
+    let b = null;
+    for (const view of model.views) {
+      const L = rendererFor(view).layout(view, ids);
+      views.set(view.id, L);
+      L.shown.forEach((id) => drawnIn(id, view.id));
+      model.relationships.forEach((rel) => { if (!rel.hidden && L.rects.has(rel.from) && L.rects.has(rel.to)) drawnIn(rel.id, view.id); });
+      const fr = L.frameRect;
+      b = b ? { x: Math.min(b.x, fr.x), y: Math.min(b.y, fr.y), x2: Math.max(b.x2, fr.x + fr.w), y2: Math.max(b.y2, fr.y + fr.h) }
+        : { x: fr.x, y: fr.y, x2: fr.x + fr.w, y2: fr.y + fr.h };
+    }
+    const bounds = b ? { x: b.x, y: b.y, w: b.x2 - b.x, h: b.y2 - b.y } : { x: -220, y: -140, w: 440, h: 280 };
+    return { ids: ids, views: views, where: where, bounds: bounds };
   }
 
   function center(r) { return r.port ? { x: r.cx, y: r.cy } : { x: r.x + r.w / 2, y: r.y + r.h / 2 }; }
-  // Where a line from the middle of box r toward `toward` leaves the box.
+  // Where a line from the middle of box r toward toward leaves the box.
   function edgePoint(r, toward) {
     const c = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
     const dx = toward.x - c.x;
@@ -1063,12 +1401,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (rb.x + rb.w <= ra.x) { const m = (ra.x + rb.x + rb.w) / 2; return [{ x: ra.x, y: ay }, { x: m, y: ay }, { x: m, y: by }, { x: rb.x + rb.w, y: by }]; }
     return null;
   }
-  // Where a relationship's line goes: its points, and the middle of it, where a label or a pin sits.
-  function endpoints(rel) {
-    const ra = layout.rects.get(rel.from);
-    const rb = layout.rects.get(rel.to);
+  // Where a relationship's line goes in view layout L: its points, and the middle of it, where a label or a pin sits.
+  function endpoints(rel, L) {
+    const ra = L.rects.get(rel.from);
+    const rb = L.rects.get(rel.to);
     if (!ra || !rb) return null;
-    const pts = (rel.kind === 'ConnectionUsage' ? null : elbow(ra, rb)) || straight(ra, rb);
+    const route = M.RELATIONSHIPS[rel.kind].line.route;
+    const pts = (route === 'elbow' ? elbow(ra, rb) : null) || straight(ra, rb);
     const i = Math.floor(pts.length / 2) - 1;
     const mid = { x: (pts[i].x + pts[i + 1].x) / 2, y: (pts[i].y + pts[i + 1].y) / 2 };
     return { pts: pts, a: pts[0], b: pts[pts.length - 1], mid: mid };
@@ -1083,18 +1422,28 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return { side: d.side, at: Math.round(clamp(d.at, 0.05, 0.95) * 100) / 100 };
   }
   function contains(r, p) { return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h; }
-  // The innermost part def or part under point p, leaving out `except` and everything inside it. Null: the plane.
-  function containerAt(p, except) {
+  // The innermost box under point p in view layout L that can hold an element of kind (any box that holds things
+  // when kind is null), leaving out except and everything inside it. Null: the view's own ground.
+  function containerAt(L, p, except, kind) {
     const skip = new Set();
     if (except) { skip.add(except.id); M.descendants(model, except.id).forEach((d) => skip.add(d.id)); }
     let best = null;
-    for (const el of model.elements) {
-      if (!M.KINDS[el.kind].contains || skip.has(el.id)) continue;
-      const r = layout.rects.get(el.id);
-      if (!r || !contains(r, p)) continue;
-      if (!best || r.w * r.h < best.area) best = { id: el.id, area: r.w * r.h };
-    }
+    L.shown.forEach((id) => {
+      const el = layout.ids.get(id);
+      if (!M.KINDS[el.kind].contains || skip.has(id) || (kind && !M.canContain(el.kind, kind))) return;
+      const r = L.rects.get(id);
+      if (!r || !contains(r, p)) return;
+      if (!best || r.w * r.h < best.area) best = { id: id, area: r.w * r.h };
+    });
     return best ? best.id : null;
+  }
+  // The view whose frame is under point p: the active one when it is, else the last drawn, which is on top.
+  function viewAt(p, except) {
+    const a = viewLayout(active);
+    if (a && active !== except && contains(a.frameRect, p)) return active;
+    let found = null;
+    layout.views.forEach((L, id) => { if (id !== except && contains(L.frameRect, p)) found = id; });
+    return found;
   }
 
   // ---- Drawing.
@@ -1132,29 +1481,29 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     return s;
   }
-  function drawBox(el, parent) {
+  function drawBox(el, parent, L) {
     const kind = M.KINDS[el.kind];
-    const r = layout.rects.get(el.id);
-    const g = node('g', { 'data-el': el.id, 'data-kind': el.kind }, 'el ' + (kind.definition ? 'def' : 'usage') + (el.abstract ? ' is-abstract' : ''));
-    g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: kind.definition ? 0 : 10 }, 'outline'));
+    const r = L.rects.get(el.id);
+    const g = node('g', { 'data-el': el.id, 'data-kind': el.kind, 'data-view': L.view.id }, 'el ' + (kind.definition ? 'def' : 'usage') + (el.abstract ? ' is-abstract' : ''));
+    g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: kind.shape === 'rounded' ? 10 : 0 }, 'outline'));
     const cx = r.x + r.w / 2;
     g.appendChild(text(cx, r.y + 16, '«' + (el.abstract ? 'abstract ' : '') + kind.keyword + '»', 'kw', 'middle'));
     g.appendChild(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle'));
-    const lines = layout.docs.get(el.id) || [];
+    const lines = L.docs.get(el.id) || [];
     if (lines.length) {
       const y = r.y + HEADER;
       g.appendChild(node('line', { x1: f(r.x), y1: f(y), x2: f(r.x + r.w), y2: f(y) }, 'rule'));
       g.appendChild(text(cx, y + 13, 'doc', 'head-c', 'middle'));
       lines.forEach((l, i) => g.appendChild(text(r.x + PAD, y + HEAD_H + 11 + i * LEAD, l, 'doc')));
     }
-    const kids = layout.kids.get(el.id) || [];
-    kids.filter((k) => !M.KINDS[k.kind].onBorder).forEach((k) => drawBox(k, g));
-    kids.filter((k) => M.KINDS[k.kind].onBorder).forEach((k) => drawPort(k, g));
+    const kids = L.kids.get(el.id) || [];
+    kids.filter((k) => !M.KINDS[k.kind].onBorder).forEach((k) => drawBox(k, g, L));
+    kids.filter((k) => M.KINDS[k.kind].onBorder).forEach((k) => drawPort(k, g, L));
     parent.appendChild(g);
   }
-  function drawPort(p, parent) {
-    const r = layout.rects.get(p.id);
-    const g = node('g', { 'data-el': p.id, 'data-kind': p.kind }, 'el port');
+  function drawPort(p, parent, L) {
+    const r = L.rects.get(p.id);
+    const g = node('g', { 'data-el': p.id, 'data-kind': p.kind, 'data-view': L.view.id }, 'el port');
     g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: r.w, height: r.h, rx: 2.5 }, 'outline'));
     // The glyph inside the square: both directions, since the slice doesn't say which way a port's features go.
     const h = r.side === 'left' || r.side === 'right';
@@ -1176,26 +1525,28 @@ textarea.text[readonly] { resize: none; background: transparent; }
     else g.appendChild(text(c, cy + 22, label, 'mono', 'middle'));
     parent.appendChild(g);
   }
-  function drawRel(rel, parent) {
-    const e = endpoints(rel);
+  function drawRel(rel, parent, L) {
+    const e = endpoints(rel, L);
     if (!e) return;
-    const cls = rel.kind === 'ConnectionUsage' ? 'connection' : rel.kind === 'Specialization' ? 'specialization' : 'typing';
-    const g = node('g', { 'data-rel': rel.id, 'data-kind': rel.kind }, 'rel ' + cls);
+    const how = M.RELATIONSHIPS[rel.kind].line;
+    const g = node('g', { 'data-rel': rel.id, 'data-kind': rel.kind, 'data-view': L.view.id }, 'rel ' + how.cls);
     const d = e.pts.map((p, i) => (i ? ' L' : 'M') + f(p.x) + ',' + f(p.y)).join('');
     g.appendChild(node('path', { d: d }, 'hit'));
     const line = node('path', { d: d }, 'line');
-    if (rel.kind === 'Specialization') line.setAttribute('marker-end', 'url(#m-general)');
-    if (rel.kind === 'FeatureTyping') line.setAttribute('marker-end', 'url(#m-defined)');
+    if (how.marker) line.setAttribute('marker-end', 'url(#' + how.marker + ')');
     g.appendChild(line);
-    if (rel.kind === 'ConnectionUsage' && rel.name.trim()) g.appendChild(text(e.mid.x, e.mid.y + 30, rel.name.trim(), 'uname', 'middle'));
+    const label = how.label ? how.label(rel) : '';
+    if (label) g.appendChild(text(e.mid.x, e.mid.y + 30, label, 'uname', 'middle'));
     parent.appendChild(g);
   }
-  function frameGroup() {
-    const fr = layout.frameRect;
-    const g = node('g', {}, 'frame');
+  // A view's frame: the outline, the header tab (with a clear rectangle over it that takes the pointer, to select or
+  // move the view), then the view's content by its kind's renderer.
+  function drawFrame(view, L) {
+    const fr = L.frameRect;
+    const g = node('g', { 'data-view': view.id }, 'frame' + (view.id === active ? ' is-active' : ''));
     g.appendChild(node('rect', { x: f(fr.x), y: f(fr.y), width: f(fr.w), height: f(fr.h), rx: 12 }, 'outline'));
-    const name = model.view.name || 'view';
-    const label = '«view» ' + name + ' : GeneralView';
+    const name = view.name.trim() || 'view';
+    const label = '«view» ' + name + ' : ' + view.kind;
     const tabW = Math.min(fr.w - 24, 16 + label.length * 6.6);
     g.appendChild(node('path', { d: 'M' + f(fr.x) + ',' + f(fr.y + 26) + ' H' + f(fr.x + tabW) + ' A8,8 0 0 0 ' + f(fr.x + tabW + 8) + ',' + f(fr.y + 18) + ' V' + f(fr.y) }, 'outline'));
     const t = node('text', { x: f(fr.x + 12), y: f(fr.y + 18) });
@@ -1204,29 +1555,165 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const b = node('tspan', {}, 'frame-name');
     b.textContent = name;
     const c = node('tspan', {}, 'kw');
-    c.textContent = ' : GeneralView';
+    c.textContent = ' : ' + view.kind;
     t.appendChild(a);
     t.appendChild(b);
     t.appendChild(c);
     g.appendChild(t);
+    const tab = node('rect', { x: f(fr.x), y: f(fr.y), width: f(tabW + 8), height: 26 }, 'tab');
+    const title = node('title');
+    title.textContent = M.describeView(model, view) + ', a ' + M.VIEW_KINDS[view.kind].label + '. Click to select it, drag to move it.';
+    tab.appendChild(title);
+    g.appendChild(tab);
+    rendererFor(view).draw(view, g, L);
     return g;
   }
-  // Where a note's pin sits: on the top edge of a box, beside a port's square away from its name, on the middle of a
-  // line. Pins on the same thing step aside by a screen distance, so they stay apart when zoomed out. A note on a
-  // defined-by line that isn't drawn sits on the part or port the line starts from.
-  function pinAnchor(n, k) {
+
+  // The renderers, by the name a view kind gives in VIEW_KINDS. Each lays a view out (layout(view, ids) returns
+  // what graphLayout returns: at least view, shown, rects, kids, frameRect), draws its content into the frame's
+  // group, and, when the view's elements can be placed and moved by hand, places one (place(view, kind, p, hit)
+  // adds the element to the model and the view's layout, or says why not and returns null), starts a drag of one
+  // (dragStart(view, el, p) returns the drag record or null), moves it (drag(view, el, d, p)), and finishes
+  // (drop(view, el, d, p, event) returns { undo, text, key, say } for the undo entry, the change log and the status,
+  // or null when nothing changed). The later slices add sequence, geometry, grid and browser here.
+  const RENDERERS = {
+    graph: {
+      layout: graphLayout,
+      draw: function (view, g, L) {
+        // Boxes first, then lines on top of them, so a line between things inside a box shows over the box's fill.
+        const els = node('g', {}, 'els');
+        const rels = node('g', {}, 'rels');
+        g.appendChild(els);
+        g.appendChild(rels);
+        (L.kids.get('') || []).filter((e) => !M.KINDS[e.kind].onBorder).forEach((el) => drawBox(el, els, L));
+        model.relationships.forEach((rel) => { if (!rel.hidden) drawRel(rel, rels, L); });
+      },
+      place: function (view, kind, p, hit) {
+        const k = M.KINDS[kind];
+        const L = viewLayout(view.id);
+        let el;
+        if (k.onBorder) {
+          const under = hit.type === 'el' ? layout.ids.get(hit.id) : null;
+          let host = under && M.canContain(under.kind, kind) ? under.id : containerAt(L, p, null, kind);
+          if (under && M.KINDS[under.kind].onBorder) host = under.owner !== undefined && M.canContain(layout.ids.get(under.owner).kind, kind) ? under.owner : null;
+          if (!host || !view.layout[host]) { say('Click a part def or a part in this view to put a ' + k.label + ' on its border.'); return null; }
+          const b = nearestBorder(L.rects.get(host), p);
+          el = freshElement(kind, freeName(kind, host));
+          el.owner = host;
+          view.layout[el.id] = { side: b.side, at: b.at };
+        } else {
+          const w = k.size[0];
+          const h = k.size[1];
+          const host = containerAt(L, p, null, kind);
+          el = freshElement(kind, freeName(kind, host));
+          const lay = { x: Math.round(p.x - view.x - w / 2), y: Math.round(p.y - view.y - 20), w: w, h: h };
+          if (host) {
+            const r = L.rects.get(host);
+            el.owner = host;
+            lay.x = Math.max(PAD, Math.round(p.x - r.x - w / 2));
+            lay.y = Math.max(CHILD_TOP, Math.round(p.y - r.y - 20));
+          }
+          view.layout[el.id] = lay;
+        }
+        model.elements.push(el);
+        return el;
+      },
+      dragStart: function (view, el, p) {
+        const lay = view.layout[el.id];
+        if (!lay) return null;
+        const from = M.KINDS[el.kind].onBorder ? { side: lay.side, at: lay.at } : { x: lay.x, y: lay.y };
+        return { kind: 'el', id: el.id, view: view.id, start: p, from: from, moved: false, over: undefined };
+      },
+      drag: function (view, el, d, p) {
+        const lay = view.layout[el.id];
+        const L = viewLayout(view.id);
+        if (M.KINDS[el.kind].onBorder) {
+          const b = nearestBorder(L.rects.get(el.owner), p);
+          lay.side = b.side;
+          lay.at = b.at;
+          return;
+        }
+        lay.x = Math.round(d.from.x + (p.x - d.start.x));
+        lay.y = Math.round(d.from.y + (p.y - d.start.y));
+        d.over = containerAt(L, p, el, el.kind);
+      },
+      drop: function (view, el, d, p, event) {
+        const lay = view.layout[el.id];
+        const L = viewLayout(view.id);
+        const what = M.describe(model, el);
+        if (M.KINDS[el.kind].onBorder) return { undo: 'Moved ' + what + ' to the ' + lay.side + ' side', text: 'Moved ' + what + ' to the ' + lay.side + ' side', key: 'move:' + el.id };
+        // Dropped inside another view's frame: the box goes back where it was. Showing it there is the Show list's job.
+        const other = event.type === 'pointerup' ? viewAt(p, view.id) : null;
+        if (other) {
+          lay.x = d.from.x;
+          lay.y = d.from.y;
+          return { say: 'A box doesn\'t move into another view by dragging, so it went back. To show it in ' + M.describeView(model, viewById(other)) + ', select that view and use its Show list.' };
+        }
+        if (event.type === 'pointerup') {
+          // The box it is dropped in, against the box it sat in here: another one, or none, changes its owner in the
+          // model, and its place is read against the new parent's box. A box whose owner this view doesn't show sits
+          // on the view's ground, and stays owned when moved about on it.
+          const over = containerAt(L, p, el, el.kind);
+          const visual = L.parentOf.get(el.id) || null;
+          if (over === visual && visual !== null) { lay.x = Math.max(lay.x, PAD); lay.y = Math.max(lay.y, CHILD_TOP); }
+          if (over !== visual) {
+            const abs = L.rects.get(el.id);
+            if (over === null) { delete el.owner; lay.x = Math.round(abs.x - view.x); lay.y = Math.round(abs.y - view.y); }
+            else {
+              const o = L.rects.get(over);
+              el.owner = over;
+              lay.x = Math.max(PAD, Math.round(abs.x - o.x));
+              lay.y = Math.max(CHILD_TOP, Math.round(abs.y - o.y));
+            }
+            const text = 'Moved ' + what + (over ? ' into ' + M.describe(model, layout.ids.get(over)) : ' out onto the plane');
+            return { undo: text, text: text, key: null };
+          }
+        } else if (L.parentOf.get(el.id)) { lay.x = Math.max(lay.x, PAD); lay.y = Math.max(lay.y, CHILD_TOP); }
+        return { undo: 'Moved ' + what, text: 'Moved ' + what, key: 'move:' + el.id };
+      }
+    },
+    // A view whose kind has no renderer yet: the frame at its minimum size, saying so.
+    pending: {
+      layout: function (view) {
+        return { view: view, shown: new Set(), kids: new Map(), parentOf: new Map(), rects: new Map(), docs: new Map(), frameRect: frameAround(view, null) };
+      },
+      draw: function (view, g, L) {
+        const fr = L.frameRect;
+        g.appendChild(text(fr.x + fr.w / 2, fr.y + fr.h / 2, 'A ' + M.VIEW_KINDS[view.kind].label + ' is not drawn yet.', 'pending', 'middle'));
+      },
+      place: function (view, kind) { say('A ' + M.KINDS[kind].label + ' can\'t be drawn in a ' + M.VIEW_KINDS[view.kind].label + ' yet.'); return null; },
+      dragStart: function () { return null; },
+      drag: function () {},
+      drop: function () { return null; }
+    }
+  };
+  // A new element of a kind, with the fields its kind has.
+  function freshElement(kind, name) {
+    const k = M.KINDS[kind];
+    const el = { id: newId('e'), kind: kind, name: name, doc: '' };
+    if (k.fields.indexOf('abstract') >= 0) el.abstract = false;
+    if (k.fields.indexOf('multiplicity') >= 0) el.multiplicity = '';
+    if (k.fields.indexOf('conjugated') >= 0) el.conjugated = false;
+    return el;
+  }
+
+  // Where a note's pin sits in view layout L: on the top edge of a box, beside a port's square away from its name, on
+  // the middle of a line. Pins on the same thing step aside by a screen distance, so they stay apart when zoomed out.
+  // A note on a defined-by line that isn't drawn sits on the part or port the line starts from. Null when the note's
+  // target isn't drawn in the view.
+  function pinAnchor(n, k, L) {
     const step = 26 / (camera ? camera.k : 1) * k;
-    const r = layout.rects.get(n.target);
+    const r = L.rects.get(n.target);
     if (r) {
       if (!r.port) return { x: r.x + r.w - 10 - step, y: r.y };
       if (r.side === 'right') return { x: r.cx + 16 + step, y: r.cy + 14 };
       if (r.side === 'left') return { x: r.cx - 16 - step, y: r.cy - 14 };
       return { x: r.cx + 18 + step, y: r.cy };
     }
-    const rel = model.relationships.find((x) => x.id === n.target);
+    const rel = relById(n.target);
     if (!rel) return null;
-    if (rel.hidden) { const from = layout.rects.get(rel.from); return from ? { x: (from.port ? from.cx : from.x) + 12 + step, y: (from.port ? from.cy : from.y) - 16 } : null; }
-    const e = endpoints(rel);
+    if (rel.hidden) { const from = L.rects.get(rel.from); return from ? { x: (from.port ? from.cx : from.x) + 12 + step, y: (from.port ? from.cy : from.y) - 16 } : null; }
+    const e = endpoints(rel, L);
     return e ? { x: e.mid.x + step, y: e.mid.y } : null;
   }
   function pinTransform(x, y) { return 'translate(' + f(x) + ' ' + f(y) + ') scale(' + (1 / (camera ? camera.k : 1)).toFixed(4) + ')'; }
@@ -1234,57 +1721,116 @@ textarea.text[readonly] { resize: none; background: transparent; }
     while (layer.firstChild) layer.removeChild(layer.firstChild);
     const seen = {};
     for (const n of notes.slice().sort(byNumber)) {
-      const k = seen[n.target] || 0;
-      const at = pinAnchor(n, k);
-      if (!at) continue;
-      seen[n.target] = k + 1;
-      const g = node('g', { 'data-note': n.id, 'data-x': f(at.x), 'data-y': f(at.y), transform: pinTransform(at.x, at.y) }, 'pin' + (n.resolved ? ' is-resolved' : ''));
-      const title = node('title');
-      title.textContent = 'Note ' + n.no + ' on ' + (M.labelFor(model, n.target) || n.targetLabel) + '. Click to read it.';
-      const circle = node('circle', { r: 11 });
-      const number = node('text');
-      number.textContent = String(n.no);
-      g.appendChild(title);
-      g.appendChild(circle);
-      g.appendChild(number);
-      layer.appendChild(g);
+      layout.views.forEach((L) => {
+        const key = L.view.id + '/' + n.target;
+        const k = seen[key] || 0;
+        const at = pinAnchor(n, k, L);
+        if (!at) return;
+        seen[key] = k + 1;
+        const g = node('g', { 'data-note': n.id, 'data-view': L.view.id, 'data-x': f(at.x), 'data-y': f(at.y), transform: pinTransform(at.x, at.y) }, 'pin' + (n.resolved ? ' is-resolved' : ''));
+        const title = node('title');
+        title.textContent = 'Note ' + n.no + ' on ' + (M.labelFor(model, n.target) || n.targetLabel) + '. Click to read it.';
+        const circle = node('circle', { r: 11 });
+        const number = node('text');
+        number.textContent = String(n.no);
+        g.appendChild(title);
+        g.appendChild(circle);
+        g.appendChild(number);
+        layer.appendChild(g);
+      });
     }
   }
+  // The ids a problem is shown on: what it names, and, for a defined-by line that isn't drawn, the part or port the
+  // line starts from, since the line itself can't be pointed at.
+  function marksFor(p) {
+    if (p.id === null) return [];
+    const rel = relById(p.id);
+    return rel && rel.hidden ? [p.id, rel.from] : [p.id];
+  }
+  // Where a problem's badge sits in view layout L: at a box's top-right corner, inside a port's corner, above the
+  // middle of a line, on a view's tab. Null when the offender isn't drawn in the view.
+  function badgeAnchor(id, L) {
+    if (id === L.view.id) { const fr = L.frameRect; return { x: fr.x + 2, y: fr.y + 2 }; }
+    const r = L.rects.get(id);
+    if (r) {
+      if (!r.port) return { x: r.x + r.w + 2, y: r.y - 2 };
+      if (r.side === 'right') return { x: r.cx - 16, y: r.cy - 14 };
+      if (r.side === 'left') return { x: r.cx + 16, y: r.cy + 14 };
+      return { x: r.cx - 18, y: r.cy };
+    }
+    const rel = relById(id);
+    if (!rel || rel.hidden) return null;
+    const e = endpoints(rel, L);
+    return e ? { x: e.mid.x, y: e.mid.y - 14 } : null;
+  }
+  function drawBadges(layer) {
+    while (layer.firstChild) layer.removeChild(layer.firstChild);
+    const byTarget = new Map();
+    problems.forEach((p) => marksFor(p).forEach((id) => { if (!byTarget.has(id)) byTarget.set(id, []); byTarget.get(id).push(p.message); }));
+    byTarget.forEach((messages, id) => {
+      layout.views.forEach((L) => {
+        const at = badgeAnchor(id, L);
+        if (!at) return;
+        const g = node('g', { 'data-for': id, 'data-view': L.view.id, transform: pinTransform(at.x, at.y) }, 'problem');
+        const title = node('title');
+        title.textContent = messages.join(' ');
+        const mark = node('text');
+        mark.textContent = '!';
+        g.appendChild(title);
+        g.appendChild(node('circle', { r: 9 }));
+        g.appendChild(mark);
+        layer.appendChild(g);
+      });
+    });
+  }
+  function markProblems() {
+    const ids = new Set();
+    problems.forEach((p) => marksFor(p).forEach((id) => ids.add(id)));
+    ids.forEach((id) => svg.querySelectorAll('[data-el="' + id + '"], [data-rel="' + id + '"], .frame[data-view="' + id + '"]').forEach((g) => g.classList.add('is-problem')));
+  }
+  // Pins and badges are drawn at screen size, so they are drawn again whenever the camera moves.
   function renderPins() {
-    const layer = svg.querySelector('.pins');
-    if (layer) drawPins(layer);
+    const pins = svg.querySelector('.pins');
+    const badges = svg.querySelector('.problems');
+    if (pins) drawPins(pins);
+    if (badges) drawBadges(badges);
   }
 
-  // Redraws the whole drawing from the model. The panel is drawn separately, so typing in it isn't interrupted.
+  // Redraws the whole drawing from the model, and checks it. The panel is drawn separately, so typing in it isn't
+  // interrupted.
   function render() {
     layout = computeLayout();
+    const found = M.validate(model);
+    if (JSON.stringify(found) !== JSON.stringify(problems)) problemCursor = -1;
+    problems = found;
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     svg.appendChild(defs());
     svg.appendChild(node('rect', { x: -100000, y: -100000, width: 200000, height: 200000, fill: 'url(#plane-dots)' }, 'plane'));
-    svg.appendChild(frameGroup());
-    // Boxes first, then lines on top of them, so a line between things inside a box shows over the box's fill.
-    const rels = node('g', {}, 'rels');
-    const els = node('g', {}, 'els');
+    // Each view in its frame, then the pins and the badges on top of everything.
+    model.views.forEach((view) => svg.appendChild(drawFrame(view, layout.views.get(view.id))));
     const pins = node('g', {}, 'pins');
-    svg.appendChild(els);
-    svg.appendChild(rels);
+    const badges = node('g', {}, 'problems');
     svg.appendChild(pins);
-    (layout.kids.get('') || []).forEach((el) => drawBox(el, els));
-    model.relationships.forEach((rel) => { if (!rel.hidden) drawRel(rel, rels); });
+    svg.appendChild(badges);
     drawPins(pins);
+    drawBadges(badges);
+    markProblems();
     applyMarks();
+    problemsButton.hidden = !problems.length;
+    problemsButton.textContent = plural(problems.length, 'problem');
+    renderProblemsList();
     if (camera) applyCamera(); else fit();
   }
-  function groupFor(sel) {
-    if (!sel) return null;
-    return svg.querySelector(sel.type === 'el' ? '[data-el="' + sel.id + '"]' : '[data-rel="' + sel.id + '"]');
+  // Every group that draws the selection: an element or line may be drawn in several frames.
+  function groupsFor(sel) {
+    if (!sel) return [];
+    const q = sel.type === 'view' ? '.frame[data-view="' + sel.id + '"]' : sel.type === 'el' ? '[data-el="' + sel.id + '"]' : '[data-rel="' + sel.id + '"]';
+    return Array.from(svg.querySelectorAll(q));
   }
   function applyMarks() {
     svg.querySelectorAll('.is-selected, .is-source').forEach((g) => { g.classList.remove('is-selected'); g.classList.remove('is-source'); });
-    const g = groupFor(selection);
-    if (g) g.classList.add('is-selected');
-    const source = pending ? svg.querySelector('[data-el="' + pending + '"]') : null;
-    if (source) source.classList.add('is-source');
+    groupsFor(selection).forEach((g) => g.classList.add('is-selected'));
+    if (pending) svg.querySelectorAll('[data-el="' + pending + '"]').forEach((g) => g.classList.add('is-source'));
   }
 
   // ---- The camera.
@@ -1319,10 +1865,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (layout) renderPins();
     try { localStorage.setItem(CAMERA_KEY, JSON.stringify(camera)); } catch (error) { /* a convenience only */ }
   }
+  // Fits every frame into the open part of the window.
   function fit() {
     if (!layout) render();
     const area = openArea();
-    const fr = layout.frameRect;
+    const fr = layout.bounds;
     const k = clamp(Math.min(area.width / fr.w, area.height / fr.h) * 0.94, MIN_ZOOM, MAX_ZOOM);
     camera = { k: k, x: fr.x + fr.w / 2 - (area.x + area.width / 2) / k, y: fr.y + fr.h / 2 - (area.y + area.height / 2) / k };
     applyCamera();
@@ -1352,7 +1899,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return { x: point.x, y: point.y };
   }
 
-  // ---- Changes: what was done, for Claude to read, and when to save.
+  // ---- Changes: what was done, for Claude to read; when to save; and what Undo takes back.
 
   let saveTimer = null;
   function logChange(what, coalesceKey) {
@@ -1370,106 +1917,157 @@ textarea.text[readonly] { resize: none; background: transparent; }
     saveTimer = setTimeout(persist, PAUSE);
   }
 
+  function snapshot() { return JSON.stringify(model); }
+  // Remembers the model as it was before a change, so Undo can bring it back. before is that model's JSON, taken
+  // with snapshot() before the mutation; without it, the model as it is now, so then call it before mutating. A key
+  // joins a run of small changes (the keystrokes of one name) into one step: while the top entry has the same key it
+  // is kept and only its text changes. A change without the key, or endEdit(), ends the run.
+  function commit(what, key, before) {
+    const top = history[history.length - 1];
+    if (key && top && top.key === key) { top.what = what; updateUndo(); return; }
+    history.push({ json: before === undefined ? snapshot() : before, what: what, key: key || null });
+    if (history.length > HISTORY) history.shift();
+    updateUndo();
+  }
+  function endEdit() {
+    const top = history[history.length - 1];
+    if (top) top.key = null;
+  }
+  function updateUndo() {
+    const top = history[history.length - 1];
+    undoButton.disabled = !top || !editable();
+    undoButton.title = top ? 'Undo: ' + top.what : 'Nothing to undo';
+  }
+  function undo() {
+    if (!editable() || !history.length) return;
+    const entry = history.pop();
+    model = M.normalize(JSON.parse(entry.json));
+    modelReplaced();
+    logChange('Undid: ' + entry.what);
+    changed();
+    say('Undid: ' + entry.what + '.');
+  }
+  // After the model was swapped for another (undo, the store, an import): the active view and the selection are kept
+  // when they still exist, everything is drawn again, and the notes' labels follow.
+  function modelReplaced() {
+    if (!viewById(active)) active = model.views[0].id;
+    if (pending && !model.elements.some((e) => e.id === pending)) pending = null;
+    render();
+    if (selection && !resolve(selection)) selection = null;
+    setActive(active);
+    applyMarks();
+    renderInspector();
+    renderNotes();
+    updateUndo();
+  }
+
   // ---- Tools: adding elements and drawing relationships.
 
   function setTool(next) {
     tool = tool === next ? null : next;
     pending = null;
-    paletteButtons.forEach((b) => b.classList.toggle('is-active', b.getAttribute('data-tool') === tool));
+    paletteButtons().forEach((b) => b.classList.toggle('is-active', b.getAttribute('data-tool') === tool));
     canvas.classList.toggle('has-tool', !!tool);
     applyMarks();
     hint.textContent = baseHint();
   }
+  function toolHint(kind, step) {
+    const h = TOOL_HINT[kind];
+    if (M.KINDS[kind]) return h || 'Click where the ' + M.KINDS[kind].label + ' goes.';
+    return (h || ['Click the first end…', 'Now click the other end.'])[step];
+  }
   function baseHint() {
-    if (tool && M.KINDS[tool]) return TOOL_HINT[tool];
-    if (tool) return TOOL_HINT[tool][pending ? 1 : 0];
+    if (tool) return toolHint(tool, pending ? 1 : 0);
     if (!editable()) return 'Drag to move around · scroll to pan · pinch or Ctrl/⌘ + scroll to zoom';
+    const view = activeView();
+    if (view && !M.VIEW_KINDS[view.kind].tools.length) return 'Nothing can be drawn in a ' + M.VIEW_KINDS[view.kind].label + ' yet · click another frame to draw there';
     return NARROW.matches
       ? 'Tap to select · drag a box to move it · drag the plane to move around'
       : 'Click to select · drag a box to move it · drag the plane to move around · Ctrl/⌘ + scroll to zoom';
   }
   function freeName(kind, ownerId) {
-    const base = BASE_NAME[kind];
+    const base = BASE_NAME[kind] || kind;
     const taken = new Set(M.childrenOf(model, ownerId).map((e) => e.name.trim()));
     let i = 1;
     while (taken.has(base + i)) i++;
     return base + i;
   }
+  // The palette follows the active view's kind: a button per tool its kind offers, a rule between the groups.
+  let paletteKind = null;
+  function buildPalette() {
+    const view = activeView();
+    paletteKind = view ? view.kind : null;
+    paletteButtons().forEach((b) => b.remove());
+    palette.querySelectorAll('.sep').forEach((s) => s.remove());
+    const tools = view ? M.VIEW_KINDS[view.kind].tools : [];
+    palette.querySelector('.label').hidden = !tools.length;
+    tools.forEach((t) => {
+      if (t === '|') {
+        const sep = document.createElement('span');
+        sep.className = 'sep';
+        sep.setAttribute('aria-hidden', 'true');
+        palette.appendChild(sep);
+        return;
+      }
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('data-tool', t);
+      b.title = TOOL_TITLE[t] || '';
+      b.textContent = M.KINDS[t] ? M.KINDS[t].label : M.RELATIONSHIPS[t] ? M.RELATIONSHIPS[t].label : t;
+      b.disabled = !editable();
+      b.classList.toggle('is-active', t === tool);
+      palette.appendChild(b);
+    });
+    if (tool && tools.indexOf(tool) < 0) setTool(null);
+  }
+  palette.addEventListener('click', (event) => {
+    const b = event.target.closest ? event.target.closest('button[data-tool]') : null;
+    if (!b || !editable()) return;
+    setTool(b.getAttribute('data-tool'));
+    canvas.focus({ preventScroll: true });
+    if (tool) say('');
+  });
+  // The active view is the one tools add into: shown with is-active, named in the eyebrow, its kind's tools in the
+  // palette.
+  function setActive(id) {
+    const view = viewById(id) || model.views[0];
+    active = view.id;
+    svg.querySelectorAll('.frame').forEach((g) => g.classList.toggle('is-active', g.getAttribute('data-view') === active));
+    eyebrow.textContent = 'SysML v2 · ' + M.VIEW_KINDS[view.kind].label + ' · ' + (view.name.trim() || '(unnamed)');
+    if (view.kind !== paletteKind) buildPalette();
+    hint.textContent = baseHint();
+  }
+  // The view a click with a tool adds into: the frame the click is in, else the active view.
+  function targetView(hit, p) {
+    return viewById(hit.view || viewAt(p) || active);
+  }
   function place(kind, hit, p) {
     const k = M.KINDS[kind];
-    let el;
-    if (k.onBorder) {
-      const under = hit.type === 'el' ? layout.ids.get(hit.id) : null;
-      let host = under && M.KINDS[under.kind].contains ? under.id : containerAt(p, null);
-      if (under && M.KINDS[under.kind].onBorder) host = under.owner;
-      if (!host) { say('Click a part def or a part to put a port on its border.'); return; }
-      const b = nearestBorder(layout.rects.get(host), p);
-      el = { id: newId('e'), kind: kind, name: freeName(kind, host), doc: '', owner: host, side: b.side, at: b.at, multiplicity: '', conjugated: false };
-    } else {
-      const w = k.size[0];
-      const h = k.size[1];
-      el = { id: newId('e'), kind: kind, name: '', doc: '', x: Math.round(p.x - w / 2), y: Math.round(p.y - 20), w: w, h: h };
-      if (k.definition) el.abstract = false;
-      else el.multiplicity = '';
-      const host = kind === 'PartUsage' ? containerAt(p, null) : null;
-      if (host) {
-        const r = layout.rects.get(host);
-        el.owner = host;
-        el.x = Math.max(PAD, Math.round(p.x - r.x - w / 2));
-        el.y = Math.max(CHILD_TOP, Math.round(p.y - r.y - 20));
-      }
-      el.name = freeName(kind, host);
+    const view = targetView(hit, p);
+    if (!view) return;
+    if (!M.admits(view.kind, kind)) {
+      say('A ' + k.label + ' can\'t go in a ' + M.VIEW_KINDS[view.kind].label + '. Click inside a view that takes one; Escape puts the tool down.');
+      return;
     }
-    model.elements.push(el);
+    if (view.id !== active) setActive(view.id);
+    const before = snapshot();
+    const el = rendererFor(view).place(view, kind, p, hit);
+    if (!el) return;
+    commit('Added ' + M.describe(model, el), null, before);
     logChange('Added ' + M.describe(model, el));
     setTool(null);
     render();
-    select({ type: 'el', id: el.id });
+    select({ type: 'el', id: el.id }, view.id);
     changed();
-    say('Added ' + M.describe(model, el) + '. Name it in the panel.');
+    say('Added ' + M.describe(model, el) + ' to ' + M.describeView(model, view) + '. Name it in the panel.');
     fName.focus({ preventScroll: true });
     fName.select();
   }
+  // What rules out a pair as a line's two ends: the kind's own rule, and a line that is already there.
   function pairProblem(kind, a, b) {
     if (a.id === b.id) return 'Pick two different elements.';
-    const ka = M.KINDS[a.kind];
-    const kb = M.KINDS[b.kind];
-    if (kind === 'Specialization') {
-      if (a.kind !== b.kind) return M.describe(model, a) + ' can only specialize another ' + ka.label + '.';
-      if (model.relationships.some((r) => r.kind === kind && r.from === a.id && r.to === b.id)) return 'That is already drawn.';
-      if (generalizes(a, b)) return 'That would go round in a circle: ' + M.describe(model, b) + ' already specializes ' + M.describe(model, a) + '.';
-    }
-    if (kind === 'FeatureTyping') {
-      if (!ka.usage) return 'Start from a part or a port; a definition is not defined by anything.';
-      if (ka.definedBy !== b.kind) return M.describe(model, a) + ' can only be defined by a ' + M.KINDS[ka.definedBy].label + '.';
-    }
-    if (kind === 'ConnectionUsage') {
-      if (!(ka.usage && kb.usage) || a.kind !== b.kind) return 'A connection joins two ports or two parts.';
-      if (M.commonOwner(model, a, b) === null && (M.KINDS[M.chain(model, a)[0].kind].definition || M.KINDS[M.chain(model, b)[0].kind].definition)) {
-        return 'Connect things inside the same part def or part.';
-      }
-    }
-    return null;
-  }
-  // Whether b specializes a, directly or through others.
-  function generalizes(a, b) {
-    const seen = new Set();
-    const stack = [b.id];
-    while (stack.length) {
-      const id = stack.pop();
-      if (id === a.id) return true;
-      if (seen.has(id)) continue;
-      seen.add(id);
-      model.relationships.filter((r) => r.kind === 'Specialization' && r.from === id).forEach((r) => stack.push(r.to));
-    }
-    return false;
-  }
-  // What rules out an element as the first end of a line, before the second click is asked for.
-  function firstProblem(kind, a) {
-    const ka = M.KINDS[a.kind];
-    if (kind === 'FeatureTyping' && !ka.usage) return 'Start from a part or a port; a definition is not defined by anything.';
-    if (kind === 'ConnectionUsage' && !ka.usage) return 'Start from a port or a part; a connection joins usages, not definitions.';
-    return null;
+    if (model.relationships.some((r) => r.kind === kind && r.from === a.id && r.to === b.id)) return 'That is already drawn.';
+    return M.RELATIONSHIPS[kind].ends(model, a, b, layout.ids);
   }
   function connectStep(kind, hit) {
     if (hit.type !== 'el') {
@@ -1478,9 +2076,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
       return;
     }
     if (!pending) {
-      const problem = firstProblem(kind, layout.ids.get(hit.id));
+      const problem = M.RELATIONSHIPS[kind].first(model, layout.ids.get(hit.id), layout.ids);
       if (problem) { say(problem + ' Escape puts the tool down.'); return; }
       pending = hit.id;
+      if (hit.view) setActive(hit.view);
       applyMarks();
       hint.textContent = baseHint();
       return;
@@ -1490,12 +2089,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!a) { setTool(null); say('The first end is gone. Start the line again.'); return; }
     const problem = pairProblem(kind, a, b);
     if (problem) { say(problem + ' Escape puts the tool down.'); return; }
-    createRel(kind, a, b, false);
+    createRel(kind, a, b, false, null, hit.view);
   }
-  function createRel(kind, a, b, hidden) {
+  // Draws a relationship, as one undo step: what names it for Undo and the log when the plain "Drew …" won't do.
+  function createRel(kind, a, b, hidden, what, viewId) {
+    const before = snapshot();
     const rel = { id: newId('r'), kind: kind, from: a.id, to: b.id };
-    if (kind === 'ConnectionUsage') { rel.name = ''; rel.doc = ''; }
-    if (hidden) rel.hidden = true;
+    M.RELATIONSHIPS[kind].fields.forEach((fld) => { rel[fld] = ''; });
+    if (hidden && M.RELATIONSHIPS[kind].hideable) rel.hidden = true;
     if (kind === 'FeatureTyping') {
       // One definition per usage: the old line goes, and the notes on it move to the new one.
       const old = M.typingOf(model, a);
@@ -1506,49 +2107,221 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     model.relationships.push(rel);
     pending = null;
+    const text = what || 'Drew ' + M.describeRel(model, rel);
+    commit(text, null, before);
+    logChange(text);
     setTool(null);
-    logChange('Drew ' + M.describeRel(model, rel));
     render();
-    select({ type: 'rel', id: rel.id });
+    select({ type: 'rel', id: rel.id }, viewId);
     changed();
-    say('Drew ' + M.describeRel(model, rel) + (kind === 'ConnectionUsage' ? '. Name it in the panel.' : '.'));
+    const drawn = (layout.where.get(rel.id) || []).length > 0;
+    say(text + (kind === 'ConnectionUsage' ? '. Name it in the panel.' : '.') +
+      (!drawn && !rel.hidden ? ' No view shows both ends, so the line is not drawn anywhere yet.' : ''));
     return rel;
   }
+
+  // ---- Views: making, moving, showing things in, and deleting them.
+
+  function freeViewName() {
+    const taken = new Set(model.views.map((v) => v.name.trim()));
+    let i = 1;
+    while (taken.has('view' + i)) i++;
+    return 'view' + i;
+  }
+  // A new, empty view of a kind: to the right of the rightmost frame, its top in line with that frame's.
+  function newView(kind) {
+    if (!editable() || !M.VIEW_KINDS[kind]) return;
+    const before = snapshot();
+    let beside = null;
+    layout.views.forEach((L) => { if (!beside || L.frameRect.x + L.frameRect.w > beside.x + beside.w) beside = L.frameRect; });
+    const view = {
+      id: newId('v'), kind: kind, name: freeViewName(), doc: '',
+      x: beside ? beside.x + beside.w + VIEW_GAP + MARGIN : 0, y: beside ? beside.y + MARGIN + 12 : 0,
+      layout: {}, options: JSON.parse(JSON.stringify(M.VIEW_KINDS[kind].options))
+    };
+    model.views.push(view);
+    commit('Added the ' + M.describeView(model, view), null, before);
+    logChange('Added the ' + M.describeView(model, view) + ', a ' + kind);
+    render();
+    setActive(view.id);
+    select({ type: 'view', id: view.id });
+    fit();
+    changed();
+    say('Added ' + M.describeView(model, view) + ', a ' + M.VIEW_KINDS[view.kind].label + ', to the right of the others. Name it in the panel.');
+    vName.focus({ preventScroll: true });
+    vName.select();
+  }
+  newViewButton.addEventListener('click', () => newView(newViewKind.value));
+  function deleteView(view) {
+    if (!editable() || !view) return;
+    if (model.views.length === 1) { say('This is the only view, so it stays. Add another view first to delete this one.'); return; }
+    const before = snapshot();
+    const shown = Object.keys(view.layout).length;
+    const what = M.describeView(model, view);
+    model.views.splice(model.views.indexOf(view), 1);
+    commit('Deleted the ' + what, null, before);
+    logChange('Deleted the ' + what);
+    if (active === view.id) active = model.views[0].id;
+    render();
+    setActive(active);
+    select(null);
+    changed();
+    say('Deleted the ' + what + '. ' + (shown ? 'The ' + plural(shown, 'element') + ' it showed stay in the model' : 'It showed nothing') +
+      '; the other views are as they were.');
+  }
+  deleteViewButton.addEventListener('click', () => deleteView(selectedView()));
+  // Takes an element, with everything inside it, out of one view: the active view when it shows the element, else
+  // the first view that does. It stays in the model.
+  function removeFromView(el) {
+    if (!editable() || !el) return;
+    const vid = activeView().layout[el.id] ? active : viewShowing(el.id);
+    const view = viewById(vid);
+    if (!view) { say(M.describe(model, el) + ' is not drawn in any view.'); return; }
+    const before = snapshot();
+    const gone = [el].concat(M.descendants(model, el.id)).filter((e) => view.layout[e.id]);
+    gone.forEach((e) => { delete view.layout[e.id]; });
+    const what = 'Removed ' + M.describe(model, el) + ' from ' + M.describeView(model, view);
+    commit(what, null, before);
+    logChange(what);
+    render();
+    renderInspector();
+    changed();
+    const elsewhere = (layout.where.get(el.id) || []).map((id) => M.describeView(model, viewById(id)));
+    say(what + (gone.length > 1 ? ', with ' + plural(gone.length - 1, 'element') + ' inside it' : '') + '. It stays in the model' +
+      (elsewhere.length ? ' and in ' + elsewhere.join(', ') : '') + '; the view\'s Show list brings it back.');
+  }
+  removeFromViewButton.addEventListener('click', () => removeFromView(selectedElement()));
+  // The elements a view could show and doesn't: those its kind admits, border items only once their owner is shown.
+  function showable(view) {
+    return model.elements.filter((e) => !view.layout[e.id] && M.admits(view.kind, e.kind) &&
+      (!M.KINDS[e.kind].onBorder || (e.owner !== undefined && view.layout[e.owner])));
+  }
+  // Shows an element in a view: a border item on its owner's right side, a box inside its nearest owner the view
+  // shows, below what is there, else on the view's ground below the view's content.
+  function showInView(view, el) {
+    if (!editable() || !view || !el) return;
+    const L = viewLayout(view.id);
+    const before = snapshot();
+    if (M.KINDS[el.kind].onBorder) {
+      if (!view.layout[el.owner]) { say('Show ' + M.describe(model, layout.ids.get(el.owner)) + ' first; a ' + M.KINDS[el.kind].label + ' sits on its border.'); return; }
+      const used = M.childrenOf(model, el.owner).filter((s) => view.layout[s.id] && view.layout[s.id].side === 'right').map((s) => view.layout[s.id].at);
+      const at = [0.5, 0.3, 0.7, 0.2, 0.8, 0.4, 0.6].find((a) => used.every((u) => Math.abs(u - a) > 0.06));
+      view.layout[el.id] = M.placement(el, { side: 'right', at: at === undefined ? 0.5 : at });
+    } else {
+      let p = el.owner;
+      while (p !== undefined && !view.layout[p]) { const o = layout.ids.get(p); p = o ? o.owner : undefined; }
+      if (p !== undefined) {
+        const pr = L.rects.get(p);
+        let bottom = CHILD_TOP;
+        (L.kids.get(p) || []).forEach((kid) => { const r = L.rects.get(kid.id); if (r && !r.port) bottom = Math.max(bottom, r.y + r.h - pr.y + PAD); });
+        view.layout[el.id] = M.placement(el, { x: PAD, y: bottom });
+      } else {
+        const fr = L.frameRect;
+        view.layout[el.id] = M.placement(el, { x: 0, y: L.shown.size ? fr.y + fr.h - MARGIN - view.y + 32 : 0 });
+      }
+    }
+    const what = 'Showed ' + M.describe(model, el) + ' in ' + M.describeView(model, view);
+    commit(what, null, before);
+    logChange(what);
+    render();
+    renderInspector();
+    changed();
+    say(what + '. Drag it where it goes.');
+  }
+  vShowAdd.addEventListener('click', () => {
+    const view = selectedView();
+    const el = view && vShow.value ? layout.ids.get(vShow.value) : null;
+    if (el) showInView(view, el);
+  });
 
   // ---- Selecting, moving, and the panel.
 
   function resolve(sel) {
     if (!sel) return null;
     if (sel.type === 'el') { const el = layout.ids.get(sel.id); return el ? { type: 'el', item: el } : null; }
-    const rel = model.relationships.find((r) => r.id === sel.id);
+    if (sel.type === 'view') { const view = viewById(sel.id); return view ? { type: 'view', item: view } : null; }
+    const rel = relById(sel.id);
     return rel ? { type: 'rel', item: rel } : null;
   }
-  function select(sel) {
-    // A note on a defined-by line that isn't drawn is reached through the part or port the line starts from.
-    if (sel && sel.type === 'rel') { const rel = model.relationships.find((r) => r.id === sel.id); if (rel && rel.hidden) sel = { type: 'el', id: rel.from }; }
+  // Selects something; viewId, the frame it was picked in, becomes the active view. A note on a defined-by line
+  // that isn't drawn is reached through the part or port the line starts from.
+  function select(sel, viewId) {
+    if (sel && sel.type === 'rel') { const rel = relById(sel.id); if (rel && rel.hidden) sel = { type: 'el', id: rel.from }; }
     selection = sel && resolve(sel) ? sel : null;
+    if (selection && selection.type === 'view') setActive(selection.id);
+    else if (selection && viewId && viewById(viewId)) setActive(viewId);
     say('');
     applyMarks();
     renderInspector();
     if (selection) setPanel(true);
   }
+  // What to select for a problem's id: an element, a line, or a view.
+  function selectionFor(id) {
+    if (layout.ids.has(id)) return { type: 'el', id: id };
+    if (relById(id)) return { type: 'rel', id: id };
+    if (viewById(id)) return { type: 'view', id: id };
+    return null;
+  }
+  // Moves the camera to the selection, in the view that shows it.
+  function showSelection() {
+    const s = resolve(selection);
+    if (!s) return;
+    if (s.type === 'view') { const fr = viewLayout(s.item.id).frameRect; showPoint(fr.x + fr.w / 2, fr.y + fr.h / 2); return; }
+    const vid = viewShowing(s.item.id) || (s.type === 'rel' ? viewShowing(s.item.from) : null);
+    const L = vid ? viewLayout(vid) : null;
+    if (!L) return;
+    const r = L.rects.get(s.item.id);
+    const at = r ? center(r) : (s.type === 'rel' ? (endpoints(s.item, L) || {}).mid : null) || (s.type === 'rel' && L.rects.get(s.item.from) ? center(L.rects.get(s.item.from)) : null);
+    if (at) showPoint(at.x, at.y);
+  }
+  // The HUD's button: the first thing that has a problem, then the next, round and round.
+  function nextProblem() {
+    const named = problems.filter((p) => p.id !== null);
+    if (!named.length) { if (problems.length) say(problems[0].message); return; }
+    problemCursor = (problemCursor + 1) % named.length;
+    const p = named[problemCursor];
+    const sel = selectionFor(p.id);
+    if (sel) { select(sel); showSelection(); }
+    say(p.message);
+  }
+  problemsButton.addEventListener('click', nextProblem);
+  function problemsFor(s) {
+    return problems.filter((p) => marksFor(p).indexOf(s.item.id) >= 0);
+  }
   function renderInspector() {
     const s = resolve(selection);
     const write = editable();
-    if (!s) { fields.hidden = true; inspectorEmpty.hidden = false; return; }
+    fields.hidden = true;
+    viewFields.hidden = true;
+    inspectorEmpty.hidden = !!s;
+    if (!s) { renderProblemsList(); return; }
+    if (s.type === 'view') renderViewFields(s.item, write);
+    else renderElementFields(s, write);
+    renderProblemsList();
+  }
+  // The selection's problems, under its fields. Drawn with every render too, so the list follows what is typed.
+  function renderProblemsList() {
+    const s = resolve(selection);
+    while (problemsList.firstChild) problemsList.removeChild(problemsList.firstChild);
+    problemsList.hidden = !s;
+    if (!s) return;
+    problemsFor(s).forEach((p) => {
+      const li = document.createElement('li');
+      li.textContent = p.message;
+      problemsList.appendChild(li);
+    });
+  }
+  function renderElementFields(s, write) {
     fields.hidden = false;
-    inspectorEmpty.hidden = true;
-    const hideAll = () => ['l-name', 'l-abstract', 'l-type', 'l-type-line', 'l-multiplicity', 'l-conjugated', 'l-doc'].forEach((id) => { $(id).hidden = true; });
-    hideAll();
+    ['l-name', 'l-abstract', 'l-type', 'l-type-line', 'l-multiplicity', 'l-conjugated', 'l-doc'].forEach((id) => { $(id).hidden = true; });
     if (s.type === 'el') {
       const el = s.item;
       const k = M.KINDS[el.kind];
       fKind.textContent = M.describe(model, el);
-      $('l-name').hidden = false;
+      k.fields.forEach((fld) => { const l = $('l-' + fld); if (l) l.hidden = false; });
       fName.value = el.name;
-      if (k.definition) { $('l-abstract').hidden = false; fAbstract.checked = !!el.abstract; }
-      if (k.usage) {
-        $('l-type').hidden = false;
+      if (k.fields.indexOf('abstract') >= 0) fAbstract.checked = !!el.abstract;
+      if (k.fields.indexOf('type') >= 0) {
         while (fType.firstChild) fType.removeChild(fType.firstChild);
         const none = document.createElement('option');
         none.value = '';
@@ -1563,33 +2336,78 @@ textarea.text[readonly] { resize: none; background: transparent; }
         });
         fType.value = typing ? typing.to : '';
         if (typing) { $('l-type-line').hidden = false; fTypeLine.checked = !typing.hidden; }
-        $('l-multiplicity').hidden = false;
-        fMult.value = el.multiplicity || '';
       }
-      if (k.onBorder) { $('l-conjugated').hidden = false; fConj.checked = !!el.conjugated; }
-      $('l-doc').hidden = false;
+      if (k.fields.indexOf('multiplicity') >= 0) fMult.value = el.multiplicity || '';
+      if (k.fields.indexOf('conjugated') >= 0) fConj.checked = !!el.conjugated;
       fDoc.value = el.doc;
       fPath.textContent = M.qualified(model, el);
+      const views = (layout.where.get(el.id) || []).map((id) => viewById(id)).filter(Boolean);
+      fViews.textContent = views.length
+        ? 'Shown in ' + views.map((v) => v.name.trim() || '(unnamed view)').join(', ')
+        : 'Shown in no view. A view\'s Show list brings it in.';
+      removeFromViewButton.hidden = !write || !views.length;
     } else {
       const rel = s.item;
-      const conn = rel.kind === 'ConnectionUsage';
+      const named = M.RELATIONSHIPS[rel.kind].fields;
       fKind.textContent = M.describeRel(model, rel);
-      if (conn) { $('l-name').hidden = false; fName.value = rel.name; $('l-doc').hidden = false; fDoc.value = rel.doc; }
+      if (named.indexOf('name') >= 0) { $('l-name').hidden = false; fName.value = rel.name; }
+      if (named.indexOf('doc') >= 0) { $('l-doc').hidden = false; fDoc.value = rel.doc; }
       fPath.textContent = '';
+      const views = (layout.where.get(rel.id) || []).map((id) => viewById(id)).filter(Boolean);
+      fViews.textContent = views.length ? 'Drawn in ' + views.map((v) => v.name.trim() || '(unnamed view)').join(', ') : 'Drawn in no view: none shows both ends.';
+      removeFromViewButton.hidden = true;
     }
     [fName, fMult, fDoc].forEach((i) => { i.readOnly = !write; });
     [fAbstract, fType, fTypeLine, fConj].forEach((i) => { i.disabled = !write; });
     deleteButton.hidden = !write;
     addNoteButton.hidden = !write;
   }
+  function renderViewFields(view, write) {
+    viewFields.hidden = false;
+    vKind.textContent = view.kind;
+    vName.value = view.name;
+    vDoc.value = view.doc;
+    while (vShow.firstChild) vShow.removeChild(vShow.firstChild);
+    const candidates = showable(view);
+    if (!candidates.length) {
+      const o = document.createElement('option');
+      o.value = '';
+      o.textContent = M.VIEW_KINDS[view.kind].admits !== null && !M.VIEW_KINDS[view.kind].admits.length
+        ? 'Nothing can be shown in a ' + M.VIEW_KINDS[view.kind].label + ' yet'
+        : 'Everything it can show is shown';
+      vShow.appendChild(o);
+    }
+    candidates.forEach((e) => {
+      const o = document.createElement('option');
+      o.value = e.id;
+      o.textContent = M.describe(model, e);
+      vShow.appendChild(o);
+    });
+    vMeta.textContent = plural(Object.keys(view.layout).length, 'element') + ' shown · ' + M.VIEW_KINDS[view.kind].label +
+      (view.id === active ? ' · active' : '');
+    [vName, vDoc].forEach((i) => { i.readOnly = !write; });
+    vShow.disabled = !write || !candidates.length;
+    vShowAdd.disabled = !write || !candidates.length;
+    deleteViewButton.hidden = !write;
+  }
   function selectedElement() { const s = resolve(selection); return s && s.type === 'el' ? s.item : null; }
   function selectedRel() { const s = resolve(selection); return s && s.type === 'rel' ? s.item : null; }
+  function selectedView() { const s = resolve(selection); return s && s.type === 'view' ? s.item : null; }
+  // The notes' stored labels follow the model's names, for Claude, who reads them without the model's names at hand.
+  function syncNoteLabels() {
+    notes.forEach((n) => {
+      const label = M.labelFor(model, n.target);
+      if (label && label !== n.targetLabel) { n.targetLabel = label; noteChanged(n, ['targetLabel']); }
+    });
+  }
 
   fName.addEventListener('input', () => {
     const el = selectedElement();
     const rel = selectedRel();
     if (!editable() || (!el && !rel)) return;
+    const before = snapshot();
     (el || rel).name = fName.value;
+    commit(el ? 'Renamed to ' + M.describe(model, el) : 'Named the ' + M.describeRel(model, rel), 'name:' + (el || rel).id, before);
     render();
     changed();
   });
@@ -1598,19 +2416,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const rel = selectedRel();
     if (el) { logChange('Renamed to ' + M.describe(model, el), 'rename:' + el.id); fKind.textContent = M.describe(model, el); fPath.textContent = M.qualified(model, el); }
     else if (rel) { logChange('Named the ' + M.describeRel(model, rel), 'rename:' + rel.id); fKind.textContent = M.describeRel(model, rel); }
-    // The notes' stored labels follow the new name, for Claude, who reads them without the model's names at hand.
-    notes.forEach((n) => {
-      const label = M.labelFor(model, n.target);
-      if (label && label !== n.targetLabel) { n.targetLabel = label; noteChanged(n, ['targetLabel']); }
-    });
+    endEdit();
+    syncNoteLabels();
     renderNotes();
     changed();
   });
   fAbstract.addEventListener('change', () => {
     const el = selectedElement();
     if (!el || !editable()) return;
+    const before = snapshot();
     el.abstract = fAbstract.checked;
-    logChange((el.abstract ? 'Made abstract: ' : 'Made concrete: ') + M.describe(model, el));
+    const what = (el.abstract ? 'Made abstract: ' : 'Made concrete: ') + M.describe(model, el);
+    commit(what, null, before);
+    logChange(what);
     render();
     changed();
   });
@@ -1619,7 +2437,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!el || !editable()) return;
     const old = M.typingOf(model, el);
     if (!fType.value) {
-      if (old) { model.relationships.splice(model.relationships.indexOf(old), 1); logChange('Undefined ' + M.describe(model, el)); }
+      if (old) {
+        const before = snapshot();
+        model.relationships.splice(model.relationships.indexOf(old), 1);
+        commit('Undefined ' + M.describe(model, el), null, before);
+        logChange('Undefined ' + M.describe(model, el));
+      }
       render();
       changed();
       renderInspector();
@@ -1627,7 +2450,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     const def = layout.ids.get(fType.value);
     if (!def) return;
-    const rel = createRel('FeatureTyping', el, def, old ? !!old.hidden : true);
+    const rel = createRel('FeatureTyping', el, def, old ? !!old.hidden : true, 'Defined ' + M.describe(model, el) + ' by ' + (def.name.trim() || '(unnamed)'));
     select({ type: 'el', id: el.id });
     say('Defined ' + M.describe(model, el) + ' by ' + def.name + '.' + (rel.hidden ? ' It shows as text; tick the box to draw the line too.' : ''));
   });
@@ -1635,26 +2458,36 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const el = selectedElement();
     const typing = el ? M.typingOf(model, el) : null;
     if (!typing || !editable()) return;
+    const before = snapshot();
     if (fTypeLine.checked) delete typing.hidden; else typing.hidden = true;
+    const what = (fTypeLine.checked ? 'Drew the line ' : 'Hid the line ') + M.describeRel(model, typing);
+    commit(what, null, before);
+    logChange(what);
     render();
     changed();
   });
   fMult.addEventListener('input', () => {
     const el = selectedElement();
     if (!el || !editable()) return;
+    const before = snapshot();
     el.multiplicity = fMult.value.trim();
+    commit('Set the multiplicity of ' + M.describe(model, el) + ' to ' + (el.multiplicity || 'nothing'), 'mult:' + el.id, before);
     render();
     changed();
   });
   fMult.addEventListener('change', () => {
     const el = selectedElement();
     if (el) { logChange('Set the multiplicity of ' + M.describe(model, el) + ' to ' + (el.multiplicity || 'nothing'), 'mult:' + el.id); changed(); }
+    endEdit();
   });
   fConj.addEventListener('change', () => {
     const el = selectedElement();
     if (!el || !editable()) return;
+    const before = snapshot();
     el.conjugated = fConj.checked;
-    logChange((el.conjugated ? 'Conjugated ' : 'Unconjugated ') + M.describe(model, el));
+    const what = (el.conjugated ? 'Conjugated ' : 'Unconjugated ') + M.describe(model, el);
+    commit(what, null, before);
+    logChange(what);
     render();
     changed();
   });
@@ -1662,7 +2495,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const el = selectedElement();
     const rel = selectedRel();
     if (!editable() || (!el && !rel)) return;
+    const before = snapshot();
     (el || rel).doc = fDoc.value;
+    commit('Wrote the doc of ' + (el ? M.describe(model, el) : 'the ' + M.describeRel(model, rel)), 'doc:' + (el || rel).id, before);
     render();
     changed();
   });
@@ -1672,11 +2507,44 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (el) logChange('Wrote the doc of ' + M.describe(model, el), 'doc:' + el.id);
     else if (rel) logChange('Wrote the doc of the ' + M.describeRel(model, rel), 'doc:' + rel.id);
     if (el || rel) changed();
+    endEdit();
+  });
+  vName.addEventListener('input', () => {
+    const view = selectedView();
+    if (!view || !editable()) return;
+    const before = snapshot();
+    view.name = vName.value;
+    commit('Renamed the view to ' + (view.name.trim() || '(unnamed)'), 'name:' + view.id, before);
+    render();
+    setActive(active);
+    changed();
+  });
+  vName.addEventListener('change', () => {
+    const view = selectedView();
+    if (view) { logChange('Renamed the view to ' + (view.name.trim() || '(unnamed)'), 'rename:' + view.id); changed(); }
+    endEdit();
+  });
+  vDoc.addEventListener('input', () => {
+    const view = selectedView();
+    if (!view || !editable()) return;
+    const before = snapshot();
+    view.doc = vDoc.value;
+    commit('Wrote the doc of ' + M.describeView(model, view), 'doc:' + view.id, before);
+    changed();
+  });
+  vDoc.addEventListener('change', () => {
+    const view = selectedView();
+    if (view) { logChange('Wrote the doc of ' + M.describeView(model, view), 'doc:' + view.id); changed(); }
+    endEdit();
   });
 
+  // Delete takes an element out of the model and every view, with everything inside it and every line on it; a line
+  // out of the model; a view off the plane, its elements staying.
   function deleteSelection() {
     const s = resolve(selection);
     if (!s || !editable()) return;
+    if (s.type === 'view') { deleteView(s.item); return; }
+    const before = snapshot();
     let gone = [];
     let what;
     let dropped;
@@ -1688,6 +2556,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       rels.forEach((r) => ids.add(r.id));
       model.elements = model.elements.filter((e) => !ids.has(e.id));
       model.relationships = model.relationships.filter((r) => !ids.has(r.id));
+      model.views.forEach((v) => ids.forEach((id) => { delete v.layout[id]; }));
       if (pending && ids.has(pending)) pending = null;
       dropped = dropNotesOn(ids);
     } else {
@@ -1695,6 +2564,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       model.relationships = model.relationships.filter((r) => r.id !== s.item.id);
       dropped = dropNotesOn(new Set([s.item.id]));
     }
+    commit('Deleted ' + what, null, before);
     logChange('Deleted ' + what);
     select(null);
     render();
@@ -1704,6 +2574,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       (dropped ? ', and ' + plural(dropped, 'note') + ' on it' : '') + '.');
   }
   deleteButton.addEventListener('click', deleteSelection);
+  undoButton.addEventListener('click', undo);
   function dropNotesOn(ids) {
     const on = notes.filter((n) => ids.has(n.target));
     on.forEach((n) => removeNote(n.id, true));
@@ -1717,7 +2588,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   $('hide-panel').addEventListener('click', () => setPanel(false));
   showPanel.addEventListener('click', () => setPanel(true));
 
-  // ---- Notes: on an element or a line, listed in the panel, pinned on the drawing.
+  // ---- Notes: on an element or a line, listed in the panel, pinned on the drawing wherever their target is drawn.
 
   const noteTimers = {};
   function renderNotes() {
@@ -1806,13 +2677,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
     meta.textContent = (n.by === 'claude' ? 'From Claude · ' : '') + 'Added ' + dateOf(n.created) + (n.resolved ? ' · resolved' : '');
     li.appendChild(meta);
     badge.addEventListener('click', () => {
-      const r = layout.rects.get(n.target);
-      const rel = model.relationships.find((x) => x.id === n.target);
+      // The target, in the view that draws it (for a line that isn't drawn, the part or port it starts from).
+      const rel = relById(n.target);
+      const vid = viewShowing(n.target) || (rel ? viewShowing(rel.from) : null);
+      const L = vid ? viewLayout(vid) : null;
+      const r = L ? L.rects.get(n.target) : null;
       let at = r ? center(r) : null;
-      if (!at && rel) { const e = rel.hidden ? null : endpoints(rel); at = e ? e.mid : (layout.rects.get(rel.from) ? center(layout.rects.get(rel.from)) : null); }
+      if (!at && rel && L) { const e = rel.hidden ? null : endpoints(rel, L); at = e ? e.mid : (L.rects.get(rel.from) ? center(L.rects.get(rel.from)) : null); }
       if (at) showPoint(at.x, at.y);
-      if (r) select({ type: 'el', id: n.target });
-      else if (rel) select({ type: 'rel', id: n.target });
+      if (layout.ids.has(n.target)) select({ type: 'el', id: n.target }, vid);
+      else if (rel) select({ type: 'rel', id: n.target }, vid);
       say('Showing note ' + n.no + ', on ' + label + '.');
     });
     li.addEventListener('mouseenter', () => markNote(n, true));
@@ -1822,11 +2696,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   function markNote(n, on) {
     const li = list.querySelector('[data-note="' + n.id + '"]');
-    const pin = svg.querySelector('.pin[data-note="' + n.id + '"]');
     if (li) li.classList.toggle('is-active', on);
-    if (pin) pin.classList.toggle('is-active', on);
-    const g = svg.querySelector('[data-el="' + n.target + '"], [data-rel="' + n.target + '"]');
-    if (g) g.classList.toggle('is-hover', on);
+    svg.querySelectorAll('.pin[data-note="' + n.id + '"]').forEach((pin) => pin.classList.toggle('is-active', on));
+    svg.querySelectorAll('[data-el="' + n.target + '"], [data-rel="' + n.target + '"]').forEach((g) => g.classList.toggle('is-hover', on));
   }
   function focusNote(id) {
     setPanel(true);
@@ -1837,7 +2709,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   function addNote() {
     const s = resolve(selection);
-    if (!s || !editable()) return;
+    if (!s || s.type === 'view' || !editable()) return;
     const stamp = now();
     const n = {
       id: newId('n'), no: nextNumber(), target: s.item.id, targetLabel: M.labelFor(model, s.item.id), text: '', by: 'user',
@@ -1859,7 +2731,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     else if (mode === 'shared') deleteShared(id);
     if (!quiet) renderPins();
   }
-  // A note changed here: `fields` says which of its fields, or null for a new note.
+  // A note changed here: fields says which of its fields, or null for a new note.
   function noteChanged(n, fieldsChanged) {
     if (mode === 'local') { saveLocal(); return; }
     if (mode !== 'shared') return;
@@ -1873,6 +2745,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // Opened as a file: this browser, starting from what is saved in the file.
 
   function start() {
+    Object.keys(M.VIEW_KINDS).forEach((k) => {
+      const o = document.createElement('option');
+      o.value = k;
+      o.textContent = M.VIEW_KINDS[k].name;
+      newViewKind.appendChild(o);
+    });
     const claude = window.claude;
     if (!claude || typeof claude.use !== 'function') { startLocal(); return; }
     chrome();
@@ -1901,7 +2779,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     where.textContent = reason || WHERE[mode];
     downloadButton.hidden = mode !== 'local';
     importButton.hidden = !write;
-    paletteButtons.forEach((b) => { b.disabled = !write; });
+    newViewButton.hidden = !write;
+    newViewKind.hidden = !write;
+    paletteKind = null;
+    setActive(active);
+    updateUndo();
     hint.textContent = baseHint();
   }
 
@@ -1921,6 +2803,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const data = JSON.parse(localStorage.getItem(storageKey()) || 'null');
       if (data && data.model) {
         model = M.normalize(data.model);
+        active = model.views[0].id;
         notes = (Array.isArray(data.notes) ? data.notes : []).filter(isNote).map(tidyNote);
         changes = Array.isArray(data.changes) ? data.changes.slice(-200) : [];
       }
@@ -1953,10 +2836,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
       lastWritten = json;
       model = M.normalize(data.model);
       if (Array.isArray(data.changes)) changes = data.changes.slice(-200);
-      render();
-      renderInspector();
-      renderNotes();
-      if (!first && !snap.metadata.hasPendingWrites) say('The model was updated elsewhere.');
+      // A model from elsewhere is a new starting point: what was done here before it can't be taken back.
+      history = [];
+      modelReplaced();
+      if (!first && !snap.metadata.hasPendingWrites) say('The model was updated elsewhere, so the undo history starts afresh.');
     }, () => setMode('read', 'The shared store stopped answering. Reload the page to see the latest.'));
     db.collection(NOTES).onSnapshot((snap) => {
       const first = !heardNotes;
@@ -2069,25 +2952,25 @@ textarea.text[readonly] { resize: none; background: transparent; }
     file.text().then((raw) => {
       const data = JSON.parse(raw);
       if (!data || typeof data !== 'object' || !data.model) throw new Error('no model');
+      const before = snapshot();
       model = M.normalize(data.model);
       const incoming = (Array.isArray(data.notes) ? data.notes : []).filter(isNote).map(tidyNote);
       notes.slice().forEach((n) => removeNote(n.id, true));
       notes = incoming;
       changes = Array.isArray(data.changes) ? data.changes.slice(-200) : [];
+      commit('Imported the state from ' + file.name, null, before);
       logChange('Imported the state from ' + file.name);
-      select(null);
-      render();
-      renderNotes();
+      selection = null;
+      modelReplaced();
       if (mode === 'shared') notes.forEach((n) => { stageNote(n.id); writeShared(n, null); });
       changed();
-      say('Imported ' + plural(model.elements.length, 'element') + ' and ' + plural(notes.length, 'note') + ' from ' + file.name + '.');
+      say('Imported ' + plural(model.elements.length, 'element') + ', ' + plural(model.views.length, 'view') + ', and ' + plural(notes.length, 'note') + ' from ' + file.name + '.');
     }).catch(() => say(file.name + ' isn\'t a state file from this page.'));
   });
 
   // ---- The export: the model as textual SysML v2.
 
   function openExport() {
-    const problems = M.validate(model);
     while (exportProblems.firstChild) exportProblems.removeChild(exportProblems.firstChild);
     problems.forEach((p) => {
       const li = document.createElement('li');
@@ -2122,14 +3005,22 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const b = pointers[ids[1]];
     return { mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, dist: Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1) };
   }
+  // What is under the pointer: a pin, a problem's badge, an element, a line, a frame's tab, or the plane; with the
+  // view it belongs to, from the frame it is drawn in.
   function hitOf(target) {
-    const pin = target.closest ? target.closest('.pin') : null;
-    if (pin) return { type: 'pin', id: pin.getAttribute('data-note') };
-    const elG = target.closest ? target.closest('[data-el]') : null;
-    if (elG) return { type: 'el', id: elG.getAttribute('data-el'), g: elG };
-    const relG = target.closest ? target.closest('[data-rel]') : null;
-    if (relG) return { type: 'rel', id: relG.getAttribute('data-rel'), g: relG };
-    return { type: 'plane' };
+    const closest = (sel) => (target.closest ? target.closest(sel) : null);
+    const frame = closest('.frame');
+    const view = frame ? frame.getAttribute('data-view') : null;
+    const pin = closest('.pin');
+    if (pin) return { type: 'pin', id: pin.getAttribute('data-note'), view: pin.getAttribute('data-view') };
+    const badge = closest('.problem');
+    if (badge) return { type: 'problem', id: badge.getAttribute('data-for'), view: badge.getAttribute('data-view') };
+    const elG = closest('[data-el]');
+    if (elG) return { type: 'el', id: elG.getAttribute('data-el'), g: elG, view: view };
+    const relG = closest('[data-rel]');
+    if (relG) return { type: 'rel', id: relG.getAttribute('data-rel'), g: relG, view: view };
+    if (closest('.tab')) return { type: 'tab', id: view, view: view };
+    return { type: 'plane', view: null };
   }
 
   svg.addEventListener('pointerdown', (event) => {
@@ -2149,9 +3040,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (pointerCount() > 2) return;
     const hit = hitOf(event.target);
     const el = hit.type === 'el' ? layout.ids.get(hit.id) : null;
-    const pan = event.button === 1 || !el || !!tool || !editable();
-    gesture = { x: event.clientX, y: event.clientY, cx: camera.x, cy: camera.y, moved: false, hit: hit, pan: pan };
-    drag = pan ? null : { id: el.id, start: toDrawing(event.clientX, event.clientY), from: { x: el.x, y: el.y }, moved: false, over: undefined };
+    const view = hit.view ? viewById(hit.view) : null;
+    const movable = editable() && !tool && event.button !== 1 && view && (el || hit.type === 'tab');
+    const p = toDrawing(event.clientX, event.clientY);
+    drag = null;
+    if (movable) {
+      drag = hit.type === 'tab'
+        ? { kind: 'view', id: view.id, view: view.id, start: p, from: { x: view.x, y: view.y }, moved: false }
+        : rendererFor(view).dragStart(view, el, p);
+    }
+    gesture = { x: event.clientX, y: event.clientY, cx: camera.x, cy: camera.y, moved: false, hit: hit, pan: !drag };
   });
   svg.addEventListener('pointermove', (event) => {
     const p = pointers[event.pointerId];
@@ -2186,53 +3084,52 @@ textarea.text[readonly] { resize: none; background: transparent; }
       moveDrag(event);
     }
   });
+  // A drag moves a view by its tab, or an element in its view through the view's renderer. Its first move takes the
+  // model as it was, so the whole drag is one undo step.
   function moveDrag(event) {
-    const el = layout.ids.get(drag.id);
-    if (!el) return;
     const p = toDrawing(event.clientX, event.clientY);
-    drag.moved = true;
-    if (M.KINDS[el.kind].onBorder) {
-      const b = nearestBorder(layout.rects.get(el.owner), p);
-      el.side = b.side;
-      el.at = b.at;
-    } else {
-      el.x = Math.round(drag.from.x + (p.x - drag.start.x));
-      el.y = Math.round(drag.from.y + (p.y - drag.start.y));
-      drag.over = el.kind === 'PartUsage' ? containerAt(p, el) : undefined;
+    if (!drag.moved) { drag.moved = true; drag.before = snapshot(); }
+    if (drag.kind === 'view') {
+      const view = viewById(drag.id);
+      if (!view) return;
+      view.x = Math.round(drag.from.x + (p.x - drag.start.x));
+      view.y = Math.round(drag.from.y + (p.y - drag.start.y));
+      render();
+      return;
     }
+    const view = viewById(drag.view);
+    const el = layout.ids.get(drag.id);
+    if (!view || !el || !view.layout[el.id]) return;
+    rendererFor(view).drag(view, el, drag, p);
     render();
     if (drag.over) {
-      const g = svg.querySelector('[data-el="' + drag.over + '"]');
+      const g = svg.querySelector('.frame[data-view="' + view.id + '"] [data-el="' + drag.over + '"]');
       if (g) g.classList.add('is-drop');
     }
   }
   function finishDrag(event) {
+    if (drag.kind === 'view') {
+      const view = viewById(drag.id);
+      if (!view) return;
+      commit('Moved the ' + M.describeView(model, view), null, drag.before);
+      logChange('Moved the ' + M.describeView(model, view), 'move:' + view.id);
+      render();
+      changed();
+      say('Moved the ' + M.describeView(model, view) + '.');
+      return;
+    }
+    const view = viewById(drag.view);
     const el = layout.ids.get(drag.id);
-    if (!el) return;
-    if (el.kind === 'PartUsage' && event.type === 'pointerup') {
-      const over = containerAt(toDrawing(event.clientX, event.clientY), el);
-      const current = el.owner === undefined ? null : el.owner;
-      if (over === current && current !== null) { el.x = Math.max(el.x, PAD); el.y = Math.max(el.y, CHILD_TOP); }
-      if (over !== current) {
-        const abs = layout.rects.get(el.id);
-        if (over === null) { delete el.owner; el.x = Math.round(abs.x); el.y = Math.round(abs.y); }
-        else {
-          const o = layout.rects.get(over);
-          el.owner = over;
-          el.x = Math.max(PAD, Math.round(abs.x - o.x));
-          el.y = Math.max(CHILD_TOP, Math.round(abs.y - o.y));
-        }
-        logChange('Moved ' + M.describe(model, el) + (over ? ' into ' + M.describe(model, layout.ids.get(over)) : ' out onto the plane'));
-      } else {
-        logChange('Moved ' + M.describe(model, el), 'move:' + el.id);
-      }
-    } else {
-      if (el.owner !== undefined && !M.KINDS[el.kind].onBorder) { el.x = Math.max(el.x, PAD); el.y = Math.max(el.y, CHILD_TOP); }
-      logChange('Moved ' + M.describe(model, el) + (M.KINDS[el.kind].onBorder ? ' to the ' + el.side + ' side' : ''), 'move:' + el.id);
+    if (!view || !el || !view.layout[el.id]) return;
+    const result = rendererFor(view).drop(view, el, drag, toDrawing(event.clientX, event.clientY), event);
+    if (result && result.undo) {
+      commit(result.undo, null, drag.before);
+      logChange(result.text, result.key);
     }
     render();
     renderInspector();
     changed();
+    if (result) say(result.say || result.text + '.');
   }
   function endPointer(event) {
     const p = pointers[event.pointerId];
@@ -2261,14 +3158,25 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   svg.addEventListener('pointerup', endPointer);
   svg.addEventListener('pointercancel', endPointer);
+  // A click: with a tool, it places or draws; without one, it selects what is under it. The empty plane inside a
+  // frame selects the view; outside every frame it clears the selection and leaves the active view as it is.
   function click(hit, event) {
     if (hit.type === 'pin') { focusNote(hit.id); return; }
     const p = toDrawing(event.clientX, event.clientY);
+    if (hit.type === 'problem') {
+      const sel = selectionFor(hit.id);
+      if (sel) select(sel, hit.view);
+      say(problems.filter((q) => marksFor(q).indexOf(hit.id) >= 0).map((q) => q.message).join(' '));
+      return;
+    }
     if (tool && !editable()) { setTool(null); return; }
     if (tool && M.KINDS[tool]) { place(tool, hit, p); return; }
     if (tool) { connectStep(tool, hit); return; }
-    if (hit.type === 'el' || hit.type === 'rel') select({ type: hit.type, id: hit.id });
-    else select(null);
+    if (hit.type === 'el' || hit.type === 'rel') { select({ type: hit.type, id: hit.id }, hit.view); return; }
+    if (hit.type === 'tab') { select({ type: 'view', id: hit.id }); return; }
+    const vid = viewAt(p);
+    if (vid) { select({ type: 'view', id: vid }); return; }
+    select(null);
   }
 
   canvas.addEventListener('wheel', (event) => {
@@ -2289,6 +3197,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     canvas.classList.remove('is-pointer');
     const step = 80 / camera.k;
     let handled = true;
+    if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) { undo(); event.preventDefault(); return; }
     switch (event.key) {
       case 'ArrowLeft': camera.x -= step; applyCamera(); break;
       case 'ArrowRight': camera.x += step; applyCamera(); break;
@@ -2309,12 +3218,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   $('zoom-in').addEventListener('click', () => zoomAtCenter(1.25));
   $('zoom-out').addEventListener('click', () => zoomAtCenter(0.8));
   $('zoom-fit').addEventListener('click', fit);
-  paletteButtons.forEach((b) => b.addEventListener('click', () => {
-    if (!editable()) return;
-    setTool(b.getAttribute('data-tool'));
-    canvas.focus({ preventScroll: true });
-    if (tool) say('');
-  }));
 
   function setHover(g) {
     if (hovered === g) return;
@@ -2325,6 +3228,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function hover(event) {
     const hit = hitOf(event.target);
     if (hit.type === 'pin') { setHover(null); hint.textContent = 'Click the pin to read its note.'; return; }
+    if (hit.type === 'problem') { setHover(null); hint.textContent = 'Click the badge to select what has the problem; the panel says what it is.'; return; }
+    if (hit.type === 'tab') {
+      setHover(null);
+      const view = viewById(hit.id);
+      hint.textContent = (view ? M.describeView(model, view) : 'view') + (editable() ? ' · click to select, drag to move the view' : ' · click to select');
+      return;
+    }
     if (hit.type === 'plane') { setHover(null); hint.textContent = baseHint(); return; }
     setHover(hit.g);
     const what = M.labelFor(model, hit.id);

@@ -1,0 +1,231 @@
+{
+  "format": "stronghold-canvas/1",
+  "saved": "2026-11-06T06:40:00.000Z",
+  "model": {
+    "format": "stronghold-canvas/1",
+    "revision": "2026-11-06T06:40:00.000Z",
+    "package": {
+      "name": "StrongholdProof",
+      "doc": "One app, built once with current tools, and thin hosts that load it into a page the same way. The names follow the code: app/, hosts/server, hosts/online, hosts/dev."
+    },
+    "view": {
+      "name": "proofStructure"
+    },
+    "elements": [
+      {
+        "id": "Page",
+        "kind": "PartDefinition",
+        "name": "Page",
+        "abstract": false,
+        "x": 32,
+        "y": 72,
+        "w": 760,
+        "h": 250,
+        "doc": "A page with Stronghold on it: a SharePoint Server page, a SharePoint Online page, a Teams tab, or the dev page. Every Stronghold web part on the page mounts the same app, because the first entry file to load wins (app/src/host/load-app.ts)."
+      },
+      {
+        "id": "Page.hosts",
+        "kind": "PartUsage",
+        "name": "hosts",
+        "owner": "Page",
+        "multiplicity": "1..*",
+        "x": 96,
+        "y": 104,
+        "w": 180,
+        "h": 110,
+        "doc": ""
+      },
+      {
+        "id": "Page.hosts.api",
+        "kind": "PortUsage",
+        "name": "api",
+        "owner": "Page.hosts",
+        "side": "right",
+        "at": 0.5,
+        "conjugated": true,
+        "multiplicity": "",
+        "doc": ""
+      },
+      {
+        "id": "Page.app",
+        "kind": "PartUsage",
+        "name": "app",
+        "owner": "Page",
+        "multiplicity": "1",
+        "x": 568,
+        "y": 104,
+        "w": 180,
+        "h": 110,
+        "doc": ""
+      },
+      {
+        "id": "Page.app.api",
+        "kind": "PortUsage",
+        "name": "api",
+        "owner": "Page.app",
+        "side": "left",
+        "at": 0.5,
+        "conjugated": false,
+        "multiplicity": "",
+        "doc": ""
+      },
+      {
+        "id": "Host",
+        "kind": "PartDefinition",
+        "name": "Host",
+        "abstract": true,
+        "x": 32,
+        "y": 400,
+        "w": 368,
+        "h": 130,
+        "doc": "hosts/: the small piece of code that plugs the app into one place. It works out where its package's files are, loads the entry file with the shared loader, and calls mount. It has no settings: it only ever loads the app from its own package."
+      },
+      {
+        "id": "Host.api",
+        "kind": "PortUsage",
+        "name": "api",
+        "owner": "Host",
+        "side": "right",
+        "at": 0.5,
+        "conjugated": true,
+        "multiplicity": "",
+        "doc": ""
+      },
+      {
+        "id": "App",
+        "kind": "PartDefinition",
+        "name": "App",
+        "abstract": false,
+        "x": 600,
+        "y": 400,
+        "w": 368,
+        "h": 130,
+        "doc": "app/: Stronghold itself, built once with webpack 5 and TypeScript 5.9. Nothing in it knows about SharePoint."
+      },
+      {
+        "id": "App.api",
+        "kind": "PortUsage",
+        "name": "api",
+        "owner": "App",
+        "side": "right",
+        "at": 0.5,
+        "conjugated": false,
+        "multiplicity": "",
+        "doc": ""
+      },
+      {
+        "id": "StrongholdApp",
+        "kind": "PortDefinition",
+        "name": "StrongholdApp",
+        "abstract": false,
+        "x": 840,
+        "y": 72,
+        "w": 368,
+        "h": 100,
+        "doc": "What the app's entry file registers on window.Stronghold."
+      },
+      {
+        "id": "ServerHost",
+        "kind": "PartDefinition",
+        "name": "ServerHost",
+        "abstract": false,
+        "x": 32,
+        "y": 620,
+        "w": 368,
+        "h": 100,
+        "doc": "hosts/server: the web part for SharePoint Server."
+      },
+      {
+        "id": "OnlineHost",
+        "kind": "PartDefinition",
+        "name": "OnlineHost",
+        "abstract": false,
+        "x": 436,
+        "y": 620,
+        "w": 368,
+        "h": 100,
+        "doc": "hosts/online: the web part for SharePoint Online, which is also the Teams tab."
+      },
+      {
+        "id": "DevHost",
+        "kind": "PartDefinition",
+        "name": "DevHost",
+        "abstract": false,
+        "x": 840,
+        "y": 620,
+        "w": 368,
+        "h": 100,
+        "doc": "hosts/dev: a plain page that mounts the app the way the SharePoint hosts do. It never ships."
+      }
+    ],
+    "relationships": [
+      {
+        "id": "t-hosts",
+        "kind": "FeatureTyping",
+        "from": "Page.hosts",
+        "to": "Host"
+      },
+      {
+        "id": "t-app",
+        "kind": "FeatureTyping",
+        "from": "Page.app",
+        "to": "App"
+      },
+      {
+        "id": "t-hosts-api",
+        "kind": "FeatureTyping",
+        "from": "Page.hosts.api",
+        "to": "StrongholdApp",
+        "hidden": true
+      },
+      {
+        "id": "t-app-api",
+        "kind": "FeatureTyping",
+        "from": "Page.app.api",
+        "to": "StrongholdApp",
+        "hidden": true
+      },
+      {
+        "id": "t-Host-api",
+        "kind": "FeatureTyping",
+        "from": "Host.api",
+        "to": "StrongholdApp",
+        "hidden": true
+      },
+      {
+        "id": "t-App-api",
+        "kind": "FeatureTyping",
+        "from": "App.api",
+        "to": "StrongholdApp",
+        "hidden": true
+      },
+      {
+        "id": "s-ServerHost",
+        "kind": "Specialization",
+        "from": "ServerHost",
+        "to": "Host"
+      },
+      {
+        "id": "s-OnlineHost",
+        "kind": "Specialization",
+        "from": "OnlineHost",
+        "to": "Host"
+      },
+      {
+        "id": "s-DevHost",
+        "kind": "Specialization",
+        "from": "DevHost",
+        "to": "Host"
+      },
+      {
+        "id": "mount",
+        "kind": "ConnectionUsage",
+        "name": "mount",
+        "from": "Page.hosts.api",
+        "to": "Page.app.api",
+        "doc": ""
+      }
+    ]
+  },
+  "notes": []
+}
