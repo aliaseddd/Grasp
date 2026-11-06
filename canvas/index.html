@@ -1444,7 +1444,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function nameTakenBeside(model, rel, ids, among) {
     const name = str(rel.name).trim();
     const o = RELATIONSHIPS[rel.kind].owner(model, rel, ids) || '';
-    return model.elements.some((e) => e.name.trim() === name && (e.owner === undefined ? '' : e.owner) === o) ||
+    return model.elements.some((e) => hasName(e.kind) && e.name.trim() === name && (e.owner === undefined ? '' : e.owner) === o) ||
       among.some((r) => r !== rel && str(r.name).trim() === name && ids.has(r.from) && ids.has(r.to) && (RELATIONSHIPS[r.kind].owner(model, r, ids) || '') === o);
   }
 
@@ -4060,7 +4060,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
       (kids.get(el.id) || []).forEach((k) => placeFoot(k, fp.origin));
     };
     (kids.get('') || []).forEach((el) => placeFoot(el, o));
-    return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: new Map(), frameRect: frameAround(view, box), origin: o, feet: feet };
+    // No line is drawn in a plan, so none counts as drawn here (an empty lines map says so to computeLayout).
+    return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: new Map(), frameRect: frameAround(view, box), lines: new Map(), origin: o, feet: feet };
   }
   MARKERS['m-geo-axis'] = '<marker id="m-geo-axis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto">' +
     '<path class="geo-arrow" d="M1,1 L9,5 L1,9 Z"/></marker>';
@@ -5200,6 +5201,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const rel = relById(n.target);
     if (!rel) return null;
     if (rel.hidden) { const from = L.rects.get(rel.from); return from ? { x: (from.port ? from.cx : from.x) + 12 + step, y: (from.port ? from.cy : from.y) - 16 } : null; }
+    // Only where the view draws the line: a plan, say, has the ends but no line for a pin to sit on.
+    if ((layout.where.get(rel.id) || []).indexOf(L.view.id) < 0) return null;
     const e = endpoints(rel, L);
     if (!e) return null;
     // On the line's middle, or above its label when the kind puts the label above the line, where a screen-sized pin
@@ -5261,6 +5264,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     const rel = relById(id);
     if (!rel || rel.hidden) return null;
+    if ((layout.where.get(rel.id) || []).indexOf(L.view.id) < 0) return null;
     const e = endpoints(rel, L);
     if (!e) return null;
     const top = labelTop(rel);
@@ -5654,7 +5658,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     };
     model.views.push(view);
     commit('Added the ' + M.describeView(model, view), null, before);
-    logChange('Added the ' + M.describeView(model, view) + ', a ' + kind);
+    logChange('Added the ' + M.describeView(model, view) + ', ' + M.an(M.VIEW_KINDS[kind].label));
     render();
     setActive(view.id);
     select({ type: 'view', id: view.id });
