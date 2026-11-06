@@ -37,18 +37,25 @@ The design is worked on in a loop, and git is its memory between conversations.
 
 1. **Load.** Claude reads this folder and publishes `stronghold-proof.html` to its page, https://claude.ai/artifact/8fV31WD4frJN56rVcprRHH. The page is private until it's shared from its Share menu. If the notes on the page differ from the ones saved in the file, Claude says how before changing either.
 2. **Annotate.** You pin notes to the drawing.
-3. **Change.** Claude reads the notes and makes the changes you decide on, in `stronghold-proof.sysml` and in the layout in `draw.mjs`, then runs `node docs/sysml/draw.mjs` and republishes the page. Each note it acts on moves to the archive with a line on what changed.
+3. **Change.** Claude reads the notes and makes the changes you decide on, in `stronghold-proof.sysml` and in the layout in `draw.mjs`, checks the model with `docs/sysml/check.sh`, then runs `node docs/sysml/draw.mjs` and republishes the page. Each note it acts on moves to the archive with a line on what changed.
 4. **Save.** Claude writes the notes and the archive into the HTML with `save-notes.mjs`, and commits the model, the drawing, and the notes together.
 
 How Claude reaches the notes: the page's database has two collections, `notes` and `archive`, with one document per note named by the note's `id`. A note has `no`, `el` (the qualified name of the element it's on), `label`, `x` and `y` (where its pin sits, in drawing units), `text`, `created`, and `updated`. An archived note also has `resolution` and `archived`. Archiving a note is one batch: delete `notes/<id>`, and set `archive/<id>` to the note with those two fields added. Saving reads both collections into a file shaped `{ "notes": [...], "archive": [...] }` and runs `save-notes.mjs` on it. A page published somewhere new starts with no notes, so Claude loads the saved ones into it the same way, one batch of sets.
 
 ## How it was checked
 
-By reading, not by a tool. The model was checked against the SysML v2 textual grammar (`bnf/SysML-textual-bnf.kebnf`) and the training examples in the [SysML v2 release](https://github.com/Systems-Modeling/SysML-v2-Release), tag `2026-09.1`, construct by construct. It hasn't been parsed by a SysML v2 tool yet.
+By the SysML v2 Pilot Implementation's own parser and validator. On November 6, 2026, `check.sh` ran the model through the command-line REPL inside the Jupyter kernel of the [SysML v2 release](https://github.com/Systems-Modeling/SysML-v2-Release), tag `2026-09.1` (`jupyter-sysml-kernel` 0.63.1), and it parsed and validated with no errors. Before that, it had been checked by reading, against the release's textual grammar (`bnf/SysML-textual-bnf.kebnf`) and its training examples, construct by construct.
+
+```sh
+docs/sysml/check.sh                       # every .sysml file in this folder
+docs/sysml/check.sh path/to/model.sysml   # the files given
+```
+
+It prints `ok` or `FAIL` for each file, with the kernel's errors under a failure, and exits 1 if any file fails. Each file is checked in a fresh process. The script needs Java 17 or later and python3. Its first run downloads the kernel from conda-forge (about 120 MB), checks the download's SHA-256, and unpacks it into `~/.cache/sysml-kernel-0.63.1`; no Jupyter or conda is needed. A check takes about 8 seconds after that.
 
 The drawing follows the release's graphical notation (`bnf/SysML-graphical-bnf.html`). It is laid out by hand in `draw.mjs`, not generated from the model, so a change to the model needs the same change there. Every `doc` line in the drawing is copied word for word from the model. `node docs/sysml/draw.mjs` writes `stronghold-proof.svg` and the drawing inside `stronghold-proof.html`, so the two stay the same.
 
-To have a tool check the model, install the release's Jupyter kernel (`install/jupyter`, `jupyter-sysml-kernel` 0.63.1), paste the file into a cell, and run it. The kernel lists any errors, and `%viz StrongholdProof` draws the model.
+To have the kernel draw the model as well, install the release's Jupyter kernel (`install/jupyter`), paste the file into a cell, run it, and run `%viz StrongholdProof`.
 
 ## The pilot implementation
 
