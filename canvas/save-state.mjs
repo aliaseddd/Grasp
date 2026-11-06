@@ -29,10 +29,12 @@ if (!input || typeof input !== 'object' || !input.model) {
 
 const model = lib.normalize(input.model);
 model.revision = process.env.CANVAS_REVISION || new Date().toISOString();
-const isNote = (n) => !!n && typeof n === 'object' && typeof n.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(n.id) &&
-  typeof n.target === 'string' && typeof n.text === 'string';
+// A note has an id, a text, and a target (an element's or a relationship's id), or no target (null) and a place on the
+// plane, x and y, when it floats free.
+const isNote = (n) => !!n && typeof n === 'object' && typeof n.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(n.id) && typeof n.text === 'string' &&
+  (typeof n.target === 'string' || (n.target === null && Number.isFinite(n.x) && Number.isFinite(n.y)));
 const known = new Set(model.elements.map((e) => e.id).concat(model.relationships.map((r) => r.id)));
-const NOTE = ['id', 'no', 'target', 'targetLabel', 'text', 'by', 'created', 'updated', 'response', 'resolved'];
+const NOTE = ['id', 'no', 'target', 'targetLabel', 'x', 'y', 'text', 'by', 'created', 'updated', 'response', 'resolved'];
 const ARCHIVED = NOTE.concat(['archived', 'resolution']);
 const tidy = (list, fields) => (Array.isArray(list) ? list : [])
   .filter(isNote)
@@ -40,7 +42,7 @@ const tidy = (list, fields) => (Array.isArray(list) ? list : [])
   .sort((a, b) => (a.no || 0) - (b.no || 0));
 const notes = tidy(input.notes, NOTE);
 const archive = tidy(input.archive, ARCHIVED);
-const orphans = notes.filter((n) => !known.has(n.target)).length;
+const orphans = notes.filter((n) => n.target !== null && !known.has(n.target)).length;
 
 // `<` is written as < so no text can end the script element early.
 const json = (value) => JSON.stringify(value, null, 2).replace(/</g, '\\u003c');

@@ -348,6 +348,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
           <label id="l-multiplicity">Multiplicity <input type="text" id="f-multiplicity" autocomplete="off" spellcheck="false" placeholder="1, 0..1, or 1..*"></label>
           <label class="check" id="l-conjugated"><input type="checkbox" id="f-conjugated"> conjugated (~), the other side of the port</label>
           <label id="l-doc">Doc <textarea id="f-doc" rows="2" spellcheck="true"></textarea></label>
+          <label id="l-direction">Direction <select id="f-direction"><option value="">undirected</option><option value="in">in</option><option value="out">out</option><option value="inout">inout</option></select></label>
+          <label id="l-item">Item (the payload) <select id="f-item"></select></label>
           <!-- Each slice's fields: <label id="l-<field>">… <input id="f-<field>"></label>, one per row of FIELDS. -->
           <!-- ==== slice: interconnection ==== -->
           <!-- ==== end slice: interconnection ==== -->
@@ -545,13 +547,17 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // border); fields the panel's fields that apply, each a row of FIELDS below, which normalize keeps by their types;
   // traits the words the relationship rules may ask about with hasTrait (connectable, flowEnd, bindable, lifeline…).
   // A kind may also carry hooks for the export and the checks: head(model, el, h) returns the head of its
-  // declaration, everything before the ' {' or ';' (h.headOf(el) is the generated one, to build on); body(model, el,
-  // depth, h) writes statements inside its body through h.line and h.comment, after the doc and before the children;
-  // check(model, el, ids, add) adds the problems validate doesn't know about.
+  // declaration, everything before the ' {' or ';' (h.headOf(el) is the generated one, to build on), or null for an
+  // element the text doesn't declare (a start node), which is then left out with everything inside it; body(model,
+  // el, depth, h) writes statements inside its body through h.line and h.comment, after the doc and before the
+  // children; after(model, el, depth, h) writes statements right after the element, at its depth; writeOrder (a
+  // number, 0 unless said) puts a kind's children before (lower) or after the others in a body; check(model, el,
+  // ids, add) adds the problems validate doesn't know about; glyph(model, el) says which way a border item's glyph
+  // points (in, out, inout, or null for none).
   const KINDS = {
     // Structure.
-    PartDefinition: { keyword: 'part def', label: 'part def', definition: true, usage: false, contains: ['PartUsage', 'PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'] },
-    PortDefinition: { keyword: 'port def', label: 'port def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'] },
+    PartDefinition: { keyword: 'part def', label: 'part def', definition: true, usage: false, contains: ['PartUsage', 'PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
+    PortDefinition: { keyword: 'port def', label: 'port def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
     PartUsage: { keyword: 'part', label: 'part', definition: false, usage: true, contains: ['PartUsage', 'PortUsage'], onBorder: false, definedBy: 'PartDefinition', size: [180, 60], shape: 'rounded', fields: ['name', 'type', 'multiplicity', 'doc'], traits: ['connectable'] },
     PortUsage: { keyword: 'port', label: 'port', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16], shape: 'port', fields: ['name', 'type', 'multiplicity', 'conjugated', 'doc'], traits: ['connectable'] },
     // ==== slice: interconnection ====
@@ -576,7 +582,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // each rule is stated once; check(model, rel, ids, add), when present, adds the problems that need more than the
   // pair. owner(model, rel, ids) is the element whose body declares the relationship (null: the package). line says
   // how the graph renderer draws it: the route (a key of the page's ROUTES: straight or elbow), the marker at the end
-  // and markerStart at the start (keys of the page's MARKERS), a class, and a label. toSysML(model, rel, ownerId,
+  // and markerStart at the start (keys of the page's MARKERS), a class, a label (label(rel, model, ids), a string or
+  // null), and labelOffset, how far below the line's middle the label sits (30 unless said; negative is above).
+  // toSysML(model, rel, ownerId,
   // depth, out, h) writes it as a statement in that body; it is null when the relationship is written in the head
   // of its from element instead (:> for a specialization, : for a typing).
   const RELATIONSHIPS = {
@@ -602,7 +610,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
       ends: function (model, a, b, ids) {
         const problem = RELATIONSHIPS.FeatureTyping.first(model, a, ids);
         if (problem) return problem;
-        if (KINDS[a.kind].definedBy !== b.kind) return describe(model, a, ids) + ' can only be defined by a ' + KINDS[KINDS[a.kind].definedBy].label + '.';
+        if (KINDS[a.kind].definedBy !== b.kind) {
+          // The definition kind may be one another slice brings; when it isn't in KINDS, its name has to do.
+          const def = KINDS[a.kind].definedBy;
+          return describe(model, a, ids) + ' can only be defined by a ' + (KINDS[def] ? KINDS[def].label : def) + '.';
+        }
         return null;
       },
       // One definition per usage: the first typing of a usage stands, and every later one is the problem.
@@ -672,7 +684,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // View kinds. renderer names the page's renderer for the kind; admits the element kinds a view of the kind may
   // show (null: every kind); tools the palette, element and relationship kinds with '|' between groups; options
   // the defaults of the view's own options, which normalize keeps the keys of; check(model, view, ids, add), when
-  // present, adds the view's own problems. In this slice only the general view admits and draws anything; the other
+  // present, adds the view's own problems; exposes(model, view, h), when present, returns the statements of the
+  // view's body in the export (expose …;, render …;) in place of those the core makes from the view's layout
+  // (h.exposesOf(view) gives those, to build on). In this slice only the general view admits and draws anything; the other
   // rows are here so a view of each kind can sit on the plane, each in the region of the slice that fills it in.
   const VIEW_KINDS = {
     GeneralView: { name: 'GeneralView', label: 'general view', qualified: 'StandardViewDefinitions::GeneralView', short: 'gv', renderer: 'graph',
@@ -724,6 +738,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     multiplicity: { type: 'string', label: 'multiplicity', core: true, trim: true },
     conjugated: { type: 'bool', label: 'conjugated', core: true },
     doc: { type: 'text', label: 'doc', core: true },
+    // Two rows several slices share, stated once: which way a feature goes (none, in, out, inout), and the item a flow
+    // or a message carries, an ItemDefinition (a kind no core row has yet, so the select offers nothing until a slice
+    // brings it). No core kind lists them, so the panel shows neither until a slice's kind does.
+    direction: { type: 'enum', label: 'direction', values: ['', 'in', 'out', 'inout'] },
+    item: { type: 'ref', label: 'item', options: function (model) { return model.elements.filter((e) => e.kind === 'ItemDefinition'); } },
     // ==== slice: interconnection ====
     // ==== end slice: interconnection ====
     // ==== slice: behavior ====
@@ -792,6 +811,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const k = KINDS[kind];
     return !!(k && k.traits) && k.traits.indexOf(trait) >= 0;
   }
+  // Whether a kind's elements carry a name (name is one of its fields). A start node has none: it is never "unnamed",
+  // and nothing can be about it by name.
+  function hasName(kind) {
+    const k = KINDS[kind];
+    return !!k && k.fields.indexOf('name') >= 0;
+  }
 
   function blank() {
     return { format: FORMAT, revision: null, package: { name: 'Model', doc: '' }, elements: [], relationships: [], views: [] };
@@ -802,9 +827,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const kind = KINDS[el.kind];
     p = isObject(p) ? p : {};
     if (kind.onBorder) return { side: SIDES.includes(p.side) ? p.side : 'right', at: clamp(num(p.at, 0.5), 0.05, 0.95) };
+    // A box is never smaller than 80 x 40, unless its kind's own size is (a 16 x 16 node keeps its size).
     return {
       x: Math.round(num(p.x, 0)), y: Math.round(num(p.y, 0)),
-      w: Math.round(clamp(num(p.w, kind.size[0]), 80, 4000)), h: Math.round(clamp(num(p.h, kind.size[1]), 40, 4000))
+      w: Math.round(clamp(num(p.w, kind.size[0]), Math.min(80, kind.size[0]), 4000)), h: Math.round(clamp(num(p.h, kind.size[1]), Math.min(40, kind.size[1]), 4000))
     };
   }
 
@@ -1039,17 +1065,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return c.slice(start).map((e) => quote(e.name)).join('.');
   }
 
+  // An element in a sentence: its kind's label, its name (or "(unnamed)"), and the owner it is in. An element of a kind
+  // with no name field is just its label: "start in a1".
   function describe(model, el, ids) {
     ids = ids || index(model);
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-    return KINDS[el.kind].label + ' ' + shown(el.name) + (owner ? ' in ' + shown(owner.name) : '');
+    return KINDS[el.kind].label + (hasName(el.kind) ? ' ' + shown(el.name) : '') + (owner ? ' in ' + shown(owner.name) : '');
   }
   function describeRel(model, rel, ids) {
     ids = ids || index(model);
     const a = ids.get(rel.from);
     const b = ids.get(rel.to);
-    const an = a ? shown(a.name) : '?';
-    const bn = b ? shown(b.name) : '?';
+    // An end of a kind with no name field is said by its kind (describe), not as "(unnamed)".
+    const end = (e) => (!e ? '?' : hasName(e.kind) ? shown(e.name) : describe(model, e, ids));
+    const an = end(a);
+    const bn = end(b);
     if (rel.kind === 'Specialization') return an + ' specializes ' + bn;
     if (rel.kind === 'FeatureTyping') return an + ' defined by ' + bn;
     return RELATIONSHIPS[rel.kind].label + ' ' + (rel.name && rel.name.trim() ? rel.name.trim() + ', ' : '') + an + ' to ' + bn;
@@ -1129,7 +1159,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const name = el.name.trim();
       const owner = el.owner !== undefined ? ids.get(el.owner) : null;
       const where = owner ? ' in ' + shown(owner.name) : '';
-      if (!name) {
+      // A kind with no name field is never unnamed.
+      if (!name && hasName(el.kind)) {
         if (kind.definition) add(el.id, 'A ' + kind.label + ' has no name.');
         else if (inRelationship.has(el.id) || childrenOf(model, el.id).length) add(el.id, 'A ' + kind.label + where + ' has no name, so nothing can refer to it. Name it.');
       }
@@ -1202,10 +1233,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return [ind + head, ind + '/*'].concat(wrapText(body, 92 - ind.length).map((l) => ind + ' * ' + l)).concat([ind + ' */']);
   }
 
-  // Notes in number order, each number used once, so each comment's short name is its own.
+  // Notes in number order, each number used once, so each comment's short name is its own. A note's target is an id,
+  // or null for a note that floats free on the plane (the annotations slice draws those; the text leaves them out).
   function tidyNotes(notes) {
     const list = (Array.isArray(notes) ? notes : [])
-      .filter((n) => n && typeof n === 'object' && typeof n.target === 'string' && typeof n.text === 'string')
+      .filter((n) => n && typeof n === 'object' && (typeof n.target === 'string' || n.target === null) && typeof n.text === 'string')
       .map((n, i) => ({ no: n.no >= 1 ? Math.floor(n.no) : 0, target: n.target, text: n.text, response: typeof n.response === 'string' ? n.response : '', i }))
       .sort((a, b) => (a.no - b.no) || (a.i - b.i));
     const used = new Set();
@@ -1217,7 +1249,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return list;
   }
 
-  function toSysML(model, notes) {
+  // The archived notes, the third argument, are not written yet: the annotations slice gives them their form.
+  function toSysML(model, notes, archive) {
     model = normalize(model);
     const ids = index(model);
     const rels = relIndex(model);
@@ -1237,7 +1270,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       ids: ids, line: line, comment: comment, noteText: noteText, quote: quote, featurePath: featurePath, shown: shown,
       notesOn: (id) => noteList.filter((n) => n.target === id),
       needImport: (qualifiedName) => imports.add(qualifiedName),
-      headOf: headOf, declaredIn: declaredIn,
+      headOf: headOf, declaredIn: declaredIn, exposesOf: exposesOf,
       typingOf: (el) => typingOf(model, el),
       childrenOf: (id) => childrenOf(model, id),
       describe: (el) => describe(model, el, ids),
@@ -1265,29 +1298,55 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (general.length) head += ' :> ' + general.join(', ');
       return head;
     }
-    // An element: its head (the kind's own when it has one), then, when there is anything to put in it, a body with
-    // the doc, what the body writers and the kind's body hook add, the border items, the nested boxes, and the
-    // relationships declared here.
+    // The head an element is written with: the kind's head hook's when it has one (null: the element is not written),
+    // else the generated one. Asked once per element, since the parent asks before the child is written.
+    const heads = new Map();
+    function headFor(el) {
+      const kind = KINDS[el.kind];
+      if (!heads.has(el.id)) heads.set(el.id, kind.head ? kind.head(model, el, helpers) : headOf(el));
+      return heads.get(el.id);
+    }
+    // An element: its head, then, when there is anything to put in it, a body with the doc, what the body writers and
+    // the kind's body hook add, the children, and the relationships declared here; then what the kind's after hook
+    // writes at the element's own depth. An element whose head is null is left out, with everything inside it (the
+    // start and done nodes a view draws, which the notation has already). Returns whether anything was written.
     function element(el, depth) {
       const kind = KINDS[el.kind];
-      const head = kind.head ? kind.head(model, el, helpers) : headOf(el);
-      const kids = childrenOf(model, el.id);
-      const ports = kids.filter((k) => KINDS[k.kind].onBorder);
-      const parts = kids.filter((k) => !KINDS[k.kind].onBorder);
+      const head = headFor(el);
+      if (head === null) return false;
+      // The children that are written, in the order they are written: by their kinds' writeOrder (lower first; every
+      // core kind is at 0), then the border items before the boxes, then as the model has them (the sort is stable).
+      const rank = (k) => (KINDS[k.kind].onBorder ? 0 : 1);
+      const kids = childrenOf(model, el.id).filter((k) => headFor(k) !== null)
+        .sort((a, b) => ((KINDS[a.kind].writeOrder || 0) - (KINDS[b.kind].writeOrder || 0)) || (rank(a) - rank(b)));
       const declared = declaredIn(el.id);
       // The hooks write into lines of their own first, so an element with nothing else gets a body when they add to it.
       const extra = [];
       const into = Object.assign({}, helpers, { line: (d, t) => extra.push('    '.repeat(d) + t), comment: (d, h, t) => commentLines(d, h, t).forEach((l) => extra.push(l)) });
       BODY.forEach((write) => write(model, el, depth + 1, into));
       if (kind.body) kind.body(model, el, depth + 1, into);
-      if (!el.doc.trim() && !extra.length && !kids.length && !declared.length) { line(depth, head + ';'); return; }
-      line(depth, head + ' {');
-      if (el.doc.trim()) comment(depth + 1, 'doc', el.doc);
-      extra.forEach((l) => out.push(l));
-      ports.forEach((k) => element(k, depth + 1));
-      parts.forEach((k) => element(k, depth + 1));
-      declared.forEach((r) => RELATIONSHIPS[r.kind].toSysML(model, r, el.id, depth + 1, out, helpers));
-      line(depth, '}');
+      if (!el.doc.trim() && !extra.length && !kids.length && !declared.length) line(depth, head + ';');
+      else {
+        line(depth, head + ' {');
+        if (el.doc.trim()) comment(depth + 1, 'doc', el.doc);
+        extra.forEach((l) => out.push(l));
+        kids.forEach((k) => element(k, depth + 1));
+        declared.forEach((r) => RELATIONSHIPS[r.kind].toSysML(model, r, el.id, depth + 1, out, helpers));
+        line(depth, '}');
+      }
+      // What follows the element at its own depth, right after its line or its closing brace (a decision's "if g then
+      // a;" lines after its "decide d;").
+      if (kind.after) kind.after(model, el, depth, helpers);
+      return true;
+    }
+    // The expose lines a view's layout gives: everything when every element is shown, else each shown element by its
+    // qualified name (an element with an unnamed owner has none, so it is left out). A kind's exposes hook may build on
+    // them through h.exposesOf(view).
+    function exposesOf(v) {
+      const shownCount = Object.keys(v.layout).length;
+      return shownCount && shownCount === model.elements.length
+        ? ['expose ' + quote(model.package.name) + '::*::**;']
+        : model.elements.filter((e) => v.layout[e.id] && chain(model, e, ids).every((c) => c.name.trim())).map((e) => 'expose ' + qualified(model, e, ids) + ';');
     }
 
     line(0, 'package ' + quote(model.package.name) + ' {');
@@ -1295,7 +1354,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const importAt = out.length; // where the imports the bodies ask for go, once they are known
     const top = childrenOf(model, null);
     const ordered = top.filter((e) => KINDS[e.kind].definition).concat(top.filter((e) => !KINDS[e.kind].definition));
-    ordered.forEach((el) => { out.push(''); element(el, 1); });
+    ordered.forEach((el) => { out.push(''); if (!element(el, 1)) out.pop(); });
     const topRels = declaredIn(null);
     if (topRels.length) out.push('');
     topRels.forEach((r) => RELATIONSHIPS[r.kind].toSysML(model, r, null, 1, out, helpers));
@@ -1318,21 +1377,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
         head = 'comment <n' + n.no + '> about ' + qualified(model, ids.get(rel.from), ids) + ', ' + qualified(model, ids.get(rel.to), ids);
         text = 'On ' + describeRel(model, rel, ids) + ': ' + text;
       } else {
-        continue;
+        continue; // on nothing the text names: a free note (target null), or a target that is gone
       }
       if (!any) { out.push(''); any = true; }
       comment(1, head, text);
     }
 
-    // The views, each exposing what it shows: everything when it shows every element, else each shown element by
-    // its qualified name (an element with an unnamed owner has none, so it is left out).
+    // The views, each exposing what it shows (exposesOf), unless its kind says itself what the view's body holds (a
+    // browser's layout is empty, so its kind's exposes hook does).
     for (const v of model.views) {
       if (!v.name.trim()) continue;
-      const head = 'view ' + quote(v.name) + ' : ' + VIEW_KINDS[v.kind].qualified;
-      const shownCount = Object.keys(v.layout).length;
-      const exposes = shownCount && shownCount === model.elements.length
-        ? ['expose ' + quote(model.package.name) + '::*::**;']
-        : model.elements.filter((e) => v.layout[e.id] && chain(model, e, ids).every((c) => c.name.trim())).map((e) => 'expose ' + qualified(model, e, ids) + ';');
+      const vkind = VIEW_KINDS[v.kind];
+      const head = 'view ' + quote(v.name) + ' : ' + vkind.qualified;
+      const exposes = vkind.exposes ? vkind.exposes(model, v, helpers) : exposesOf(v);
       out.push('');
       if (!v.doc.trim() && !exposes.length) { line(1, head + ';'); continue; }
       line(1, head + ' {');
@@ -1354,7 +1411,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // The library, with what the slices put in EXTRA beside it.
   root.SysMLModel = Object.freeze(Object.assign({
     FORMAT, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, VIEW_DEF,
-    blank, normalize, validate, toSysML, placement, canContain, admits, hasTrait, index, relIndex, viewIndex, shownIn, chain, childrenOf,
+    blank, normalize, validate, toSysML, placement, canContain, admits, hasTrait, hasName, index, relIndex, viewIndex, shownIn, chain, childrenOf,
     descendants, typingOf, inUsage, specializes, commonOwner, featurePath, quote, qualified, describe, describeRel, describeView,
     labelFor, isName, tidyNotes, inheritedFeatures,
   }, EXTRA));
@@ -1510,17 +1567,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const block = document.getElementById(id);
     try { return block ? JSON.parse(block.textContent) : null; } catch (error) { return null; }
   }
+  // A note from the store or a file: an id, a text, and a target (the id of an element or a line), or no target (null)
+  // and a place on the plane, x and y, for a note that floats free (the annotations slice draws and moves those).
   function isNote(n) {
-    return !!n && typeof n === 'object' && typeof n.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(n.id) &&
-      typeof n.target === 'string' && typeof n.text === 'string';
+    return !!n && typeof n === 'object' && typeof n.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(n.id) && typeof n.text === 'string' &&
+      (typeof n.target === 'string' || (n.target === null && Number.isFinite(n.x) && Number.isFinite(n.y)));
   }
   function tidyNote(n) {
     const created = str(n.created) || now();
-    return {
+    const t = {
       id: n.id, no: n.no >= 1 ? Math.floor(n.no) : 0, target: n.target, targetLabel: str(n.targetLabel), text: n.text,
       by: n.by === 'claude' ? 'claude' : 'user', created: created, updated: str(n.updated) || created,
       response: str(n.response), resolved: n.resolved === true
     };
+    if (n.target === null) { t.x = n.x; t.y = n.y; }
+    return t;
   }
   function readSaved() {
     const data = readJSON('saved-notes');
@@ -1600,7 +1661,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const shape = SHAPES[M.KINDS[el.kind].shape] || SHAPES.rect;
       const blocks = shape.compartments ? compartmentsOf(el, lay.w) : [];
       comps.set(el.id, blocks);
-      let bottom = HEADER + blocks.reduce((h, c) => h + HEAD_H + LEAD * c.lines.length + 6, 0);
+      // A shape with compartments is at least its header high; one without (a small node) may be any height.
+      let bottom = (shape.compartments ? HEADER : 0) + blocks.reduce((h, c) => h + HEAD_H + LEAD * c.lines.length + 6, 0);
       let right = 0;
       for (const kid of boxesOf(el.id)) {
         const s = size(kid);
@@ -1816,16 +1878,33 @@ textarea.text[readonly] { resize: none; background: transparent; }
     port: {
       draw: function (p, r, g) {
         g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: r.w, height: r.h, rx: 2.5 }, 'outline'));
-        // The glyph inside the square: both directions, since the slice doesn't say which way a port's features go.
+        // The glyph inside the square, by what the kind says of the port (its glyph hook; inout when it says nothing):
+        // inout has a head at both ends of the shaft, in one head pointing into the owner, out one pointing away from
+        // it, null no glyph. The owner is to the left of a port on its right border, below one on its top border.
         const h = r.side === 'left' || r.side === 'right';
         const c = r.cx;
         const cy = r.cy;
-        const glyph = h
-          ? 'M' + f(c - 4.5) + ',' + f(cy) + ' H' + f(c + 4.5) + ' M' + f(c - 2) + ',' + f(cy - 2.5) + ' L' + f(c - 4.5) + ',' + f(cy) + ' L' + f(c - 2) + ',' + f(cy + 2.5) +
-            ' M' + f(c + 2) + ',' + f(cy - 2.5) + ' L' + f(c + 4.5) + ',' + f(cy) + ' L' + f(c + 2) + ',' + f(cy + 2.5)
-          : 'M' + f(c) + ',' + f(cy - 4.5) + ' V' + f(cy + 4.5) + ' M' + f(c - 2.5) + ',' + f(cy - 2) + ' L' + f(c) + ',' + f(cy - 4.5) + ' L' + f(c + 2.5) + ',' + f(cy - 2) +
-            ' M' + f(c - 2.5) + ',' + f(cy + 2) + ' L' + f(c) + ',' + f(cy + 4.5) + ' L' + f(c + 2.5) + ',' + f(cy + 2);
-        g.appendChild(node('path', { d: glyph }, 'glyph'));
+        const kind = M.KINDS[p.kind];
+        const way = kind.glyph ? kind.glyph(model, p) : 'inout';
+        if (way === 'in' || way === 'out' || way === 'inout') {
+          const ix = r.side === 'right' ? -1 : r.side === 'left' ? 1 : 0;
+          const iy = r.side === 'bottom' ? -1 : r.side === 'top' ? 1 : 0;
+          // A head at the end of the shaft that points along (dx, dy): the tip 4.5 from the middle, the barbs 2 back
+          // and 2.5 aside.
+          const head = (dx, dy) => {
+            const bx = c + 2 * dx;
+            const by = cy + 2 * dy;
+            const px = Math.abs(dy) * 2.5;
+            const py = Math.abs(dx) * 2.5;
+            return ' M' + f(bx - px) + ',' + f(by - py) + ' L' + f(c + 4.5 * dx) + ',' + f(cy + 4.5 * dy) + ' L' + f(bx + px) + ',' + f(by + py);
+          };
+          let glyph = h ? 'M' + f(c - 4.5) + ',' + f(cy) + ' H' + f(c + 4.5) : 'M' + f(c) + ',' + f(cy - 4.5) + ' V' + f(cy + 4.5);
+          (h ? [[-1, 0], [1, 0]] : [[0, -1], [0, 1]]).forEach((d) => {
+            const into = d[0] === ix && d[1] === iy;
+            if (way === 'inout' || (way === 'in') === into) glyph += head(d[0], d[1]);
+          });
+          g.appendChild(node('path', { d: glyph }, 'glyph'));
+        }
         // The name sits outside the owner, beside the square: above and to the right of a port on the right border,
         // below and to the left on the left border (so two ports facing each other never share a line), above on the
         // top, below on the bottom.
@@ -1900,8 +1979,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (how.marker) line.setAttribute('marker-end', 'url(#' + how.marker + ')');
     if (how.markerStart) line.setAttribute('marker-start', 'url(#' + how.markerStart + ')');
     g.appendChild(line);
-    const label = how.label ? how.label(rel) : '';
-    if (label) g.appendChild(text(e.mid.x, e.mid.y + 30, label, 'uname', 'middle'));
+    // The label, below the line's middle by the kind's labelOffset (30 unless said; negative puts it above).
+    const label = how.label ? how.label(rel, model, layout.ids) : '';
+    if (label) g.appendChild(text(e.mid.x, e.mid.y + (typeof how.labelOffset === 'number' ? how.labelOffset : 30), label, 'uname', 'middle'));
     parent.appendChild(g);
   }
   // A view's frame: the outline, the header tab (with a clear rectangle over it that takes the pointer, to select or
@@ -2401,15 +2481,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
     paletteButtons().forEach((b) => b.remove());
     palette.querySelectorAll('.sep').forEach((s) => s.remove());
     const tools = view ? M.VIEW_KINDS[view.kind].tools : [];
-    palette.querySelector('.label').hidden = !tools.length;
-    tools.forEach((t) => {
-      if (t === '|') {
-        const sep = document.createElement('span');
-        sep.className = 'sep';
-        sep.setAttribute('aria-hidden', 'true');
-        palette.appendChild(sep);
-        return;
-      }
+    // The free tools (TOOLS: the Note tool) follow the kind's own in every palette, while the page is editable.
+    const free = editable() ? Object.keys(TOOLS) : [];
+    palette.querySelector('.label').hidden = !tools.length && !free.length;
+    const sep = () => {
+      const s = document.createElement('span');
+      s.className = 'sep';
+      s.setAttribute('aria-hidden', 'true');
+      palette.appendChild(s);
+    };
+    const button = (t) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.setAttribute('data-tool', t);
@@ -2418,8 +2499,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
       b.disabled = !editable();
       b.classList.toggle('is-active', t === tool);
       palette.appendChild(b);
-    });
-    if (tool && tools.indexOf(tool) < 0) setTool(null);
+    };
+    tools.forEach((t) => { if (t === '|') sep(); else button(t); });
+    if (free.length) {
+      if (tools.length) sep(); // a rule between the kind's tools and the free ones, never one at the start
+      free.forEach((t) => button(t));
+    }
+    if (tool && tools.indexOf(tool) < 0 && free.indexOf(tool) < 0) setTool(null);
   }
   palette.addEventListener('click', (event) => {
     const b = event.target.closest ? event.target.closest('button[data-tool]') : null;
@@ -2767,7 +2853,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     [fName, fMult, fDoc].forEach((i) => { i.readOnly = !write; });
     [fAbstract, fType, fTypeLine, fConj].forEach((i) => { i.disabled = !write; });
     deleteButton.hidden = !write;
-    addNoteButton.hidden = !write;
+    addNoteButton.hidden = !write || (s.type === 'el' && !M.hasName(s.item.kind));
   }
   // The kind of the view a field's views are checked against: the view that shows the selection, else the active one.
   function viewKindShowing(id) {
@@ -3216,6 +3302,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function addNote() {
     const s = resolve(selection);
     if (!s || s.type === 'view' || !editable()) return;
+    // A note's about needs a name, so an element of a kind without one (a start node) can't carry a note.
+    if (s.type === 'el' && !M.hasName(s.item.kind)) {
+      say('A ' + M.KINDS[s.item.kind].label + ' can\'t carry a note. Note the ' + (s.item.owner !== undefined ? 'element it belongs to' : 'package') + ' instead.');
+      return;
+    }
     const stamp = now();
     const n = {
       id: newId('n'), no: nextNumber(), target: s.item.id, targetLabel: M.labelFor(model, s.item.id), text: '', by: 'user',
@@ -3381,8 +3472,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     lastWritten = JSON.stringify(body.model);
     modelQueue = modelQueue.then(() => attempt(() => db.doc(WORKING).set(body))).catch((error) => refused(error, 'The change to the model wasn\'t saved.'));
   }
+  // What the store keeps of a note; a free note (target null) carries its place, x and y, too.
   function noteBody(n) {
-    return { no: n.no, target: n.target, targetLabel: n.targetLabel, text: n.text, by: n.by, created: n.created, updated: n.updated, response: n.response, resolved: n.resolved };
+    const body = { no: n.no, target: n.target, targetLabel: n.targetLabel, text: n.text, by: n.by, created: n.created, updated: n.updated, response: n.response, resolved: n.resolved };
+    if (n.target === null) { body.x = n.x; body.y = n.y; }
+    return body;
   }
   function stageNote(id) { dirty.set(id, (dirty.get(id) || 0) + 1); }
   function enqueue(id, job) {

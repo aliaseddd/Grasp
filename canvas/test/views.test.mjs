@@ -33,9 +33,12 @@ describe('views', () => {
     assert.ok(await page.locator('#view-fields').isVisible(), 'the panel shows the view fields');
     assert.equal(await page.textContent('#v-kind'), 'InterconnectionView');
     assert.match(await page.inputValue('#v-name'), /^view\d+$/, 'the view gets a free name');
-    assert.equal(await page.locator('.palette button[data-tool]').count(), 0, 'an interconnection view has no tools yet');
     assert.match(await page.textContent('.eyebrow'), /interconnection view/);
     assert.match(await page.textContent(`#drawing g.frame[data-view="${id}"]`), /InterconnectionView/, 'the frame tab names the kind');
+    // A kind that keeps tools: [] (the grid view) gets no buttons of its own; the free tools (the Note tool, once a slice
+    // adds it) are in every palette, so they don't count.
+    await addView(page, 'GridView');
+    assert.equal(await page.locator('.palette button[data-tool]:not([data-tool="Note"])').count(), 0, 'a grid view has no tools of its own');
     assert.ok(await page.locator('#undo').isEnabled(), 'making a view can be undone');
     await finish(ctx);
   });

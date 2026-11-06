@@ -55,7 +55,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const state = file ? readState(file) : readPage(html);
   const model = lib.normalize(state.model);
   const problems = lib.validate(model);
-  process.stdout.write(lib.toSysML(model, state.notes));
+  process.stdout.write(lib.toSysML(model, state.notes, state.archive));
   for (const p of problems) process.stderr.write(`problem: ${p.message}\n`);
   if (problems.length) process.exitCode = 1;
 }
