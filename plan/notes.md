@@ -538,3 +538,114 @@ What a user can notice, all small:
   `view.options` or in a list, and hooks for their rules (a range, a scale that follows the unit, a table that keeps a
   column). That would be a step of its own.
 - `docs/REPO_MAP.md` still shows the old single file.
+
+## Session 7, November 7, 2026: step 5, Generate the kind lists
+
+Step 5 is done. Damon unblocked it at the start of the session: "For the EPL issue, just use whatever we need that's
+licensed and we'll figure out licensing later." The canvas's 29 kinds now stand on kind lists generated from the pilot
+implementation's `SysML.ecore`, and behave as before. Three commits, each with every test passing: the vendored ecore
+with the generator and the generated lists; the kinds moved onto them, with their tests and the rules in the READMEs;
+then these notes.
+
+### The license
+
+`SysML.ecore` is under the Eclipse Public License 2.0, as session 6 found: it carries no notice of its own, and the
+pilot implementation's `LICENSE` covers it. Damon's decision is to use it now and settle the licensing later, so the
+question session 6 laid out is still open, and now it is live: `src/core/lib/metamodel.js`, and the built `index.html`
+that holds it, carry the ecore's contents (its classes' names, supertypes and features, without its documentation).
+Until it is settled:
+
+- `canvas/metamodel/` keeps the file as fetched, beside `LICENSE`, the EPL 2.0's text copied from the same release, which
+  the license asks to go with every copy of the file; `canvas/metamodel/README.md` names the source and the license and
+  points to session 6's notes for what the license asks and the ways to settle it.
+- The generated file's header names its source, its version, its SHA-256 and its license.
+- Nothing from SysON was used. The standing rule on SysON's code and icons is unchanged.
+
+### Where things are now
+
+- `canvas/metamodel/SysML.ecore`: release `2026-09.1`, commit `d81b2ad` (October 28, 2026), `org.omg.sysml` 0.63.1, the
+  release whose kernel `check.sh` validates with; the metamodel names itself `https://www.omg.org/spec/SysML/20250201`.
+  SHA-256 `dd3960e0…b464d6`, the file session 6 checked. 624 KB, unchanged.
+- `canvas/metamodel/generate.mjs` (Node, no dependencies) checks the file's SHA-256 against its `SOURCE` and writes
+  `src/core/lib/metamodel.js`; `--check` writes nothing and fails when the file isn't what the ecore generates. It reads
+  the ecore with a small XML reader of its own, which refuses what it can't read. The output is 1,135 lines, 65 KB.
+- `METAMODEL`, the lists: 182 classifiers by name, in the ecore's order. A class has `general` (its direct supertypes),
+  `abstract` when it is, `owns` (what an element of it may contain: 130 features) and `fields` (the other 285 features
+  it declares); an enumeration has `literals`. A feature has its name, its type (a classifier, or Boolean, String,
+  Integer, Real), its bounds when not 0..1, its default, `derived`, and what it subsets and redefines as `Class::name`.
+  What an element may contain is a containment, `Element::ownedElement` or `Namespace::ownedMember`, or whatever subsets
+  or redefines one of them, directly or through others; the ecore has no subsets link from `ownedMember` up to the
+  containments, so those two are named. The ecore's documentation, operations, and EMF settings are left out.
+- `core/lib/metamodel.js` is the model library's first script, so it creates `SysMLModelLib`; `model.js` takes it.
+  `METAMODEL` is deep-frozen, and `SysMLModel.METAMODEL` exposes it.
+- In `core/lib/model.js`: `addKinds(rows)` and `addRelationships(rows)` add the rows of `KINDS` and `RELATIONSHIPS`
+  (every feature's `lib.js` uses them in place of `Object.assign`). Each kind stands on a class: `metaclass`, its own
+  name unless its row names another. Six do: `ParameterUsage` on `ItemUsage`; `StartNode`, `DoneNode`, `InitialNode` on
+  `ActionUsage` (start and done are `action start: Action :>> startShot;` and its twin in `Actions::Action`, and an
+  initial node is a state's `entry;` action, as the pilot's grammar and library at the release say);
+  `FlowConnectionUsage` and `Message` on `FlowUsage` (`flow …` and `message …` both declare one in the grammar). The
+  other 23 are named after their classes. A class that doesn't exist, or an abstract one, is refused as the library
+  loads. `definition` and `usage` are set from the class (a `Definition`, a `Usage`), and a row that says either is
+  refused; they came out exactly as the rows said by hand.
+- `attributeField(attribute, row)` makes a `FIELDS` row for a field that holds an attribute: its type and an enum's values
+  come from the attribute. `name` holds `declaredName`, `abstract` `isAbstract`, `direction` `direction`, `parallel`
+  `isParallel`. `direction`'s values are now `['', 'in', 'inout', 'out']`, FeatureDirectionKind's order (they were
+  `['', 'in', 'out', 'inout']`); only membership and the first value are ever read, and the panel's choices come from
+  the markup, so nothing shows it.
+- `contains`, `definedBy`, `fields` and the rest stay written by hand, as the step says. `test/metamodel.test.mjs`
+  checks the rules against the lists. Each nesting goes through exactly one most specific owning feature of the
+  owner's class, pinned in its table `THROUGH`: a part def nests parts through `Definition::ownedPart`, ports through
+  `ownedPort`, items, parameters through `ownedItem`, actions, control nodes, start, done and the initial node through
+  `ownedAction`, states through `ownedState`; a usage the same through `Usage::nested…`, and a part's events through
+  `nestedOccurrence`. These are the features SysON's compartments list. Each `definedBy` conforms to the type of the
+  feature the usage's class is typed by (pinned in `TYPED_BY`: `PartUsage::partDefinition : PartDefinition`,
+  `ItemUsage::itemDefinition : Structure`, `ActionUsage::actionDefinition : Behavior`, and so on). Each field that holds
+  an attribute is one the kind's class has, in all 34 places a kind shows one.
+- `src/README.md` has the rule under "The kinds"; `canvas/README.md` lists the generator with the scripts;
+  `canvas/metamodel/README.md` says what the lists hold, where the file comes from, and how to move to another release.
+
+What a user can notice: nothing. The page is 520 KB (450 KB before), and the library takes about 4.7 ms to run as the
+page loads (1.1 ms before), most of it making and freezing the lists.
+
+### How it was checked
+
+- Tests: 138 of 138 pass, in about 49 s: the 127 from session 6 and 11 in the new `test/metamodel.test.mjs`. The first
+  five are the lists': `--check` passes and a second run in a copy writes the same bytes; an edited list fails the
+  check and a changed ecore is refused with nothing written; the header names the source, version, SHA-256 and license;
+  the lists hold the ecore's 182 classifiers in order, with the abstract flags, supertypes, literals and every feature's
+  name and type, read a second way, with patterns rather than the generator's reader, and 415 features in all; and
+  what is owned and what is a field, on 32 named features, with bounds, defaults, derivations and annotations. The other
+  six are the kinds': the class each stands on; definition and usage against what the rows said by hand; the nestings
+  against `THROUGH`; the definitions against `TYPED_BY`; the attribute fields; and what the library refuses (a kind on no
+  class, an enumeration, an abstract class, a row that says it is a usage, a kind twice, a field on no attribute or on a
+  reference, a field that says its type), with three new kinds that load (an attribute, an attribute def, a KerML class,
+  which is neither a definition nor a usage).
+- Mutations, each made in the source, built, tested and taken back: the owning rule without `ownedMember`, the bounds
+  left out of the lists, a parameter on `PartUsage`, an item defined by an action def, `abstract` written by hand as a
+  string, a part def showing `direction`, and `definition` read from `Classifier`. Each failed one to three of the new
+  tests. The last one passed at first, since every definition is a classifier and no usage is; the KerML class was
+  added to the tests to tell them apart.
+- The tables: `KINDS`, `RELATIONSHIPS`, `VIEW_KINDS` and `FIELDS`, dumped from the page before this session and after it
+  (every hook by its source, every key, every order), differ only by `metaclass` on each of the 29 rows, `attribute` on
+  the four fields, and `direction`'s order. `SysMLModel` gains `METAMODEL`.
+- The page: for the saved model and each of the nine fixtures, imported through Import state, the page before this
+  session and after it draw the same SVG, the same palette for every view, and the same panel for every view and for the
+  first element of every kind and the first line of every relationship kind, with the same problems and no page errors.
+- Exports: every fixture and the saved model print the same bytes as before the session (session 1's SHA-256 and the
+  pinned `.sysml` files); `canvas/check.sh` accepts the saved model and all nine fixtures, with the three validator
+  warnings session 1 recorded.
+
+### For the next session
+
+- Step 7 is next: the scale tests.
+- For step 10: a new kind is a row through `addKinds` named after its class (or with `metaclass`), with its words, its
+  drawing and its rules; its nestings go in `THROUGH` and its definition in `TYPED_BY`, with the features
+  `test/metamodel.test.mjs` names when they're missing. The lists' `owns` are what SysON's compartments are made of, and
+  their `fields` what a details view can show for any class, an attribute's type giving its input
+  (`attributeField` already maps String, Boolean, Integer, Real and enumerations).
+- The view kinds don't stand on the lists yet: the step names the 29 element and relationship kinds. A view is a
+  `ViewUsage` in the text (`view proofStructure : StandardViewDefinitions::GeneralView`), and its `name` field holds a
+  `declaredName` too; `VIEW_KINDS` could stand on `ViewUsage` the same way.
+- Moving to another release: `canvas/metamodel/README.md`. Move `check.sh`'s kernel at the same time.
+- The licensing of `metamodel.js` and `index.html` is open (above).
+- `docs/REPO_MAP.md` still shows the old single file.
