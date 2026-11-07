@@ -2710,8 +2710,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (look) return look.children(id).slice();
     return model.elements.filter((e) => (id === null || id === undefined ? e.owner === undefined : e.owner === id));
   }
-  // Everything inside an element (null: the package), depth first: in a reading of the model, which asks for the
-  // children of each element it finds.
+  // Everything inside an element (null: the package), depth first. The walk asks for the children of each element it
+  // finds, so it runs in a reading of the model.
   function descendants(model, id) {
     return reading(model, () => {
       const out = [];
