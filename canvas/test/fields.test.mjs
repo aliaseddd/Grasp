@@ -12,7 +12,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { after, before, describe, test } from 'node:test';
-import { clickElement, embeddedModel, finish, launch, modelLibSource, openCanvas, pageSource, relationshipIds, until } from './helpers.mjs';
+import { choose, clickElement, detailsTab, embeddedModel, finish, launch, modelLibSource, openCanvas, pageSource, relationshipIds, until } from './helpers.mjs';
 
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 /** Where a field's input and label are, by what is selected: #fields for an element or a line, #view-fields for a view. */
@@ -33,7 +33,10 @@ function loadLib(source) {
  * line or view the ones before it don't is left out, and so is a view of a kind an earlier view has. Each fixture's ids
  * get a prefix of their own (a-, b-, …), wherever they are named, as the base model the fixtures share is there once
  * for each. Every usage whose kind has a definition is typed by the first definition of that kind, so the box that
- * draws the typing's line shows for every such kind.
+ * draws the typing's line shows for every such kind. The first element of each kind that lists Specializes or Subsets,
+ * and starts no specialization line, specializes another of its kind that the line's rule allows (in the same box, for
+ * a usage; made beside it when there is none), so those fields, which show while there is such a line, show for every
+ * such kind.
  */
 function mergedFixtures(lib) {
   const model = { format: lib.FORMAT, package: { name: 'Fields', doc: '' }, elements: [], relationships: [], views: [] };
@@ -72,6 +75,19 @@ function mergedFixtures(lib) {
     const def = model.elements.find((d) => d.kind === kind.definedBy);
     if (def) model.relationships.push({ id: 'typing-' + e.id, kind: 'FeatureTyping', from: e.id, to: def.id, hidden: true });
   }
+  for (const kind of Object.keys(lib.KINDS)) {
+    const e = model.elements.find((x) => x.kind === kind);
+    const lists = lib.KINDS[kind].fields.includes('specializes') || lib.KINDS[kind].fields.includes('subsets');
+    if (!e || !lists || model.relationships.some((r) => r.kind === 'Specialization' && r.from === e.id)) continue;
+    const allowed = (x) => x.kind === kind && x.id !== e.id && (!lib.KINDS[kind].usage || x.owner === e.owner) &&
+      !model.relationships.some((r) => r.kind === 'Specialization' && r.from === x.id && r.to === e.id);
+    let general = model.elements.find(allowed);
+    if (!general) {
+      general = Object.assign(JSON.parse(JSON.stringify(e)), { id: e.id + '-general', name: (e.name || kind) + 'General' });
+      model.elements.push(general);
+    }
+    model.relationships.push({ id: 'general-' + e.id, kind: 'Specialization', from: e.id, to: general.id });
+  }
   // A field that shows only in some kinds of view: the first element of each kind that lists one is shown in a view of
   // such a kind too, when none shows it yet.
   for (const kind of Object.keys(lib.KINDS)) {
@@ -108,12 +124,19 @@ const selectItem = (page, item, viewId) => page.evaluate(([it, vid, input, label
     const field = document.getElementById(input + fld);
     const caption = document.getElementById(label + fld);
     const spec = M.FIELDS[fld];
+    // The details view's tab the field is on; a field on the tab not shown now is shown once that tab is.
+    const tab = caption ? caption.closest('.details-page') : null;
+    const choices = field && field.tagName === 'FIELDSET' ? Array.from(field.querySelectorAll('input')) : null;
     return {
       fld,
       spec: spec ? { type: spec.type, trim: !!spec.trim } : null,
       input: !!field,
-      shown: !!field && !!caption && !caption.hidden && field.offsetParent !== null,
-      options: field && field.tagName === 'SELECT' ? Array.from(field.options).map((o) => o.value) : null
+      shown: !!field && !!caption && !caption.hidden && (field.offsetParent !== null || (!!tab && tab.hidden)),
+      tab: tab ? tab.getAttribute('data-tab') : null,
+      // A field its locked hook stops says why on its label, and its input can't be changed.
+      locked: !!caption && !!caption.title && (choices ? choices.every((c) => c.disabled) : field.disabled || field.readOnly) ? caption.title : null,
+      radios: !!choices,
+      options: field && field.tagName === 'SELECT' ? Array.from(field.options).map((o) => o.value) : choices ? choices.map((c) => c.value) : null
     };
   });
 }, [item, viewId, INPUT[item.type], LABEL[item.type]]);
@@ -131,7 +154,9 @@ const fieldState = (page, item, fld, save = false) => page.evaluate(([it, f, sav
   const M = window.SysMLModel;
   const found = (it.type === 'el' ? S.model.elements : it.type === 'rel' ? S.model.relationships : S.model.views).find((x) => x.id === it.id);
   const typing = it.type === 'el' ? M.typingOf(S.model, found) : null;
-  const value = f === 'type' ? (typing ? typing.to : '') : f === 'typeLine' ? !!typing && !typing.hidden : found[f];
+  const general = it.type === 'el' ? M.firstGeneral(S.model, found) : null;
+  const value = f === 'type' ? (typing ? typing.to : '') : f === 'typeLine' ? !!typing && !typing.hidden
+    : f === 'specializes' || f === 'subsets' ? (general ? general.to : '') : found[f];
   const top = S.history[S.history.length - 1];
   const mark = window.__lastLog;
   const logged = mark ? S.changes.slice(S.changes.indexOf(mark) + 1) : S.changes.slice();
@@ -139,7 +164,8 @@ const fieldState = (page, item, fld, save = false) => page.evaluate(([it, f, sav
   const input = document.getElementById(prefix + f);
   const state = {
     value, json: JSON.stringify(S.model), steps: S.history.length, top: top ? { what: top.what, key: top.key } : null,
-    logged: logged.map((c) => c.text), saving: S.saveTimer !== null, shows: input.type === 'checkbox' ? input.checked : input.value
+    logged: logged.map((c) => c.text), saving: S.saveTimer !== null,
+    shows: input.type === 'checkbox' ? input.checked : input.tagName === 'FIELDSET' ? (input.querySelector('input:checked')?.value ?? '') : input.value
   };
   if (saveNow) {
     clearTimeout(S.saveTimer);
@@ -159,6 +185,7 @@ const fieldState = (page, item, fld, save = false) => page.evaluate(([it, f, sav
 async function changeField(page, item, field) {
   const what = `${item.kind} ${item.id}, field ${field.fld}`;
   const selector = '#' + INPUT[item.type] + field.fld;
+  if (field.tab && field.tab !== await page.evaluate(() => window.SysMLCanvas.state.detailsTab)) await page.click(`#${item.type === 'view' ? 'view-fields' : 'fields'} .tab-button[data-tab="${field.tab}"]`);
   const before = await fieldState(page, item, field.fld);
   before.normal = await page.evaluate((json) => JSON.stringify(window.SysMLModel.normalize(JSON.parse(json))), before.json);
   let expected;
@@ -168,7 +195,7 @@ async function changeField(page, item, field) {
   } else if (field.spec.type === 'enum' || field.spec.type === 'ref') {
     expected = field.options.find((o) => o !== before.value && o !== '') ?? '';
     assert.notEqual(expected, before.value, `${what}: the select offers another choice`);
-    await page.selectOption(selector, expected);
+    if (field.radios) await choose(page, selector, expected); else await page.selectOption(selector, expected);
   } else {
     await page.focus(selector);
     if (field.spec.type === 'number') {
@@ -268,6 +295,8 @@ describe('the panel\'s fields', () => {
         for (const field of fields) {
           if (!field.input) { noInput.add(field.fld); continue; }
           if (!field.shown || tried.get(item.kind).has(field.fld)) continue;
+          // A field locked now (Is Parallel on a state that holds transitions) is changed on another item of its kind.
+          if (field.locked) continue;
           await changeField(page, item, field);
           tried.get(item.kind).add(field.fld);
         }
@@ -356,8 +385,8 @@ describe('the panel\'s fields', () => {
     const typeInto = async (selector, text) => { await page.focus(selector); await page.keyboard.press('Control+End'); await page.keyboard.type(text); await page.keyboard.press('Tab'); };
     const cases = [
       [() => select('el', 'Page.hosts'), () => typeInto('#f-name', 'x'), 'Renamed to part hostsx in Page'],
-      [() => select('el', 'Page'), () => page.click('#f-abstract'), 'Made abstract: part def Page'],
-      [() => select('el', 'Page'), () => page.click('#f-abstract'), 'Made concrete: part def Page'],
+      [() => select('el', 'Page'), () => detailsTab(page, 'Advanced').then(() => page.click('#f-abstract')), 'Made abstract: part def Page'],
+      [() => select('el', 'Page'), () => page.click('#f-abstract').then(() => detailsTab(page, 'Core')), 'Made concrete: part def Page'],
       [() => select('el', 'Page.hosts.api'), () => page.click('#f-conjugated'), 'Unconjugated port api in hostsx'],
       [() => select('el', 'Page.hosts.api'), () => page.click('#f-conjugated'), 'Conjugated port api in hostsx'],
       [() => select('el', 'Page'), () => typeInto('#f-doc', ' More.'), 'Wrote the doc of part def Page'],

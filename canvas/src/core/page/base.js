@@ -73,7 +73,8 @@
   // the item's property; none, the words for a ref's empty choice ('nothing' unless said); write(x, value), the change,
   // made inside edit(), in place of setting the item's property; said(x), the words for the change, in place of 'Set
   // the <label> of <what> to <value>'; done(x), what the page does once the change is made, or, for a field that takes
-  // typing, once the field is left. panel.js has the core's; a feature's page.js adds its own.
+  // typing, once the field is left; locked(x), why the field can't be changed now (a sentence), or null. panel.js has
+  // the core's; a feature's page.js adds its own.
   const FIELD_HOOKS = {};
 
   const $ = (id) => document.getElementById(id);

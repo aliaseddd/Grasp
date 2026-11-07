@@ -1,0 +1,27 @@
+/* The details view, as SysON's: the Core and Advanced tabs, the groups, the rows the canvas knows or doesn't hold yet,
+   and a choice drawn as radio buttons; in the panel's own colors and type. */
+.fields .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
+.fields .tab-button {
+  border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; margin-bottom: -1px;
+  padding: 6px 12px; font: 500 12px/1 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2);
+}
+.fields .tab-button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.fields .tab-button:hover { color: var(--fg); border-color: transparent; border-bottom-color: var(--line-strong); }
+.fields .tab-button[aria-selected="true"]:hover { border-bottom-color: var(--accent); }
+.fields .details-page, .fields .group, .fields .group-body { display: grid; gap: 10px; }
+.fields .details-page[hidden], .fields .group[hidden] { display: none; }
+.fields .group + .group { padding-top: 10px; border-top: 1px solid var(--line); }
+.fields .group-title { margin: 0; font: 600 13px/1.3 var(--sans); color: var(--fg); }
+.fields .detail { margin: 0; display: grid; gap: 4px; }
+.fields .detail-label { font: 500 11px/1.2 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); }
+.fields .detail-value { font: 400 13px/1.35 var(--sans); color: var(--fg); overflow-wrap: anywhere; }
+.fields .detail-value input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.fields .detail.not-held .detail-value { font-style: italic; color: var(--fg-2); }
+.fields .radio-field { display: grid; gap: 4px; }
+.fields .radio-field[hidden] { display: none; }
+.fields .radio-label { font: 500 11px/1.2 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); }
+.fields fieldset.radios { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.fields fieldset.radios label {
+  display: inline-flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; font: 400 13px/1.3 var(--sans); color: var(--fg);
+}
+.fields fieldset.radios input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }

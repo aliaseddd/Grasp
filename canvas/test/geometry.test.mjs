@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import { emptyPointIn, exportText, finish, launch, openCanvas, placeElement, rename, until } from './helpers.mjs';
+import { choose, chosen, emptyPointIn, exportText, finish, launch, openCanvas, placeElement, rename, until } from './helpers.mjs';
 
 const SAVED = 'v-proof'; // the view the embedded model saves
 
@@ -70,9 +70,9 @@ describe('geometry view', () => {
     assert.equal(fp.width, 40, 'one metre long is 40 px wide');
     assert.equal(fp.height, 40, 'one metre wide is 40 px high');
     assert.match(fp.text, /Box 1 × 1 × 1 m/, 'the footprint names its shape and dimensions');
-    assert.equal(await page.inputValue('#f-shape'), 'Box', 'the panel shows the shape');
+    assert.equal(await chosen(page, '#f-shape'), 'Box', 'the panel shows the shape');
     assert.equal(await page.inputValue('#f-length'), '1');
-    assert.equal(await page.inputValue('#f-unit'), 'm');
+    assert.equal(await chosen(page, '#f-unit'), 'm');
     assert.ok(await page.locator('#f-posX').isVisible(), 'the panel shows the position');
     assert.match(await page.textContent('#status'), /Added part/);
     await finish(ctx);
@@ -179,7 +179,7 @@ describe('geometry view', () => {
     await until(page, (elId) => document.querySelector(`g.footprint[data-el="${elId}"]`)?.classList.contains('no-shape'), id, 'the part is drawn dashed');
     assert.match(await page.textContent(`g.footprint[data-el="${id}"]`), /no shape yet/);
     await clickIn(page, view, id);
-    await page.selectOption('#f-shape', 'Sphere');
+    await choose(page, '#f-shape', 'Sphere');
     await until(page, (elId) => /Sphere · set its radius/.test(document.querySelector(`g.footprint[data-el="${elId}"]`)?.textContent), id, 'a sphere without a radius says so');
     await page.fill('#f-radius', '0.5');
     await until(page, (elId) => { const c = document.querySelector(`#drawing g.frame.is-active g.footprint[data-el="${elId}"] circle.outline`); return !!c && +c.getAttribute('r') === 20; }, id, 'half a metre is a 20 px circle');

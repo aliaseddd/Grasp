@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { checked, clickElement, exportText, finish, launch, openCanvas, placeElement, rename, until } from './helpers.mjs';
+import { checked, choose, chosen, clickElement, detailsTab, exportText, finish, launch, openCanvas, placeElement, rename, until } from './helpers.mjs';
 
 const FIXTURE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'interconnection.json');
 const SAVED = 'v-proof'; // the view the embedded model saves
@@ -96,7 +96,9 @@ describe('interconnection view', () => {
     const itemDef = await placeElement(page, 'ItemDefinition');
     assert.equal(await page.getAttribute(`g[data-el="${itemDef}"]`, 'data-kind'), 'ItemDefinition');
     assert.equal(await page.locator(`#drawing g.frame[data-view="${view}"] g[data-el="${itemDef}"]`).count(), 1, 'the item def is drawn in the interconnection view');
-    assert.ok(await page.locator('#f-abstract').isVisible(), 'an item def can be abstract');
+    await detailsTab(page, 'Advanced');
+    assert.ok(await page.locator('#f-abstract').isVisible(), 'an item def can be abstract, on the Advanced tab');
+    await detailsTab(page, 'Core');
     await rename(page, itemDef, 'Fuel');
     const part = await placeElement(page, 'PartUsage');
     await rename(page, part, 'pump');
@@ -105,7 +107,7 @@ describe('interconnection view', () => {
     assert.equal(await page.locator(`g[data-el="${part}"] g[data-el="${item}"][data-kind="ItemUsage"]`).count(), 1, 'the item is drawn inside the part');
     assert.match(await page.textContent('#f-kind'), /^item item1 in pump$/);
     assert.ok(await page.locator('#f-direction').isVisible(), 'the panel offers the item\'s direction');
-    assert.equal(await page.inputValue('#f-direction'), '', 'an item in a part starts undirected');
+    assert.equal(await chosen(page, '#f-direction'), '', 'an item in a part starts undirected');
     assert.equal(await page.textContent(`g[data-el="${item}"] text.kw`), '«item»', 'the header reads «item»');
     const text = await exportText(page);
     assert.match(text, /\bitem def Fuel;/, 'the export declares the item def');
@@ -187,9 +189,9 @@ describe('interconnection view', () => {
     await lookAt(page, 'FuelPort');
     await clickElement(page, 'FuelPort.supply');
     await until(page, () => document.querySelector('g[data-el="FuelPort.supply"]')?.classList.contains('is-selected'), null, 'the item is selected');
-    assert.equal(await page.inputValue('#f-direction'), 'out');
+    assert.equal(await chosen(page, '#f-direction'), 'out');
     assert.equal(await page.textContent('g[data-el="FuelPort.supply"] text.kw'), '«out item»');
-    await page.selectOption('#f-direction', 'in');
+    await choose(page, '#f-direction', 'in');
     await until(page, () => document.querySelector('g[data-el="FuelPort.supply"] text.kw')?.textContent === '«in item»', null, 'the header follows the direction');
     assert.equal(await glyphHeads(page, 'System.tank.fuelOut'), 1, 'with both items coming in, the port shows one head');
     assert.equal(await glyphHeads(page, 'System.pump.fuelIn'), 1, 'and so does its conjugate, the other way');
@@ -220,13 +222,13 @@ describe('interconnection view', () => {
     box = await page.locator(`g[data-el="${pdef}"] > .outline`).boundingBox();
     const item = await placeElement(page, 'ItemUsage', { x: box.x + box.width / 2, y: box.y + box.height - 10 });
     assert.equal(await page.locator(`g[data-el="${pdef}"] g[data-el="${item}"]`).count(), 1, 'the item is drawn inside the port def');
-    assert.equal(await page.inputValue('#f-direction'), 'out', 'an item placed on a port def starts out going out');
+    assert.equal(await chosen(page, '#f-direction'), 'out', 'an item placed on a port def starts out going out');
     await checked(page);
     assert.equal(await page.locator('#problems-list li').count(), 0, 'so it has no problem');
-    await page.selectOption('#f-direction', { value: '' });
+    await choose(page, '#f-direction', '');
     await until(page, () => /needs a direction/.test(document.querySelector('#problems-list')?.textContent || ''), null, 'an undirected item on a port def is a problem');
     assert.ok(await page.locator(`g[data-el="${item}"].is-problem`).count() >= 1, 'the item is marked');
-    await page.selectOption('#f-direction', 'in');
+    await choose(page, '#f-direction', 'in');
     await until(page, () => document.querySelectorAll('#problems-list li').length === 0, null, 'a direction clears it');
     const text = await exportText(page);
     assert.match(text, /interface def Link \{\s+end port port1;\s+end port port2;\s+\}/, 'the interface def\'s ports are written as its ends');

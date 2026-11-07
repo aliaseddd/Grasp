@@ -384,6 +384,34 @@ textarea.text[readonly] { resize: none; background: transparent; }
 }
 .label-editor::placeholder { color: var(--fg-2); }
 .label-editor:focus-visible { outline: none; }
+/* ==== src/details/style.css */
+/* The details view, as SysON's: the Core and Advanced tabs, the groups, the rows the canvas knows or doesn't hold yet,
+   and a choice drawn as radio buttons; in the panel's own colors and type. */
+.fields .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
+.fields .tab-button {
+  border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; margin-bottom: -1px;
+  padding: 6px 12px; font: 500 12px/1 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2);
+}
+.fields .tab-button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.fields .tab-button:hover { color: var(--fg); border-color: transparent; border-bottom-color: var(--line-strong); }
+.fields .tab-button[aria-selected="true"]:hover { border-bottom-color: var(--accent); }
+.fields .details-page, .fields .group, .fields .group-body { display: grid; gap: 10px; }
+.fields .details-page[hidden], .fields .group[hidden] { display: none; }
+.fields .group + .group { padding-top: 10px; border-top: 1px solid var(--line); }
+.fields .group-title { margin: 0; font: 600 13px/1.3 var(--sans); color: var(--fg); }
+.fields .detail { margin: 0; display: grid; gap: 4px; }
+.fields .detail-label { font: 500 11px/1.2 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); }
+.fields .detail-value { font: 400 13px/1.35 var(--sans); color: var(--fg); overflow-wrap: anywhere; }
+.fields .detail-value input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.fields .detail.not-held .detail-value { font-style: italic; color: var(--fg-2); }
+.fields .radio-field { display: grid; gap: 4px; }
+.fields .radio-field[hidden] { display: none; }
+.fields .radio-label { font: 500 11px/1.2 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); }
+.fields fieldset.radios { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.fields fieldset.radios label {
+  display: inline-flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; font: 400 13px/1.3 var(--sans); color: var(--fg);
+}
+.fields fieldset.radios input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
 /* ==== src/core/style-end.css */
 @media (max-width: 720px) {
   /* On a phone the palette is one row that scrolls sideways, so the bar stays short. */
@@ -448,52 +476,79 @@ textarea.text[readonly] { resize: none; background: transparent; }
     <aside class="float panel" id="panel" aria-label="Selection and notes">
       <section id="inspector" aria-labelledby="inspector-title">
         <div class="panel-head">
-          <h2 id="inspector-title">Selection</h2>
+          <h2 id="inspector-title">Details</h2>
           <button type="button" class="hide" id="hide-panel">Hide</button>
         </div>
-        <p class="empty" id="inspector-empty">Nothing selected. Click a box, a port, or a line.</p>
+        <p class="empty" id="inspector-empty">No object selected. Click a box, a port, or a line.</p>
         <div class="fields" id="fields" hidden>
           <p class="kind" id="f-kind"></p>
-          <!-- Every field: <label id="l-<field>">… <input id="f-<field>"></label>, one per row of FIELDS, which the panel
-               shows for the kinds that list it. -->
-          <label id="l-name">Name <input type="text" id="f-name" autocomplete="off" spellcheck="false"></label>
-          <label class="check" id="l-abstract"><input type="checkbox" id="f-abstract"> abstract</label>
-          <label id="l-type">Defined by <select id="f-type"></select></label>
-          <label class="check" id="l-typeLine"><input type="checkbox" id="f-typeLine"> draw the defined-by line</label>
-          <label id="l-multiplicity">Multiplicity <input type="text" id="f-multiplicity" autocomplete="off" spellcheck="false" placeholder="1, 0..1, or 1..*"></label>
-          <label class="check" id="l-conjugated"><input type="checkbox" id="f-conjugated"> conjugated (~), the other side of the port</label>
-          <label id="l-doc">Doc <textarea id="f-doc" rows="2" spellcheck="true"></textarea></label>
-          <label id="l-direction">Direction <select id="f-direction"><option value="">undirected</option><option value="in">in</option><option value="out">out</option><option value="inout">inout</option></select></label>
-          <label id="l-item">Item (the payload) <select id="f-item"></select></label>
-          <!-- The features' fields. -->
-          <label id="l-interfaceDef">Interface def <select id="f-interfaceDef"></select></label>
-          <label id="l-actionKind">Kind of action <select id="f-actionKind"><option value="plain">plain</option><option value="send">send</option><option value="accept">accept</option></select></label>
-          <label id="l-payload">Payload <input type="text" id="f-payload" autocomplete="off" spellcheck="false" placeholder="new Alert() to send; x : Type or after 10 [SI::s] to accept"></label>
-          <label id="l-target">Target (via a port, to anything else) <input type="text" id="f-target" autocomplete="off" spellcheck="false" placeholder="a port, a part or an action"></label>
-          <label id="l-role">Role under a state <select id="f-role"><option value="">none</option><option value="entry">entry</option><option value="do">do</option><option value="exit">exit</option></select></label>
-          <label id="l-guard">Guard <input type="text" id="f-guard" autocomplete="off" spellcheck="false" placeholder="a Boolean expression, or else"></label>
-          <label id="l-trigger">Trigger (the accept part) <input type="text" id="f-trigger" autocomplete="off" spellcheck="false" placeholder="StartSignal · x : Sig via port · after 48 [SI::h] · when ready"></label>
-          <label id="l-effect">Effect <input type="text" id="f-effect" autocomplete="off" spellcheck="false" placeholder="action name, send new X() to y, assign a := b"></label>
-          <label class="check" id="l-parallel"><input type="checkbox" id="f-parallel"> parallel: its regions run at the same time</label>
-          <label id="l-order">Order (the message's place in time, top to bottom) <input type="text" id="f-order" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="1, 2, 3…"></label>
-          <!-- The spatial fields of a part drawn in a geometry view: its shape and unit, the dimensions its shape has (in
-               that unit), and the position of its origin in its owner's frame. -->
-          <div class="geo-row">
-            <label id="l-shape">Shape <select id="f-shape"><option value="">none</option><option value="Box">Box</option><option value="Rectangle">Rectangle</option><option value="CircularCylinder">CircularCylinder</option><option value="Sphere">Sphere</option><option value="CircularCone">CircularCone</option></select></label>
-            <label id="l-unit">Unit <select id="f-unit"><option value="m">m</option><option value="mm">mm</option><option value="cm">cm</option><option value="km">km</option><option value="ft">ft</option><option value="in">in</option></select></label>
+          <!-- SysON's Details view: a Core tab and an Advanced tab (details/page.js). Every field is a
+               <label id="l-<field>"> holding its input, <… id="f-<field>">, one per row of FIELDS, which the panel shows
+               for the kinds that list it; a choice is a fieldset of radios, id="f-<field>". -->
+          <div class="tabs" role="tablist" aria-label="Details">
+            <button type="button" role="tab" class="tab-button" id="tab-core" data-tab="Core" aria-controls="page-core" aria-selected="true">Core</button>
+            <button type="button" role="tab" class="tab-button" id="tab-advanced" data-tab="Advanced" aria-controls="page-advanced" aria-selected="false">Advanced</button>
           </div>
-          <div class="geo-row">
-            <label id="l-length">Length <input type="text" id="f-length" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-width">Width <input type="text" id="f-width" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-height">Height <input type="text" id="f-height" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-radius">Radius <input type="text" id="f-radius" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          <div class="details-page" id="page-core" role="tabpanel" aria-labelledby="tab-core" data-tab="Core">
+            <div class="group" id="g-main">
+              <h3 class="group-title" id="g-main-title"></h3>
+              <!-- SysON's core features first, in its order, then the canvas's own fields in this order, then the
+                   documentation; details/page.js puts them there. -->
+              <div class="group-body" id="g-main-body">
+                <label id="l-name">Declared Name <input type="text" id="f-name" autocomplete="off" spellcheck="false"></label>
+                <p class="detail" id="d-qualifiedName"><span class="detail-label">Qualified Name</span><span class="detail-value" id="f-path"></span></p>
+                <div class="radio-field" id="l-direction"><span class="radio-label">Direction</span><fieldset class="radios" id="f-direction"><label><input type="radio" name="f-direction" value=""> unset</label><label><input type="radio" name="f-direction" value="in"> in</label><label><input type="radio" name="f-direction" value="out"> out</label><label><input type="radio" name="f-direction" value="inout"> inout</label></fieldset></div>
+                <label class="check" id="l-parallel"><input type="checkbox" id="f-parallel"> Is Parallel: its regions run at the same time</label>
+                <label class="check" id="l-abstract"><input type="checkbox" id="f-abstract"> Is Abstract</label>
+                <label id="l-multiplicity">Multiplicity <input type="text" id="f-multiplicity" autocomplete="off" spellcheck="false" placeholder="1, 0..1, or 1..*"></label>
+                <label id="l-item">Item (the payload) <select id="f-item"></select></label>
+                <div class="radio-field" id="l-actionKind"><span class="radio-label">Kind of action</span><fieldset class="radios" id="f-actionKind"><label><input type="radio" name="f-actionKind" value="plain"> plain</label><label><input type="radio" name="f-actionKind" value="send"> send</label><label><input type="radio" name="f-actionKind" value="accept"> accept</label></fieldset></div>
+                <label id="l-payload">Payload <input type="text" id="f-payload" autocomplete="off" spellcheck="false" placeholder="new Alert() to send; x : Type or after 10 [SI::s] to accept"></label>
+                <label id="l-target">Target (via a port, to anything else) <input type="text" id="f-target" autocomplete="off" spellcheck="false" placeholder="a port, a part or an action"></label>
+                <div class="radio-field" id="l-role"><span class="radio-label">Kind under a state</span><fieldset class="radios" id="f-role"><label><input type="radio" name="f-role" value=""> unset</label><label><input type="radio" name="f-role" value="entry"> entry</label><label><input type="radio" name="f-role" value="do"> do</label><label><input type="radio" name="f-role" value="exit"> exit</label></fieldset></div>
+                <label id="l-guard">Guard <input type="text" id="f-guard" autocomplete="off" spellcheck="false" placeholder="a Boolean expression, or else"></label>
+                <label id="l-trigger">Trigger (the accept part) <input type="text" id="f-trigger" autocomplete="off" spellcheck="false" placeholder="StartSignal · x : Sig via port · after 48 [SI::h] · when ready"></label>
+                <label id="l-effect">Effect <input type="text" id="f-effect" autocomplete="off" spellcheck="false" placeholder="action name, send new X() to y, assign a := b"></label>
+                <label id="l-order">Order (the message's place in time, top to bottom) <input type="text" id="f-order" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="1, 2, 3…"></label>
+                <label id="l-doc">Documentation <textarea id="f-doc" rows="2" spellcheck="true"></textarea></label>
+              </div>
+            </div>
+            <!-- SysON's untitled groups: what the element is typed by, and what it specializes or subsets. -->
+            <div class="group" id="g-typing">
+              <label id="l-type">Typed by <select id="f-type"></select></label>
+              <label id="l-interfaceDef">Typed by <select id="f-interfaceDef"></select></label>
+              <label class="check" id="l-typeLine"><input type="checkbox" id="f-typeLine"> draw the defined-by line</label>
+              <label class="check" id="l-conjugated"><input type="checkbox" id="f-conjugated"> conjugated (~), the other side of the port</label>
+            </div>
+            <div class="group" id="g-general">
+              <label id="l-specializes">Specializes <select id="f-specializes"></select></label>
+              <label id="l-subsets">Subsets <select id="f-subsets"></select></label>
+            </div>
+            <!-- The spatial fields of a part drawn in a geometry view: its shape and unit, the dimensions its shape has
+                 (in that unit), and the position of its origin in its owner's frame. -->
+            <div class="group" id="g-geometry">
+              <div class="radio-field" id="l-shape"><span class="radio-label">Shape</span><fieldset class="radios" id="f-shape"><label><input type="radio" name="f-shape" value=""> none</label><label><input type="radio" name="f-shape" value="Box"> Box</label><label><input type="radio" name="f-shape" value="Rectangle"> Rectangle</label><label><input type="radio" name="f-shape" value="CircularCylinder"> CircularCylinder</label><label><input type="radio" name="f-shape" value="Sphere"> Sphere</label><label><input type="radio" name="f-shape" value="CircularCone"> CircularCone</label></fieldset></div>
+              <div class="radio-field" id="l-unit"><span class="radio-label">Unit</span><fieldset class="radios" id="f-unit"><label><input type="radio" name="f-unit" value="m"> m</label><label><input type="radio" name="f-unit" value="mm"> mm</label><label><input type="radio" name="f-unit" value="cm"> cm</label><label><input type="radio" name="f-unit" value="km"> km</label><label><input type="radio" name="f-unit" value="ft"> ft</label><label><input type="radio" name="f-unit" value="in"> in</label></fieldset></div>
+              <div class="geo-row">
+                <label id="l-length">Length <input type="text" id="f-length" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-width">Width <input type="text" id="f-width" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-height">Height <input type="text" id="f-height" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-radius">Radius <input type="text" id="f-radius" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+              </div>
+              <div class="geo-row">
+                <label id="l-posX">Position x <input type="text" id="f-posX" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-posY">Position y <input type="text" id="f-posY" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-posZ">Position z <input type="text" id="f-posZ" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+              </div>
+            </div>
           </div>
-          <div class="geo-row">
-            <label id="l-posX">Position x <input type="text" id="f-posX" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-posY">Position y <input type="text" id="f-posY" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-posZ">Position z <input type="text" id="f-posZ" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          <div class="details-page" id="page-advanced" role="tabpanel" aria-labelledby="tab-advanced" data-tab="Advanced" hidden>
+            <div class="group">
+              <h3 class="group-title" id="g-advanced-title"></h3>
+              <!-- Every other attribute of the element's metaclass, in the metamodel's order (details/page.js). -->
+              <div class="group-body" id="g-advanced-body"></div>
+            </div>
           </div>
-          <p class="meta" id="f-path"></p>
           <p class="meta" id="f-views"></p>
           <div class="row">
             <button type="button" id="edit-label">Edit label</button>
@@ -504,8 +559,26 @@ textarea.text[readonly] { resize: none; background: transparent; }
         </div>
         <div class="fields" id="view-fields" hidden>
           <p class="kind" id="v-kind"></p>
-          <label id="l-v-name">Name <input type="text" id="v-name" autocomplete="off" spellcheck="false"></label>
-          <label id="l-v-doc">Doc <textarea id="v-doc" rows="2" spellcheck="true"></textarea></label>
+          <div class="tabs" role="tablist" aria-label="Details of the view">
+            <button type="button" role="tab" class="tab-button" id="v-tab-core" data-tab="Core" aria-controls="v-page-core" aria-selected="true">Core</button>
+            <button type="button" role="tab" class="tab-button" id="v-tab-advanced" data-tab="Advanced" aria-controls="v-page-advanced" aria-selected="false">Advanced</button>
+          </div>
+          <div class="details-page" id="v-page-core" role="tabpanel" aria-labelledby="v-tab-core" data-tab="Core">
+            <div class="group">
+              <h3 class="group-title" id="v-g-main-title"></h3>
+              <div class="group-body" id="v-g-main-body">
+                <label id="l-v-name">Declared Name <input type="text" id="v-name" autocomplete="off" spellcheck="false"></label>
+                <p class="detail" id="v-d-qualifiedName"><span class="detail-label">Qualified Name</span><span class="detail-value" id="v-path"></span></p>
+                <label id="l-v-doc">Documentation <textarea id="v-doc" rows="2" spellcheck="true"></textarea></label>
+              </div>
+            </div>
+          </div>
+          <div class="details-page" id="v-page-advanced" role="tabpanel" aria-labelledby="v-tab-advanced" data-tab="Advanced" hidden>
+            <div class="group">
+              <h3 class="group-title" id="v-g-advanced-title"></h3>
+              <div class="group-body" id="v-g-advanced-body"></div>
+            </div>
+          </div>
           <label id="l-v-show">Show in this view <select id="v-show"></select></label>
           <p class="meta" id="v-meta"></p>
           <!-- Each kind's options, in <div class="view-options" data-view-kind="GridView" hidden>, shown for a view of the kind. -->
@@ -2740,7 +2813,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   Object.assign(lib, {
     VERSION, FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, NAME, MULTIPLICITY, str, isObject,
-    addKinds, addRelationships, attributeField,
+    conforms, addKinds, addRelationships, attributeField,
     canContain, admits, hasTrait, textName, blank, placement, versionOf, upgrade, normalize, index, relIndex, viewIndex,
     lookups, reading, perReading, idsOf, elementsOfKind, linesOfKind, linesFrom, linesTo, linesAt,
     shownIn, chain, childrenOf, descendants, typingOf, inUsage, specializes, commonOwner, acrossDefinitions,
@@ -4564,6 +4637,174 @@ textarea.text[readonly] { resize: none; background: transparent; }
   EXTRA.labelLeftOut = labelLeftOut;
   EXTRA.LINE_LABELS = LINE_LABELS;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/details/lib.js
+// The details view in the model library, as SysON's: what its two tabs hold for an element, a line or a view, from the
+// metaclass it stands on. SysON's Details view (its user manual's details.adoc; docs/sysml/syson/features/views.md,
+// "Details view & property forms") shows a Core tab, a group titled "<Metaclass> Properties" with the metaclass's core
+// features (the declared name, the qualified name, the declared short name, a feature's direction, isIndividual,
+// isParallel…) and then untitled groups (Typed by, Specializes, Subsets…); and an Advanced tab, the same title over
+// every other attribute of the metaclass, in the metamodel's order, inherited first. The canvas holds some of those
+// attributes as fields, can say the value of a few more (an element's id, its name), and can't set the rest yet; each
+// row says which. The Specializes and Subsets fields are here too: the first specialization line an element starts,
+// which the panel retargets or takes away, as SysON's widgets edit an element's Subclassification and Subsetting.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const {
+    METAMODEL, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, conforms, textName, idsOf, chain, childrenOf, linesFrom, specializes,
+    elementsOfKind, quote, qualified, describe, EXTRA
+  } = lib;
+
+  // ---- Specializes and Subsets.
+
+  // What an element's first specialization line may end on: an element of its own kind, never itself, never one that
+  // specializes it already (a circle), and for a usage one in the same box, as the line's rule says.
+  function generals(model, el) {
+    const usage = KINDS[el.kind].usage;
+    return elementsOfKind(model, el.kind).filter((e) => e.id !== el.id && (!usage || e.owner === el.owner) && !specializes(model, e, el));
+  }
+  Object.assign(FIELDS, {
+    // A definition's first Specialization line (SysON's Subclassification: Specializes), and a usage's (its
+    // Subsetting: Subsets). Not a value of the element but the line, as the definition is the usage's typing: the
+    // panel shows it while the element has such a line, and picking nothing takes the line away.
+    specializes: { type: 'ref', label: 'specialization', stored: false, options: generals },
+    subsets: { type: 'ref', label: 'subsetting', stored: false, options: generals },
+  });
+  // Every kind with a name in the text lists the one that fits it.
+  Object.keys(KINDS).forEach((kind) => {
+    if (textName({ kind: kind }) === null) return;
+    KINDS[kind].fields.push(KINDS[kind].definition ? 'specializes' : 'subsets');
+  });
+  // The first Specialization line an element starts, or null.
+  function firstGeneral(model, el) { return linesFrom(model, el.id, 'Specialization')[0] || null; }
+
+  // ---- The tabs.
+
+  // A name of the metamodel in words, as EMF shows a feature's: declaredName is Declared Name, elementId Element Id.
+  function words(name) {
+    return name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
+  }
+  // The groups' title: the metaclass in words, a usage's without "Usage", then "Properties" (Part Properties, Part
+  // Definition Properties).
+  function detailsTitle(metaclass) { return words(metaclass).replace(/ Usage$/, '') + ' Properties'; }
+  // The class an item stands on: its kind's, its relationship kind's, or a view's, ViewUsage. type is 'el', 'rel' or
+  // 'view'.
+  function metaclassOf(type, item) {
+    return type === 'el' ? KINDS[item.kind].metaclass : type === 'rel' ? RELATIONSHIPS[item.kind].metaclass : 'ViewUsage';
+  }
+  // SysON's core features of a class, in its order: every element's names; a feature's direction; isIndividual on an
+  // occurrence usage (not a port, a state or a view, which show a feature's set only) and on an occurrence definition,
+  // where it takes isAbstract's place; isAbstract on any other type that isn't a feature; isParallel on a state; a view's
+  // exposed elements; a specialization's general and specific ends, and a typing's type and typed feature.
+  function coreFeatures(metaclass) {
+    const is = (c) => conforms(metaclass, c);
+    const out = ['declaredName', 'qualifiedName', 'declaredShortName'];
+    if (is('Specialization')) {
+      out.push('general', 'specific');
+      if (is('FeatureTyping')) out.push('type', 'typedFeature');
+      return out;
+    }
+    if (is('Feature')) out.push('direction');
+    const featureSet = is('PortUsage') || is('StateUsage') || is('ViewUsage') || is('RequirementUsage');
+    if (is('OccurrenceUsage') && !featureSet) out.push('isIndividual');
+    if (is('Type') && !is('Feature') && !is('OccurrenceDefinition')) out.push('isAbstract');
+    if (is('OccurrenceDefinition')) out.push('isIndividual');
+    if (is('StateUsage') || is('StateDefinition')) out.push('isParallel');
+    if (is('ViewUsage')) out.push('exposedElement');
+    return out;
+  }
+  // Every feature of a class, its own and those it has from its supertypes, supertypes first, in the metamodel's order,
+  // each once: { feature, of }.
+  function allFeatures(metaclass) {
+    const out = [];
+    const seen = new Set();
+    const names = new Set();
+    (function walk(name) {
+      if (seen.has(name) || !METAMODEL[name]) return;
+      seen.add(name);
+      (METAMODEL[name].general || []).forEach(walk);
+      (METAMODEL[name].fields || []).forEach((f) => { if (!names.has(f.name)) { names.add(f.name); out.push({ feature: f, of: name }); } });
+    })(metaclass);
+    return out;
+  }
+  // Whether a feature is an attribute SysON's tabs show a widget for: one value, of a primitive type or an enumeration.
+  // A list (aliasIds) and a reference get none here; SysON shows the changeable references, which the canvas edits as
+  // its lines and its Typed by, Specializes and Subsets.
+  function shownAttribute(f) {
+    const primitive = ['Boolean', 'String', 'Integer', 'Real'].indexOf(f.type) >= 0 || !!(METAMODEL[f.type] && METAMODEL[f.type].literals);
+    return primitive && f.upper !== '*';
+  }
+  // The fields an item's kind lists, by the attribute each holds.
+  function heldFields(type, item) {
+    const table = type === 'el' ? KINDS : type === 'rel' ? RELATIONSHIPS : null;
+    const list = table ? table[item.kind].fields : VIEW_KINDS[item.kind].fields;
+    const out = {};
+    list.forEach((fld) => { if (FIELDS[fld] && FIELDS[fld].attribute) out[FIELDS[fld].attribute] = fld; });
+    return out;
+  }
+  // The qualified name of a line: the path of the element it is declared in, or the package, and its name; '' while
+  // it has none.
+  function lineQualified(model, rel, ids) {
+    const name = String(rel.name || '').trim();
+    if (!name) return '';
+    const owner = RELATIONSHIPS[rel.kind].owner ? RELATIONSHIPS[rel.kind].owner(model, rel, ids) : null;
+    const home = owner ? ids.get(owner) : null;
+    return (home ? qualified(model, home, ids) : quote(model.package.name)) + '::' + quote(name);
+  }
+  // The value the canvas knows for an attribute or end it doesn't keep as a field, or undefined when it can't say: the
+  // element's id; its name, as it is written; its qualified name; that it is not a library's; a line's ends.
+  function knownValue(model, type, item, name, ids) {
+    if (name === 'elementId') return item.id;
+    if (name === 'isLibraryElement') return false;
+    if (name === 'name') {
+      // An element whose kind has no name in the text (a start node) has none to give; an unnamed one's is empty.
+      if (type === 'el') { const n = textName(item); return n === null ? undefined : n; }
+      return type === 'view' || RELATIONSHIPS[item.kind].fields.indexOf('name') >= 0 ? String(item.name || '').trim() : undefined;
+    }
+    if (type === 'view' && name === 'exposedElement') {
+      // What the view shows: a browser view every element under its roots; any other view what its layout holds.
+      if (VIEW_KINDS[item.kind].renderer === 'browser') return 'every element under its roots';
+      const shown = Object.keys(item.layout || {}).map((id) => ids.get(id)).filter(Boolean)
+        .map((e) => (textName(e) === null ? KINDS[e.kind].label : textName(e) || '(unnamed)'));
+      return shown.length ? shown.slice(0, 6).join(', ') + (shown.length > 6 ? ' and ' + (shown.length - 6) + ' more' : '') : 'nothing yet';
+    }
+    if (name === 'qualifiedName') {
+      if (type === 'el') return qualified(model, item, ids);
+      if (type === 'view') return quote(model.package.name) + '::' + quote(String(item.name || '').trim() || 'unnamed');
+      return lineQualified(model, item, ids);
+    }
+    if (type === 'rel' && (name === 'general' || name === 'type' || name === 'specific' || name === 'typedFeature')) {
+      const end = ids.get(name === 'general' || name === 'type' ? item.to : item.from);
+      return end ? describe(model, end, ids) : undefined;
+    }
+    return undefined;
+  }
+  // What the details view shows for an item (type 'el', 'rel' or 'view'): { metaclass, title, core, advanced }. core
+  // is a row per core feature, in SysON's order; advanced a row per other attribute of the metaclass, supertypes'
+  // first. A row is { name, label, field } when a field of the item's kind holds it (the panel's own input), { name,
+  // label, value } when the canvas knows its value (shown, not edited), or { name, label, held: false } when the canvas
+  // can't set it yet.
+  function detailsOf(model, type, item) {
+    const ids = idsOf(model);
+    const metaclass = metaclassOf(type, item);
+    const held = heldFields(type, item);
+    const row = (name) => {
+      const label = words(name);
+      if (held[name]) return { name: name, label: label, field: held[name] };
+      const value = knownValue(model, type, item, name, ids);
+      return value === undefined ? { name: name, label: label, held: false } : { name: name, label: label, value: value };
+    };
+    const core = coreFeatures(metaclass);
+    const advanced = allFeatures(metaclass).filter((x) => shownAttribute(x.feature) && core.indexOf(x.feature.name) < 0).map((x) => row(x.feature.name));
+    return { metaclass: metaclass, title: detailsTitle(metaclass), core: core.map(row), advanced: advanced };
+  }
+
+  EXTRA.detailsOf = detailsOf;
+  EXTRA.detailsTitle = detailsTitle;
+  EXTRA.coreFeatures = coreFeatures;
+  EXTRA.firstGeneral = firstGeneral;
+  EXTRA.generals = generals;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
 // ==== src/core/lib/validate.js
 // The model library's checks: everything validate finds wrong, from the tables' rules and the features' hooks.
 (function (root) {
@@ -5288,7 +5529,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // the item's property; none, the words for a ref's empty choice ('nothing' unless said); write(x, value), the change,
   // made inside edit(), in place of setting the item's property; said(x), the words for the change, in place of 'Set
   // the <label> of <what> to <value>'; done(x), what the page does once the change is made, or, for a field that takes
-  // typing, once the field is left. panel.js has the core's; a feature's page.js adds its own.
+  // typing, once the field is left; locked(x), why the field can't be changed now (a sentence), or null. panel.js has
+  // the core's; a feature's page.js adds its own.
   const FIELD_HOOKS = {};
 
   const $ = (id) => document.getElementById(id);
@@ -7554,6 +7796,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     fields.hidden = false;
     renderHead(s, write);
     renderFields(s, write);
+    C.renderDetails(s);   // the Core and Advanced tabs, as SysON's Details view (details/page.js)
     deleteButton.hidden = !write;
     C.renderLabelButton();   // Edit label, or Rename in a browser view (labels/page.js)
     addNoteButton.hidden = !write || (s.type === 'el' && M.textName(s.item) === null);
@@ -7614,9 +7857,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return view ? view.kind : null;
   }
   // Fills the selection's fields from the model and shows them: every field's label is hidden, then each field the
-  // selection's kind lists is filled and shown, a bool as a checkbox, an enum as a select of its values, a ref as a
-  // select of the elements its options allow with nothing first, the rest as text. A field with views shows only while
-  // the selection is drawn in a view of one of those kinds, and one with a shown hook only when the hook says so.
+  // selection's kind lists is filled and shown, a bool as a checkbox, an enum as radio buttons, one per value (a
+  // fieldset, as SysON draws an enumeration), a ref as a select of the elements its options allow with nothing first,
+  // the rest as text. A field with views shows only while the selection is drawn in a view of one of those kinds, and
+  // one with a shown hook only when the hook says so. A field its locked hook names a reason for can't be changed, and
+  // its label says why on hover.
   function renderFields(s, write) {
     const place = PLACES[s.type];
     const kind = viewKindShowing(s.item.id);
@@ -7628,6 +7873,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const input = x.input;
       const v = valueOf(x);
       if (x.spec.type === 'bool') input.checked = v === true;
+      else if (input.tagName === 'FIELDSET') setChoice(input, x.spec.values.indexOf(v) >= 0 ? v : x.spec.values[0]);
       else if (x.spec.type === 'ref') {
         while (input.firstChild) input.removeChild(input.firstChild);
         const none = document.createElement('option');
@@ -7643,26 +7889,37 @@ textarea.text[readonly] { resize: none; background: transparent; }
         input.value = typeof v === 'string' ? v : '';
       } else if (x.spec.type === 'enum') input.value = x.spec.values.indexOf(v) >= 0 ? v : x.spec.values[0];
       else input.value = v === undefined || v === null ? '' : String(v);
-      if (input.tagName === 'SELECT' || input.type === 'checkbox') input.disabled = !write; else input.readOnly = !write;
+      const locked = x.hooks.locked ? x.hooks.locked(x) : null;
+      if (input.tagName === 'FIELDSET') input.querySelectorAll('input').forEach((r) => { r.disabled = !write || !!locked; });
+      else if (input.tagName === 'SELECT' || input.type === 'checkbox') input.disabled = !write || !!locked;
+      else input.readOnly = !write || !!locked;
+      if (locked) label.title = locked; else label.removeAttribute('title');
       label.hidden = false;
     });
   }
+  // A choice drawn as radio buttons: the value of the one checked, and checking the one of a value.
+  function choiceOf(fieldset) { const r = fieldset.querySelector('input:checked'); return r ? r.value : ''; }
+  function setChoice(fieldset, v) { fieldset.querySelectorAll('input').forEach((r) => { r.checked = r.value === v; }); }
+  // The input an event in the panel came from, as the fields have them: a radio button's fieldset.
+  function inputOf(target) { return target && target.type === 'radio' && target.closest ? target.closest('fieldset') : target; }
   // The field of the selection an input or change event in the panel is about, or null.
   function fieldOf(event) {
     const s = resolve(S.selection);
-    const input = event.target;
+    const input = inputOf(event.target);
     if (!s || !input || !input.id) return null;
     const prefix = PLACES[s.type].input;
     return input.id.indexOf(prefix) === 0 ? fieldAt(s, input.id.slice(prefix.length), input) : null;
   }
   // Whether an input is that of a field that takes typing, whatever is selected now.
-  function typedInput(input) {
+  function typedInput(target) {
+    const input = inputOf(target);
     const m = input && input.id ? /^[fv]-(.+)$/.exec(input.id) : null;
     return !!m && !!M.FIELDS[m[1]] && typed(M.FIELDS[m[1]]);
   }
   // The value an input holds, as its field's row reads it: a string with its ends off when the row trims.
   function readInput(spec, input) {
     if (spec.type === 'bool') return input.checked;
+    if (input.tagName === 'FIELDSET') return choiceOf(input);
     if (spec.type === 'number') return input.value.trim() !== '' && Number.isFinite(+input.value) ? +input.value : '';
     return spec.trim ? input.value.trim() : input.value;
   }
@@ -7718,6 +7975,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     viewFields.hidden = false;
     renderHead(s, write);
     renderFields(s, write);
+    C.renderDetails(s);   // the Core and Advanced tabs (details/page.js)
     while (vShow.firstChild) vShow.removeChild(vShow.firstChild);
     const candidates = showable(view);
     if (!candidates.length) {
@@ -10946,6 +11204,157 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   Object.assign(C, { placeLabelEditor, openLabelEditor, labelKey, renderLabelButton });
+})(window.SysMLCanvas);
+// ==== src/details/page.js
+// The details view on the page, as SysON's Details view (details/lib.js says what it holds): the panel's two tabs,
+// Core and Advanced, the tab kept by its name as the selection changes; the groups' title, "<Metaclass> Properties";
+// on Core, SysON's core features in its order (the fields that hold them, the values the canvas knows, the ones it
+// doesn't hold yet), then the canvas's own fields, the documentation last, and the untitled groups, each shown only
+// when something in it is; on Advanced, every other attribute of the metaclass. And the hooks of the fields it adds or
+// rules: Specializes and Subsets, which retarget or take away an element's first specialization line, and Is Parallel,
+// locked while a state holds transitions, as SysON locks it.
+(function (C) {
+  'use strict';
+  const S = C.state;
+  const { M, FIELD_HOOKS, $, fields, viewFields, say, renderInspector, syncNoteLabels } = C;
+
+  S.detailsTab = 'Core';   // the tab shown: Core or Advanced
+  // The two panels, an element's or a line's and a view's: where their fields' labels are (by id prefix), their
+  // groups' title and body on each tab, and the qualified name's row. own is what the Core group holds in the markup's
+  // order, the canvas's own fields among SysON's.
+  const PANELS = {
+    el: { box: fields, prefix: 'l-', coreTitle: $('g-main-title'), core: $('g-main-body'), advancedTitle: $('g-advanced-title'), advanced: $('g-advanced-body'), path: $('d-qualifiedName') },
+    view: { box: viewFields, prefix: 'l-v-', coreTitle: $('v-g-main-title'), core: $('v-g-main-body'), advancedTitle: $('v-g-advanced-title'), advanced: $('v-g-advanced-body'), path: $('v-d-qualifiedName') }
+  };
+  Object.keys(PANELS).forEach((k) => { PANELS[k].own = Array.from(PANELS[k].core.children); });
+
+  // A row for what the canvas knows but doesn't keep as a field (a value), or doesn't hold yet: its label and its
+  // value, a Boolean as a checkbox that can't be changed, as SysON shows a derived one.
+  function row(r) {
+    const p = document.createElement('p');
+    p.className = 'detail' + (r.held === false ? ' not-held' : '');
+    p.setAttribute('data-detail', r.name);
+    const label = document.createElement('span');
+    label.className = 'detail-label';
+    label.textContent = r.label;
+    const value = document.createElement('span');
+    value.className = 'detail-value';
+    if (r.held === false) {
+      value.textContent = 'not held yet';
+      p.title = 'The canvas doesn\'t hold ' + r.label + ' yet: the text leaves it as SysML has it.';
+    } else if (typeof r.value === 'boolean') {
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = r.value;
+      box.disabled = true;
+      box.setAttribute('aria-label', r.label);
+      value.appendChild(box);
+    } else value.textContent = r.value === '' ? '(none)' : String(r.value);
+    p.appendChild(label);
+    p.appendChild(value);
+    return p;
+  }
+  // The node a row of the library's is shown by: the field's own label (the panel fills it and shows or hides it),
+  // the qualified name's row, or a new row.
+  function nodeFor(panel, r) {
+    if (r.field) return $(panel.prefix + r.field);
+    if (r.name === 'qualifiedName') {
+      panel.path.querySelector('.detail-value').textContent = r.value === undefined || r.value === '' ? '(none)' : r.value;
+      return panel.path;
+    }
+    return row(r);
+  }
+  // Shows the tab S.detailsTab names in both panels.
+  function showTab() {
+    [fields, viewFields].forEach((box) => {
+      box.querySelectorAll('.tab-button').forEach((b) => b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === S.detailsTab)));
+      box.querySelectorAll('.details-page').forEach((page) => { page.hidden = page.getAttribute('data-tab') !== S.detailsTab; });
+    });
+  }
+  // A group is shown while something in it is: a field's label, or a row.
+  function hideEmptyGroups(box) {
+    box.querySelectorAll('.group').forEach((g) => {
+      g.hidden = !Array.from(g.querySelectorAll('[id^="l-"], .detail')).some((n) => !n.hidden);
+    });
+  }
+  // Puts the selection's details in its panel, after the panel filled its fields: the title; on Core, SysON's core
+  // features in its order, then the canvas's own fields as the markup has them, the documentation last; on Advanced,
+  // the metaclass's other attributes. A field's label moves to the tab its attribute is on.
+  function renderDetails(s) {
+    const panel = s.type === 'view' ? PANELS.view : PANELS.el;
+    const d = M.detailsOf(S.model, s.type, s.item);
+    panel.coreTitle.textContent = d.title;
+    panel.advancedTitle.textContent = d.title;
+    panel.box.querySelectorAll('[data-detail]').forEach((n) => n.remove());
+    const core = d.core.map((r) => nodeFor(panel, r)).filter(Boolean);
+    const doc = $(panel.prefix + 'doc');
+    panel.own.forEach((n) => { if (core.indexOf(n) < 0 && n !== doc && !d.advanced.some((r) => r.field && $(panel.prefix + r.field) === n)) core.push(n); });
+    if (doc) core.push(doc);
+    core.forEach((n) => panel.core.appendChild(n));
+    d.advanced.map((r) => nodeFor(panel, r)).filter(Boolean).forEach((n) => panel.advanced.appendChild(n));
+    showTab();
+    hideEmptyGroups(panel.box);
+  }
+  // The tabs: a click, or the arrow keys between them, shows the other one.
+  [fields, viewFields].forEach((box) => {
+    const buttons = Array.from(box.querySelectorAll('.tab-button'));
+    buttons.forEach((b, i) => {
+      b.addEventListener('click', () => { S.detailsTab = b.getAttribute('data-tab'); showTab(); });
+      b.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        const next = buttons[(i + (event.key === 'ArrowRight' ? 1 : buttons.length - 1)) % buttons.length];
+        S.detailsTab = next.getAttribute('data-tab');
+        showTab();
+        next.focus();
+        event.preventDefault();
+      });
+    });
+  });
+
+  // ---- The fields' hooks.
+
+  // Specializes (a definition's) and Subsets (a usage's): the element's first specialization line, there while it
+  // has one. Picking another element moves the line's end, so the notes on it stay; picking nothing takes the line
+  // away, as SysON's clear button does. The choices are what the line's rule allows (M.generals).
+  function generalHooks(verb, noun) {
+    return {
+      none: 'nothing: take the line away',
+      shown: function (x) { return !!M.firstGeneral(S.model, x.item); },
+      value: function (x) { const r = M.firstGeneral(S.model, x.item); return r ? r.to : ''; },
+      write: function (x, value) {
+        const r = M.firstGeneral(S.model, x.item);
+        if (!r) return;
+        if (!value) { S.model.relationships.splice(S.model.relationships.indexOf(r), 1); return; }
+        r.to = value;
+      },
+      said: function (x) {
+        const r = M.firstGeneral(S.model, x.item);
+        const general = r ? S.model.elements.find((e) => e.id === r.to) : null;
+        return general ? 'Made ' + M.describe(S.model, x.item) + ' ' + verb + ' ' + (M.textName(general) || '(unnamed)')
+          : 'Took away the ' + noun + ' of ' + M.describe(S.model, x.item);
+      },
+      // The panel follows: the field goes with the line; the notes' labels follow the line's end.
+      done: function (x) {
+        renderInspector();
+        syncNoteLabels();
+        C.renderNotes();
+        say(FIELD_HOOKS[x.fld].said(x) + '.');
+      }
+    };
+  }
+  FIELD_HOOKS.specializes = generalHooks('specialize', 'specialization');
+  FIELD_HOOKS.subsets = generalHooks('subset', 'subsetting');
+  // Is Parallel can't be changed while the state holds transitions, as in SysON: its regions would then be joined by
+  // them.
+  FIELD_HOOKS.parallel = Object.assign(FIELD_HOOKS.parallel || {}, {
+    locked: function (x) {
+      const ids = M.idsOf(S.model);
+      const holds = M.linesOfKind(S.model, 'TransitionUsage').some((r) => M.RELATIONSHIPS.TransitionUsage.owner(S.model, r, ids) === x.item.id);
+      return holds ? 'Is Parallel can\'t change while ' + M.describe(S.model, x.item) + ' holds transitions, as in SysON.' : null;
+    }
+  });
+
+  Object.assign(C, { renderDetails });
 })(window.SysMLCanvas);
 // ==== src/core/page/boot.js
 // The page's last script: it starts the page, once every script before it has registered what it defines.

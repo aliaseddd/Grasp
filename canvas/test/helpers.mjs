@@ -287,6 +287,16 @@ export async function rename(page, id, name) {
 }
 
 /** Adds a note on the selection and returns its id, once its li and pin are there. */
+/**
+ * A field drawn as radio buttons, as SysON's details view draws an enumeration (a fieldset, id f-<field>): choose(page,
+ * selector, value) checks the button of a value, chosen(page, selector) reads the value of the one checked ('' when none
+ * is).
+ */
+export const choose = (page, selector, value) => page.check(`${selector} input[value="${value}"]`);
+export const chosen = (page, selector) => page.$eval(selector, (f) => f.querySelector('input:checked')?.value ?? '');
+/** Shows a tab of the details view, Core or Advanced, in the panel for an element or a line. */
+export const detailsTab = (page, tab) => page.click(`#fields .tab-button[data-tab="${tab}"]`);
+
 export async function addNote(page) {
   const before = await page.$$eval('#notes-list li[data-note]', (items) => items.map((li) => li.getAttribute('data-note')));
   await page.click('#add-note');

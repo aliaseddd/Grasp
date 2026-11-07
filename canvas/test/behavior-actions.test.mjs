@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { checked, elementIds, emptyPointIn, exportText, finish, launch, openCanvas, placeElement, relationshipIds, selectedId, until } from './helpers.mjs';
+import { checked, choose, chosen, elementIds, emptyPointIn, exportText, finish, launch, openCanvas, placeElement, relationshipIds, selectedId, until } from './helpers.mjs';
 
 const FIXTURE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'behavior-actions.json');
 
@@ -127,8 +127,8 @@ describe('behavior: action flow view', () => {
     const param = await placeInside(page, 'ParameterUsage', def);
     assert.equal(await page.locator(`g[data-el="${def}"] g[data-el="${param}"][data-kind="ParameterUsage"].parameter`).count(), 1, 'the parameter sits on the border of the action def');
     assert.ok(await page.locator('#f-direction').isVisible(), 'the panel offers the direction');
-    assert.equal(await page.inputValue('#f-direction'), 'in', 'a new parameter goes in');
-    await page.selectOption('#f-direction', 'out');
+    assert.equal(await chosen(page, '#f-direction'), 'in', 'a new parameter goes in');
+    await choose(page, '#f-direction', 'out');
     assert.match(await exported(page), /\bout item param1;/, 'the parameter is written with its direction');
 
     // A fork belongs inside an action: on the plane it is refused with a message and nothing is added.
@@ -219,7 +219,7 @@ describe('behavior: action flow view', () => {
     const view = await addView(page, 'ActionFlowView');
     const def = await placeElement(page, 'ActionDefinition', await emptyPointIn(page, view));
     const action = await placeInside(page, 'ActionUsage', def);
-    await page.selectOption('#f-actionKind', 'send');
+    await choose(page, '#f-actionKind', 'send');
     await until(page, (id) => (document.querySelector(`g[data-el="${id}"] > text.kw`)?.textContent || '').includes('send action'), action, 'the box says «send action»');
     await page.fill('#f-payload', 'new Alert()');
     await page.fill('#f-target', 'maintainer');

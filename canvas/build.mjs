@@ -36,6 +36,7 @@ export const STYLES = [
   'browser/style.css',
   'annotations/style.css',
   'labels/style.css',
+  'details/style.css',
   'core/style-end.css',
 ];
 
@@ -54,6 +55,7 @@ export const LIBRARY = [
   'browser/lib.js',
   'annotations/lib.js',
   'labels/lib.js',
+  'details/lib.js',
   'core/lib/validate.js',
   'core/lib/sysml.js',
   'core/lib/stored.js',
@@ -85,6 +87,7 @@ export const SCRIPTS = [
   'browser/page.js',
   'annotations/page.js',
   'labels/page.js',
+  'details/page.js',
   'core/page/boot.js',
 ];
 

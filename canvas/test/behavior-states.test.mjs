@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import { emptyPointIn, exportText, finish, launch, openCanvas, placeElement, relationshipIds, rename, until } from './helpers.mjs';
+import { choose, emptyPointIn, exportText, finish, launch, openCanvas, placeElement, relationshipIds, rename, until } from './helpers.mjs';
 
 // Copied from views.test.mjs: New view of a kind; returns the new frame's id.
 async function addView(page, kind) {
@@ -192,7 +192,7 @@ describe('behavior: state transition view', () => {
     const state = await placeInside(page, 'StateUsage', def);
     const inner = await placeInside(page, 'ActionUsage', state);
     assert.equal(await page.locator(`g[data-el="${state}"] g[data-el="${inner}"][data-kind="ActionUsage"]`).count(), 1, 'the action is drawn inside the state');
-    await page.selectOption('#f-role', 'entry');
+    await choose(page, '#f-role', 'entry');
     await until(page, (id) => (document.querySelector(`g[data-el="${id}"] > text.kw`)?.textContent || '').includes('entry action'), inner, 'the box says «entry action»');
     assert.match(await exported(page), /\bstate state1 \{\s+entry action action1;\s+\}/, 'the entry action is written in the state');
 
@@ -207,7 +207,7 @@ describe('behavior: state transition view', () => {
     // are written in the order they were placed, so the entry action follows the state.
     const entry = await placeInside(page, 'ActionUsage', def);
     await rename(page, entry, 'init');
-    await page.selectOption('#f-role', 'entry');
+    await choose(page, '#f-role', 'entry');
     text = await exported(page);
     assert.match(text, /\bentry action init;/, `the state def has an entry action:\n${text}`);
     assert.match(text, /\btransition first init then state1;/, `the initial node's transition now leaves the entry action:\n${text}`);
