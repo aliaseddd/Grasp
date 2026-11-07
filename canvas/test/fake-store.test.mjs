@@ -44,7 +44,8 @@ describe('the fake store', () => {
       out.held = Object.keys(window.__store.dump()).length;
       out.oneMore = await code(db.doc('filler/extra').set({ n: 0 }));
       out.rewrite = await code(db.doc('filler/d' + held).set({ n: -1 }));
-      // A view's 65th subscription: the page holds 3 (the working model, the notes, the archive).
+      // A view's 65th subscription: the page holds 5 (the model's head and the collection of its parts, a whole model
+      // handed over in model/working, the notes, the archive).
       const subscribed = [];
       out.subscriptionError = await new Promise((resolve) => {
         for (let i = 0; i < 70; i++) subscribed.push(db.doc('limits/s' + i).onSnapshot(() => {}, (error) => resolve(`${error.code} at ${i + 1}`)));
@@ -56,7 +57,7 @@ describe('the fake store', () => {
       atSize: 'ok', overSize: 'invalid_argument', overSizeMerged: 'invalid_argument', atDepth: 'ok', overDepth: 'invalid_argument',
       longSegment: 'TypeError', longPath: 'TypeError', manySegments: 'TypeError',
       pageOver: 'invalid_argument', pageAt: 'ok', filtersOver: 'invalid_argument', valuesOver: 'invalid_argument', ordersOver: 'invalid_argument',
-      held: 25000, oneMore: 'quota_exceeded', rewrite: 'ok', subscriptionError: 'resource_exhausted at 62',
+      held: 25000, oneMore: 'quota_exceeded', rewrite: 'ok', subscriptionError: 'resource_exhausted at 60',
     });
     await finish(ctx);
   });
