@@ -34,7 +34,8 @@
   }
   function freeName(kind, ownerId) {
     const base = BASE_NAME[kind] || kind;
-    const taken = new Set(M.childrenOf(S.model, ownerId).map((e) => e.name.trim()));
+    // The names the text has beside it: the name the page keeps in a start node takes none.
+    const taken = new Set(M.childrenOf(S.model, ownerId).map(M.textName));
     let i = 1;
     while (taken.has(base + i)) i++;
     return base + i;
@@ -111,8 +112,8 @@
     if (!el) return;
     setTool(null);
     C.select({ type: 'el', id: el.id }, view.id);
-    // A kind with no name field (a start node) has nothing to name, and the panel shows no name input for it.
-    if (!M.hasName(kind)) { say('Added ' + M.describe(S.model, el) + ' to ' + M.describeView(S.model, view) + '.'); return; }
+    // An element with no name in the text (a start node) has nothing to name: the panel shows no name input for it.
+    if (M.textName(el) === null) { say('Added ' + M.describe(S.model, el) + ' to ' + M.describeView(S.model, view) + '.'); return; }
     say('Added ' + M.describe(S.model, el) + ' to ' + M.describeView(S.model, view) + '. Name it in the panel.');
     fName.focus({ preventScroll: true });
     fName.select();

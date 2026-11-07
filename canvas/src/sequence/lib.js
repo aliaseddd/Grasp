@@ -4,8 +4,8 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown,
-    featurePath, describe, describeRel, EXTRA, BODY, declare
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, textName, commonOwner, acrossDefinitions, nameTakenBeside, quote,
+    shown, featurePath, describe, describeRel, EXTRA, BODY, declare
   } = lib;
 
   Object.assign(KINDS, {
@@ -22,9 +22,9 @@
       // The core says so once something refers to it; an event nothing refers to yet still needs its name, since a
       // message can only start or end on it by name.
       check: function (model, el, ids, add) {
-        if (!el.name.trim() && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) {
+        if (textName(el) === '' && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) {
           const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-          add(el.id, 'An event' + (owner ? ' in ' + shown(owner.name) : '') + ' has no name. Name it, so a message can start or end on it.');
+          add(el.id, 'An event' + (owner ? ' in ' + shown(textName(owner)) : '') + ' has no name. Name it, so a message can start or end on it.');
         }
       } },
   });
@@ -56,13 +56,13 @@
       line: { route: 'straight', marker: 'm-message', cls: 'message', labelOffset: -8,
         label: function (rel, model, ids) {
           const item = rel.item ? ids.get(rel.item) : null;
-          return [rel.name.trim(), item ? 'of ' + shown(item.name) : ''].filter(Boolean).join(' ');
+          return [rel.name.trim(), item ? 'of ' + shown(textName(item)) : ''].filter(Boolean).join(' ');
         } },
       toSysML: function (model, rel, ownerId, depth, out, h) {
         const a = h.ids.get(rel.from);
         const b = h.ids.get(rel.to);
         const item = rel.item ? h.ids.get(rel.item) : null;
-        const head = 'message ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (item ? 'of ' + quote(item.name) + ' ' : '') +
+        const head = 'message ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (item ? 'of ' + quote(textName(item)) + ' ' : '') +
           'from ' + featurePath(model, ownerId, a, h.ids) + ' to ' + featurePath(model, ownerId, b, h.ids);
         // A note on an unnamed message can't be about it by name, so it goes inside the message's body.
         const inside = rel.name.trim() ? [] : h.notesOn(rel.id);

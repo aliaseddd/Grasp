@@ -13,11 +13,14 @@
   const FORMAT = 'stronghold-canvas/2';
   const VIEW_DEF = 'StandardViewDefinitions::GeneralView';
 
-  // Element kinds. contains is the kinds an element may own (false: none); onBorder draws it on its owner's
-  // border; definedBy is the definition kind a usage is typed by; size the default box; shape names the entry of
-  // the page's SHAPES that draws it (rect, rounded, port; an unknown shape is drawn as a rect, or as a port on a
-  // border); fields the panel's fields that apply, each a row of FIELDS below, which normalize keeps by their types;
-  // traits the words the relationship rules may ask about with hasTrait (connectable, flowEnd, bindable, lifeline…).
+  // Element kinds. keyword is the word the text declares an element of the kind with (part def, port), or, for a kind
+  // whose elements have no name in the text (no name field: textName), the word the text has for what they stand for
+  // (start, done); label is the kind in sentences. contains is the kinds an element may own (false: none); onBorder
+  // draws it on its owner's border; definedBy is the definition kind a usage is typed by; size the default box; shape
+  // names the entry of the page's SHAPES that draws it (rect, rounded, port; an unknown shape is drawn as a rect, or as
+  // a port on a border); fields the panel's fields that apply, each a row of FIELDS below, which normalize keeps by
+  // their types; traits the words the relationship rules may ask about with hasTrait (connectable, flowEnd, bindable,
+  // lifeline…).
   // A kind may also carry hooks for the export and the checks: head(model, el, h) returns the head of its
   // declaration, everything before the ' {' or ';' (h.headOf(el) is the generated one, to build on), or null for an
   // element the text doesn't declare (a start node), which is then left out with everything inside it; body(model,
@@ -199,11 +202,16 @@
     const k = KINDS[kind];
     return !!(k && k.traits) && k.traits.indexOf(trait) >= 0;
   }
-  // Whether a kind's elements carry a name (name is one of its fields). A start node has none: it is never "unnamed",
-  // and nothing can be about it by name.
-  function hasName(kind) {
-    const k = KINDS[kind];
-    return !!k && k.fields.indexOf('name') >= 0;
+  // Whether an element has a name in the text, and which: the one place that decides it. An element whose kind has a
+  // name field has its name, trimmed, or '' while it has none (an unnamed part, which the text may still write, as
+  // part : Host;). An element whose kind has none has no name in the text at all, whatever its name field holds:
+  // null. Those are the start, done and initial nodes, which stand for what the text has already (the start and done
+  // every action inherits, a state's entry), so the name the page keeps in one for itself (start1) is never written,
+  // shown or compared. Whatever asks whether an element is named, or reads an element's name, asks here; to ask it of
+  // a kind, ask it of an element of the kind with no name yet, { kind }: '' when the kind's elements take names.
+  function textName(el) {
+    const kind = KINDS[el.kind];
+    return kind && kind.fields.indexOf('name') >= 0 ? str(el.name).trim() : null;
   }
 
   function blank() {
@@ -452,7 +460,7 @@
   function nameTakenBeside(model, rel, ids, among) {
     const name = str(rel.name).trim();
     const o = RELATIONSHIPS[rel.kind].owner(model, rel, ids) || '';
-    return model.elements.some((e) => hasName(e.kind) && e.name.trim() === name && (e.owner === undefined ? '' : e.owner) === o) ||
+    return model.elements.some((e) => textName(e) === name && (e.owner === undefined ? '' : e.owner) === o) ||
       among.some((r) => r !== rel && str(r.name).trim() === name && ids.has(r.from) && ids.has(r.to) && (RELATIONSHIPS[r.kind].owner(model, r, ids) || '') === o);
   }
 
@@ -462,19 +470,26 @@
     return isName(n) ? n : "'" + n.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
   }
   function shown(name) { return String(name == null ? '' : name).trim() || '(unnamed)'; }
-  function qualified(model, el, ids) {
-    return [model.package.name].concat(chain(model, el, ids).map((e) => e.name)).map(quote).join('::');
+  // An element as a step of a path in the text: its name, quoted (unnamed when it has none, the name an unnamed
+  // definition is written with), or, for an element with no name in the text, its kind's keyword, the word the text has
+  // for what it stands for: first start then a1; leaves the start of the action it is in, which a start node draws.
+  function segment(el) {
+    const name = textName(el);
+    return name === null ? KINDS[el.kind].keyword : quote(name);
   }
-  // The path to a feature from the element it is declared in: hosts.api from Page.
+  function qualified(model, el, ids) {
+    return [quote(model.package.name)].concat(chain(model, el, ids).map(segment)).join('::');
+  }
+  // The path to a feature from the element it is declared in: hosts.api from Page, done from an action.
   function featurePath(model, ownerId, el, ids) {
     const c = chain(model, el, ids);
     const start = ownerId === null ? 0 : c.findIndex((e) => e.id === ownerId) + 1;
-    return c.slice(start).map((e) => quote(e.name)).join('.');
+    return c.slice(start).map(segment).join('.');
   }
-  // Whether the text can name an element by its qualified name: it and every owner have a name field and a name. A
-  // start node (no name field), or anything inside an unnamed part, can't be exposed or annotated by name.
+  // Whether the text can name an element by its qualified name: it and every owner have a name in the text. A start
+  // node (no name in the text), or anything inside an unnamed part, can't be exposed or annotated by name.
   function nameable(model, el, ids) {
-    return chain(model, el, ids).every((c) => hasName(c.kind) && c.name.trim());
+    return chain(model, el, ids).every((c) => !!textName(c));
   }
   // A label with its indefinite article: "a part", "an item", "an action flow view". Some labels start with a vowel,
   // so 'a ' + label reads wrong for them; capital gives the "A"/"An" that opens a sentence.
@@ -489,19 +504,20 @@
     return labels.length > 1 ? labels.slice(0, -1).join(', ') + ' or ' + labels[labels.length - 1] : labels.join('');
   }
 
-  // An element in a sentence: its kind's label, its name (or "(unnamed)"), and the owner it is in. An element of a kind
-  // with no name field is just its label: "start in a1".
+  // An element in a sentence: its kind's label, its name (or "(unnamed)"), and the owner it is in. An element with no
+  // name in the text is just its label: "start in a1".
   function describe(model, el, ids) {
     ids = ids || index(model);
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-    return KINDS[el.kind].label + (hasName(el.kind) ? ' ' + shown(el.name) : '') + (owner ? ' in ' + shown(owner.name) : '');
+    const name = textName(el);
+    return KINDS[el.kind].label + (name === null ? '' : ' ' + shown(name)) + (owner ? ' in ' + shown(textName(owner)) : '');
   }
   function describeRel(model, rel, ids) {
     ids = ids || index(model);
     const a = ids.get(rel.from);
     const b = ids.get(rel.to);
-    // An end of a kind with no name field is said by its kind (describe), not as "(unnamed)".
-    const end = (e) => (!e ? '?' : hasName(e.kind) ? shown(e.name) : describe(model, e, ids));
+    // An end with no name in the text is said by its kind (describe), not as "(unnamed)".
+    const end = (e) => (!e ? '?' : textName(e) === null ? describe(model, e, ids) : shown(textName(e)));
     const from = end(a);
     const to = end(b);
     if (rel.kind === 'Specialization') return from + ' specializes ' + to;
@@ -519,8 +535,8 @@
   }
 
   // The features a type gets from elsewhere, by name: those of what it is defined by and of what it specializes,
-  // all the way up, and, for a usage that redefines a feature of its owner's type, those of that feature. A kind with no
-  // name field (a start node, named start1 by the page for itself) has no name the text could inherit.
+  // all the way up, and, for a usage that redefines a feature of its owner's type, those of that feature. An element
+  // with no name in the text (a start node, which the page names start1 for itself) has no name to inherit.
   function inheritedFeatures(model, type, ids, seen) {
     ids = ids || index(model);
     seen = seen || new Set();
@@ -528,15 +544,16 @@
     const take = (t) => {
       if (!t || seen.has(t.id)) return;
       seen.add(t.id);
-      childrenOf(model, t.id).forEach((c) => { if (hasName(c.kind) && c.name.trim() && !out.has(c.name.trim())) out.set(c.name.trim(), c); });
+      childrenOf(model, t.id).forEach((c) => { const name = textName(c); if (name && !out.has(name)) out.set(name, c); });
       inheritedFeatures(model, t, ids, seen).forEach((c, name) => { if (!out.has(name)) out.set(name, c); });
     };
     const typing = typingOf(model, type);
     if (typing) take(ids.get(typing.to));
     model.relationships.filter((r) => r.kind === 'Specialization' && r.from === type.id).forEach((r) => take(ids.get(r.to)));
-    if (!typing && type.owner !== undefined && type.name.trim()) {
+    const typeName = textName(type);
+    if (!typing && type.owner !== undefined && typeName) {
       const owner = ids.get(type.owner);
-      const redefined = owner ? inheritedFeatures(model, owner, ids, seen).get(type.name.trim()) : null;
+      const redefined = owner ? inheritedFeatures(model, owner, ids, seen).get(typeName) : null;
       if (redefined && redefined.kind === type.kind) take(redefined);
     }
     return out;
@@ -576,7 +593,7 @@
 
   Object.assign(lib, {
     FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, NAME, MULTIPLICITY, str, isObject, canContain,
-    admits, hasTrait, hasName, blank, placement, normalize, index, relIndex, viewIndex, shownIn, chain, childrenOf,
+    admits, hasTrait, textName, blank, placement, normalize, index, relIndex, viewIndex, shownIn, chain, childrenOf,
     descendants, typingOf, inUsage, specializes, commonOwner, acrossDefinitions, nameTakenBeside, isName, quote, shown,
     qualified, featurePath, nameable, an, definable, describe, describeRel, describeView, labelFor, inheritedFeatures,
     boundsOk, RESERVED_NAMES, EXTRA, BODY, commentLines

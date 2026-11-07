@@ -4,7 +4,7 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, index, childrenOf, typingOf, specializes, commonOwner,
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, textName, index, childrenOf, typingOf, specializes, commonOwner,
     acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel, inheritedFeatures, EXTRA
   } = lib;
 
@@ -56,11 +56,11 @@
       line: { route: 'straight', marker: null, cls: 'interface',
         label: function (rel, model, ids) {
           const def = model && ids && rel.interfaceDef ? ids.get(rel.interfaceDef) : null;
-          return '«interface»' + (rel.name.trim() ? ' ' + rel.name.trim() : '') + (def ? ' : ' + shown(def.name) : '');
+          return '«interface»' + (rel.name.trim() ? ' ' + rel.name.trim() : '') + (def ? ' : ' + shown(textName(def)) : '');
         } },
       toSysML: function (model, rel, ownerId, depth, out, h) {
         const def = rel.interfaceDef ? h.ids.get(rel.interfaceDef) : null;
-        const head = 'interface ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (def ? ': ' + quote(def.name) + ' ' : '') +
+        const head = 'interface ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (def ? ': ' + quote(textName(def)) + ' ' : '') +
           'connect ' + featurePath(model, ownerId, h.ids.get(rel.from), h.ids) + ' to ' + featurePath(model, ownerId, h.ids.get(rel.to), h.ids);
         connectorStatement(rel, head, depth, h);
       },
@@ -88,11 +88,11 @@
       line: { route: 'straight', marker: 'm-flow', cls: 'flow',
         label: function (rel, model, ids) {
           const item = model && ids && rel.item ? ids.get(rel.item) : null;
-          return (rel.name.trim() + (item ? ' of ' + shown(item.name) : '')).trim();
+          return (rel.name.trim() + (item ? ' of ' + shown(textName(item)) : '')).trim();
         } },
       toSysML: function (model, rel, ownerId, depth, out, h) {
         const item = rel.item ? h.ids.get(rel.item) : null;
-        const head = 'flow ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (item ? 'of ' + quote(item.name) + ' ' : '') +
+        const head = 'flow ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (item ? 'of ' + quote(textName(item)) + ' ' : '') +
           'from ' + flowEndPath(model, rel, 'from', ownerId, h.ids) + ' to ' + flowEndPath(model, rel, 'to', ownerId, h.ids);
         connectorStatement(rel, head, depth, h);
       },
@@ -107,7 +107,7 @@
         // Bound things are one thing, so they are of one definition (a port def and its conjugate count as one).
         const ta = definitionOf(model, a, ids);
         const tb = definitionOf(model, b, ids);
-        if (ta && tb && ta.def.id !== tb.def.id) return 'A binding joins two things of one definition; ' + describe(model, a, ids) + ' is defined by ' + shown(ta.def.name) + ' and ' + describe(model, b, ids) + ' by ' + shown(tb.def.name) + '.';
+        if (ta && tb && ta.def.id !== tb.def.id) return 'A binding joins two things of one definition; ' + describe(model, a, ids) + ' is defined by ' + shown(textName(ta.def)) + ' and ' + describe(model, b, ids) + ' by ' + shown(textName(tb.def)) + '.';
         if (!!ta !== !!tb) return 'A binding joins two things of one definition; ' + describe(model, ta ? b : a, ids) + ' is defined by nothing yet.';
         if (!ta && a.kind !== b.kind) return 'A binding joins two ports or two items, not ' + an(KINDS[a.kind].label) + ' and ' + an(KINDS[b.kind].label) + '.';
         return acrossDefinitions(model, 'A binding', a, b, ids);
@@ -178,7 +178,7 @@
       const typing = typingOf(model, cur);
       if (typing && ids.has(typing.to)) return { def: ids.get(typing.to), conjugated: cur.conjugated === true };
       const owner = cur.owner !== undefined ? ids.get(cur.owner) : null;
-      const inherited = owner && cur.name.trim() ? inheritedFeatures(model, owner, ids).get(cur.name.trim()) : null;
+      const inherited = owner && textName(cur) ? inheritedFeatures(model, owner, ids).get(textName(cur)) : null;
       cur = inherited && inherited.kind === el.kind ? inherited : null;
     }
     return null;
@@ -238,10 +238,10 @@
       if (!typed) return { el: end, item: null, problem: describe(model, end, ids) + ' has no port def, so nothing can flow through it. Define it by a port def that carries an item.' };
       if (!itemDef) return { el: end, item: null, problem: null }; // flowProblems says so once, for the flow
       const found = portItems(model, end, ids).filter((x) => goes(x.direction) && typingOf(model, x.item) && typingOf(model, x.item).to === itemDef.id).map((x) => x.item);
-      const seen = (typed.conjugated ? 'a conjugated ' : 'a ') + shown(typed.def.name);
+      const seen = (typed.conjugated ? 'a conjugated ' : 'a ') + shown(textName(typed.def));
       const way = out ? 'out' : 'in';
-      if (!found.length) return { el: end, item: null, problem: describe(model, end, ids) + ', ' + seen + ', carries no item of ' + shown(itemDef.name) + ' going ' + way + ', so the flow can\'t ' + verb + ' there.' };
-      if (found.length > 1) return { el: end, item: found[0], problem: describe(model, end, ids) + ', ' + seen + ', carries more than one item of ' + shown(itemDef.name) + ' going ' + way + ' (' + found.map((i) => shown(i.name)).join(', ') + '), so the flow can\'t tell which to ' + verb + ' at. Keep one.' };
+      if (!found.length) return { el: end, item: null, problem: describe(model, end, ids) + ', ' + seen + ', carries no item of ' + shown(textName(itemDef)) + ' going ' + way + ', so the flow can\'t ' + verb + ' there.' };
+      if (found.length > 1) return { el: end, item: found[0], problem: describe(model, end, ids) + ', ' + seen + ', carries more than one item of ' + shown(textName(itemDef)) + ' going ' + way + ' (' + found.map((i) => shown(textName(i))).join(', ') + '), so the flow can\'t tell which to ' + verb + ' at. Keep one.' };
       return { el: end, item: found[0], problem: null };
     }
     if (end.direction !== undefined) {
@@ -250,7 +250,7 @@
     }
     if (itemDef) {
       const typed = definitionOf(model, end, ids);
-      if (typed && typed.def.id !== itemDef.id && !specializes(model, typed.def, itemDef)) return { el: end, item: null, problem: describe(model, end, ids) + ' is of ' + shown(typed.def.name) + ', not ' + shown(itemDef.name) + ', so the flow\'s item doesn\'t match it.' };
+      if (typed && typed.def.id !== itemDef.id && !specializes(model, typed.def, itemDef)) return { el: end, item: null, problem: describe(model, end, ids) + ' is of ' + shown(textName(typed.def)) + ', not ' + shown(textName(itemDef)) + ', so the flow\'s item doesn\'t match it.' };
     }
     return { el: end, item: null, problem: null };
   }
@@ -259,7 +259,7 @@
   function flowEndPath(model, rel, which, ownerId, ids) {
     const r = flowEnd(model, rel, which, ids);
     const path = featurePath(model, ownerId, r.el, ids);
-    return r.item ? path + '.' + quote(r.item.name) : path;
+    return r.item ? path + '.' + quote(textName(r.item)) : path;
   }
   // What keeps a flow from being written as it should: a flow through a port with no item, and the ends flowEnd can't
   // write.
@@ -282,7 +282,7 @@
   }
   function portTypeName(model, port, ids) {
     const typed = definitionOf(model, port, ids);
-    return typed ? (typed.conjugated ? '~' : '') + shown(typed.def.name) : 'nothing';
+    return typed ? (typed.conjugated ? '~' : '') + shown(textName(typed.def)) : 'nothing';
   }
   // Whether a typed interface's two ports match the two ends of its interface def, one each, conjugation counted: a
   // sentence saying which doesn't, or null. The def's own check says when it hasn't two ends; a def with more can't
@@ -297,14 +297,14 @@
     const b = ids.get(rel.to);
     if (!hasTrait(a.kind, 'interfaceEnd') || !hasTrait(b.kind, 'interfaceEnd')) return null; // the ends rule says so
     if (ends.length > 2) {
-      return describe(model, def, ids) + ' has ' + ends.length + ' ends (' + ends.map((e) => shown(e.name)).join(', ') + '), so an interface between two ports can\'t be typed by it. Keep two ends on it, or type the ' + describeRel(model, rel, ids) + ' by another def.';
+      return describe(model, def, ids) + ' has ' + ends.length + ' ends (' + ends.map((e) => shown(textName(e))).join(', ') + '), so an interface between two ports can\'t be typed by it. Keep two ends on it, or type the ' + describeRel(model, rel, ids) + ' by another def.';
     }
     const sa = portSignature(model, a, ids);
     const sb = portSignature(model, b, ids);
     const s0 = portSignature(model, ends[0], ids);
     const s1 = portSignature(model, ends[1], ids);
     if ((sa === s0 && sb === s1) || (sa === s1 && sb === s0)) return null;
-    const endsText = ends.map((e) => shown(e.name) + ' : ' + portTypeName(model, e, ids)).join(' and ');
+    const endsText = ends.map((e) => shown(textName(e)) + ' : ' + portTypeName(model, e, ids)).join(' and ');
     const wrong = [a, b].find((p) => { const s = portSignature(model, p, ids); return s !== s0 && s !== s1; });
     if (wrong) return describe(model, wrong, ids) + ', defined by ' + portTypeName(model, wrong, ids) + ', matches no end of ' + describe(model, def, ids) + ' (its ends are ' + endsText + ').';
     return 'Both ends of the ' + describeRel(model, rel, ids) + ' match the same end of ' + describe(model, def, ids) + ' (its ends are ' + endsText + '); one of them should be the other.';

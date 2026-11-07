@@ -3,9 +3,9 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, normalize, index, relIndex, childrenOf, typingOf, commonOwner,
-    quote, shown, qualified, featurePath, nameable, describe, describeRel, inheritedFeatures, BODY, noteRecords,
-    noteStatements, commentLines
+    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, normalize, index, relIndex, childrenOf, typingOf,
+    commonOwner, quote, shown, qualified, featurePath, nameable, describe, describeRel, inheritedFeatures, BODY,
+    noteRecords, noteStatements, commentLines
   } = lib;
 
   // The notes and the archived notes are written together, at the end of the package (noteRecords, noteStatements).
@@ -45,18 +45,19 @@
     function headOf(el) {
       const kind = KINDS[el.kind];
       const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-      const inherited = owner && el.name.trim() ? inheritedFeatures(model, owner, ids).get(el.name.trim()) : null;
+      const name = textName(el);
+      const inherited = owner && name ? inheritedFeatures(model, owner, ids).get(name) : null;
       const redefines = !!inherited && inherited.kind === el.kind;
       // A usage may go unnamed ("part : Host;"); a definition can't, so an unnamed one is written as unnamed.
-      const name = el.name.trim() ? quote(el.name) : (kind.definition ? quote('unnamed') : '');
-      let head = (el.abstract ? 'abstract ' : '') + kind.keyword + (redefines ? ' :>> ' + quote(el.name) : (name ? ' ' + name : ''));
+      const written = name ? quote(name) : (kind.definition ? quote('unnamed') : '');
+      let head = (el.abstract ? 'abstract ' : '') + kind.keyword + (redefines ? ' :>> ' + quote(name) : (written ? ' ' + written : ''));
       if (kind.usage) {
         const typing = typingOf(model, el);
-        if (typing) head += ' : ' + (el.conjugated ? '~' : '') + quote(ids.get(typing.to).name);
+        if (typing) head += ' : ' + (el.conjugated ? '~' : '') + quote(textName(ids.get(typing.to)));
         if (el.multiplicity && MULTIPLICITY.test(el.multiplicity)) head += ' [' + el.multiplicity + ']';
       }
       const general = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === el.id)
-        .map((r) => quote(ids.get(r.to).name));
+        .map((r) => quote(textName(ids.get(r.to))));
       if (general.length) head += ' :> ' + general.join(', ');
       return head;
     }
