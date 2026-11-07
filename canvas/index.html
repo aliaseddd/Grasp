@@ -2977,9 +2977,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, index, childrenOf, typingOf,
-    specializes, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel,
-    inheritedFeatures, EXTRA
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, idsOf, elementsOfKind,
+    childrenOf, typingOf, specializes, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an,
+    describe, describeRel, inheritedFeature, EXTRA
   } = lib;
 
   addKinds({
@@ -3108,7 +3108,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   });
   Object.assign(FIELDS, {
     // The interface def an interface is typed by.
-    interfaceDef: { type: 'ref', label: 'interface def', options: function (model) { return model.elements.filter((e) => e.kind === 'InterfaceDefinition'); } },
+    interfaceDef: { type: 'ref', label: 'interface def', options: function (model) { return elementsOfKind(model, 'InterfaceDefinition'); } },
   });
 
   // Interconnection: items live in part defs, parts and port defs; a port is an interface's, a flow's and a binding's
@@ -3153,7 +3153,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const typing = typingOf(model, cur);
       if (typing && ids.has(typing.to)) return { def: ids.get(typing.to), conjugated: cur.conjugated === true };
       const owner = cur.owner !== undefined ? ids.get(cur.owner) : null;
-      const inherited = owner && textName(cur) ? inheritedFeatures(model, owner, ids).get(textName(cur)) : null;
+      const inherited = owner && textName(cur) ? inheritedFeature(model, owner, textName(cur), ids) : null;
       cur = inherited && inherited.kind === el.kind ? inherited : null;
     }
     return null;
@@ -3173,7 +3173,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // The glyph a port shows: in when every directed item of its def comes in, out when every one goes out, inout when
   // they mix or any goes both ways, null when there are none.
   function portWay(model, port) {
-    const ways = new Set(portItems(model, port, index(model)).map((x) => x.direction));
+    const ways = new Set(portItems(model, port, idsOf(model)).map((x) => x.direction));
     if (!ways.size) return null;
     return ways.size === 1 && !ways.has('inout') ? ways.values().next().value : 'inout';
   }
@@ -3308,8 +3308,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const lib = root.SysMLModelLib;
   const {
     KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, NAME, MULTIPLICITY, addKinds, addRelationships, attributeField, str,
-    hasTrait, textName, childrenOf, typingOf, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath,
-    an, describe, describeRel, EXTRA, BODY, commentLines
+    hasTrait, textName, perReading, elementsOfKind, linesFrom, linesTo, linesAt, childrenOf, typingOf, commonOwner,
+    acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel, EXTRA, BODY, commentLines
   } = lib;
 
   addKinds({
@@ -3398,10 +3398,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     'subperformances timeEnclosedOccurrences suboccurrences portionOfLife localClock predecessors successors').split(' '));
   // The relationships of one kind that lead into and out of an element.
   function behaviorLinksOf(model, id, kind) {
-    return {
-      into: model.relationships.filter((r) => r.kind === kind && r.to === id),
-      outOf: model.relationships.filter((r) => r.kind === kind && r.from === id)
-    };
+    return { into: linesTo(model, id, kind), outOf: linesFrom(model, id, kind) };
   }
   function parametersOf(model, id) { return childrenOf(model, id).filter((e) => e.kind === 'ParameterUsage'); }
   function entryActionOf(model, stateId) { return childrenOf(model, stateId).find((e) => e.kind === 'ActionUsage' && e.role === 'entry') || null; }
@@ -3412,8 +3409,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return def && def.kind === KINDS[el.kind].definedBy ? def : null;
   }
   // Whether a target names a port of the model, by its last segment: a send goes via a port and to anything else.
+  // During a reading, the ports' names, plain and quoted, are gathered once.
   function namesAPort(model, target) {
     const last = String(target).split('.').pop().trim();
+    const names = perReading(model, 'behavior:portNames', () => {
+      const set = new Set();
+      elementsOfKind(model, 'PortUsage').forEach((e) => { set.add(textName(e)); set.add(quote(textName(e))); });
+      return set;
+    });
+    if (names) return names.has(last);
     return model.elements.some((e) => e.kind === 'PortUsage' && (textName(e) === last || quote(textName(e)) === last));
   }
   // The type a trigger or an accept payload names, as the text reads it: the whole text, or what follows the colon of
@@ -3427,9 +3431,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (colon >= 0) s = s.slice(colon + 1).trim();
     return NAME.test(s) ? s : null;
   }
+  // During a reading, the definitions' names are gathered once.
   function checkNamedType(model, id, text, what, add) {
     const type = namedType(text);
-    if (type && !model.elements.some((e) => KINDS[e.kind].definition && textName(e) === type)) {
+    const definitions = type && perReading(model, 'behavior:definitionNames', () => new Set(model.elements.filter((e) => KINDS[e.kind].definition).map(textName)));
+    if (type && !(definitions ? definitions.has(type) : model.elements.some((e) => KINDS[e.kind].definition && textName(e) === type))) {
       add(id, what + ' names ' + type + ', which is no definition in the model, so the text can\'t resolve it. Name a part def or item def, as x : Type, or write after …, when … or at ….');
     }
   }
@@ -3470,7 +3476,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     let text = (p.direction ? p.direction + ' ' : '') + 'item' + (textName(p) ? ' ' + quote(textName(p)) : '');
     if (typing && ids.get(typing.to)) text += ' : ' + quote(textName(ids.get(typing.to)));
     if (p.multiplicity && MULTIPLICITY.test(p.multiplicity)) text += ' [' + p.multiplicity + ']';
-    const generals = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === p.id && ids.get(r.to)).map((r) => quote(textName(ids.get(r.to))));
+    const generals = linesFrom(model, p.id, 'Specialization').filter((r) => ids.get(r.to)).map((r) => quote(textName(ids.get(r.to))));
     if (generals.length) text += ' :> ' + generals.join(', ');
     return text;
   }
@@ -3534,7 +3540,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
     if (!el.direction) add(el.id, what + ' needs a direction: in, out or inout.');
     const name = textName(el);
-    if (name === '' && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) add(el.id, what + ' has no name. Name it, so flows and bindings can reach it.');
+    if (name === '' && !linesAt(model, el.id).length) add(el.id, what + ' has no name. Name it, so flows and bindings can reach it.');
     if (owner && owner.kind === 'ActionUsage' && name) {
       const def = typingDefinitionOf(model, owner, ids);
       const inherited = def ? parametersOf(model, def.id).find((p) => textName(p) === name) : null;
@@ -3795,8 +3801,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, commonOwner, acrossDefinitions,
-    nameTakenBeside, quote, shown, featurePath, describe, describeRel, EXTRA, BODY, declare
+    KINDS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, perReading, linesOfKind, linesAt,
+    childrenOf, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, describe, describeRel, EXTRA,
+    BODY, declare
   } = lib;
 
   addKinds({
@@ -3813,7 +3820,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       // The core says so once something refers to it; an event nothing refers to yet still needs its name, since a
       // message can only start or end on it by name.
       check: function (model, el, ids, add) {
-        if (textName(el) === '' && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) {
+        if (textName(el) === '' && !linesAt(model, el.id).length) {
           const owner = el.owner !== undefined ? ids.get(el.owner) : null;
           add(el.id, 'An event' + (owner ? ' in ' + shown(textName(owner)) : '') + ' has no name. Name it, so a message can start or end on it.');
         }
@@ -3879,20 +3886,37 @@ textarea.text[readonly] { resize: none; background: transparent; }
   KINDS.PartUsage.contains.push('EventOccurrenceUsage');
   KINDS.PartUsage.traits.push('lifeline', 'occurrence');
   // Sequence: the time order. The messages in order: those with a numeric order first, by it, then the rest as the
-  // model has them, so a new message, with no order yet, lands last.
+  // model has them, so a new message, with no order yet, lands last. During a reading they are put in order once.
   function messagesInOrder(model) {
+    const ordered = perReading(model, 'sequence:messages', () => inTimeOrder(linesOfKind(model, 'Message')));
+    return ordered ? ordered.slice() : inTimeOrder(model.relationships.filter((r) => r.kind === 'Message'));
+  }
+  // Messages, given in model order, in time order.
+  function inTimeOrder(messages) {
     const numbered = (r) => (typeof r.order === 'number' ? 0 : 1);
-    return model.relationships.map((r, i) => ({ r: r, i: i })).filter((x) => x.r.kind === 'Message')
+    return messages.map((r, i) => ({ r: r, i: i }))
       .sort((a, b) => (numbered(a.r) - numbered(b.r)) || (numbered(a.r) === 0 ? a.r.order - b.r.order : 0) || (a.i - b.i))
       .map((x) => x.r);
   }
   // A lifeline's events in time order: an event a message starts or ends on takes its place from the first such
   // message's place in time, so the chain always agrees with the rows a sequence view draws; the others keep their
-  // places among their siblings in model.elements, which the sequence view's place and drop set by height.
+  // places among their siblings in model.elements, which the sequence view's place and drop set by height. During a
+  // reading, the first message at each element is found once.
   function eventOrder(model, ownerId) {
-    const events = model.elements.filter((e) => e.kind === 'EventOccurrenceUsage' && e.owner === ownerId);
-    const messages = messagesInOrder(model);
-    const keyOf = (e) => { const i = messages.findIndex((m) => m.from === e.id || m.to === e.id); return i < 0 ? null : i; };
+    // childrenOf takes null for the top of the package; here it is an owner like any other.
+    const events = (ownerId === null ? model.elements.filter((e) => e.owner === null) : childrenOf(model, ownerId)).filter((e) => e.kind === 'EventOccurrenceUsage');
+    const first = perReading(model, 'sequence:firstMessage', () => {
+      const at = new Map();
+      messagesInOrder(model).forEach((m, i) => {
+        if (!at.has(m.from)) at.set(m.from, i);
+        if (!at.has(m.to)) at.set(m.to, i);
+      });
+      return at;
+    });
+    const messages = first ? null : messagesInOrder(model);
+    const keyOf = first
+      ? (e) => (e.id === e.id && first.has(e.id) ? first.get(e.id) : null)
+      : (e) => { const i = messages.findIndex((m) => m.from === e.id || m.to === e.id); return i < 0 ? null : i; };
     const keyed = events.map((e, i) => ({ e: e, i: i, key: keyOf(e) })).filter((x) => x.key !== null);
     const slots = keyed.map((x) => x.i);
     keyed.sort((a, b) => (a.key - b.key) || (a.i - b.i));
@@ -3917,7 +3941,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, VIEW_KINDS, FIELDS, hasTrait, textName, chain, quote, describe, inheritedFeatures, EXTRA, BODY
+    KINDS, VIEW_KINDS, FIELDS, hasTrait, textName, perReading, linesFrom, chain, quote, describe, inheritedFeature, EXTRA,
+    BODY
   } = lib;
 
   Object.assign(VIEW_KINDS, {
@@ -3985,8 +4010,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const seen = new Set([el.id]);
     const walk = (e) => {
       const owner = e.owner !== undefined ? ids.get(e.owner) : null;
-      const inherited = owner && textName(e) ? inheritedFeatures(model, owner, ids).get(textName(e)) : null;
-      const next = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === e.id).map((r) => ids.get(r.to));
+      const inherited = owner && textName(e) ? inheritedFeature(model, owner, textName(e), ids) : null;
+      const next = linesFrom(model, e.id, 'Specialization').map((r) => ids.get(r.to));
       if (inherited && inherited.kind === e.kind) next.push(inherited);
       next.forEach((g) => { if (g && !seen.has(g.id)) { seen.add(g.id); out.push(g); walk(g); } });
     };
@@ -4014,16 +4039,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // text breaks. The text sits in the body of the element drawn to scale, where a name resolves through the members
   // of that body, of each owner's body on the way up (inherited ones included) and of the package; a port named in
   // on a part beside the spatial one is out of its sight (the pilot resolves ['in'] to the unit there), and an
-  // element with no name in the text (a start node, whatever name the page keeps in it) shadows nothing.
+  // element with no name in the text (a start node, whatever name the page keeps in it) shadows nothing. During a
+  // reading, the elements that have spatial text are found once.
   function geoNameCheck(model, el, ids, add) {
     const name = textName(el);
-    if (!name || !GEO_LIBRARY_NAMES.has(name) || !model.elements.some((x) => geoExported(x) && geoSees(model, x, el, ids))) return;
+    if (!name || !GEO_LIBRARY_NAMES.has(name)) return;
+    const spatial = perReading(model, 'geometry:exported', () => model.elements.filter(geoExported)) || model.elements;
+    if (!spatial.some((x) => geoExported(x) && geoSees(model, x, el, ids))) return;
     add(el.id, 'The name ' + name + ' is one the geometry text brings in from the library, so the text would mix them up. Rename ' + describe(model, el, ids) + '.');
   }
   // Whether the geometry text of x sees el by name: el is at the top of the package, or right inside x or one of its
   // owners, or a feature x or one of its owners inherits.
   function geoSees(model, x, el, ids) {
-    return el.owner === undefined || chain(model, x, ids).some((a) => a.id === el.owner || inheritedFeatures(model, a, ids).get(textName(el)) === el);
+    return el.owner === undefined || chain(model, x, ids).some((a) => a.id === el.owner || inheritedFeature(model, a, textName(el), ids) === el);
   }
   // The spatial statements of a usage's body: its shape with the dimensions it sets, then its position as a translation
   // of its coordinate frame, with the imports they need (validated: critique/g01, g02, g08b, g10, g11; the units, a
@@ -4129,7 +4157,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    RELATIONSHIPS, VIEW_KINDS, textName, index, chain, childrenOf, quote, qualified, nameable, describe, describeView,
+    RELATIONSHIPS, VIEW_KINDS, textName, idsOf, chain, childrenOf, quote, qualified, nameable, describe, describeView,
     EXTRA
   } = lib;
 
@@ -4165,7 +4193,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // elements its roots option names that are in the model, in model order, leaving out one that sits inside another
   // root, since that root's subtree shows it already. A roots option that isn't a list counts as the whole package.
   function browserRoots(model, view, ids) {
-    ids = ids || index(model);
+    ids = ids || idsOf(model);
     const want = view.options && Array.isArray(view.options.roots) ? view.options.roots : null;
     if (want === null) return null;
     const set = new Set(want.filter((id) => typeof id === 'string' && ids.has(id)));
@@ -4177,7 +4205,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // both of its ends are rows, so what is drawn in the view is what pins and badges can find. Each row is
   // { type: 'el' | 'rel', id, item, depth, kids (whether anything is inside it), folded }.
   function browserRows(model, view, ids) {
-    ids = ids || index(model);
+    ids = ids || idsOf(model);
     const roots = browserRoots(model, view, ids);
     const folded = new Set(view.options && Array.isArray(view.options.collapsed) ? view.options.collapsed : []);
     const nodes = new Map(); // element id → its node, for the elements that are rows

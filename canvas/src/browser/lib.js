@@ -3,7 +3,7 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    RELATIONSHIPS, VIEW_KINDS, textName, index, chain, childrenOf, quote, qualified, nameable, describe, describeView,
+    RELATIONSHIPS, VIEW_KINDS, textName, idsOf, chain, childrenOf, quote, qualified, nameable, describe, describeView,
     EXTRA
   } = lib;
 
@@ -39,7 +39,7 @@
   // elements its roots option names that are in the model, in model order, leaving out one that sits inside another
   // root, since that root's subtree shows it already. A roots option that isn't a list counts as the whole package.
   function browserRoots(model, view, ids) {
-    ids = ids || index(model);
+    ids = ids || idsOf(model);
     const want = view.options && Array.isArray(view.options.roots) ? view.options.roots : null;
     if (want === null) return null;
     const set = new Set(want.filter((id) => typeof id === 'string' && ids.has(id)));
@@ -51,7 +51,7 @@
   // both of its ends are rows, so what is drawn in the view is what pins and badges can find. Each row is
   // { type: 'el' | 'rel', id, item, depth, kids (whether anything is inside it), folded }.
   function browserRows(model, view, ids) {
-    ids = ids || index(model);
+    ids = ids || idsOf(model);
     const roots = browserRoots(model, view, ids);
     const folded = new Set(view.options && Array.isArray(view.options.collapsed) ? view.options.collapsed : []);
     const nodes = new Map(); // element id → its node, for the elements that are rows
