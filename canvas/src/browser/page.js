@@ -3,8 +3,8 @@
   'use strict';
   const S = C.state;
   const {
-    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, render,
-    logChange, changed, snapshot, commit, renderInspector, selectedView
+    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, edit,
+    renderInspector, selectedView
   } = C;
 
   // ---- The browser view: the model as a tree of rows, one per element with what it owns under it and the
@@ -130,17 +130,16 @@
     const el = S.layout.ids.get(hit.id);
     if (!view || !el) return;
     if (!editable()) { say('Folding changes the view, and this model can\'t be changed here.'); return; }
-    const before = snapshot();
-    if (!Array.isArray(view.options.collapsed)) view.options.collapsed = [];
-    const folded = view.options.collapsed;
-    const i = folded.indexOf(el.id);
-    if (i < 0) folded.push(el.id); else folded.splice(i, 1);
-    const what = (i < 0 ? 'Folded ' : 'Unfolded ') + M.describe(S.model, el) + ' in ' + M.describeView(S.model, view);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    let what = '';
+    edit(() => {
+      if (!Array.isArray(view.options.collapsed)) view.options.collapsed = [];
+      const folded = view.options.collapsed;
+      const i = folded.indexOf(el.id);
+      if (i < 0) folded.push(el.id); else folded.splice(i, 1);
+      what = (i < 0 ? 'Folded ' : 'Unfolded ') + M.describe(S.model, el) + ' in ' + M.describeView(S.model, view);
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   };
   // The panel's options for a browser view: its roots (a multiple select: the whole package, or the elements at the top
@@ -170,28 +169,24 @@
     if (!view || view.kind !== 'BrowserView' || !editable()) return;
     // The elements picked are the roots; none, or the whole package alone, means the whole package.
     const picked = Array.from(browserRootsSelect.selectedOptions).map((o) => o.value).filter((v) => v && S.layout.ids.has(v));
-    const before = snapshot();
-    view.options.roots = picked.length ? picked : null;
     const what = 'Set the roots of ' + M.describeView(S.model, view) + ' to ' +
       (picked.length ? picked.map((id) => M.describe(S.model, S.layout.ids.get(id))).join(', ') : 'the whole package');
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.roots = picked.length ? picked : null;
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   });
   browserExpandAll.addEventListener('click', () => {
     const view = selectedView();
     if (!view || view.kind !== 'BrowserView' || !editable()) return;
-    const before = snapshot();
-    view.options.collapsed = [];
     const what = 'Unfolded everything in ' + M.describeView(S.model, view);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.collapsed = [];
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   });
 })(window.SysMLCanvas);

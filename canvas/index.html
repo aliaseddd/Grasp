@@ -4321,16 +4321,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   function snapshot() { return JSON.stringify(S.model); }
 
-  // While the page's scripts move over to edit(), the old pieces stay for the scripts that still use them: commit
-  // records an undo step for a change they made and log themselves.
-  function commit(what, key, before) {
-    const top = S.history[S.history.length - 1];
-    if (key && top && top.key === key) { top.what = what; updateUndo(); return; }
-    S.history.push({ json: before === undefined ? snapshot() : before, what: what, key: key || null, touched: nothingTouched(), log: null, logKey: null });
-    if (S.history.length > HISTORY) S.history.shift();
-    updateUndo();
-  }
-
   function updateUndo() {
     const top = S.history[S.history.length - 1];
     undoButton.disabled = !top || !editable();
@@ -4370,7 +4360,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     updateUndo();
   }
 
-  Object.assign(C, { edit, endEdit, logChange, changed, snapshot, commit, updateUndo, undo, loadModel, modelReplaced });
+  Object.assign(C, { edit, endEdit, logChange, updateUndo, undo, loadModel, modelReplaced });
 })(window.SysMLCanvas);
 // ==== src/core/page/tools.js
 // Tools: the palette, adding elements, and drawing relationships.
@@ -5095,8 +5085,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   showPanel.addEventListener('click', () => setPanel(true));
 
   Object.assign(C, {
-    resolve, select, selectionFor, renderInspector, renderProblemsList, selectedElement, selectedRel, selectedView,
-    syncNoteLabels, deleteSelection, setPanel
+    resolve, select, selectionFor, renderInspector, renderProblemsList, extraFieldOf, fieldChangeText, selectedElement,
+    selectedRel, selectedView, syncNoteLabels, deleteSelection, setPanel
   });
 })(window.SysMLCanvas);
 // ==== src/core/page/notes.js
@@ -6124,8 +6114,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const {
     M, TOOL_TITLE, TOOL_HINT, BASE_NAME, ACTIONS, VIEW_PANELS, $, say, editable, f, relById, viewById, viewLayout,
     frameAround, ROUTES, endpoints, viewAt, node, text, MARKERS, nameLine, SHAPES, drawBox, drawRel, RENDERERS,
-    freshElement, render, logChange, changed, snapshot, commit, endEdit, freeName, renderInspector, selectedRel,
-    selectedView
+    freshElement, edit, endEdit, freeName, renderInspector, extraFieldOf, fieldChangeText, selectedView
   } = C;
 
   // ---- Sequence: the sequence view's words, the event's shape, the message's arrowhead, the renderer, the row
@@ -6392,27 +6381,29 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const i = L.rows.indexOf(rel);
     const j = i + dir;
     if (i < 0 || j < 0 || j >= L.rows.length) { say('The ' + M.describeRel(S.model, rel) + ' is already the ' + (dir < 0 ? 'first' : 'last') + ' row.'); return; }
-    const before = snapshot();
-    M.messagesInOrder(S.model).forEach((m, k) => { m.order = k + 1; });
-    const swap = L.rows[j];
-    const mine = rel.order;
-    rel.order = swap.order;
-    swap.order = mine;
-    sortMessages();
     const what = 'Moved the ' + M.describeRel(S.model, rel) + (dir < 0 ? ' up' : ' down') + ' a row';
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      M.messagesInOrder(S.model).forEach((m, k) => { m.order = k + 1; });
+      const swap = L.rows[j];
+      const mine = rel.order;
+      rel.order = swap.order;
+      swap.order = mine;
+      sortMessages();
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   }
   ACTIONS['message-up'] = function (hit) { moveMessageRow(hit.id, -1, hit.view); };
   ACTIONS['message-down'] = function (hit) { moveMessageRow(hit.id, 1, hit.view); };
   // The order field, once the page has written it (this listener is on the panel, so it runs after the one on
-  // #fields): the text's order follows the drawing's.
+  // #fields): the text's order follows the drawing's, in the same undo step as the field's keystrokes.
   $('inspector').addEventListener('input', (event) => {
-    if (event.target && event.target.id === 'f-order' && editable() && selectedRel()) { sortMessages(); render(); }
+    const x = event.target && event.target.id === 'f-order' ? extraFieldOf(event) : null;
+    if (x) edit(() => {
+      sortMessages();
+      return fieldChangeText(x);
+    }, x.fld + ':' + x.item.id);
   });
   // The sequence view's option: the distance between its rows.
   VIEW_PANELS.SequenceView = function (view, write) {
@@ -6422,12 +6413,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
   $('sv-spacing').addEventListener('input', () => {
     const view = selectedView();
     const v = +$('sv-spacing').value;
-    if (!view || view.kind !== 'SequenceView' || !editable() || !Number.isFinite(v) || v < SPACING[0] || v > SPACING[1]) return;
-    const before = snapshot();
-    view.options.spacing = Math.round(v);
-    commit('Set the row spacing of ' + M.describeView(S.model, view) + ' to ' + view.options.spacing, 'spacing:' + view.id, before);
-    render();
-    changed();
+    if (!view || view.kind !== 'SequenceView' || !Number.isFinite(v) || v < SPACING[0] || v > SPACING[1]) return;
+    edit(() => {
+      view.options.spacing = Math.round(v);
+      return 'Set the row spacing of ' + M.describeView(S.model, view) + ' to ' + view.options.spacing;
+    }, 'spacing:' + view.id);
   });
   $('sv-spacing').addEventListener('change', () => {
     const view = selectedView();
@@ -6436,9 +6426,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!Number.isFinite(v) || v < SPACING[0] || v > SPACING[1]) {
       $('sv-spacing').value = String(rowSpacing(view));
       say('The row spacing is a number from ' + SPACING[0] + ' to ' + SPACING[1] + '.');
-    } else logChange('Set the row spacing of ' + M.describeView(S.model, view) + ' to ' + view.options.spacing, 'spacing:' + view.id);
+    }
     endEdit();
-    changed();
   });
 })(window.SysMLCanvas);
 // ==== src/geometry/page.js
@@ -6448,8 +6437,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, PAD, VIEW_PANELS, $, say, clamp, editable, f, viewById, viewLayout, frameAround, containerAt, viewAt, node,
-    text, MARKERS, nameLine, RENDERERS, freshElement, render, logChange, changed, snapshot, commit, endEdit, freeName,
-    renderInspector, selectedView
+    text, MARKERS, nameLine, RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
   } = C;
 
   // The geometry view: a plan of the parts it shows, each drawn as its shape's footprint to scale, x to the right and y
@@ -6652,33 +6640,28 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const view = geoSelectedView();
     const v = gScale.value.trim() === '' ? NaN : +gScale.value;
     if (!view || !Number.isFinite(v) || v <= 0) return;
-    const before = snapshot();
-    view.options.scale = v;
-    commit(geoScaleText(view), 'scale:' + view.id, before);
-    render();
-    changed();
+    edit(() => {
+      view.options.scale = v;
+      return geoScaleText(view);
+    }, 'scale:' + view.id);
   });
   gScale.addEventListener('change', () => {
     const view = geoSelectedView();
     if (!view) return;
     gScale.value = M.geoNumber(geoScale(view));
-    logChange(geoScaleText(view), 'scale:' + view.id);
     endEdit();
-    changed();
     say(geoScaleText(view) + '.');
   });
   gUnit.addEventListener('change', () => {
     const view = geoSelectedView();
     if (!view || M.GEO_UNITS.indexOf(gUnit.value) < 0) return;
-    const before = snapshot();
-    view.options.scale = +(geoScale(view) * M.geoConvert(1, gUnit.value, geoViewUnit(view))).toPrecision(6);
-    view.options.unit = gUnit.value;
     const what = 'Set the unit of ' + M.describeView(S.model, view) + ' to ' + gUnit.value;
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.scale = +(geoScale(view) * M.geoConvert(1, gUnit.value, geoViewUnit(view))).toPrecision(6);
+      view.options.unit = gUnit.value;
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '. The scale is now ' + M.geoNumber(geoScale(view)) + ' px per ' + gUnit.value + ', so the drawing keeps its size; new parts are measured in ' + gUnit.value + '.');
   });
 })(window.SysMLCanvas);
@@ -6689,7 +6672,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, byNumber, viewById, frameAround, node, text, RENDERERS,
-    marksFor, render, logChange, changed, snapshot, commit, renderInspector, selectedView
+    marksFor, edit, renderInspector, selectedView
   } = C;
 
   // ---- The grid view: a table with a row per shown element, or a matrix of the shown elements against each other
@@ -6928,14 +6911,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!view || view.kind !== 'GridView' || !editable()) return;
     const next = gridMode.value === 'matrix' ? 'matrix' : 'table';
     if (M.gridOptions(view).mode === next) return;
-    const before = snapshot();
-    view.options.mode = next;
     const what = 'Showed ' + M.describeView(S.model, view) + ' as a ' + (next === 'matrix' ? 'matrix of its elements against each other' : 'table with a row per element');
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.mode = next;
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   });
   // A column ticked or unticked. A table keeps at least one column, and a sort goes with the column it was on.
@@ -6951,15 +6932,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
       next = o.columns.filter((c) => c !== col);
       if (!next.length) { box.checked = true; say('A table needs a column, so ' + col + ' stays. Tick another column before taking this one away.'); return; }
     }
-    const before = snapshot();
-    view.options.columns = next;
-    if (!box.checked && o.sort && o.sort.replace(/^-/, '') === col) view.options.sort = null;
     const what = (box.checked ? 'Added the ' + col + ' column to ' : 'Removed the ' + col + ' column from ') + M.describeView(S.model, view);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.columns = next;
+      if (!box.checked && o.sort && o.sort.replace(/^-/, '') === col) view.options.sort = null;
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   });
   // Makes rows of the elements given that aren't rows yet: the boxes, then the border items whose owner is a row,
@@ -6977,16 +6956,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function gridShowRows(els, what, label) {
     const view = selectedView();
     if (!view || view.kind !== 'GridView' || !editable()) return;
-    const before = snapshot();
-    const r = gridShow(view, els);
+    const text = what + ' in ' + M.describeView(S.model, view);
+    let r = null;
+    edit(() => {
+      r = gridShow(view, els);
+      return r.added.length ? text : null;
+    });
+    if (!r) return;
     const left = r.skipped.length ? ' ' + plural(r.skipped.length, label) + ' sit' + (r.skipped.length === 1 ? 's' : '') + ' on an element that isn\'t a row; show that first.' : '';
     if (!r.added.length) { say('Every ' + label + ' the model has is a row in ' + M.describeView(S.model, view) + ' already.' + left); return; }
-    const text = what + ' in ' + M.describeView(S.model, view);
-    commit(text, null, before);
-    logChange(text);
-    render();
     renderInspector();
-    changed();
     say(text + ': ' + plural(r.added.length, 'new row') + ', ' + plural(Object.keys(view.layout).length, 'row') + ' in all.' + left);
   }
   gridShowAll.addEventListener('click', () => gridShowRows(S.model.elements, 'Showed every element', 'element'));
@@ -7001,14 +6980,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!editable()) { say('The order of the rows is part of the view, which can\'t be changed here.'); return; }
     const o = M.gridOptions(view);
     const next = o.sort === hit.id ? '-' + hit.id : o.sort === '-' + hit.id ? null : hit.id;
-    const before = snapshot();
-    view.options.sort = next;
     const what = next === null ? 'Put the rows of ' + M.describeView(S.model, view) + ' back in the model\'s order'
       : 'Sorted the rows of ' + M.describeView(S.model, view) + ' by ' + hit.id + (next.charAt(0) === '-' ? ', descending' : '');
-    commit(what, null, before);
-    logChange(what);
-    render();
-    changed();
+    edit(() => {
+      view.options.sort = next;
+      return what;
+    });
     say(what + '.');
   };
 })(window.SysMLCanvas);
@@ -7018,8 +6995,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const S = C.state;
   const {
-    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, render,
-    logChange, changed, snapshot, commit, renderInspector, selectedView
+    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, edit,
+    renderInspector, selectedView
   } = C;
 
   // ---- The browser view: the model as a tree of rows, one per element with what it owns under it and the
@@ -7145,17 +7122,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const el = S.layout.ids.get(hit.id);
     if (!view || !el) return;
     if (!editable()) { say('Folding changes the view, and this model can\'t be changed here.'); return; }
-    const before = snapshot();
-    if (!Array.isArray(view.options.collapsed)) view.options.collapsed = [];
-    const folded = view.options.collapsed;
-    const i = folded.indexOf(el.id);
-    if (i < 0) folded.push(el.id); else folded.splice(i, 1);
-    const what = (i < 0 ? 'Folded ' : 'Unfolded ') + M.describe(S.model, el) + ' in ' + M.describeView(S.model, view);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    let what = '';
+    edit(() => {
+      if (!Array.isArray(view.options.collapsed)) view.options.collapsed = [];
+      const folded = view.options.collapsed;
+      const i = folded.indexOf(el.id);
+      if (i < 0) folded.push(el.id); else folded.splice(i, 1);
+      what = (i < 0 ? 'Folded ' : 'Unfolded ') + M.describe(S.model, el) + ' in ' + M.describeView(S.model, view);
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   };
   // The panel's options for a browser view: its roots (a multiple select: the whole package, or the elements at the top
@@ -7185,28 +7161,24 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!view || view.kind !== 'BrowserView' || !editable()) return;
     // The elements picked are the roots; none, or the whole package alone, means the whole package.
     const picked = Array.from(browserRootsSelect.selectedOptions).map((o) => o.value).filter((v) => v && S.layout.ids.has(v));
-    const before = snapshot();
-    view.options.roots = picked.length ? picked : null;
     const what = 'Set the roots of ' + M.describeView(S.model, view) + ' to ' +
       (picked.length ? picked.map((id) => M.describe(S.model, S.layout.ids.get(id))).join(', ') : 'the whole package');
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.roots = picked.length ? picked : null;
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   });
   browserExpandAll.addEventListener('click', () => {
     const view = selectedView();
     if (!view || view.kind !== 'BrowserView' || !editable()) return;
-    const before = snapshot();
-    view.options.collapsed = [];
     const what = 'Unfolded everything in ' + M.describeView(S.model, view);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.collapsed = [];
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   });
 })(window.SysMLCanvas);
@@ -7217,8 +7189,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, NOTES, TOOL_TITLE, TOOL_HINT, TOOLS, $, canvas, svg, saved, now, say, editable, f, newId, plural, isNote,
-    byNumber, nextNumber, noteById, node, COMPARTMENTS, tidyArchived, pinTransform, renderPins, render, toDrawing,
-    logChange, changed, snapshot, commit, endEdit, setTool, select, renderInspector, selectedElement, noteTimers,
+    byNumber, nextNumber, noteById, node, COMPARTMENTS, tidyArchived, pinTransform, renderPins, toDrawing, edit,
+    endEdit, setTool, select, renderInspector, selectedElement, noteTimers,
     renderNotes, dateOf, focusNote, addNote, noteChanged, setMode, saveLocal, dirty, noteBody, stageNote, enqueue,
     attempt, refused, hitOf
   } = C;
@@ -7616,66 +7588,53 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return el.code[i] ? { el: el, i: i, link: el.code[i] } : null;
   }
   function codeLinkName(x) { return 'code link ' + (x.i + 1) + ' of ' + M.describe(S.model, x.el); }
-  // Typing a path or a text is one undo step per field of the link, logged once the field is left; the language
-  // changes at once; Add and Remove are one step each.
+  // Typing a path or a text is one undo step per field of the link, a run the field's change event ends, which logs
+  // it once the field is left; the language changes at once; Add and Remove are one step each.
   codeList.addEventListener('input', (event) => {
     const x = codeLinkOf(event);
     const input = event.target;
     const fld = input.classList.contains('code-path') ? 'path' : input.classList.contains('code-text') ? 'text' : null;
-    if (!x || !fld || !editable()) return;
-    const before = snapshot();
-    x.link[fld] = input.value;
-    if (fld === 'text') growCodeText(input);
-    commit('Set the ' + fld + ' of ' + codeLinkName(x), 'code:' + x.el.id + ':' + x.i + ':' + fld, before);
-    render();
-    changed();
+    if (!x || !fld) return;
+    const done = edit(() => {
+      x.link[fld] = input.value;
+      const what = 'Set the ' + fld + ' of ' + codeLinkName(x);
+      return { what: what, log: what + (fld === 'path' ? ' to ' + (x.link.path.trim() || 'nothing') : '') };
+    }, 'code:' + x.el.id + ':' + x.i + ':' + fld);
+    if (done && fld === 'text') growCodeText(input);
   });
   codeList.addEventListener('change', (event) => {
     const x = codeLinkOf(event);
     const input = event.target;
-    if (!x || !editable()) return;
+    if (!x) return;
     if (input.classList.contains('code-language')) {
-      const before = snapshot();
-      x.link.language = input.value;
-      const what = 'Set the language of ' + codeLinkName(x) + ' to ' + (input.value || 'nothing');
-      commit(what, null, before);
-      logChange(what);
-      render();
-      changed();
+      edit(() => {
+        x.link.language = input.value;
+        return 'Set the language of ' + codeLinkName(x) + ' to ' + (input.value || 'nothing');
+      });
       return;
     }
-    const fld = input.classList.contains('code-path') ? 'path' : input.classList.contains('code-text') ? 'text' : null;
-    if (!fld) return;
-    logChange('Set the ' + fld + ' of ' + codeLinkName(x) + (fld === 'path' ? ' to ' + (x.link.path.trim() || 'nothing') : ''), 'code:' + x.el.id + ':' + x.i + ':' + fld);
-    endEdit();
-    changed();
+    if (input.classList.contains('code-path') || input.classList.contains('code-text')) endEdit();
   });
   codeList.addEventListener('click', (event) => {
     const button = event.target.closest ? event.target.closest('button.code-remove') : null;
     const x = button ? codeLinkOf(event) : null;
-    if (!x || !editable()) return;
-    const before = snapshot();
-    x.el.code.splice(x.i, 1);
+    if (!x) return;
     const what = 'Removed the code link ' + (x.link.path.trim() || '(no path)') + ' from ' + M.describe(S.model, x.el);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    if (!edit(() => { x.el.code.splice(x.i, 1); return what; })) return;
     renderInspector();
-    changed();
     say(what + '. Undo brings it back.');
   });
   addCodeButton.addEventListener('click', () => {
     const el = selectedElement();
-    if (!el || !editable()) return;
-    const before = snapshot();
-    if (!Array.isArray(el.code)) el.code = [];
-    el.code.push({ path: '', language: CODE_LANGUAGES[0], text: '' });
+    if (!el) return;
     const what = 'Added a code link to ' + M.describe(S.model, el);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    const done = edit(() => {
+      if (!Array.isArray(el.code)) el.code = [];
+      el.code.push({ path: '', language: CODE_LANGUAGES[0], text: '' });
+      return what;
+    });
+    if (!done) return;
     renderInspector();
-    changed();
     say(what + '. Give it the file\'s path; the text may stay empty.');
     const path = codeList.querySelector('li.code-link:last-child input.code-path');
     if (path) path.focus({ preventScroll: true });

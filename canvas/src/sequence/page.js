@@ -5,8 +5,7 @@
   const {
     M, TOOL_TITLE, TOOL_HINT, BASE_NAME, ACTIONS, VIEW_PANELS, $, say, editable, f, relById, viewById, viewLayout,
     frameAround, ROUTES, endpoints, viewAt, node, text, MARKERS, nameLine, SHAPES, drawBox, drawRel, RENDERERS,
-    freshElement, render, logChange, changed, snapshot, commit, endEdit, freeName, renderInspector, selectedRel,
-    selectedView
+    freshElement, edit, endEdit, freeName, renderInspector, extraFieldOf, fieldChangeText, selectedView
   } = C;
 
   // ---- Sequence: the sequence view's words, the event's shape, the message's arrowhead, the renderer, the row
@@ -273,27 +272,29 @@
     const i = L.rows.indexOf(rel);
     const j = i + dir;
     if (i < 0 || j < 0 || j >= L.rows.length) { say('The ' + M.describeRel(S.model, rel) + ' is already the ' + (dir < 0 ? 'first' : 'last') + ' row.'); return; }
-    const before = snapshot();
-    M.messagesInOrder(S.model).forEach((m, k) => { m.order = k + 1; });
-    const swap = L.rows[j];
-    const mine = rel.order;
-    rel.order = swap.order;
-    swap.order = mine;
-    sortMessages();
     const what = 'Moved the ' + M.describeRel(S.model, rel) + (dir < 0 ? ' up' : ' down') + ' a row';
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      M.messagesInOrder(S.model).forEach((m, k) => { m.order = k + 1; });
+      const swap = L.rows[j];
+      const mine = rel.order;
+      rel.order = swap.order;
+      swap.order = mine;
+      sortMessages();
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   }
   ACTIONS['message-up'] = function (hit) { moveMessageRow(hit.id, -1, hit.view); };
   ACTIONS['message-down'] = function (hit) { moveMessageRow(hit.id, 1, hit.view); };
   // The order field, once the page has written it (this listener is on the panel, so it runs after the one on
-  // #fields): the text's order follows the drawing's.
+  // #fields): the text's order follows the drawing's, in the same undo step as the field's keystrokes.
   $('inspector').addEventListener('input', (event) => {
-    if (event.target && event.target.id === 'f-order' && editable() && selectedRel()) { sortMessages(); render(); }
+    const x = event.target && event.target.id === 'f-order' ? extraFieldOf(event) : null;
+    if (x) edit(() => {
+      sortMessages();
+      return fieldChangeText(x);
+    }, x.fld + ':' + x.item.id);
   });
   // The sequence view's option: the distance between its rows.
   VIEW_PANELS.SequenceView = function (view, write) {
@@ -303,12 +304,11 @@
   $('sv-spacing').addEventListener('input', () => {
     const view = selectedView();
     const v = +$('sv-spacing').value;
-    if (!view || view.kind !== 'SequenceView' || !editable() || !Number.isFinite(v) || v < SPACING[0] || v > SPACING[1]) return;
-    const before = snapshot();
-    view.options.spacing = Math.round(v);
-    commit('Set the row spacing of ' + M.describeView(S.model, view) + ' to ' + view.options.spacing, 'spacing:' + view.id, before);
-    render();
-    changed();
+    if (!view || view.kind !== 'SequenceView' || !Number.isFinite(v) || v < SPACING[0] || v > SPACING[1]) return;
+    edit(() => {
+      view.options.spacing = Math.round(v);
+      return 'Set the row spacing of ' + M.describeView(S.model, view) + ' to ' + view.options.spacing;
+    }, 'spacing:' + view.id);
   });
   $('sv-spacing').addEventListener('change', () => {
     const view = selectedView();
@@ -317,8 +317,7 @@
     if (!Number.isFinite(v) || v < SPACING[0] || v > SPACING[1]) {
       $('sv-spacing').value = String(rowSpacing(view));
       say('The row spacing is a number from ' + SPACING[0] + ' to ' + SPACING[1] + '.');
-    } else logChange('Set the row spacing of ' + M.describeView(S.model, view) + ' to ' + view.options.spacing, 'spacing:' + view.id);
+    }
     endEdit();
-    changed();
   });
 })(window.SysMLCanvas);

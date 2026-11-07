@@ -418,7 +418,7 @@
   showPanel.addEventListener('click', () => setPanel(true));
 
   Object.assign(C, {
-    resolve, select, selectionFor, renderInspector, renderProblemsList, selectedElement, selectedRel, selectedView,
-    syncNoteLabels, deleteSelection, setPanel
+    resolve, select, selectionFor, renderInspector, renderProblemsList, extraFieldOf, fieldChangeText, selectedElement,
+    selectedRel, selectedView, syncNoteLabels, deleteSelection, setPanel
   });
 })(window.SysMLCanvas);

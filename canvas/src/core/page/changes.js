@@ -165,16 +165,6 @@
   }
   function snapshot() { return JSON.stringify(S.model); }
 
-  // While the page's scripts move over to edit(), the old pieces stay for the scripts that still use them: commit
-  // records an undo step for a change they made and log themselves.
-  function commit(what, key, before) {
-    const top = S.history[S.history.length - 1];
-    if (key && top && top.key === key) { top.what = what; updateUndo(); return; }
-    S.history.push({ json: before === undefined ? snapshot() : before, what: what, key: key || null, touched: nothingTouched(), log: null, logKey: null });
-    if (S.history.length > HISTORY) S.history.shift();
-    updateUndo();
-  }
-
   function updateUndo() {
     const top = S.history[S.history.length - 1];
     undoButton.disabled = !top || !editable();
@@ -214,5 +204,5 @@
     updateUndo();
   }
 
-  Object.assign(C, { edit, endEdit, logChange, changed, snapshot, commit, updateUndo, undo, loadModel, modelReplaced });
+  Object.assign(C, { edit, endEdit, logChange, updateUndo, undo, loadModel, modelReplaced });
 })(window.SysMLCanvas);
