@@ -8,7 +8,7 @@ One folder per feature, and `core` for what every feature builds on:
 
 | Folder | What it holds |
 |---|---|
-| `core/` | The page's shell (`page.html`: the head, the markup, and one line per block the build fills in), the core styles, the model library's tables, helpers, checks and export, and the page's state, layout, drawing, camera, undo, tools, views, panel, notes, store and pointer handling. |
+| `core/` | The page's shell (`page.html`: the head, the markup, and one line per block the build fills in), the core styles, the metamodel's classifiers (`lib/metamodel.js`, generated), the model library's tables, helpers, checks and export, and the page's state, layout, drawing, camera, undo, tools, views, panel, notes, store and pointer handling. |
 | `interconnection/` | Items, interface defs, interfaces, flows and bindings, and the interconnection view. |
 | `behavior/` | The action flow view and the state transition view. |
 | `sequence/` | The sequence view. |
@@ -23,7 +23,7 @@ A feature's folder holds up to three files: `lib.js`, its part of the model libr
 
 The scripts are plain scripts, not modules, so stitching them needs no bundler: each runs once, in the order `build.mjs` lists them, inside the page's one `<script>` (or the library's `<script id="model-lib" data-lib>`). Each is a function that runs at once, and the scripts share one object, the way the library has always registered `SysMLModel`:
 
-- The model library's scripts share `SysMLModelLib`, `lib` in each script. The first creates it; the last builds `SysMLModel` from it the way it always has, freezes it, and removes `SysMLModelLib`, so the page, `export.mjs` and `save-state.mjs` see only `SysMLModel`.
+- The model library's scripts share `SysMLModelLib`, `lib` in each script. The first creates it; the last builds `SysMLModel` from it the way it always has, freezes it, and removes `SysMLModelLib`, so the page, `export.mjs` and `save-state.mjs` see only `SysMLModel`. The first, `core/lib/metamodel.js`, is generated from the SysML metamodel by `canvas/metamodel/generate.mjs` (`canvas/metamodel/README.md`): change the generator and run it, never the file by hand.
 - The page's scripts share `window.SysMLCanvas`, `C` in each script, which the first (`core/page/base.js`) creates. What the page shows and changes as it runs, the state its scripts share, is `C.state`, `S` in each script: `S.model`, `S.selection`, `S.layout`, and the rest. `core/page/state.js` sets most of it and names the scripts that set the others.
 
 A page script looks like this:

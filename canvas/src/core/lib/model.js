@@ -1,14 +1,15 @@
 // The model library: what the drawing holds, what is wrong with it, and how it reads as textual SysML v2. Pure
-// functions, shared with export.mjs and save-state.mjs, which run the library's scripts in Node. This first script
-// holds the four tables that say what the canvas knows, with the core's rows (the element kinds, the relationship
-// kinds, the view kinds, and the fields), and the helpers every feature uses: the names the text reserves and how
-// a name is quoted, how a model saved in an older version of the format is upgraded and how normalize reads what a
-// file carries, and what owns what in a model and what an element is called in a sentence. Each feature's lib.js
-// adds its rows to the tables, reaches into rows before its own (a hook to wrap, a list to push onto), and adds the
-// functions it needs; validate.js and sysml.js read it all, and api.js makes SysMLModel of it.
+// functions, shared with export.mjs and save-state.mjs, which run the library's scripts in Node. After the
+// metamodel's classifiers (metamodel.js, generated), this script holds the four tables that say what the canvas
+// knows, with the core's rows (the element kinds, the relationship kinds, the view kinds, and the fields), and the
+// helpers every feature uses: the names the text reserves and how a name is quoted, how a model saved in an older
+// version of the format is upgraded and how normalize reads what a file carries, and what owns what in a model and
+// what an element is called in a sentence. Each feature's lib.js adds its rows to the tables, reaches into rows
+// before its own (a hook to wrap, a list to push onto), and adds the functions it needs; validate.js and sysml.js
+// read it all, and api.js makes SysMLModel of it.
 (function (root) {
   'use strict';
-  const lib = root.SysMLModelLib = {};   // what the scripts register for the ones after them; api.js removes it
+  const lib = root.SysMLModelLib;   // what the scripts register for the ones after them; metamodel.js creates it
 
   // The saved format. A model names the version of the format it was saved in, format: 'stronghold-canvas/2' for
   // version 2. VERSION is the version this library reads and writes; a model saved in an older one is upgraded as it

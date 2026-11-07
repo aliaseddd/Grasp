@@ -4,7 +4,7 @@
     { "id": 2, "name": "One edit function", "status": "done" },
     { "id": 3, "name": "One naming owner", "status": "done" },
     { "id": 4, "name": "Version the file format", "status": "done" },
-    { "id": 5, "name": "Generate the kind lists", "status": "blocked" },
+    { "id": 5, "name": "Generate the kind lists", "status": "in_progress" },
     { "id": 6, "name": "Panels from field lists", "status": "done" },
     { "id": 7, "name": "Scale tests first", "status": "open" },
     { "id": 8, "name": "Scale work", "status": "open" },
