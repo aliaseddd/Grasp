@@ -51,6 +51,7 @@
   }
   // The HUD's button: the first thing that has a problem, then the next, round and round.
   function nextProblem() {
+    C.checkNow(); // the problems as they are now, when checks wait for the pause
     const named = S.problems.filter((p) => p.id !== null);
     if (!named.length) { if (S.problems.length) say(S.problems[0].message); return; }
     S.problemCursor = (S.problemCursor + 1) % named.length;

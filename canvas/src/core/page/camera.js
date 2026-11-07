@@ -2,7 +2,7 @@
 (function (C) {
   'use strict';
   const S = C.state;
-  const { CAMERA_KEY, MIN_ZOOM, MAX_ZOOM, canvas, svg, zoomLevel, hud, panel, clamp, renderPins, render } = C;
+  const { CAMERA_KEY, MIN_ZOOM, MAX_ZOOM, canvas, svg, zoomLevel, hud, panel, clamp, covered, drawAll, renderPins, render } = C;
 
   // ---- The camera.
 
@@ -15,10 +15,17 @@
     } catch (error) { /* start fitted */ }
     return null;
   }
+  // Where the stage is in the window and how big, kept until it is resized (stageChanged), so reading it doesn't make
+  // the browser lay the page out in the middle of a change.
+  let stage = null;
   function stageSize() {
-    const r = canvas.getBoundingClientRect();
-    return { left: r.left, top: r.top, width: Math.max(r.width, 1), height: Math.max(r.height, 1) };
+    if (!stage) {
+      const r = canvas.getBoundingClientRect();
+      stage = { left: r.left, top: r.top, width: Math.max(r.width, 1), height: Math.max(r.height, 1) };
+    }
+    return stage;
   }
+  function stageChanged() { stage = null; }
   // The part of the window the panel doesn't cover.
   function openArea() {
     const s = stageSize();
@@ -35,7 +42,9 @@
     svg.setAttribute('viewBox', [S.camera.x, S.camera.y, s.width / S.camera.k, s.height / S.camera.k].map((v) => v.toFixed(2)).join(' '));
     svg.classList.toggle('is-far', S.camera.k < 0.35);
     zoomLevel.textContent = Math.round(S.camera.k * 100) + '%';
-    if (S.layout) renderPins();
+    // What was drawn is drawn again once the window leaves it, or the zoom asks for other detail; else only the pins
+    // and badges, which keep their screen size.
+    if (S.layout) { if (covered()) renderPins(); else drawAll(); }
     try { localStorage.setItem(CAMERA_KEY, JSON.stringify(S.camera)); } catch (error) { /* a convenience only */ }
   }
   // Fits every frame into the open part of the window.
@@ -72,5 +81,5 @@
     return { x: point.x, y: point.y };
   }
 
-  Object.assign(C, { stageSize, applyCamera, fit, zoomAt, zoomAtCenter, showPoint, toDrawing });
+  Object.assign(C, { stageSize, stageChanged, applyCamera, fit, zoomAt, zoomAtCenter, showPoint, toDrawing });
 })(window.SysMLCanvas);

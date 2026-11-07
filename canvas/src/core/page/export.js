@@ -7,6 +7,7 @@
   // ---- The export: the model as textual SysML v2.
 
   function openExport() {
+    C.checkNow(); // the export says what keeps it from being correct now, when checks wait for the pause
     while (exportProblems.firstChild) exportProblems.removeChild(exportProblems.firstChild);
     S.problems.forEach((p) => {
       const li = document.createElement('li');

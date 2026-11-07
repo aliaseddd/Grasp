@@ -200,6 +200,7 @@
   RENDERERS.grid = {
     layout: gridLayout,
     draw: gridDraw,
+    problems: true, // its problems column shows what the checks found, so the view is drawn again when that changes
     place: function (view, kind) {
       say('A grid draws nothing by hand: its rows come from its Show list and from Show all in the panel. Select ' + M.describeView(S.model, view) + ' to add rows.');
       return null;

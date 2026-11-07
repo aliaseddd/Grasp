@@ -103,6 +103,15 @@ export async function until(page, predicate, arg, what, timeout = WAIT) {
 
 // Reading the page.
 
+/**
+ * Waits until the page's checks have caught up with the model. They run once the changes pause, as the save does, so a
+ * test that reads the problems right after a change (the HUD's #problems, #problems-list, the badges and is-problem)
+ * waits for them first; reading them sooner would see the problems from before the change.
+ */
+export async function checked(page) {
+  await until(page, () => !window.SysMLCanvas.state.checkTimer, null, 'the checks catch up with the model');
+}
+
 export const viewBox = (page) => page.getAttribute('#drawing', 'viewBox');
 export const elementIds = (page) => page.$$eval('g[data-el]', (groups) => groups.map((g) => g.getAttribute('data-el')));
 export const relationshipIds = (page) => page.$$eval('g[data-rel]', (groups) => groups.map((g) => g.getAttribute('data-rel')));
@@ -286,15 +295,16 @@ export async function importLarge(page, state, name = 'scale.json') {
  * would have zoomed and panned to before clicking it.
  */
 export async function lookAt(page, viewId, id) {
+  // Where the view lays the element out, which is where it is drawn once the window shows it: the page draws only
+  // what the window shows, so the element may not be drawn yet.
   const found = await page.evaluate(([view, el]) => {
-    const outline = document.querySelector(`#drawing g.frame[data-view="${view}"] g[data-el="${el}"] > rect.outline`);
-    if (!outline) return false;
     const C = window.SysMLCanvas;
-    const box = outline.getBoundingClientRect();
-    const middle = C.toDrawing(box.left + box.width / 2, box.top + box.height / 2);
+    const L = C.viewLayout(view);
+    const r = L ? L.rects.get(el) : null;
+    if (!r) return false;
     C.state.camera = Object.assign({}, C.state.camera, { k: 1 });
-    C.showPoint(middle.x, middle.y);
-    return true;
+    C.showPoint(r.x + r.w / 2, r.y + r.h / 2);
+    return !!document.querySelector(`#drawing g.frame[data-view="${view}"] g[data-el="${el}"] > rect.outline`);
   }, [viewId, id]);
   assert.ok(found, `view ${viewId} draws ${id}`);
 }

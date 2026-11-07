@@ -34,9 +34,12 @@
   }
 
   // The layout of one graph view: rects in plane coordinates for the elements it shows, kids by their parent in
-  // the view ('' for the view's own ground), parentOf the other way round, comps the compartments of each box.
-  function graphLayout(view, ids) {
-    const order = new Map(S.model.elements.map((e, i) => [e.id, i]));
+  // the view ('' for the view's own ground), parentOf the other way round, comps the compartments of each box. order,
+  // when given, is each element's place in the model's list, which computeLayout makes once for every view; before,
+  // when given, is the view's layout before a change that only moved things, whose compartments still hold for a box
+  // of the same width.
+  function graphLayout(view, ids, order, before) {
+    order = order || new Map(S.model.elements.map((e, i) => [e.id, i]));
     const shown = new Set(Object.keys(view.layout).filter((id) => ids.has(id)));
     const kids = new Map();
     const parentOf = new Map();
@@ -55,11 +58,14 @@
     const sizes = new Map();
     const rects = new Map();
     const comps = new Map();
+    const widths = new Map();     // the width each box's compartments were wrapped to
     function size(el) {
       const lay = view.layout[el.id];
       const shape = C.SHAPES[M.KINDS[el.kind].shape] || C.SHAPES.rect;
-      const blocks = shape.compartments ? C.compartmentsOf(el, lay.w) : [];
+      const kept = before && before.widths && before.widths.get(el.id) === lay.w ? before.comps.get(el.id) : null;
+      const blocks = kept || (shape.compartments ? C.compartmentsOf(el, lay.w) : []);
       comps.set(el.id, blocks);
+      widths.set(el.id, lay.w);
       // A shape with compartments is at least its header high; one without (a small node) may be any height.
       let bottom = (shape.compartments ? HEADER : 0) + blocks.reduce((h, c) => h + HEAD_H + LEAD * c.lines.length + 6, 0);
       let right = 0;
@@ -94,7 +100,7 @@
         x2: Math.max(box.x2, r.x + r.w), y2: Math.max(box.y2, r.y + r.h)
       } : { x: r.x, y: r.y, x2: r.x + r.w, y2: r.y + r.h };
     }
-    return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: comps, frameRect: frameAround(view, box) };
+    return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: comps, widths: widths, frameRect: frameAround(view, box) };
   }
   // The frame around a view's content: its bounding box plus the margin, never smaller than the minimum. An empty
   // view's frame starts at the view's origin.
@@ -106,27 +112,55 @@
     fr.h = Math.max(fr.h, MIN_FRAME[1]);
     return fr;
   }
-  // Every view's layout, plus where: for each element and drawn line, the views it is drawn in; and bounds, the
-  // box around every frame.
-  function computeLayout() {
-    const ids = M.index(S.model);
+  // Every view's layout, plus where: for each element and drawn line, the views it is drawn in (where.get(id), a
+  // list of view ids, or undefined for none); and bounds, the box around every frame. Given the layout from before a
+  // change (previous) and the ids of the views the change can have moved (redo, a Set), only those views are laid out
+  // again, and the others keep theirs, with the element index, since such a change adds and removes no element. With
+  // moving, the change only moved things (see render), so a view laid out again draws the same lines as before, and
+  // its renderer may keep what the moves can't have changed. With no previous layout, or no redo, every view is laid
+  // out.
+  function computeLayout(previous, redo, moving) {
+    const again = !previous || !redo;
+    const ids = again ? M.index(S.model) : previous.ids;
+    const order = again ? new Map(S.model.elements.map((e, i) => [e.id, i])) : previous.order;
     const views = new Map();
-    const where = new Map();
-    const drawnIn = (id, viewId) => { if (!where.has(id)) where.set(id, []); where.get(id).push(viewId); };
     let b = null;
     for (const view of S.model.views) {
-      const L = rendererFor(view).layout(view, ids);
+      const was = again ? null : previous.views.get(view.id);
+      const keep = was && was.view === view;
+      let L;
+      if (keep && !redo.has(view.id)) L = was;
+      else if (keep && moving) {
+        L = rendererFor(view).layout(view, ids, order, was);
+        L.rels = was.rels;
+        L.drawn = was.drawn;
+        L.byEnd = was.byEnd;
+      } else L = drawnLines(rendererFor(view).layout(view, ids, order));
       views.set(view.id, L);
-      L.shown.forEach((id) => drawnIn(id, view.id));
-      // A line is drawn in the view when the renderer routed it itself (L.lines holds every line such a renderer
-      // draws), else, for a renderer that draws every line between the rects it has, when both ends are drawn there.
-      S.model.relationships.forEach((rel) => { if (!rel.hidden && (L.lines ? L.lines.has(rel.id) : (L.rects.has(rel.from) && L.rects.has(rel.to)))) drawnIn(rel.id, view.id); });
       const fr = L.frameRect;
       b = b ? { x: Math.min(b.x, fr.x), y: Math.min(b.y, fr.y), x2: Math.max(b.x2, fr.x + fr.w), y2: Math.max(b.y2, fr.y + fr.h) }
         : { x: fr.x, y: fr.y, x2: fr.x + fr.w, y2: fr.y + fr.h };
     }
     const bounds = b ? { x: b.x, y: b.y, w: b.x2 - b.x, h: b.y2 - b.y } : { x: -220, y: -140, w: 440, h: 280 };
-    return { ids: ids, views: views, where: where, bounds: bounds };
+    return { ids: ids, order: order, views: views, where: whereIn(views), bounds: bounds };
+  }
+  // The lines a view layout draws, as L.rels (the relationships, in the model's order) and L.drawn (their ids): those
+  // the renderer routed itself, when it routes (L.lines holds every line such a renderer draws), else, for a renderer
+  // that draws every line between the rects it has, those with both ends drawn there; never a line that is hidden.
+  function drawnLines(L) {
+    L.rels = S.model.relationships.filter((rel) => !rel.hidden && (L.lines ? L.lines.has(rel.id) : (L.rects.has(rel.from) && L.rects.has(rel.to))));
+    L.drawn = new Set(L.rels.map((rel) => rel.id));
+    return L;
+  }
+  // Which views draw an element or a line, asked of the views' layouts one id at a time.
+  function whereIn(views) {
+    return {
+      get: function (id) {
+        const out = [];
+        views.forEach((L, viewId) => { if (L.shown.has(id) || L.drawn.has(id)) out.push(viewId); });
+        return out.length ? out : undefined;
+      }
+    };
   }
 
   function center(r) { return r.port ? { x: r.cx, y: r.cy } : { x: r.x + r.w / 2, y: r.y + r.h / 2 }; }
@@ -198,8 +232,11 @@
   // The innermost box under point p in view layout L that can hold an element of kind (any box that holds things
   // when kind is null), leaving out except and everything inside it. Null: the view's own ground.
   function containerAt(L, p, except, kind) {
+    // What is inside except, as far as the view shows it: what it holds in the view, which is everything inside it in
+    // the model that the view shows, since a shown box sits in its nearest shown owner.
     const skip = new Set();
-    if (except) { skip.add(except.id); M.descendants(S.model, except.id).forEach((d) => skip.add(d.id)); }
+    const inside = (id) => { skip.add(id); (L.kids.get(id) || []).forEach((k) => inside(k.id)); };
+    if (except) inside(except.id);
     let best = null;
     L.shown.forEach((id) => {
       const el = S.layout.ids.get(id);

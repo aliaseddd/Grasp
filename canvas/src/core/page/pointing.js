@@ -68,6 +68,7 @@
   svg.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button > 1) return;
     event.preventDefault();
+    C.stageChanged(); // where the stage is, read afresh as a gesture starts, while the page is laid out
     canvas.focus({ preventScroll: true });
     pointers[event.pointerId] = { x: event.clientX, y: event.clientY, button: event.button };
     try { svg.setPointerCapture(event.pointerId); } catch (error) { /* not capturable */ }
@@ -153,10 +154,10 @@
       rendererFor(view).drag(view, el, d, p);
       return 'Moved ' + M.describe(S.model, el);
     }, 'move:' + el.id);
-    if (S.drag.over) {
-      const g = svg.querySelector('.frame[data-view="' + view.id + '"] [data-el="' + S.drag.over + '"]');
-      if (g) g.classList.add('is-drop');
-    }
+    // The box it would drop into is marked, and only that one: a drawing that moved things kept the other groups.
+    const over = S.drag.over ? svg.querySelector('.frame[data-view="' + view.id + '"] [data-el="' + S.drag.over + '"]') : null;
+    svg.querySelectorAll('[data-el].is-drop').forEach((g) => { if (g !== over) g.classList.remove('is-drop'); });
+    if (over) over.classList.add('is-drop');
   }
   // Ends a drag: a pin's, a view's, or an element's through its renderer's drop, the last change of the drag's run,
   // which ends with it. The record comes off drag first, so the render that follows no longer makes way for what was
@@ -166,6 +167,7 @@
     const d = S.drag;
     S.drag = null;
     if (d.kind === 'pin') { C.dropPin(d, event); return; }
+    svg.querySelectorAll('[data-el].is-drop').forEach((g) => g.classList.remove('is-drop'));
     let said = '';
     if (d.kind === 'view') {
       const view = viewById(d.id);
@@ -307,8 +309,9 @@
   }
   svg.addEventListener('pointerleave', () => { setHover(null); hint.textContent = baseHint(); });
 
-  if (window.ResizeObserver) new ResizeObserver(() => { if (S.camera && S.layout) applyCamera(); }).observe(canvas);
-  else window.addEventListener('resize', () => { if (S.camera && S.layout) applyCamera(); });
+  const resized = () => { C.stageChanged(); if (S.camera && S.layout) applyCamera(); };
+  if (window.ResizeObserver) new ResizeObserver(resized).observe(canvas);
+  else window.addEventListener('resize', resized);
 
   // A change still waiting for its pause is saved when the page is left or put away.
   const flush = () => { if (S.saveTimer) { clearTimeout(S.saveTimer); persist(); } Object.keys(noteTimers).forEach((id) => { clearTimeout(noteTimers[id]); const n = noteById(id); if (n) writeShared(n, ['text', 'updated']); delete noteTimers[id]; }); };
