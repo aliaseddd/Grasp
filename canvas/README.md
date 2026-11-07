@@ -54,7 +54,7 @@ node --test --test-timeout=120000 canvas/test/*.test.mjs   # the Chromium tests,
 ```
 
 `node --test canvas/test/` runs the same files in one process through `test/index.js`; give it no `--test-timeout`, or at least 180000, since the bound then covers the whole suite.
-`export.mjs` runs the page's own model script (`<script id="model-lib">` in `index.html`) in Node, so the text it prints is the text the Export button shows. `check.sh` hands that text to `docs/sysml/check.sh`, which runs the validator inside the pilot implementation's Jupyter kernel; its first run downloads the kernel. The tests need Playwright and Chromium the way `hosts/dev` does; `canvas/test/fixtures/` holds a state file per view kind, each of which `canvas/check.sh` accepts, and the model-library test exports every one of them.
+`export.mjs` runs the page's own model script (`<script id="model-lib">` in `index.html`) in Node, so the text it prints is the text the Export button shows. `check.sh` hands that text to `docs/sysml/check.sh`, which runs the validator inside the pilot implementation's Jupyter kernel; its first run downloads the kernel. The tests need Playwright 1.63.0 and its Chromium where Node finds them from `canvas/test/`: run `npm install --no-save playwright@1.63.0` at the repository root (it writes only `node_modules/`, which git ignores), then `npx playwright install chromium`, once per machine; `canvas/test/fixtures/` holds a state file per view kind, each of which `canvas/check.sh` accepts, and the model-library test exports every one of them.
 
 ## How the model is written out
 
