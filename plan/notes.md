@@ -1126,3 +1126,59 @@ How it was checked:
   interface retyped, a conjugation), export with no problems, and `canvas/check.sh` accepts all three (the example
   with a warning that a subsetting feature's upper bound, 2..*, is larger than the subsetted one's, 1, which the edit
   asked for).
+
+### Details view (done)
+
+One commit, every test passing (211 of 211), every export unchanged.
+
+Where it is (`canvas/src/details/`; `src/README.md`, "The panel's fields", says how a field is placed):
+
+- `lib.js`: `detailsOf(model, type, item)` gives `{ metaclass, title, core, advanced }`: the title ("Part Properties":
+  the metaclass in words, a usage's without "Usage"); `core`, SysON's core features of the metaclass in its order
+  (`coreFeatures`, after SysON's `CoreFeaturesSwitch` as the inventory describes it); `advanced`, every other
+  single-valued attribute of the metaclass from `METAMODEL`, supertypes' first. A row is `{ field }` (a field of the
+  kind holds the attribute: `FIELDS[f].attribute`), `{ value }` (what the canvas knows: `elementId`, `name`,
+  `qualifiedName`, `isLibraryElement` false, a view's exposed elements, a specialization's or typing's ends), or
+  `{ held: false }`. It adds two FIELDS rows, `specializes` (definitions) and `subsets` (usages), `stored: false`,
+  the first `Specialization` line an element starts (`firstGeneral`), with the choices its rule allows (`generals`).
+  `conforms` (model.js) is now on the library's shared object.
+- `page.js`: `renderDetails(s)`, which panel.js calls after it fills the fields: it moves each field's label to the
+  tab and place its attribute has, adds the rows, titles the groups, shows the tab `S.detailsTab` names (kept as the
+  selection changes), and hides a group with nothing shown in it. The tabs' buttons (`#tab-core`, `#tab-advanced`,
+  and `#v-tab-…` in a view's panel) have their own listeners; no field does. The hooks of `specializes`, `subsets`
+  (retarget the line, keeping its notes; nothing takes it away) and `parallel` (`locked` while a state holds
+  transitions: the new hook says why, and the panel disables the input and puts the reason on its label's title).
+- The panel's markup (`core/page.html`): `#fields` holds the tabs, `#page-core` with `#g-main` (title, body),
+  `#g-typing`, `#g-general` and `#g-geometry`, and `#page-advanced`; `#view-fields` the same with `v-` ids. The labels
+  are SysON's where the field is a SysON feature (Declared Name, Qualified Name, Typed by, Documentation, Is Abstract,
+  Is Parallel, Specializes, Subsets). The heading is Details, and the empty panel says "No object selected".
+- A choice (an `enum` field: direction, the kind of action, the kind under a state, a footprint's shape and unit) is
+  now radio buttons, a `fieldset.radios`; panel.js reads and writes them (`choiceOf`, `setChoice`, `inputOf`).
+
+How it follows SysON, and where it doesn't:
+
+- SysON's Advanced tab shows a widget for every attribute; values the canvas can't know (an `isComposite` the parser
+  works out, which the ecore's default, false, would misstate) are shown as "not held yet", never as a default.
+- SysON repeats a Specializes or Subsets group per line; the canvas shows the first line's, as Typed by shows the
+  first typing; the others stay lines on the drawing. Like SysON's, the group is there only while a line is.
+- SysON has no multiplicity widget (it is edited by direct edit); the canvas keeps its Multiplicity field on Core,
+  among its own fields, and its other fields (payload, target, guard, trigger, effect, order, item, the geometry) too.
+- References on Advanced: SysON shows the changeable ones; the canvas edits its references as lines and as Typed by,
+  Specializes and Subsets, so Advanced lists attributes only.
+
+How it was checked:
+
+- Tests: `test/details.test.mjs`, 10 (5 Node: titles, core features per metaclass, a part's and a definition's rows,
+  every kind and line and view of the example and the fixtures with each attribute field in one tab once, a view's
+  and a line's values and Specializes' choices; 5 browser: the tabs and their order and the tab kept, Is Abstract on
+  Advanced as one step, Specializes and Subsets retargeting and taking the line away and Undo, radio buttons with
+  unset and Is Parallel locked, a view's and a line's details and a page that can't be changed).
+- Tests changed, assertions kept: the six that picked a choice from a select now pick a radio button (`choose`,
+  `chosen` in `helpers.mjs`); two open the Advanced tab to find Is Abstract (`detailsTab`); `fields.test.mjs` opens
+  the tab a field is on, picks radio buttons, reads Specializes and Subsets from the line, skips a field locked now
+  (it is changed on another element of its kind), and its merged model gives the first element of each kind that
+  lists Specializes or Subsets a line, made to another of its kind (made beside it when none is), so every such
+  field is changed through the panel as before.
+- Faults put in one at a time, each failing a test: no lock, isIndividual on a port, Advanced fields left on Core,
+  the tab reset on each selection, Specializes making a new line, radio buttons not set, a circle among the choices,
+  empty groups shown.

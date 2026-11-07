@@ -12,5 +12,5 @@
     { "id": 10, "name": "Features from SysON", "status": "in_progress" }
   ],
   "features": ["label editing", "details view", "validation rules"],
-  "features_done": ["label editing"]
+  "features_done": ["label editing", "details view"]
 }
