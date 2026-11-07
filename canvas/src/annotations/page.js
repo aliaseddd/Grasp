@@ -4,8 +4,8 @@
   const S = C.state;
   const {
     M, NOTES, TOOL_TITLE, TOOL_HINT, TOOLS, $, canvas, svg, saved, now, say, editable, f, newId, plural, isNote,
-    byNumber, nextNumber, noteById, node, COMPARTMENTS, tidyArchived, pinTransform, renderPins, render, toDrawing,
-    logChange, changed, snapshot, commit, endEdit, setTool, select, renderInspector, selectedElement, noteTimers,
+    byNumber, nextNumber, noteById, node, COMPARTMENTS, tidyArchived, pinTransform, renderPins, toDrawing, edit,
+    endEdit, setTool, select, renderInspector, selectedElement, noteTimers,
     renderNotes, dateOf, focusNote, addNote, noteChanged, setMode, saveLocal, dirty, noteBody, stageNote, enqueue,
     attempt, refused, hitOf
   } = C;
@@ -403,66 +403,53 @@
     return el.code[i] ? { el: el, i: i, link: el.code[i] } : null;
   }
   function codeLinkName(x) { return 'code link ' + (x.i + 1) + ' of ' + M.describe(S.model, x.el); }
-  // Typing a path or a text is one undo step per field of the link, logged once the field is left; the language
-  // changes at once; Add and Remove are one step each.
+  // Typing a path or a text is one undo step per field of the link, a run the field's change event ends, which logs
+  // it once the field is left; the language changes at once; Add and Remove are one step each.
   codeList.addEventListener('input', (event) => {
     const x = codeLinkOf(event);
     const input = event.target;
     const fld = input.classList.contains('code-path') ? 'path' : input.classList.contains('code-text') ? 'text' : null;
-    if (!x || !fld || !editable()) return;
-    const before = snapshot();
-    x.link[fld] = input.value;
-    if (fld === 'text') growCodeText(input);
-    commit('Set the ' + fld + ' of ' + codeLinkName(x), 'code:' + x.el.id + ':' + x.i + ':' + fld, before);
-    render();
-    changed();
+    if (!x || !fld) return;
+    const done = edit(() => {
+      x.link[fld] = input.value;
+      const what = 'Set the ' + fld + ' of ' + codeLinkName(x);
+      return { what: what, log: what + (fld === 'path' ? ' to ' + (x.link.path.trim() || 'nothing') : '') };
+    }, 'code:' + x.el.id + ':' + x.i + ':' + fld);
+    if (done && fld === 'text') growCodeText(input);
   });
   codeList.addEventListener('change', (event) => {
     const x = codeLinkOf(event);
     const input = event.target;
-    if (!x || !editable()) return;
+    if (!x) return;
     if (input.classList.contains('code-language')) {
-      const before = snapshot();
-      x.link.language = input.value;
-      const what = 'Set the language of ' + codeLinkName(x) + ' to ' + (input.value || 'nothing');
-      commit(what, null, before);
-      logChange(what);
-      render();
-      changed();
+      edit(() => {
+        x.link.language = input.value;
+        return 'Set the language of ' + codeLinkName(x) + ' to ' + (input.value || 'nothing');
+      });
       return;
     }
-    const fld = input.classList.contains('code-path') ? 'path' : input.classList.contains('code-text') ? 'text' : null;
-    if (!fld) return;
-    logChange('Set the ' + fld + ' of ' + codeLinkName(x) + (fld === 'path' ? ' to ' + (x.link.path.trim() || 'nothing') : ''), 'code:' + x.el.id + ':' + x.i + ':' + fld);
-    endEdit();
-    changed();
+    if (input.classList.contains('code-path') || input.classList.contains('code-text')) endEdit();
   });
   codeList.addEventListener('click', (event) => {
     const button = event.target.closest ? event.target.closest('button.code-remove') : null;
     const x = button ? codeLinkOf(event) : null;
-    if (!x || !editable()) return;
-    const before = snapshot();
-    x.el.code.splice(x.i, 1);
+    if (!x) return;
     const what = 'Removed the code link ' + (x.link.path.trim() || '(no path)') + ' from ' + M.describe(S.model, x.el);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    if (!edit(() => { x.el.code.splice(x.i, 1); return what; })) return;
     renderInspector();
-    changed();
     say(what + '. Undo brings it back.');
   });
   addCodeButton.addEventListener('click', () => {
     const el = selectedElement();
-    if (!el || !editable()) return;
-    const before = snapshot();
-    if (!Array.isArray(el.code)) el.code = [];
-    el.code.push({ path: '', language: CODE_LANGUAGES[0], text: '' });
+    if (!el) return;
     const what = 'Added a code link to ' + M.describe(S.model, el);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    const done = edit(() => {
+      if (!Array.isArray(el.code)) el.code = [];
+      el.code.push({ path: '', language: CODE_LANGUAGES[0], text: '' });
+      return what;
+    });
+    if (!done) return;
     renderInspector();
-    changed();
     say(what + '. Give it the file\'s path; the text may stay empty.');
     const path = codeList.querySelector('li.code-link:last-child input.code-path');
     if (path) path.focus({ preventScroll: true });

@@ -4,8 +4,7 @@
   const S = C.state;
   const {
     M, PAD, VIEW_PANELS, $, say, clamp, editable, f, viewById, viewLayout, frameAround, containerAt, viewAt, node,
-    text, MARKERS, nameLine, RENDERERS, freshElement, render, logChange, changed, snapshot, commit, endEdit, freeName,
-    renderInspector, selectedView
+    text, MARKERS, nameLine, RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
   } = C;
 
   // The geometry view: a plan of the parts it shows, each drawn as its shape's footprint to scale, x to the right and y
@@ -208,33 +207,28 @@
     const view = geoSelectedView();
     const v = gScale.value.trim() === '' ? NaN : +gScale.value;
     if (!view || !Number.isFinite(v) || v <= 0) return;
-    const before = snapshot();
-    view.options.scale = v;
-    commit(geoScaleText(view), 'scale:' + view.id, before);
-    render();
-    changed();
+    edit(() => {
+      view.options.scale = v;
+      return geoScaleText(view);
+    }, 'scale:' + view.id);
   });
   gScale.addEventListener('change', () => {
     const view = geoSelectedView();
     if (!view) return;
     gScale.value = M.geoNumber(geoScale(view));
-    logChange(geoScaleText(view), 'scale:' + view.id);
     endEdit();
-    changed();
     say(geoScaleText(view) + '.');
   });
   gUnit.addEventListener('change', () => {
     const view = geoSelectedView();
     if (!view || M.GEO_UNITS.indexOf(gUnit.value) < 0) return;
-    const before = snapshot();
-    view.options.scale = +(geoScale(view) * M.geoConvert(1, gUnit.value, geoViewUnit(view))).toPrecision(6);
-    view.options.unit = gUnit.value;
     const what = 'Set the unit of ' + M.describeView(S.model, view) + ' to ' + gUnit.value;
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.scale = +(geoScale(view) * M.geoConvert(1, gUnit.value, geoViewUnit(view))).toPrecision(6);
+      view.options.unit = gUnit.value;
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '. The scale is now ' + M.geoNumber(geoScale(view)) + ' px per ' + gUnit.value + ', so the drawing keeps its size; new parts are measured in ' + gUnit.value + '.');
   });
 })(window.SysMLCanvas);

@@ -160,3 +160,95 @@ whole, then the library split, then the page's script split, then these notes.
   `logChange(` and 46 of `changed()`. The one edit function belongs in `changes.js`, registered on `C`.
 - `docs/REPO_MAP.md`, the map aider draws of this repository, still shows the old single file; aider wasn't
   available here to draw it again.
+
+## Session 3, November 7, 2026: step 2, One edit function
+
+Step 2 is done. Every change to the model goes through one function, `edit(change, key)` in
+`src/core/page/changes.js`, and each change records which elements, relationships and views it touched. Four
+commits, each with every test passing: `edit()` with the core's sites routed through it, then the features' sites
+with the old pieces made private, then the check for changes made outside `edit()` with the new tests, then these
+notes.
+
+### Where things are now
+
+- `edit(change, key)`: `change()` changes the model and returns what it did, in words: a string for the Undo button
+  and the log alike, `{ what, log, key }` when the log needs other words or another key, or nothing when it did
+  nothing (the model must then be as it was). `edit` records the undo step, logs it, calls `render()`, and schedules
+  the save; the panel, the selection and the status line stay the caller's. It returns what the change touched, or
+  null when nothing was done. `src/README.md` has the rule under "Changing the model".
+- A `key` joins a run of changes into one undo step: a field's keystrokes (`name:<id>`, `doc:<id>`, `mult:<id>`,
+  `<field>:<id>`, `code:…`, `scale:<view>`, `spacing:<view>`) and a drag's moves (`move:<id>`). A run is logged once,
+  in its last words, when it ends: at `endEdit()` (the field's change event, the drag's drop), when a change with
+  another key comes, or when Undo is pressed. A run that ends with the model as it was before it is taken off the
+  history and logs nothing (a box dragged out and back). A change with no key is logged at once, as before.
+- What a change touched is `{ elements, relationships, views }`, lists of ids, found by comparing the model's parts
+  before and after the change (`capture` and `difference` in `changes.js`): each element and relationship by id,
+  each view by id without its layout, each layout entry, and the order of the three lists. Added, removed and changed
+  ones count; a layout entry touches its view and the element (or line) it places; a reorder touches only what moved
+  (those off the longest run kept in order), not what shifted. It is kept on each undo entry as `touched` (merged
+  across a run) and returned by `edit()`. Nothing else reads it yet: step 8 is meant to.
+- Each change, and Undo, first compares the model with what the last change left (`checkSettled`). A difference is a
+  change made outside `edit()`; it is thrown as an error of its own after the change at hand, so the page goes on and
+  the console and `finish()` in the tests see it. So is a change that says it did nothing yet changed the model (it
+  is recorded all the same, as "Changed the model"). The whole suite runs with this check on.
+- `commit`, `snapshot` and `changed` are no longer registered on `C`, so the build refuses a script that takes them.
+  `logChange` stays registered for the store's notice when it writes over a change made elsewhere, the one log entry
+  that isn't a change to the model. `loadModel(raw)` replaces the model with one from storage (this browser's at
+  start, the shared store's later) and clears the history; Undo and `loadModel` are the only assignments to `S.model`
+  outside `edit()`, besides the first one in `state.js`.
+- 39 calls of `edit()`: panel.js 12, views.js 4, pointing.js 4, tools.js 2, io.js 1, annotations 4, grid 4,
+  browser 3, sequence 3, geometry 2. That is the 36 old undo sites, plus the two kinds of drag move (which changed the
+  model on every move and recorded nothing until the drop) and the sequence view's sort after a message's order is
+  typed (which ran after the field's undo step, outside any record). `panel.js` registers `extraFieldOf` and
+  `fieldChangeText` so that sort joins the field's run in the same words.
+
+What a user can notice, all small: a drag's moves now schedule the save as they happen, so a long drag can save
+before the drop; a drag that ends where it started is no longer an undo step; Undo while a field's run is open logs the run first; typing in a view's doc redraws the drawing, as every
+other field does; Import state checks that the page can still be changed once the file is read; clearing a
+definition that isn't there no longer schedules a save; and when a retype replaces a usage's definition, the notes on
+the old line move to the new one after it is in the model, so a save made by the note in local mode never holds a
+model without the line.
+
+### How it was checked
+
+- Tests: 109 of 109 pass: the 100 from session 2, 8 in the new `test/edit.test.mjs` (what placing, drawing, moving,
+  deleting, adding a view and showing in it touch; a reorder touches what moved; typing is one step logged when the
+  field is left; a drag is one step logged at the drop, and a drag out and back is no step; both kinds of mistake are
+  reported; the old pieces aren't on `C`), and 1 in `test/sequence.test.mjs` (a message's order and the reordering it
+  brings undo as one step).
+- The new tests fail when `edit()` is broken: kept no-op runs, the check for outside changes taken out, and reorders
+  compared place by place each made the matching tests fail, and the source was then put back.
+- Exports: every input in session 1's table still prints the same bytes, and `canvas/check.sh` accepts the saved
+  model (the kernel downloaded again, as session 1 said it would).
+- The search the step asks for: an AST pass over the page's 22 scripts (acorn, in the session's scratchpad, not
+  committed) found 525 writes to object properties, 54 of them inside functions given to `edit()`. Of the 471 others,
+  all are to the DOM, the page's own state (`S.selection`, `S.drag`, `S.camera` and the rest), notes, the page's tables
+  as they load, local objects, or `changes.js` itself, except the renderers' `place`, `drag` and `drop`, `freshElement`,
+  `blankField`, `insertEvent`, `sortMessages` and `gridShow`, whose every call is inside a function given to `edit()`
+  or inside a renderer hook that only those call. The same pass over the library found it writes only to its own
+  tables as it loads and to the fresh model `normalize` builds (`gridPlace` included), never to a model handed to it.
+- Before any code changed, a read-only inventory by subagents listed the sites, file by file, and agreed with the
+  reading here. Its later agents read files after this session had changed them, so it was stopped; the remarks from
+  them that are kept are in the "Noticed" list below, as things left for later, not as checks of this work.
+- Time: on a generated model of 1,200 elements in 3 general views (part defs with two parts and a port each),
+  `edit()`'s own work, two captures and two comparisons, takes about 9 ms against about 188 ms for `render()`. One
+  keystroke in the name field took 185 to 210 ms before and after the change, run to run, so the difference is inside
+  the noise. At 30 elements it takes 4 to 5 ms either way. The capture grows with the model, not the change.
+
+### For the next session
+
+- Step 3: one naming owner. `M.hasName(kind)` exists already (core/lib/model.js) and is called from 12 files; the
+  behavior library names `StartNode`, `DoneNode` and `InitialNode` 22 times and gives them a `noHead` head. Start by
+  listing every place that decides whether an element's name is written in the text.
+- For step 8: the record of what changed is `S.history[i].touched` and the return value of `edit()`. Computing it
+  costs a pass over the whole model per change (two, with the check for outside changes); at 5,000 elements that alone
+  would take much of step 7's 50 ms and all of its 16 ms. Keeping the last capture (`settled`) as the next change's
+  "before" would halve it, at the cost of the check. Undo and saving could use the entries' `touched` directly.
+- Noticed, outside this step, and left as they were: the store sets aside a model from elsewhere while `S.drag` is
+  set, and a plain click on an element sets it, so a model that arrives during a click waits for the next save to
+  write over it; notes deleted with an element, or moved by a retype, aren't brought back by Undo; an error thrown
+  inside a change leaves what it did unrecorded until the next change reports it; the panel's typed fields ignore the
+  `trim` their FIELDS rows ask for; leaving the page saves the model but doesn't end an open run, so a run open then
+  isn't logged; and `S.model` is the same object as `saved.model` until the first replacement (only its revision is
+  read later, so nothing breaks).
+- `docs/REPO_MAP.md` still shows the old single file.

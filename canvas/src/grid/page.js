@@ -4,7 +4,7 @@
   const S = C.state;
   const {
     M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, byNumber, viewById, frameAround, node, text, RENDERERS,
-    marksFor, render, logChange, changed, snapshot, commit, renderInspector, selectedView
+    marksFor, edit, renderInspector, selectedView
   } = C;
 
   // ---- The grid view: a table with a row per shown element, or a matrix of the shown elements against each other
@@ -243,14 +243,12 @@
     if (!view || view.kind !== 'GridView' || !editable()) return;
     const next = gridMode.value === 'matrix' ? 'matrix' : 'table';
     if (M.gridOptions(view).mode === next) return;
-    const before = snapshot();
-    view.options.mode = next;
     const what = 'Showed ' + M.describeView(S.model, view) + ' as a ' + (next === 'matrix' ? 'matrix of its elements against each other' : 'table with a row per element');
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.mode = next;
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   });
   // A column ticked or unticked. A table keeps at least one column, and a sort goes with the column it was on.
@@ -266,15 +264,13 @@
       next = o.columns.filter((c) => c !== col);
       if (!next.length) { box.checked = true; say('A table needs a column, so ' + col + ' stays. Tick another column before taking this one away.'); return; }
     }
-    const before = snapshot();
-    view.options.columns = next;
-    if (!box.checked && o.sort && o.sort.replace(/^-/, '') === col) view.options.sort = null;
     const what = (box.checked ? 'Added the ' + col + ' column to ' : 'Removed the ' + col + ' column from ') + M.describeView(S.model, view);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.columns = next;
+      if (!box.checked && o.sort && o.sort.replace(/^-/, '') === col) view.options.sort = null;
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   });
   // Makes rows of the elements given that aren't rows yet: the boxes, then the border items whose owner is a row,
@@ -292,16 +288,16 @@
   function gridShowRows(els, what, label) {
     const view = selectedView();
     if (!view || view.kind !== 'GridView' || !editable()) return;
-    const before = snapshot();
-    const r = gridShow(view, els);
+    const text = what + ' in ' + M.describeView(S.model, view);
+    let r = null;
+    edit(() => {
+      r = gridShow(view, els);
+      return r.added.length ? text : null;
+    });
+    if (!r) return;
     const left = r.skipped.length ? ' ' + plural(r.skipped.length, label) + ' sit' + (r.skipped.length === 1 ? 's' : '') + ' on an element that isn\'t a row; show that first.' : '';
     if (!r.added.length) { say('Every ' + label + ' the model has is a row in ' + M.describeView(S.model, view) + ' already.' + left); return; }
-    const text = what + ' in ' + M.describeView(S.model, view);
-    commit(text, null, before);
-    logChange(text);
-    render();
     renderInspector();
-    changed();
     say(text + ': ' + plural(r.added.length, 'new row') + ', ' + plural(Object.keys(view.layout).length, 'row') + ' in all.' + left);
   }
   gridShowAll.addEventListener('click', () => gridShowRows(S.model.elements, 'Showed every element', 'element'));
@@ -316,14 +312,12 @@
     if (!editable()) { say('The order of the rows is part of the view, which can\'t be changed here.'); return; }
     const o = M.gridOptions(view);
     const next = o.sort === hit.id ? '-' + hit.id : o.sort === '-' + hit.id ? null : hit.id;
-    const before = snapshot();
-    view.options.sort = next;
     const what = next === null ? 'Put the rows of ' + M.describeView(S.model, view) + ' back in the model\'s order'
       : 'Sorted the rows of ' + M.describeView(S.model, view) + ' by ' + hit.id + (next.charAt(0) === '-' ? ', descending' : '');
-    commit(what, null, before);
-    logChange(what);
-    render();
-    changed();
+    edit(() => {
+      view.options.sort = next;
+      return what;
+    });
     say(what + '.');
   };
 })(window.SysMLCanvas);

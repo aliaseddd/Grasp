@@ -6,7 +6,7 @@
   const {
     M, STATE_KEY, WORKING, NOTES, WHERE, hint, status, newViewButton, newViewKind, where, warning, downloadButton,
     importButton, str, saved, now, say, editable, plural, isNote, tidyNote, tidyArchived, render, logChange,
-    updateUndo, modelReplaced, baseHint, setActive, renderInspector, renderNotes
+    updateUndo, loadModel, modelReplaced, baseHint, setActive, renderInspector, renderNotes
   } = C;
 
   // ---- Where the model and the notes are kept. Published on claude.ai: the page's store, which Claude reads too.
@@ -72,7 +72,7 @@
     try {
       const data = JSON.parse(localStorage.getItem(storageKey()) || 'null');
       if (data && data.model) {
-        S.model = M.normalize(data.model);
+        loadModel(data.model);
         S.active = S.model.views[0].id;
         S.notes = (Array.isArray(data.notes) ? data.notes : []).filter(isNote).map(tidyNote);
         S.archive = (Array.isArray(data.archive) ? data.archive : []).filter(isNote).map(tidyArchived);
@@ -108,10 +108,9 @@
       // page's write follows and wins, and persist says so, here and in the change log, which Claude reads.
       if (S.drag || S.saveTimer) { overwritten = str(data.updated) || now(); return; }
       lastWritten = json;
-      S.model = M.normalize(data.model);
-      if (Array.isArray(data.changes)) S.changes = data.changes.slice(-200);
       // A model from elsewhere is a new starting point: what was done here before it can't be taken back.
-      S.history = [];
+      loadModel(data.model);
+      if (Array.isArray(data.changes)) S.changes = data.changes.slice(-200);
       modelReplaced();
       if (!first && !snap.metadata.hasPendingWrites) say('The model was updated elsewhere, so the undo history starts afresh.');
     }, () => setMode('read', 'The shared store stopped answering. Reload the page to see the latest.'));

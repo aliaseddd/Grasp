@@ -4154,15 +4154,176 @@ textarea.text[readonly] { resize: none; background: transparent; }
   Object.assign(C, { stageSize, applyCamera, fit, zoomAt, zoomAtCenter, showPoint, toDrawing });
 })(window.SysMLCanvas);
 // ==== src/core/page/changes.js
-// Changes: what was done, for Claude to read; when to save; and what Undo takes back.
+// Changes: the one way the model changes (edit), with what each change touched; the log Claude reads; when to save;
+// and what Undo takes back.
 (function (C) {
   'use strict';
   const S = C.state;
   const { M, PAUSE, HISTORY, undoButton, now, say, editable, viewById, render, applyMarks } = C;
 
-  // ---- Changes: what was done, for Claude to read; when to save; and what Undo takes back.
+  // ---- What a change touched.
+
+  const LISTS = ['elements', 'relationships', 'views'];
+
+  // The model in parts, each as its JSON, so the model before a change can be told from the model after it: the
+  // elements and the relationships by id, each view by id without its layout, each view's layout by the id of what it
+  // places, the order of the three lists, and the rest (the package).
+  function capture(model) {
+    const byId = (list) => new Map(list.map((x) => [x.id, JSON.stringify(x)]));
+    const views = new Map();
+    const places = new Map();
+    model.views.forEach((view) => {
+      const own = Object.assign({}, view);
+      delete own.layout;
+      views.set(view.id, JSON.stringify(own));
+      const layout = view.layout || {};
+      places.set(view.id, new Map(Object.keys(layout).map((id) => [id, JSON.stringify(layout[id])])));
+    });
+    const rest = Object.assign({}, model);
+    LISTS.forEach((list) => { delete rest[list]; });
+    const order = {};
+    LISTS.forEach((list) => { order[list] = model[list].map((x) => x.id); });
+    return { elements: byId(model.elements), relationships: byId(model.relationships), views: views, places: places, order: order, rest: JSON.stringify(rest) };
+  }
+  // What changed from capture a to capture b, as the ids of what it touched, a list each: { elements, relationships,
+  // views }; null when nothing changed. One is touched when it was added, removed or changed, or moved in its list,
+  // whose order is the text's (a sequence view keeps its events in model order). A change to a view's layout touches
+  // the view, and each element or line whose place in it changed.
+  function difference(a, b) {
+    const touched = { elements: new Set(), relationships: new Set(), views: new Set() };
+    const compare = (x, y, into) => {
+      x.forEach((json, id) => { if (y.get(id) !== json) into.add(id); });
+      y.forEach((json, id) => { if (!x.has(id)) into.add(id); });
+    };
+    LISTS.forEach((list) => compare(a[list], b[list], touched[list]));
+    const none = new Map();
+    new Set(Array.from(a.places.keys()).concat(Array.from(b.places.keys()))).forEach((viewId) => {
+      const placed = new Set();
+      compare(a.places.get(viewId) || none, b.places.get(viewId) || none, placed);
+      if (!placed.size) return;
+      touched.views.add(viewId);
+      placed.forEach((id) => touched[a.relationships.has(id) || b.relationships.has(id) ? 'relationships' : 'elements'].add(id));
+    });
+    LISTS.forEach((list) => moved(a.order[list], b.order[list]).forEach((id) => touched[list].add(id)));
+    if (LISTS.every((list) => !touched[list].size) && a.rest === b.rest) return null;
+    return { elements: Array.from(touched.elements), relationships: Array.from(touched.relationships), views: Array.from(touched.views) };
+  }
+  // The ids in both lists that the second puts in another order: those off the longest run the two lists keep in the
+  // same order, which is the longest increasing run of the places the first list gives them (patience sorting).
+  function moved(x, y) {
+    if (x.length === y.length && x.every((id, i) => id === y[i])) return [];
+    const place = new Map(x.map((id, i) => [id, i]));
+    const both = y.filter((id) => place.has(id));
+    const tails = [];            // tails[k]: where in both the best run of k + 1 found so far ends
+    const back = [];             // back[i]: where in both the one before i on its run is, or -1
+    both.forEach((id, i) => {
+      const p = place.get(id);
+      let lo = 0;
+      let hi = tails.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (place.get(both[tails[mid]]) < p) lo = mid + 1; else hi = mid;
+      }
+      back[i] = lo ? tails[lo - 1] : -1;
+      tails[lo] = i;
+    });
+    const kept = new Set();
+    for (let i = tails.length ? tails[tails.length - 1] : -1; i >= 0; i = back[i]) kept.add(both[i]);
+    return both.filter((id) => !kept.has(id));
+  }
+  function nothingTouched() { return { elements: [], relationships: [], views: [] }; }
+  function merge(into, more) {
+    LISTS.forEach((list) => more[list].forEach((id) => { if (into[list].indexOf(id) < 0) into[list].push(id); }));
+  }
+
+  // ---- The one way the model changes.
 
   S.saveTimer = null;
+  // The model as the last change left it, and its parts as capture found them. A change made to the model outside
+  // edit, a mistake in the page's code, would be in no undo step and missing from what a change touched, so the next
+  // change, and Undo, check the model against it first.
+  let settled = null;
+
+  // Every change to the model goes through edit(change, key). change() changes the model and returns what it did: a
+  // string, the words for the Undo button and the log; { what, log, key } when the log needs other words (log) or
+  // its entry another key than the edit's (key: null joins it to no other entry); or nothing, when it did nothing,
+  // and then the model must be as it was. edit records the change for Undo, with what it touched; logs it for
+  // Claude; redraws the drawing; and schedules the save. The panel, the selection and the status line are the
+  // caller's to bring up to date after it.
+  //
+  // A key joins a run of changes into one undo step: the keystrokes of one name, the moves of one drag, each made
+  // with the same key, one after another. A run is logged once, in its last words, when it ends: at endEdit(), which
+  // the field's change event or the drag's drop calls, or when a change with another key comes first.
+  //
+  // Returns what the change touched (see difference), or null when nothing was done: the page can't be changed here,
+  // or change() did nothing.
+  function edit(change, key) {
+    if (!editable()) return null;
+    const open = S.history[S.history.length - 1];
+    if (open && open.key !== null && open.key !== key) endEdit();
+    const top = S.history[S.history.length - 1];
+    const joins = !!key && !!top && top.key === key;
+    const was = capture(S.model);
+    checkSettled(was);
+    const before = joins ? null : snapshot();
+    let said = words(change(), key);
+    const after = capture(S.model);
+    settled = { model: S.model, parts: after };
+    const diff = difference(was, after);
+    if (!said) {
+      if (!diff) return null;
+      mistake('A change given to edit() said it did nothing, yet it changed', diff);
+      said = words('Changed the model', key);
+    }
+    const touched = diff || nothingTouched();
+    if (joins) {
+      Object.assign(top, { what: said.what, log: said.log, logKey: said.key });
+      merge(top.touched, touched);
+    } else {
+      S.history.push({ json: before, what: said.what, key: key || null, touched: touched, log: said.log, logKey: said.key });
+      if (S.history.length > HISTORY) S.history.shift();
+      if (!key) logChange(said.log, said.key);
+    }
+    updateUndo();
+    render();
+    changed();
+    return touched;
+  }
+  // What a change says it did, as { what, log, key }, or null when it says it did nothing.
+  function words(said, key) {
+    if (!said) return null;
+    if (typeof said === 'string') return { what: said, log: said, key: key || null };
+    return { what: said.what, log: said.log || said.what, key: said.key === undefined ? key || null : said.key };
+  }
+  // Reports a change made to the model outside edit since the last change.
+  function checkSettled(parts) {
+    if (!settled || settled.model !== S.model) return;
+    const stray = difference(settled.parts, parts || capture(S.model));
+    if (stray) mistake('The model was changed outside edit()', stray);
+  }
+  // A mistake in the page's code is thrown as an error of its own, once what the page is doing now is done, so the
+  // page goes on while the console, and the tests, see it.
+  function mistake(message, touched) {
+    const ids = LISTS.map((list) => touched[list].join(', ')).filter(Boolean).join('; ') || 'the package';
+    setTimeout(() => { throw new Error(message + ': ' + ids); }, 0);
+  }
+  // Ends the run of changes the newest undo step is, so the next change with its key is a step of its own, and logs
+  // the run in its last words. A run that ended with the model as it was before it (a box dragged out and back) is no
+  // step at all, and logs nothing.
+  function endEdit() {
+    const top = S.history[S.history.length - 1];
+    if (!top || top.key === null) return;
+    top.key = null;
+    if (top.json === snapshot()) S.history.pop();
+    else logChange(top.log, top.logKey);
+    updateUndo();
+    changed();
+  }
+
+  // ---- The log, the save, and Undo.
+
+  // The log of what was done, which Claude reads. A key joins an entry to the one before it when that one has the same
+  // key: the latest words stand for both.
   function logChange(what, coalesceKey) {
     const entry = { at: now(), text: what };
     if (coalesceKey) {
@@ -4173,40 +4334,39 @@ textarea.text[readonly] { resize: none; background: transparent; }
     S.changes.push(entry);
     if (S.changes.length > 200) S.changes = S.changes.slice(-200);
   }
+  // The save waits for a pause in the changes.
   function changed() {
     clearTimeout(S.saveTimer);
     S.saveTimer = setTimeout(C.persist, PAUSE);
   }
-
   function snapshot() { return JSON.stringify(S.model); }
-  // Remembers the model as it was before a change, so Undo can bring it back. before is that model's JSON, taken
-  // with snapshot() before the mutation; without it, the model as it is now, so then call it before mutating. A key
-  // joins a run of small changes (the keystrokes of one name) into one step: while the top entry has the same key it
-  // is kept and only its text changes. A change without the key, or endEdit(), ends the run.
-  function commit(what, key, before) {
-    const top = S.history[S.history.length - 1];
-    if (key && top && top.key === key) { top.what = what; updateUndo(); return; }
-    S.history.push({ json: before === undefined ? snapshot() : before, what: what, key: key || null });
-    if (S.history.length > HISTORY) S.history.shift();
-    updateUndo();
-  }
-  function endEdit() {
-    const top = S.history[S.history.length - 1];
-    if (top) top.key = null;
-  }
+
   function updateUndo() {
     const top = S.history[S.history.length - 1];
     undoButton.disabled = !top || !editable();
     undoButton.title = top ? 'Undo: ' + top.what : 'Nothing to undo';
   }
+  // Takes the newest change back: the model goes back to what it was before it.
   function undo() {
-    if (!editable() || !S.history.length) return;
+    if (!editable()) return;
+    endEdit();
+    if (!S.history.length) return;
+    checkSettled();
     const entry = S.history.pop();
     S.model = M.normalize(JSON.parse(entry.json));
+    settled = null;
     modelReplaced();
     logChange('Undid: ' + entry.what);
     changed();
     say('Undid: ' + entry.what + '.');
+  }
+  // A model from storage takes the place of the one here: this browser's as the page starts, or the shared store's
+  // when it was changed elsewhere. It isn't a change made here, so it is neither logged nor saved, and what was done
+  // here before it can't be taken back.
+  function loadModel(raw) {
+    S.model = M.normalize(raw);
+    S.history = [];
+    settled = null;
   }
   // After the model was swapped for another (undo, the store, an import): the active view and the selection are kept
   // when they still exist, everything is drawn again, and the notes' labels follow.
@@ -4223,7 +4383,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     updateUndo();
   }
 
-  Object.assign(C, { logChange, changed, snapshot, commit, endEdit, updateUndo, undo, modelReplaced });
+  Object.assign(C, { edit, endEdit, logChange, updateUndo, undo, loadModel, modelReplaced });
 })(window.SysMLCanvas);
 // ==== src/core/page/tools.js
 // Tools: the palette, adding elements, and drawing relationships.
@@ -4232,8 +4392,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, NARROW, TOOL_TITLE, TOOL_HINT, BASE_NAME, TOOLS, canvas, svg, hint, eyebrow, palette, fName, say, editable,
-    newId, paletteButtons, viewById, activeView, rendererFor, viewAt, blankField, render, applyMarks, logChange,
-    changed, snapshot, commit
+    newId, paletteButtons, viewById, activeView, rendererFor, viewAt, blankField, applyMarks, edit
   } = C;
 
   // ---- Tools: adding elements and drawing relationships.
@@ -4332,15 +4491,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
       return;
     }
     if (view.id !== S.active) setActive(view.id);
-    const before = snapshot();
-    const el = rendererFor(view).place(view, kind, p, hit);
+    let el = null;
+    edit(() => {
+      el = rendererFor(view).place(view, kind, p, hit);
+      return el ? 'Added ' + M.describe(S.model, el) : null;
+    });
     if (!el) return;
-    commit('Added ' + M.describe(S.model, el), null, before);
-    logChange('Added ' + M.describe(S.model, el));
     setTool(null);
-    render();
     C.select({ type: 'el', id: el.id }, view.id);
-    changed();
     // A kind with no name field (a start node) has nothing to name, and the panel shows no name input for it.
     if (!M.hasName(kind)) { say('Added ' + M.describe(S.model, el) + ' to ' + M.describeView(S.model, view) + '.'); return; }
     say('Added ' + M.describe(S.model, el) + ' to ' + M.describeView(S.model, view) + '. Name it in the panel.');
@@ -4376,28 +4534,26 @@ textarea.text[readonly] { resize: none; background: transparent; }
     createRel(kind, a, b, false, null, hit.view);
   }
   // Draws a relationship, as one undo step: what names it for Undo and the log when the plain "Drew …" won't do.
+  // Returns the relationship, or null when the page can't be changed.
   function createRel(kind, a, b, hidden, what, viewId) {
-    const before = snapshot();
-    const rel = { id: newId('r'), kind: kind, from: a.id, to: b.id };
-    M.RELATIONSHIPS[kind].fields.forEach((fld) => blankField(rel, fld));
-    if (hidden && M.RELATIONSHIPS[kind].hideable) rel.hidden = true;
-    if (kind === 'FeatureTyping') {
-      // One definition per usage: the old line goes, and the notes on it move to the new one.
-      const old = M.typingOf(S.model, a);
-      if (old) {
-        S.model.relationships.splice(S.model.relationships.indexOf(old), 1);
-        S.notes.filter((n) => n.target === old.id).forEach((n) => { n.target = rel.id; n.targetLabel = M.describeRel(S.model, rel); C.noteChanged(n, ['target', 'targetLabel']); });
-      }
-    }
-    S.model.relationships.push(rel);
-    S.pending = null;
-    const text = what || 'Drew ' + M.describeRel(S.model, rel);
-    commit(text, null, before);
-    logChange(text);
+    let rel = null;
+    let text = '';
+    edit(() => {
+      rel = { id: newId('r'), kind: kind, from: a.id, to: b.id };
+      M.RELATIONSHIPS[kind].fields.forEach((fld) => blankField(rel, fld));
+      if (hidden && M.RELATIONSHIPS[kind].hideable) rel.hidden = true;
+      // One definition per usage: the old line goes, and the notes on it move to the new one once it is in.
+      const old = kind === 'FeatureTyping' ? M.typingOf(S.model, a) : null;
+      if (old) S.model.relationships.splice(S.model.relationships.indexOf(old), 1);
+      S.model.relationships.push(rel);
+      if (old) S.notes.filter((n) => n.target === old.id).forEach((n) => { n.target = rel.id; n.targetLabel = M.describeRel(S.model, rel); C.noteChanged(n, ['target', 'targetLabel']); });
+      S.pending = null;
+      text = what || 'Drew ' + M.describeRel(S.model, rel);
+      return text;
+    });
+    if (!rel) return null;
     setTool(null);
-    render();
     C.select({ type: 'rel', id: rel.id }, viewId);
-    changed();
     const drawn = (S.layout.where.get(rel.id) || []).length > 0;
     say(text + (kind === 'ConnectionUsage' ? '. Name it in the panel.' : '.') +
       (!drawn && !rel.hidden ? ' No view shows both ends, so the line is not drawn anywhere yet.' : ''));
@@ -4413,8 +4569,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, PAD, CHILD_TOP, MARGIN, VIEW_GAP, removeFromViewButton, vName, vShow, vShowAdd, deleteViewButton, newViewButton,
-    newViewKind, say, editable, newId, plural, viewById, activeView, viewLayout, viewShowing, rendererFor, render, fit,
-    logChange, changed, snapshot, commit, setActive
+    newViewKind, say, editable, newId, plural, viewById, activeView, viewLayout, viewShowing, rendererFor, fit, edit,
+    setActive
   } = C;
 
   // ---- Views: making, moving, showing things in, and deleting them.
@@ -4427,23 +4583,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   // A new, empty view of a kind: to the right of the rightmost frame, its top in line with that frame's.
   function newView(kind) {
-    if (!editable() || !M.VIEW_KINDS[kind]) return;
-    const before = snapshot();
-    let beside = null;
-    S.layout.views.forEach((L) => { if (!beside || L.frameRect.x + L.frameRect.w > beside.x + beside.w) beside = L.frameRect; });
-    const view = {
-      id: newId('v'), kind: kind, name: freeViewName(), doc: '',
-      x: beside ? beside.x + beside.w + VIEW_GAP + MARGIN : 0, y: beside ? beside.y + MARGIN + 12 : 0,
-      layout: {}, options: JSON.parse(JSON.stringify(M.VIEW_KINDS[kind].options))
-    };
-    S.model.views.push(view);
-    commit('Added the ' + M.describeView(S.model, view), null, before);
-    logChange('Added the ' + M.describeView(S.model, view) + ', ' + M.an(M.VIEW_KINDS[kind].label));
-    render();
+    if (!M.VIEW_KINDS[kind]) return;
+    let view = null;
+    edit(() => {
+      let beside = null;
+      S.layout.views.forEach((L) => { if (!beside || L.frameRect.x + L.frameRect.w > beside.x + beside.w) beside = L.frameRect; });
+      view = {
+        id: newId('v'), kind: kind, name: freeViewName(), doc: '',
+        x: beside ? beside.x + beside.w + VIEW_GAP + MARGIN : 0, y: beside ? beside.y + MARGIN + 12 : 0,
+        layout: {}, options: JSON.parse(JSON.stringify(M.VIEW_KINDS[kind].options))
+      };
+      S.model.views.push(view);
+      return { what: 'Added the ' + M.describeView(S.model, view), log: 'Added the ' + M.describeView(S.model, view) + ', ' + M.an(M.VIEW_KINDS[kind].label) };
+    });
+    if (!view) return;
     setActive(view.id);
     C.select({ type: 'view', id: view.id });
     fit();
-    changed();
     say('Added ' + M.describeView(S.model, view) + ', ' + M.an(M.VIEW_KINDS[view.kind].label) + ', to the right of the others. Name it in the panel.');
     vName.focus({ preventScroll: true });
     vName.select();
@@ -4452,17 +4608,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function deleteView(view) {
     if (!editable() || !view) return;
     if (S.model.views.length === 1) { say('This is the only view, so it stays. Add another view first to delete this one.'); return; }
-    const before = snapshot();
     const shown = Object.keys(view.layout).length;
     const what = M.describeView(S.model, view);
-    S.model.views.splice(S.model.views.indexOf(view), 1);
-    commit('Deleted the ' + what, null, before);
-    logChange('Deleted the ' + what);
-    if (S.active === view.id) S.active = S.model.views[0].id;
-    render();
+    edit(() => {
+      S.model.views.splice(S.model.views.indexOf(view), 1);
+      if (S.active === view.id) S.active = S.model.views[0].id;
+      return 'Deleted the ' + what;
+    });
     setActive(S.active);
     C.select(null);
-    changed();
     say('Deleted the ' + what + '. ' + (shown ? 'The ' + plural(shown, 'element') + ' it showed stay in the model' : 'It showed nothing') +
       '; the other views are as they were.');
   }
@@ -4475,15 +4629,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const view = viewById(vid);
     if (!view) { say(M.describe(S.model, el) + ' is not drawn in any view.'); return; }
     if (rendererFor(view).showsAll) { say(M.describeView(S.model, view) + ' shows every element, so nothing can be taken out of it.'); return; }
-    const before = snapshot();
-    const gone = [el].concat(M.descendants(S.model, el.id)).filter((e) => view.layout[e.id]);
-    gone.forEach((e) => { delete view.layout[e.id]; });
     const what = 'Removed ' + M.describe(S.model, el) + ' from ' + M.describeView(S.model, view);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    let gone = [];
+    edit(() => {
+      gone = [el].concat(M.descendants(S.model, el.id)).filter((e) => view.layout[e.id]);
+      gone.forEach((e) => { delete view.layout[e.id]; });
+      return what;
+    });
     C.renderInspector();
-    changed();
     const elsewhere = (S.layout.where.get(el.id) || []).map((id) => M.describeView(S.model, viewById(id)));
     say(what + (gone.length > 1 ? ', with ' + plural(gone.length - 1, 'element') + ' inside it' : '') + '. It stays in the model' +
       (elsewhere.length ? ' and in ' + elsewhere.join(', ') : '') + '; the view\'s Show list brings it back.');
@@ -4500,32 +4653,30 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // shows, below what is there, else on the view's ground below the view's content.
   function showInView(view, el) {
     if (!editable() || !view || !el) return;
+    if (M.KINDS[el.kind].onBorder && !view.layout[el.owner]) { say('Show ' + M.describe(S.model, S.layout.ids.get(el.owner)) + ' first; ' + M.an(M.KINDS[el.kind].label) + ' sits on its border.'); return; }
     const L = viewLayout(view.id);
-    const before = snapshot();
-    if (M.KINDS[el.kind].onBorder) {
-      if (!view.layout[el.owner]) { say('Show ' + M.describe(S.model, S.layout.ids.get(el.owner)) + ' first; ' + M.an(M.KINDS[el.kind].label) + ' sits on its border.'); return; }
-      const used = M.childrenOf(S.model, el.owner).filter((s) => view.layout[s.id] && view.layout[s.id].side === 'right').map((s) => view.layout[s.id].at);
-      const at = [0.5, 0.3, 0.7, 0.2, 0.8, 0.4, 0.6].find((a) => used.every((u) => Math.abs(u - a) > 0.06));
-      view.layout[el.id] = M.placement(el, { side: 'right', at: at === undefined ? 0.5 : at });
-    } else {
-      let p = el.owner;
-      while (p !== undefined && !view.layout[p]) { const o = S.layout.ids.get(p); p = o ? o.owner : undefined; }
-      if (p !== undefined) {
-        const pr = L.rects.get(p);
-        let bottom = CHILD_TOP;
-        (L.kids.get(p) || []).forEach((kid) => { const r = L.rects.get(kid.id); if (r && !r.port) bottom = Math.max(bottom, r.y + r.h - pr.y + PAD); });
-        view.layout[el.id] = M.placement(el, { x: PAD, y: bottom });
-      } else {
-        const fr = L.frameRect;
-        view.layout[el.id] = M.placement(el, { x: 0, y: L.shown.size ? fr.y + fr.h - MARGIN - view.y + 32 : 0 });
-      }
-    }
     const what = 'Showed ' + M.describe(S.model, el) + ' in ' + M.describeView(S.model, view);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      if (M.KINDS[el.kind].onBorder) {
+        const used = M.childrenOf(S.model, el.owner).filter((s) => view.layout[s.id] && view.layout[s.id].side === 'right').map((s) => view.layout[s.id].at);
+        const at = [0.5, 0.3, 0.7, 0.2, 0.8, 0.4, 0.6].find((a) => used.every((u) => Math.abs(u - a) > 0.06));
+        view.layout[el.id] = M.placement(el, { side: 'right', at: at === undefined ? 0.5 : at });
+      } else {
+        let p = el.owner;
+        while (p !== undefined && !view.layout[p]) { const o = S.layout.ids.get(p); p = o ? o.owner : undefined; }
+        if (p !== undefined) {
+          const pr = L.rects.get(p);
+          let bottom = CHILD_TOP;
+          (L.kids.get(p) || []).forEach((kid) => { const r = L.rects.get(kid.id); if (r && !r.port) bottom = Math.max(bottom, r.y + r.h - pr.y + PAD); });
+          view.layout[el.id] = M.placement(el, { x: PAD, y: bottom });
+        } else {
+          const fr = L.frameRect;
+          view.layout[el.id] = M.placement(el, { x: 0, y: L.shown.size ? fr.y + fr.h - MARGIN - view.y + 32 : 0 });
+        }
+      }
+      return what;
+    });
     C.renderInspector();
-    changed();
     say(what + '. Drag it where it goes.');
   }
   vShowAdd.addEventListener('click', () => {
@@ -4545,8 +4696,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     M, VIEW_PANELS, $, panel, showPanel, inspectorEmpty, fields, fKind, fName, fAbstract, fType, fTypeLine, fMult,
     fConj, fDoc, fPath, fViews, addNoteButton, removeFromViewButton, deleteButton, viewFields, vKind, vName, vDoc,
     vShow, vMeta, vShowAdd, deleteViewButton, problemsList, problemsButton, undoButton, say, editable, plural, relById,
-    viewById, viewLayout, viewShowing, rendererFor, center, endpoints, marksFor, render, applyMarks, showPoint,
-    logChange, changed, snapshot, commit, endEdit, undo, setActive, createRel, deleteView, showable
+    viewById, viewLayout, viewShowing, rendererFor, center, endpoints, marksFor, applyMarks, showPoint, edit, endEdit,
+    undo, setActive, createRel, deleteView, showable
   } = C;
 
   // ---- Selecting, moving, and the panel.
@@ -4747,33 +4898,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return 'Set the ' + x.spec.label + ' of ' + x.what + ' to ' + value;
   }
   // One pair of listeners for all of those fields: typing in a string, text or number field is one undo step per field,
-  // logged once the field is left; a bool, enum or ref changes at once.
+  // a run the field's change event ends, which logs it once the field is left; a bool, enum or ref changes at once.
   fields.addEventListener('input', (event) => {
     const x = extraFieldOf(event);
-    if (!x || !editable() || ['string', 'text', 'number'].indexOf(x.spec.type) < 0) return;
-    const before = snapshot();
-    x.item[x.fld] = readInput(x.spec, x.input);
-    commit(fieldChangeText(x), x.fld + ':' + x.item.id, before);
-    render();
-    changed();
+    if (!x || ['string', 'text', 'number'].indexOf(x.spec.type) < 0) return;
+    edit(() => {
+      x.item[x.fld] = readInput(x.spec, x.input);
+      return fieldChangeText(x);
+    }, x.fld + ':' + x.item.id);
   });
   fields.addEventListener('change', (event) => {
     const x = extraFieldOf(event);
     if (!x) return;
-    if (['string', 'text', 'number'].indexOf(x.spec.type) >= 0) {
-      logChange(fieldChangeText(x), x.fld + ':' + x.item.id);
-      endEdit();
-      changed();
-      return;
-    }
-    if (!editable()) return;
-    const before = snapshot();
-    x.item[x.fld] = readInput(x.spec, x.input);
-    const what = fieldChangeText(x);
-    commit(what, null, before);
-    logChange(what);
-    render();
-    changed();
+    if (['string', 'text', 'number'].indexOf(x.spec.type) >= 0) { endEdit(); return; }
+    edit(() => {
+      x.item[x.fld] = readInput(x.spec, x.input);
+      return fieldChangeText(x);
+    });
   });
   function renderViewFields(view, write) {
     viewFields.hidden = false;
@@ -4819,142 +4960,104 @@ textarea.text[readonly] { resize: none; background: transparent; }
     });
   }
 
+  // Typing in a field is a run of changes, one undo step, which the field's change event ends once the field is left:
+  // that logs it.
   fName.addEventListener('input', () => {
     const el = selectedElement();
-    const rel = selectedRel();
-    if (!editable() || (!el && !rel)) return;
-    const before = snapshot();
-    (el || rel).name = fName.value;
-    commit(el ? 'Renamed to ' + M.describe(S.model, el) : 'Named the ' + M.describeRel(S.model, rel), 'name:' + (el || rel).id, before);
-    render();
-    changed();
+    const item = el || selectedRel();
+    if (!item) return;
+    edit(() => {
+      item.name = fName.value;
+      return el ? 'Renamed to ' + M.describe(S.model, el) : 'Named the ' + M.describeRel(S.model, item);
+    }, 'name:' + item.id);
   });
   fName.addEventListener('change', () => {
     const el = selectedElement();
     const rel = selectedRel();
-    if (el) { logChange('Renamed to ' + M.describe(S.model, el), 'rename:' + el.id); fKind.textContent = M.describe(S.model, el); fPath.textContent = M.qualified(S.model, el); }
-    else if (rel) { logChange('Named the ' + M.describeRel(S.model, rel), 'rename:' + rel.id); fKind.textContent = M.describeRel(S.model, rel); }
+    if (el) { fKind.textContent = M.describe(S.model, el); fPath.textContent = M.qualified(S.model, el); }
+    else if (rel) fKind.textContent = M.describeRel(S.model, rel);
     endEdit();
     syncNoteLabels();
     C.renderNotes();
-    changed();
   });
   fAbstract.addEventListener('change', () => {
     const el = selectedElement();
-    if (!el || !editable()) return;
-    const before = snapshot();
-    el.abstract = fAbstract.checked;
-    const what = (el.abstract ? 'Made abstract: ' : 'Made concrete: ') + M.describe(S.model, el);
-    commit(what, null, before);
-    logChange(what);
-    render();
-    changed();
+    if (el) edit(() => {
+      el.abstract = fAbstract.checked;
+      return (el.abstract ? 'Made abstract: ' : 'Made concrete: ') + M.describe(S.model, el);
+    });
   });
   fType.addEventListener('change', () => {
     const el = selectedElement();
     if (!el || !editable()) return;
     const old = M.typingOf(S.model, el);
     if (!fType.value) {
-      if (old) {
-        const before = snapshot();
+      edit(() => {
+        if (!old) return null;
         S.model.relationships.splice(S.model.relationships.indexOf(old), 1);
-        commit('Undefined ' + M.describe(S.model, el), null, before);
-        logChange('Undefined ' + M.describe(S.model, el));
-      }
-      render();
-      changed();
+        return 'Undefined ' + M.describe(S.model, el);
+      });
       renderInspector();
       return;
     }
     const def = S.layout.ids.get(fType.value);
     if (!def) return;
     const rel = createRel('FeatureTyping', el, def, old ? !!old.hidden : true, 'Defined ' + M.describe(S.model, el) + ' by ' + (def.name.trim() || '(unnamed)'));
+    if (!rel) return;
     select({ type: 'el', id: el.id });
     say('Defined ' + M.describe(S.model, el) + ' by ' + def.name + '.' + (rel.hidden ? ' It shows as text; tick the box to draw the line too.' : ''));
   });
   fTypeLine.addEventListener('change', () => {
     const el = selectedElement();
     const typing = el ? M.typingOf(S.model, el) : null;
-    if (!typing || !editable()) return;
-    const before = snapshot();
-    if (fTypeLine.checked) delete typing.hidden; else typing.hidden = true;
-    const what = (fTypeLine.checked ? 'Drew the line ' : 'Hid the line ') + M.describeRel(S.model, typing);
-    commit(what, null, before);
-    logChange(what);
-    render();
-    changed();
+    if (typing) edit(() => {
+      if (fTypeLine.checked) delete typing.hidden; else typing.hidden = true;
+      return (fTypeLine.checked ? 'Drew the line ' : 'Hid the line ') + M.describeRel(S.model, typing);
+    });
   });
   fMult.addEventListener('input', () => {
     const el = selectedElement();
-    if (!el || !editable()) return;
-    const before = snapshot();
-    el.multiplicity = fMult.value.trim();
-    commit('Set the multiplicity of ' + M.describe(S.model, el) + ' to ' + (el.multiplicity || 'nothing'), 'mult:' + el.id, before);
-    render();
-    changed();
+    if (el) edit(() => {
+      el.multiplicity = fMult.value.trim();
+      return 'Set the multiplicity of ' + M.describe(S.model, el) + ' to ' + (el.multiplicity || 'nothing');
+    }, 'mult:' + el.id);
   });
-  fMult.addEventListener('change', () => {
-    const el = selectedElement();
-    if (el) { logChange('Set the multiplicity of ' + M.describe(S.model, el) + ' to ' + (el.multiplicity || 'nothing'), 'mult:' + el.id); changed(); }
-    endEdit();
-  });
+  fMult.addEventListener('change', () => endEdit());
   fConj.addEventListener('change', () => {
     const el = selectedElement();
-    if (!el || !editable()) return;
-    const before = snapshot();
-    el.conjugated = fConj.checked;
-    const what = (el.conjugated ? 'Conjugated ' : 'Unconjugated ') + M.describe(S.model, el);
-    commit(what, null, before);
-    logChange(what);
-    render();
-    changed();
+    if (el) edit(() => {
+      el.conjugated = fConj.checked;
+      return (el.conjugated ? 'Conjugated ' : 'Unconjugated ') + M.describe(S.model, el);
+    });
   });
   fDoc.addEventListener('input', () => {
     const el = selectedElement();
-    const rel = selectedRel();
-    if (!editable() || (!el && !rel)) return;
-    const before = snapshot();
-    (el || rel).doc = fDoc.value;
-    commit('Wrote the doc of ' + (el ? M.describe(S.model, el) : 'the ' + M.describeRel(S.model, rel)), 'doc:' + (el || rel).id, before);
-    render();
-    changed();
+    const item = el || selectedRel();
+    if (!item) return;
+    edit(() => {
+      item.doc = fDoc.value;
+      return 'Wrote the doc of ' + (el ? M.describe(S.model, el) : 'the ' + M.describeRel(S.model, item));
+    }, 'doc:' + item.id);
   });
-  fDoc.addEventListener('change', () => {
-    const el = selectedElement();
-    const rel = selectedRel();
-    if (el) logChange('Wrote the doc of ' + M.describe(S.model, el), 'doc:' + el.id);
-    else if (rel) logChange('Wrote the doc of the ' + M.describeRel(S.model, rel), 'doc:' + rel.id);
-    if (el || rel) changed();
-    endEdit();
-  });
+  fDoc.addEventListener('change', () => endEdit());
   vName.addEventListener('input', () => {
     const view = selectedView();
-    if (!view || !editable()) return;
-    const before = snapshot();
-    view.name = vName.value;
-    commit('Renamed the view to ' + (view.name.trim() || '(unnamed)'), 'name:' + view.id, before);
-    render();
-    setActive(S.active);
-    changed();
+    if (!view) return;
+    const done = edit(() => {
+      view.name = vName.value;
+      return 'Renamed the view to ' + (view.name.trim() || '(unnamed)');
+    }, 'name:' + view.id);
+    if (done) setActive(S.active); // the eyebrow names the active view
   });
-  vName.addEventListener('change', () => {
-    const view = selectedView();
-    if (view) { logChange('Renamed the view to ' + (view.name.trim() || '(unnamed)'), 'rename:' + view.id); changed(); }
-    endEdit();
-  });
+  vName.addEventListener('change', () => endEdit());
   vDoc.addEventListener('input', () => {
     const view = selectedView();
-    if (!view || !editable()) return;
-    const before = snapshot();
-    view.doc = vDoc.value;
-    commit('Wrote the doc of ' + M.describeView(S.model, view), 'doc:' + view.id, before);
-    changed();
+    if (view) edit(() => {
+      view.doc = vDoc.value;
+      return 'Wrote the doc of ' + M.describeView(S.model, view);
+    }, 'doc:' + view.id);
   });
-  vDoc.addEventListener('change', () => {
-    const view = selectedView();
-    if (view) { logChange('Wrote the doc of ' + M.describeView(S.model, view), 'doc:' + view.id); changed(); }
-    endEdit();
-  });
+  vDoc.addEventListener('change', () => endEdit());
 
   // Delete takes an element out of the model and every view, with everything inside it and every line on it; a line
   // out of the model; a view off the plane, its elements staying.
@@ -4962,32 +5065,30 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const s = resolve(S.selection);
     if (!s || !editable()) return;
     if (s.type === 'view') { deleteView(s.item); return; }
-    const before = snapshot();
     let gone = [];
     let what;
     let dropped;
-    if (s.type === 'el') {
-      what = M.describe(S.model, s.item);
-      gone = [s.item].concat(M.descendants(S.model, s.item.id));
-      const ids = new Set(gone.map((e) => e.id));
-      const rels = S.model.relationships.filter((r) => ids.has(r.from) || ids.has(r.to));
-      rels.forEach((r) => ids.add(r.id));
-      S.model.elements = S.model.elements.filter((e) => !ids.has(e.id));
-      S.model.relationships = S.model.relationships.filter((r) => !ids.has(r.id));
-      S.model.views.forEach((v) => ids.forEach((id) => { delete v.layout[id]; }));
-      if (S.pending && ids.has(S.pending)) S.pending = null;
-      dropped = dropNotesOn(ids);
-    } else {
-      what = 'the ' + M.describeRel(S.model, s.item);
-      S.model.relationships = S.model.relationships.filter((r) => r.id !== s.item.id);
-      dropped = dropNotesOn(new Set([s.item.id]));
-    }
-    commit('Deleted ' + what, null, before);
-    logChange('Deleted ' + what);
+    edit(() => {
+      if (s.type === 'el') {
+        what = M.describe(S.model, s.item);
+        gone = [s.item].concat(M.descendants(S.model, s.item.id));
+        const ids = new Set(gone.map((e) => e.id));
+        const rels = S.model.relationships.filter((r) => ids.has(r.from) || ids.has(r.to));
+        rels.forEach((r) => ids.add(r.id));
+        S.model.elements = S.model.elements.filter((e) => !ids.has(e.id));
+        S.model.relationships = S.model.relationships.filter((r) => !ids.has(r.id));
+        S.model.views.forEach((v) => ids.forEach((id) => { delete v.layout[id]; }));
+        if (S.pending && ids.has(S.pending)) S.pending = null;
+        dropped = dropNotesOn(ids);
+      } else {
+        what = 'the ' + M.describeRel(S.model, s.item);
+        S.model.relationships = S.model.relationships.filter((r) => r.id !== s.item.id);
+        dropped = dropNotesOn(new Set([s.item.id]));
+      }
+      return 'Deleted ' + what;
+    });
     select(null);
-    render();
     C.renderNotes();
-    changed();
     say('Deleted ' + what + (gone.length > 1 ? ', with ' + plural(gone.length - 1, 'element') + ' inside it' : '') +
       (dropped ? ', and ' + plural(dropped, 'note') + ' on it' : '') + '.');
   }
@@ -5007,8 +5108,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   showPanel.addEventListener('click', () => setPanel(true));
 
   Object.assign(C, {
-    resolve, select, selectionFor, renderInspector, renderProblemsList, selectedElement, selectedRel, selectedView,
-    syncNoteLabels, deleteSelection, setPanel
+    resolve, select, selectionFor, renderInspector, renderProblemsList, extraFieldOf, fieldChangeText, selectedElement,
+    selectedRel, selectedView, syncNoteLabels, deleteSelection, setPanel
   });
 })(window.SysMLCanvas);
 // ==== src/core/page/notes.js
@@ -5194,7 +5295,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const {
     M, STATE_KEY, WORKING, NOTES, WHERE, hint, status, newViewButton, newViewKind, where, warning, downloadButton,
     importButton, str, saved, now, say, editable, plural, isNote, tidyNote, tidyArchived, render, logChange,
-    updateUndo, modelReplaced, baseHint, setActive, renderInspector, renderNotes
+    updateUndo, loadModel, modelReplaced, baseHint, setActive, renderInspector, renderNotes
   } = C;
 
   // ---- Where the model and the notes are kept. Published on claude.ai: the page's store, which Claude reads too.
@@ -5260,7 +5361,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     try {
       const data = JSON.parse(localStorage.getItem(storageKey()) || 'null');
       if (data && data.model) {
-        S.model = M.normalize(data.model);
+        loadModel(data.model);
         S.active = S.model.views[0].id;
         S.notes = (Array.isArray(data.notes) ? data.notes : []).filter(isNote).map(tidyNote);
         S.archive = (Array.isArray(data.archive) ? data.archive : []).filter(isNote).map(tidyArchived);
@@ -5296,10 +5397,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
       // page's write follows and wins, and persist says so, here and in the change log, which Claude reads.
       if (S.drag || S.saveTimer) { overwritten = str(data.updated) || now(); return; }
       lastWritten = json;
-      S.model = M.normalize(data.model);
-      if (Array.isArray(data.changes)) S.changes = data.changes.slice(-200);
       // A model from elsewhere is a new starting point: what was done here before it can't be taken back.
-      S.history = [];
+      loadModel(data.model);
+      if (Array.isArray(data.changes)) S.changes = data.changes.slice(-200);
       modelReplaced();
       if (!first && !snap.metadata.hasPendingWrites) say('The model was updated elsewhere, so the undo history starts afresh.');
     }, () => setMode('read', 'The shared store stopped answering. Reload the page to see the latest.'));
@@ -5400,8 +5500,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const S = C.state;
   const {
-    M, downloadButton, importButton, fileInput, saved, now, say, editable, plural, isNote, tidyNote, logChange,
-    changed, snapshot, commit, modelReplaced, removeNote, stageNote, writeShared
+    M, downloadButton, importButton, fileInput, saved, now, say, editable, plural, isNote, tidyNote, edit,
+    modelReplaced, removeNote, stageNote, writeShared
   } = C;
 
   // ---- Taking the state out and bringing it in.
@@ -5438,19 +5538,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
     file.text().then((raw) => {
       const data = JSON.parse(raw);
       if (!data || typeof data !== 'object' || !data.model) throw new Error('no model');
-      const before = snapshot();
-      S.model = M.normalize(data.model);
-      const incoming = (Array.isArray(data.notes) ? data.notes : []).filter(isNote).map(tidyNote);
-      S.notes.slice().forEach((n) => removeNote(n.id, true));
-      S.notes = incoming;
-      C.replaceArchive(data.archive);
-      S.changes = Array.isArray(data.changes) ? data.changes.slice(-200) : [];
-      commit('Imported the state from ' + file.name, null, before);
-      logChange('Imported the state from ' + file.name);
+      const done = edit(() => {
+        S.model = M.normalize(data.model);
+        const incoming = (Array.isArray(data.notes) ? data.notes : []).filter(isNote).map(tidyNote);
+        S.notes.slice().forEach((n) => removeNote(n.id, true));
+        S.notes = incoming;
+        C.replaceArchive(data.archive);
+        S.changes = Array.isArray(data.changes) ? data.changes.slice(-200) : [];
+        return 'Imported the state from ' + file.name;
+      });
+      if (!done) return;
       S.selection = null;
       modelReplaced();
       if (S.mode === 'shared') S.notes.forEach((n) => { stageNote(n.id); writeShared(n, null); });
-      changed();
       say('Imported ' + plural(S.model.elements.length, 'element') + ', ' + plural(S.model.views.length, 'view') + ', and ' + plural(S.notes.length, 'note') + ' from ' + file.name + '.');
     }).catch(() => say(file.name + ' isn\'t a state file from this page.'));
   });
@@ -5495,9 +5595,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, MIN_ZOOM, MAX_ZOOM, TOOLS, ACTIONS, $, canvas, svg, hint, say, clamp, editable, noteById, viewById, rendererFor,
-    viewAt, marksFor, render, stageSize, applyCamera, fit, zoomAt, zoomAtCenter, toDrawing, logChange, changed,
-    snapshot, commit, undo, setTool, baseHint, place, connectStep, select, selectionFor, renderInspector,
-    deleteSelection, noteTimers, focusNote, persist, writeShared
+    viewAt, marksFor, stageSize, applyCamera, fit, zoomAt, zoomAtCenter, toDrawing, edit, endEdit, undo, setTool,
+    baseHint, place, connectStep, select, selectionFor, renderInspector, deleteSelection, noteTimers, focusNote,
+    persist, writeShared
   } = C;
 
   // ---- Moving around and pointing at things.
@@ -5617,59 +5717,68 @@ textarea.text[readonly] { resize: none; background: transparent; }
       moveDrag(event);
     }
   });
-  // A drag moves a view by its tab, or an element in its view through the view's renderer. Its first move takes the
-  // model as it was, so the whole drag is one undo step.
+  // A drag moves a view by its tab, or an element in its view through the view's renderer. Each move is a change,
+  // and the moves and the drop are one run, keyed by what is dragged (finishDrag ends it), so the whole drag is one
+  // undo step, logged once.
   function moveDrag(event) {
     const p = toDrawing(event.clientX, event.clientY);
-    if (!S.drag.moved) { S.drag.moved = true; S.drag.before = snapshot(); }
+    const first = !S.drag.moved;
+    S.drag.moved = true;
     if (S.drag.kind === 'pin') { C.movePin(S.drag, event); return; }
-    if (S.drag.kind === 'view') {
-      const view = viewById(S.drag.id);
-      if (!view) return;
-      view.x = Math.round(S.drag.from.x + (p.x - S.drag.start.x));
-      view.y = Math.round(S.drag.from.y + (p.y - S.drag.start.y));
-      render();
-      return;
-    }
-    const view = viewById(S.drag.view);
-    const el = S.layout.ids.get(S.drag.id);
-    if (!view || !el || !view.layout[el.id]) return;
-    rendererFor(view).drag(view, el, S.drag, p);
-    render();
-    if (S.drag.over) {
-      const g = svg.querySelector('.frame[data-view="' + view.id + '"] [data-el="' + S.drag.over + '"]');
-      if (g) g.classList.add('is-drop');
-    }
-  }
-  // Ends a drag: a pin's, a view's, or an element's through its renderer's drop. The record comes off drag first, so
-  // the render that follows no longer makes way for what was dragged: a box dropped in its owner is drawn held by it
-  // at once.
-  function finishDrag(event) {
+    if (first) endEdit(); // a drag is a step of its own
     const d = S.drag;
-    S.drag = null;
-    if (d.kind === 'pin') { C.dropPin(d, event); return; }
     if (d.kind === 'view') {
       const view = viewById(d.id);
       if (!view) return;
-      commit('Moved the ' + M.describeView(S.model, view), null, d.before);
-      logChange('Moved the ' + M.describeView(S.model, view), 'move:' + view.id);
-      render();
-      changed();
-      say('Moved the ' + M.describeView(S.model, view) + '.');
+      edit(() => {
+        view.x = Math.round(d.from.x + (p.x - d.start.x));
+        view.y = Math.round(d.from.y + (p.y - d.start.y));
+        return 'Moved the ' + M.describeView(S.model, view);
+      }, 'move:' + view.id);
       return;
     }
     const view = viewById(d.view);
     const el = S.layout.ids.get(d.id);
     if (!view || !el || !view.layout[el.id]) return;
-    const result = rendererFor(view).drop(view, el, d, toDrawing(event.clientX, event.clientY), event);
-    if (result && result.undo) {
-      commit(result.undo, null, d.before);
-      logChange(result.text, result.key);
+    edit(() => {
+      rendererFor(view).drag(view, el, d, p);
+      return 'Moved ' + M.describe(S.model, el);
+    }, 'move:' + el.id);
+    if (S.drag.over) {
+      const g = svg.querySelector('.frame[data-view="' + view.id + '"] [data-el="' + S.drag.over + '"]');
+      if (g) g.classList.add('is-drop');
     }
-    render();
-    renderInspector();
-    changed();
-    if (result) say(result.say || result.text + '.');
+  }
+  // Ends a drag: a pin's, a view's, or an element's through its renderer's drop, the last change of the drag's run,
+  // which ends with it. The record comes off drag first, so the render that follows no longer makes way for what was
+  // dragged: a box dropped in its owner is drawn held by it at once. A drop that puts the element back has no words of
+  // its own, and the run, back where it started, is then no step at all.
+  function finishDrag(event) {
+    const d = S.drag;
+    S.drag = null;
+    if (d.kind === 'pin') { C.dropPin(d, event); return; }
+    let said = '';
+    if (d.kind === 'view') {
+      const view = viewById(d.id);
+      if (view) edit(() => {
+        const what = 'Moved the ' + M.describeView(S.model, view);
+        said = what + '.';
+        return what;
+      }, 'move:' + view.id);
+    } else {
+      const view = viewById(d.view);
+      const el = S.layout.ids.get(d.id);
+      if (view && el && view.layout[el.id]) {
+        edit(() => {
+          const result = rendererFor(view).drop(view, el, d, toDrawing(event.clientX, event.clientY), event);
+          if (result) said = result.say || result.text + '.';
+          return result && result.undo ? { what: result.undo, log: result.text, key: result.key } : 'Moved ' + M.describe(S.model, el);
+        }, 'move:' + el.id);
+        renderInspector();
+      }
+    }
+    endEdit();
+    if (said) say(said);
   }
   function endPointer(event) {
     const p = pointers[event.pointerId];
@@ -6028,8 +6137,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const {
     M, TOOL_TITLE, TOOL_HINT, BASE_NAME, ACTIONS, VIEW_PANELS, $, say, editable, f, relById, viewById, viewLayout,
     frameAround, ROUTES, endpoints, viewAt, node, text, MARKERS, nameLine, SHAPES, drawBox, drawRel, RENDERERS,
-    freshElement, render, logChange, changed, snapshot, commit, endEdit, freeName, renderInspector, selectedRel,
-    selectedView
+    freshElement, edit, endEdit, freeName, renderInspector, extraFieldOf, fieldChangeText, selectedView
   } = C;
 
   // ---- Sequence: the sequence view's words, the event's shape, the message's arrowhead, the renderer, the row
@@ -6296,27 +6404,29 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const i = L.rows.indexOf(rel);
     const j = i + dir;
     if (i < 0 || j < 0 || j >= L.rows.length) { say('The ' + M.describeRel(S.model, rel) + ' is already the ' + (dir < 0 ? 'first' : 'last') + ' row.'); return; }
-    const before = snapshot();
-    M.messagesInOrder(S.model).forEach((m, k) => { m.order = k + 1; });
-    const swap = L.rows[j];
-    const mine = rel.order;
-    rel.order = swap.order;
-    swap.order = mine;
-    sortMessages();
     const what = 'Moved the ' + M.describeRel(S.model, rel) + (dir < 0 ? ' up' : ' down') + ' a row';
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      M.messagesInOrder(S.model).forEach((m, k) => { m.order = k + 1; });
+      const swap = L.rows[j];
+      const mine = rel.order;
+      rel.order = swap.order;
+      swap.order = mine;
+      sortMessages();
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   }
   ACTIONS['message-up'] = function (hit) { moveMessageRow(hit.id, -1, hit.view); };
   ACTIONS['message-down'] = function (hit) { moveMessageRow(hit.id, 1, hit.view); };
   // The order field, once the page has written it (this listener is on the panel, so it runs after the one on
-  // #fields): the text's order follows the drawing's.
+  // #fields): the text's order follows the drawing's, in the same undo step as the field's keystrokes.
   $('inspector').addEventListener('input', (event) => {
-    if (event.target && event.target.id === 'f-order' && editable() && selectedRel()) { sortMessages(); render(); }
+    const x = event.target && event.target.id === 'f-order' ? extraFieldOf(event) : null;
+    if (x) edit(() => {
+      sortMessages();
+      return fieldChangeText(x);
+    }, x.fld + ':' + x.item.id);
   });
   // The sequence view's option: the distance between its rows.
   VIEW_PANELS.SequenceView = function (view, write) {
@@ -6326,12 +6436,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
   $('sv-spacing').addEventListener('input', () => {
     const view = selectedView();
     const v = +$('sv-spacing').value;
-    if (!view || view.kind !== 'SequenceView' || !editable() || !Number.isFinite(v) || v < SPACING[0] || v > SPACING[1]) return;
-    const before = snapshot();
-    view.options.spacing = Math.round(v);
-    commit('Set the row spacing of ' + M.describeView(S.model, view) + ' to ' + view.options.spacing, 'spacing:' + view.id, before);
-    render();
-    changed();
+    if (!view || view.kind !== 'SequenceView' || !Number.isFinite(v) || v < SPACING[0] || v > SPACING[1]) return;
+    edit(() => {
+      view.options.spacing = Math.round(v);
+      return 'Set the row spacing of ' + M.describeView(S.model, view) + ' to ' + view.options.spacing;
+    }, 'spacing:' + view.id);
   });
   $('sv-spacing').addEventListener('change', () => {
     const view = selectedView();
@@ -6340,9 +6449,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!Number.isFinite(v) || v < SPACING[0] || v > SPACING[1]) {
       $('sv-spacing').value = String(rowSpacing(view));
       say('The row spacing is a number from ' + SPACING[0] + ' to ' + SPACING[1] + '.');
-    } else logChange('Set the row spacing of ' + M.describeView(S.model, view) + ' to ' + view.options.spacing, 'spacing:' + view.id);
+    }
     endEdit();
-    changed();
   });
 })(window.SysMLCanvas);
 // ==== src/geometry/page.js
@@ -6352,8 +6460,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, PAD, VIEW_PANELS, $, say, clamp, editable, f, viewById, viewLayout, frameAround, containerAt, viewAt, node,
-    text, MARKERS, nameLine, RENDERERS, freshElement, render, logChange, changed, snapshot, commit, endEdit, freeName,
-    renderInspector, selectedView
+    text, MARKERS, nameLine, RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
   } = C;
 
   // The geometry view: a plan of the parts it shows, each drawn as its shape's footprint to scale, x to the right and y
@@ -6556,33 +6663,28 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const view = geoSelectedView();
     const v = gScale.value.trim() === '' ? NaN : +gScale.value;
     if (!view || !Number.isFinite(v) || v <= 0) return;
-    const before = snapshot();
-    view.options.scale = v;
-    commit(geoScaleText(view), 'scale:' + view.id, before);
-    render();
-    changed();
+    edit(() => {
+      view.options.scale = v;
+      return geoScaleText(view);
+    }, 'scale:' + view.id);
   });
   gScale.addEventListener('change', () => {
     const view = geoSelectedView();
     if (!view) return;
     gScale.value = M.geoNumber(geoScale(view));
-    logChange(geoScaleText(view), 'scale:' + view.id);
     endEdit();
-    changed();
     say(geoScaleText(view) + '.');
   });
   gUnit.addEventListener('change', () => {
     const view = geoSelectedView();
     if (!view || M.GEO_UNITS.indexOf(gUnit.value) < 0) return;
-    const before = snapshot();
-    view.options.scale = +(geoScale(view) * M.geoConvert(1, gUnit.value, geoViewUnit(view))).toPrecision(6);
-    view.options.unit = gUnit.value;
     const what = 'Set the unit of ' + M.describeView(S.model, view) + ' to ' + gUnit.value;
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.scale = +(geoScale(view) * M.geoConvert(1, gUnit.value, geoViewUnit(view))).toPrecision(6);
+      view.options.unit = gUnit.value;
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '. The scale is now ' + M.geoNumber(geoScale(view)) + ' px per ' + gUnit.value + ', so the drawing keeps its size; new parts are measured in ' + gUnit.value + '.');
   });
 })(window.SysMLCanvas);
@@ -6593,7 +6695,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, byNumber, viewById, frameAround, node, text, RENDERERS,
-    marksFor, render, logChange, changed, snapshot, commit, renderInspector, selectedView
+    marksFor, edit, renderInspector, selectedView
   } = C;
 
   // ---- The grid view: a table with a row per shown element, or a matrix of the shown elements against each other
@@ -6832,14 +6934,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!view || view.kind !== 'GridView' || !editable()) return;
     const next = gridMode.value === 'matrix' ? 'matrix' : 'table';
     if (M.gridOptions(view).mode === next) return;
-    const before = snapshot();
-    view.options.mode = next;
     const what = 'Showed ' + M.describeView(S.model, view) + ' as a ' + (next === 'matrix' ? 'matrix of its elements against each other' : 'table with a row per element');
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.mode = next;
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   });
   // A column ticked or unticked. A table keeps at least one column, and a sort goes with the column it was on.
@@ -6855,15 +6955,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
       next = o.columns.filter((c) => c !== col);
       if (!next.length) { box.checked = true; say('A table needs a column, so ' + col + ' stays. Tick another column before taking this one away.'); return; }
     }
-    const before = snapshot();
-    view.options.columns = next;
-    if (!box.checked && o.sort && o.sort.replace(/^-/, '') === col) view.options.sort = null;
     const what = (box.checked ? 'Added the ' + col + ' column to ' : 'Removed the ' + col + ' column from ') + M.describeView(S.model, view);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.columns = next;
+      if (!box.checked && o.sort && o.sort.replace(/^-/, '') === col) view.options.sort = null;
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   });
   // Makes rows of the elements given that aren't rows yet: the boxes, then the border items whose owner is a row,
@@ -6881,16 +6979,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function gridShowRows(els, what, label) {
     const view = selectedView();
     if (!view || view.kind !== 'GridView' || !editable()) return;
-    const before = snapshot();
-    const r = gridShow(view, els);
+    const text = what + ' in ' + M.describeView(S.model, view);
+    let r = null;
+    edit(() => {
+      r = gridShow(view, els);
+      return r.added.length ? text : null;
+    });
+    if (!r) return;
     const left = r.skipped.length ? ' ' + plural(r.skipped.length, label) + ' sit' + (r.skipped.length === 1 ? 's' : '') + ' on an element that isn\'t a row; show that first.' : '';
     if (!r.added.length) { say('Every ' + label + ' the model has is a row in ' + M.describeView(S.model, view) + ' already.' + left); return; }
-    const text = what + ' in ' + M.describeView(S.model, view);
-    commit(text, null, before);
-    logChange(text);
-    render();
     renderInspector();
-    changed();
     say(text + ': ' + plural(r.added.length, 'new row') + ', ' + plural(Object.keys(view.layout).length, 'row') + ' in all.' + left);
   }
   gridShowAll.addEventListener('click', () => gridShowRows(S.model.elements, 'Showed every element', 'element'));
@@ -6905,14 +7003,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!editable()) { say('The order of the rows is part of the view, which can\'t be changed here.'); return; }
     const o = M.gridOptions(view);
     const next = o.sort === hit.id ? '-' + hit.id : o.sort === '-' + hit.id ? null : hit.id;
-    const before = snapshot();
-    view.options.sort = next;
     const what = next === null ? 'Put the rows of ' + M.describeView(S.model, view) + ' back in the model\'s order'
       : 'Sorted the rows of ' + M.describeView(S.model, view) + ' by ' + hit.id + (next.charAt(0) === '-' ? ', descending' : '');
-    commit(what, null, before);
-    logChange(what);
-    render();
-    changed();
+    edit(() => {
+      view.options.sort = next;
+      return what;
+    });
     say(what + '.');
   };
 })(window.SysMLCanvas);
@@ -6922,8 +7018,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const S = C.state;
   const {
-    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, render,
-    logChange, changed, snapshot, commit, renderInspector, selectedView
+    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, edit,
+    renderInspector, selectedView
   } = C;
 
   // ---- The browser view: the model as a tree of rows, one per element with what it owns under it and the
@@ -7049,17 +7145,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const el = S.layout.ids.get(hit.id);
     if (!view || !el) return;
     if (!editable()) { say('Folding changes the view, and this model can\'t be changed here.'); return; }
-    const before = snapshot();
-    if (!Array.isArray(view.options.collapsed)) view.options.collapsed = [];
-    const folded = view.options.collapsed;
-    const i = folded.indexOf(el.id);
-    if (i < 0) folded.push(el.id); else folded.splice(i, 1);
-    const what = (i < 0 ? 'Folded ' : 'Unfolded ') + M.describe(S.model, el) + ' in ' + M.describeView(S.model, view);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    let what = '';
+    edit(() => {
+      if (!Array.isArray(view.options.collapsed)) view.options.collapsed = [];
+      const folded = view.options.collapsed;
+      const i = folded.indexOf(el.id);
+      if (i < 0) folded.push(el.id); else folded.splice(i, 1);
+      what = (i < 0 ? 'Folded ' : 'Unfolded ') + M.describe(S.model, el) + ' in ' + M.describeView(S.model, view);
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   };
   // The panel's options for a browser view: its roots (a multiple select: the whole package, or the elements at the top
@@ -7089,28 +7184,24 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!view || view.kind !== 'BrowserView' || !editable()) return;
     // The elements picked are the roots; none, or the whole package alone, means the whole package.
     const picked = Array.from(browserRootsSelect.selectedOptions).map((o) => o.value).filter((v) => v && S.layout.ids.has(v));
-    const before = snapshot();
-    view.options.roots = picked.length ? picked : null;
     const what = 'Set the roots of ' + M.describeView(S.model, view) + ' to ' +
       (picked.length ? picked.map((id) => M.describe(S.model, S.layout.ids.get(id))).join(', ') : 'the whole package');
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.roots = picked.length ? picked : null;
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   });
   browserExpandAll.addEventListener('click', () => {
     const view = selectedView();
     if (!view || view.kind !== 'BrowserView' || !editable()) return;
-    const before = snapshot();
-    view.options.collapsed = [];
     const what = 'Unfolded everything in ' + M.describeView(S.model, view);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    edit(() => {
+      view.options.collapsed = [];
+      return what;
+    });
     renderInspector();
-    changed();
     say(what + '.');
   });
 })(window.SysMLCanvas);
@@ -7121,8 +7212,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, NOTES, TOOL_TITLE, TOOL_HINT, TOOLS, $, canvas, svg, saved, now, say, editable, f, newId, plural, isNote,
-    byNumber, nextNumber, noteById, node, COMPARTMENTS, tidyArchived, pinTransform, renderPins, render, toDrawing,
-    logChange, changed, snapshot, commit, endEdit, setTool, select, renderInspector, selectedElement, noteTimers,
+    byNumber, nextNumber, noteById, node, COMPARTMENTS, tidyArchived, pinTransform, renderPins, toDrawing, edit,
+    endEdit, setTool, select, renderInspector, selectedElement, noteTimers,
     renderNotes, dateOf, focusNote, addNote, noteChanged, setMode, saveLocal, dirty, noteBody, stageNote, enqueue,
     attempt, refused, hitOf
   } = C;
@@ -7520,66 +7611,53 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return el.code[i] ? { el: el, i: i, link: el.code[i] } : null;
   }
   function codeLinkName(x) { return 'code link ' + (x.i + 1) + ' of ' + M.describe(S.model, x.el); }
-  // Typing a path or a text is one undo step per field of the link, logged once the field is left; the language
-  // changes at once; Add and Remove are one step each.
+  // Typing a path or a text is one undo step per field of the link, a run the field's change event ends, which logs
+  // it once the field is left; the language changes at once; Add and Remove are one step each.
   codeList.addEventListener('input', (event) => {
     const x = codeLinkOf(event);
     const input = event.target;
     const fld = input.classList.contains('code-path') ? 'path' : input.classList.contains('code-text') ? 'text' : null;
-    if (!x || !fld || !editable()) return;
-    const before = snapshot();
-    x.link[fld] = input.value;
-    if (fld === 'text') growCodeText(input);
-    commit('Set the ' + fld + ' of ' + codeLinkName(x), 'code:' + x.el.id + ':' + x.i + ':' + fld, before);
-    render();
-    changed();
+    if (!x || !fld) return;
+    const done = edit(() => {
+      x.link[fld] = input.value;
+      const what = 'Set the ' + fld + ' of ' + codeLinkName(x);
+      return { what: what, log: what + (fld === 'path' ? ' to ' + (x.link.path.trim() || 'nothing') : '') };
+    }, 'code:' + x.el.id + ':' + x.i + ':' + fld);
+    if (done && fld === 'text') growCodeText(input);
   });
   codeList.addEventListener('change', (event) => {
     const x = codeLinkOf(event);
     const input = event.target;
-    if (!x || !editable()) return;
+    if (!x) return;
     if (input.classList.contains('code-language')) {
-      const before = snapshot();
-      x.link.language = input.value;
-      const what = 'Set the language of ' + codeLinkName(x) + ' to ' + (input.value || 'nothing');
-      commit(what, null, before);
-      logChange(what);
-      render();
-      changed();
+      edit(() => {
+        x.link.language = input.value;
+        return 'Set the language of ' + codeLinkName(x) + ' to ' + (input.value || 'nothing');
+      });
       return;
     }
-    const fld = input.classList.contains('code-path') ? 'path' : input.classList.contains('code-text') ? 'text' : null;
-    if (!fld) return;
-    logChange('Set the ' + fld + ' of ' + codeLinkName(x) + (fld === 'path' ? ' to ' + (x.link.path.trim() || 'nothing') : ''), 'code:' + x.el.id + ':' + x.i + ':' + fld);
-    endEdit();
-    changed();
+    if (input.classList.contains('code-path') || input.classList.contains('code-text')) endEdit();
   });
   codeList.addEventListener('click', (event) => {
     const button = event.target.closest ? event.target.closest('button.code-remove') : null;
     const x = button ? codeLinkOf(event) : null;
-    if (!x || !editable()) return;
-    const before = snapshot();
-    x.el.code.splice(x.i, 1);
+    if (!x) return;
     const what = 'Removed the code link ' + (x.link.path.trim() || '(no path)') + ' from ' + M.describe(S.model, x.el);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    if (!edit(() => { x.el.code.splice(x.i, 1); return what; })) return;
     renderInspector();
-    changed();
     say(what + '. Undo brings it back.');
   });
   addCodeButton.addEventListener('click', () => {
     const el = selectedElement();
-    if (!el || !editable()) return;
-    const before = snapshot();
-    if (!Array.isArray(el.code)) el.code = [];
-    el.code.push({ path: '', language: CODE_LANGUAGES[0], text: '' });
+    if (!el) return;
     const what = 'Added a code link to ' + M.describe(S.model, el);
-    commit(what, null, before);
-    logChange(what);
-    render();
+    const done = edit(() => {
+      if (!Array.isArray(el.code)) el.code = [];
+      el.code.push({ path: '', language: CODE_LANGUAGES[0], text: '' });
+      return what;
+    });
+    if (!done) return;
     renderInspector();
-    changed();
     say(what + '. Give it the file\'s path; the text may stay empty.');
     const path = codeList.querySelector('li.code-link:last-child input.code-path');
     if (path) path.focus({ preventScroll: true });
