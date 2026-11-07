@@ -1182,3 +1182,88 @@ How it was checked:
 - Faults put in one at a time, each failing a test: no lock, isIndividual on a port, Advanced fields left on Core,
   the tab reset on each selection, Specializes making a new line, radio buttons not set, a circle among the choices,
   empty groups shown.
+
+### Validation rules (done)
+
+One commit, every test passing (221 of 221), every export unchanged.
+
+How many there are: the specification's validation rules are the constraints of its metamodel. The pilot
+implementation's `org.omg.sysml/model/SysML.uml`, at the release the canvas's metamodel comes from (`2026-09.1`),
+holds 388: 180 `validate…` and 208 `check…`. SysON 2026.11.0 runs 383, its `SysMLValidationRule` enumeration, which
+its own unit test holds to that number (`docs/sysml/syson/features/model.md`). The 204 that `docs/sysml/syson/README.md`
+gave, and the plan repeated, was wrong; that README now says 383. SysON.uml was read in the scratchpad (fetched from
+the pilot's repository at the release's commit), never committed; the canvas's messages are its own words.
+
+Which ones the canvas checks, and why only those:
+
+- The 208 check rules ask for what the SysML parser adds to any text (the library's specializations, binding
+  connectors, redefinitions): any text the canvas writes gets them, so they hold by construction.
+- Of the 180 validate rules, most are about what the canvas doesn't make (variations, individuals, portions,
+  expressions, requirements, cases, metadata, views' renderings) or hold for anything it writes (a connector's two
+  ends, a port def's conjugated port def, a directed usage being referential). Each candidate was tried by writing a
+  text that breaks it and running `docs/sysml/check.sh` on it (`*.sysml` in the session's scratchpad,
+  `rules-probe/`): the pilot reports the parallel state's transitions, a trigger out of an action and a redefined
+  parameter's direction as errors, an end's multiplicity and duplicate names as warnings, and leaves the successions
+  on control nodes unchecked (as the canvas's own checks say); a negative bound doesn't parse.
+- The 15 the canvas checks, `SPEC_RULES` in `validation/lib.js`: validateNamespaceDistinguishibility,
+  validateFeatureEndMultiplicity, validateMultiplicityRangeBoundResultTypes, validateTransitionUsageTriggerActions,
+  validateStateUsageParallelSubactions, validateStateDefinitionParallelSubactions, validateStateUsageStateSubactionKind,
+  validateStateDefinitionStateSubactionKind, validateControlNodeOwningType, validateForkNodeIncomingSuccessions,
+  validateDecisionNodeIncomingSuccessions, validateJoinNodeOutgoingSuccessions, validateMergeNodeOutgoingSuccessions,
+  validateSendActionUsagePayloadArgument, validateRedefinitionDirectionConformance. Several overlap the canvas's own
+  checks, which stay as they were: those are the canvas's problems on the drawing; these are SysON's warnings in its
+  Validation view, under the specification's names.
+
+Where it is (`canvas/src/validation/`; `src/README.md`, "The specification's rules", says how to add one):
+
+- `lib.js`: the rules, `{ name, metaclass, check }`; `validateSpec(model)` checks every element and line against the
+  rules on its metaclass in the text or a class it is a kind of (an action that sends is a `SendActionUsage`), and the
+  package as a namespace; a diagnostic is `{ rule, metaclass, type, id, path, message, severity: 'warning', text }`,
+  sorted by rule then path, `text` in SysON's form (`#rule·····[document/path]·····Constraint on type
+  'sysml:Metaclass' is not respected: message`, the document being the package; an unnamed line's path is
+  `<ID: id>`). Two rules on what the canvas keeps on the element (a multiplicity, a parameter's redefinition) are
+  checked on the element (`of`).
+- `page.js`: `checkRules()`, which `check()` in `render.js` calls first, keeps `S.diagnostics` and draws the view
+  again when they change; the view (`#validation-panel`, opened by `#validation` in the bar, closed by
+  `#close-validation`) groups them by kind in `<details>` sections, folded at first, with their count; the sections
+  opened stay open. "No diagnostic available" when there are none.
+
+How it follows SysON, and where it doesn't:
+
+- Namespace distinguishability is the specification's (`isDistinguishableFrom`): two members are alike only when one's
+  metaclass is a kind of the other's, so a part and a port of one name, or a view and a part def, pass, though the
+  pilot warns about any duplicate name (see below). Inherited members aren't compared; the canvas's own check for a
+  usage named like an inherited feature of another kind stays.
+- SysON's subject for a multiplicity or a redefinition rule is the MultiplicityRange or the Redefinition, which have no
+  qualified name; the canvas names the element that holds them.
+- The view sits on the left of the plane, as SysON's left panel does, opened from the bar, since the canvas has no
+  side bar of views. It shows no Error or Info sections, as SysON shows none: all its rules are warnings.
+
+How it was checked:
+
+- Tests: `test/validation.test.mjs`, 9 (8 Node: the rule list; the example and every fixture keep every rule; each
+  rule on a model that breaks it and on what is near it but keeps it; SysON's label and the unnamed line's path; 1
+  browser: the button, the view on the left, none, a folded Warning section with its count, the diagnostic's label,
+  the count following a change after the pause, the section kept open, Undo, Close).
+  `test/scale-checks.test.mjs` gains a case: the rules under 100 ms at 10,000 elements (measured: about 9 ms in the
+  page, beside about 27 ms for the canvas's own checks).
+- Faults put in one at a time, each failing a test: any same name clashing, two successions allowed, the rules not run
+  with the checks, an opened section not kept, an end's multiplicity unchecked, a trigger out of a state flagged, an
+  inout redefinition unchecked, the diagnostics unsorted.
+- Exports: unchanged (the saved model `a8423a94…`, the example `9825ca06…`, every fixture its pinned text), and
+  `canvas/check.sh` accepts the saved model and the example.
+
+### For the next session
+
+- Step 10's listed features are done, and its status says so. To go on, add the next of SysON's features to
+  `features` in `plan/status.json` and set step 10 back to open; the inventory's areas (`docs/sysml/syson/features/
+  README.md`) are where to choose from.
+- The details view's "not held yet" rows are a list of what the canvas could hold next: short names, `ref`
+  (isComposite), variations, individuals, portion kinds, `ordered`/`nonunique`, `end`, `derived`, `constant`; label
+  editing already names each of them as not kept when typed.
+- The canvas draws a usage's name line as `name : Type [m]`; SysON draws `name[m] : Type`, with a definition's
+  `:> General` on it too ("Node labels" in the inventory's direct-edit section). Drawing labels as SysON does would be
+  a feature of its own; the label editor already starts from SysON's text.
+- Noticed, outside this step: the pilot warns ("Duplicate of other owned member name") about a view named like an
+  element of the package, which neither the canvas's checks nor the specification's rule catch.
+- The published page (https://claude.ai/artifact/V7Fw94cGMbtPnwmyDNmnjU) was not published again this session.
