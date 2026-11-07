@@ -37,8 +37,8 @@
     // Structure.
     PartDefinition: { keyword: 'part def', label: 'part def', definition: true, usage: false, contains: ['PartUsage', 'PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
     PortDefinition: { keyword: 'port def', label: 'port def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
-    PartUsage: { keyword: 'part', label: 'part', definition: false, usage: true, contains: ['PartUsage', 'PortUsage'], onBorder: false, definedBy: 'PartDefinition', size: [180, 60], shape: 'rounded', fields: ['name', 'type', 'multiplicity', 'doc'], traits: ['connectable'] },
-    PortUsage: { keyword: 'port', label: 'port', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16], shape: 'port', fields: ['name', 'type', 'multiplicity', 'conjugated', 'doc'], traits: ['connectable'] },
+    PartUsage: { keyword: 'part', label: 'part', definition: false, usage: true, contains: ['PartUsage', 'PortUsage'], onBorder: false, definedBy: 'PartDefinition', size: [180, 60], shape: 'rounded', fields: ['name', 'type', 'typeLine', 'multiplicity', 'doc'], traits: ['connectable'] },
+    PortUsage: { keyword: 'port', label: 'port', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16], shape: 'port', fields: ['name', 'type', 'typeLine', 'multiplicity', 'conjugated', 'doc'], traits: ['connectable'] },
   };
 
   // Relationship kinds. fields are the panel's fields that apply (rows of FIELDS), which normalize keeps by their
@@ -151,19 +151,21 @@
   // (RELATIONSHIPS[kind].fields). type says what the value is: string or text (a string; trim takes the ends off),
   // bool (true or false), enum (one of values, else the first), number (a finite number, else ''), ref (the id of an
   // element, else ''; options(model, item) returns the elements the field may name). label is the field's name in
-  // sentences. views, when present, lists the view kinds the field shows in (absent: every kind). core marks the
-  // fields the page handles itself; it reads and writes the others through their rows, each with a <label id="l-
-  // <field>"> holding an <input id="f-<field>"> in the panel. read(raw), when present, replaces the reading by type
+  // sentences. views, when present, lists the view kinds the field shows in (absent: every kind). The page shows and
+  // changes every field through its row, each with a <label id="l-<field>"> holding an <input id="f-<field>"> in the
+  // panel (the page's FIELD_HOOKS add what a row can't say). read(raw), when present, replaces the reading by type
   // (for a value that is none of these, a list say), and fresh(), when present, gives a new element's or
-  // relationship's starting value. The type field is not a value but the page's FeatureTyping relationship, so
-  // stored: false keeps it out of the model.
+  // relationship's starting value. stored: false marks a field that is no value of the item, which normalize keeps out
+  // of the model: type is the usage's FeatureTyping relationship, and typeLine whether that relationship is drawn as a
+  // line or shown as text only.
   const FIELDS = {
-    name: { type: 'string', label: 'name', core: true },
-    abstract: { type: 'bool', label: 'abstract', core: true },
-    type: { type: 'ref', label: 'definition', core: true, stored: false, options: function (model, item) { return model.elements.filter((e) => e.kind === KINDS[item.kind].definedBy); } },
-    multiplicity: { type: 'string', label: 'multiplicity', core: true, trim: true },
-    conjugated: { type: 'bool', label: 'conjugated', core: true },
-    doc: { type: 'text', label: 'doc', core: true },
+    name: { type: 'string', label: 'name' },
+    abstract: { type: 'bool', label: 'abstract' },
+    type: { type: 'ref', label: 'definition', stored: false, options: function (model, item) { return model.elements.filter((e) => e.kind === KINDS[item.kind].definedBy); } },
+    typeLine: { type: 'bool', label: 'defined-by line', stored: false },
+    multiplicity: { type: 'string', label: 'multiplicity', trim: true },
+    conjugated: { type: 'bool', label: 'conjugated' },
+    doc: { type: 'text', label: 'doc' },
     // Two rows several slices share, stated once: which way a feature goes (none, in, out, inout), and the item a flow
     // or a message carries, an ItemDefinition (a kind no core row has yet, so the select offers nothing until a slice
     // brings it). No core kind lists them, so the panel shows neither until a slice's kind does.

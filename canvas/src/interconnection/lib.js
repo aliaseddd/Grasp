@@ -14,7 +14,7 @@
     // An item's head carries its direction (in item x : T). On a port def it must have one: a port def may own only
     // ports and referential usages, as the validator says. Its shape, item, is the page's rounded box with the
     // direction inside the guillemets, «out item».
-    ItemUsage: { keyword: 'item', label: 'item', definition: false, usage: true, contains: false, onBorder: false, definedBy: 'ItemDefinition', size: [160, 52], shape: 'item', fields: ['name', 'type', 'direction', 'multiplicity', 'doc'], traits: ['flowEnd', 'bindable', 'connectable'],
+    ItemUsage: { keyword: 'item', label: 'item', definition: false, usage: true, contains: false, onBorder: false, definedBy: 'ItemDefinition', size: [160, 52], shape: 'item', fields: ['name', 'type', 'typeLine', 'direction', 'multiplicity', 'doc'], traits: ['flowEnd', 'bindable', 'connectable'],
       head: function (model, el, h) { return (el.direction ? el.direction + ' ' : '') + h.headOf(el); },
       check: function (model, el, ids, add) {
         const owner = el.owner !== undefined ? ids.get(el.owner) : null;

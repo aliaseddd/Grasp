@@ -1,6 +1,7 @@
 // The page's first script. It makes the object the page's scripts share, window.SysMLCanvas (C in each script,
 // with what the page shows and does now as C.state, S), and holds the page's constants, the words for the core's
-// tools, the tables the features fill in (TOOLS, ACTIONS, VIEW_PANELS), and the page's elements the scripts use.
+// tools, the tables the features fill in (TOOLS, ACTIONS, VIEW_PANELS, FIELD_HOOKS), and the page's elements the
+// scripts use.
 (function (C) {
   'use strict';
 
@@ -60,6 +61,15 @@
   // The panel's options for a kind of view: VIEW_PANELS[kind](view, write) fills the kind's div.view-options in
   // #view-fields, which renderViewFields shows for the selected view's kind and hides for the others.
   const VIEW_PANELS = {};
+  // What the panel needs to know of a field beyond its row in M.FIELDS, by the field's name. Every field goes the one
+  // way panel.js has: shown by its row's type, changed through the same listeners and edit(). A hook says only what
+  // the row can't, and is given the field x, { item, type ('el', 'rel' or 'view'), fld, spec, input, hooks }:
+  // shown(x), whether the panel shows the field for this item; value(x), the value the field shows, when it isn't
+  // the item's property; none, the words for a ref's empty choice ('nothing' unless said); write(x, value), the change,
+  // made inside edit(), in place of setting the item's property; said(x), the words for the change, in place of 'Set
+  // the <label> of <what> to <value>'; done(x), what the page does once the change is made, or, for a field that takes
+  // typing, once the field is left. panel.js has the core's; a feature's page.js adds its own.
+  const FIELD_HOOKS = {};
 
   const $ = (id) => document.getElementById(id);
   const canvas = $('canvas');
@@ -76,12 +86,6 @@
   const fields = $('fields');
   const fKind = $('f-kind');
   const fName = $('f-name');
-  const fAbstract = $('f-abstract');
-  const fType = $('f-type');
-  const fTypeLine = $('f-type-line');
-  const fMult = $('f-multiplicity');
-  const fConj = $('f-conjugated');
-  const fDoc = $('f-doc');
   const fPath = $('f-path');
   const fViews = $('f-views');
   const addNoteButton = $('add-note');
@@ -117,10 +121,10 @@
   Object.assign(C, {
     M, NS, STATE_KEY, CAMERA_KEY, WORKING, NOTES, PAUSE, MIN_ZOOM, MAX_ZOOM, HEADER, HEAD_H, LEAD, PAD, CHILD_TOP,
     PORT, MARGIN, MIN_FRAME, VIEW_GAP, HISTORY, NARROW, WHERE, TOOL_TITLE, TOOL_HINT, BASE_NAME, TOOLS, ACTIONS,
-    VIEW_PANELS, $, canvas, svg, hint, status, zoomLevel, hud, eyebrow, palette, panel, showPanel, inspectorEmpty,
-    fields, fKind, fName, fAbstract, fType, fTypeLine, fMult, fConj, fDoc, fPath, fViews, addNoteButton,
-    removeFromViewButton, deleteButton, viewFields, vKind, vName, vDoc, vShow, vMeta, vShowAdd, deleteViewButton,
-    problemsList, problemsButton, undoButton, newViewButton, newViewKind, list, notesEmpty, notesCount, where, warning,
-    exportPanel, exportText, exportProblems, downloadButton, importButton, fileInput, str
+    VIEW_PANELS, FIELD_HOOKS, $, canvas, svg, hint, status, zoomLevel, hud, eyebrow, palette, panel, showPanel,
+    inspectorEmpty, fields, fKind, fName, fPath, fViews, addNoteButton, removeFromViewButton, deleteButton, viewFields,
+    vKind, vName, vDoc, vShow, vMeta, vShowAdd, deleteViewButton, problemsList, problemsButton, undoButton,
+    newViewButton, newViewKind, list, notesEmpty, notesCount, where, warning, exportPanel, exportText, exportProblems,
+    downloadButton, importButton, fileInput, str
   });
 })(window.SysMLCanvas = { state: {} });   // the object the scripts share, and the state they share in it

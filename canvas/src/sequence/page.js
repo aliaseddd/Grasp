@@ -3,9 +3,9 @@
   'use strict';
   const S = C.state;
   const {
-    M, TOOL_TITLE, TOOL_HINT, BASE_NAME, ACTIONS, VIEW_PANELS, $, say, editable, f, relById, viewById, viewLayout,
-    frameAround, ROUTES, endpoints, viewAt, node, text, MARKERS, nameLine, SHAPES, drawBox, drawRel, RENDERERS,
-    freshElement, edit, endEdit, freeName, renderInspector, extraFieldOf, fieldChangeText, selectedView
+    M, TOOL_TITLE, TOOL_HINT, BASE_NAME, ACTIONS, VIEW_PANELS, FIELD_HOOKS, $, say, editable, f, relById, viewById,
+    viewLayout, frameAround, ROUTES, endpoints, viewAt, node, text, MARKERS, nameLine, SHAPES, drawBox, drawRel,
+    RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
   } = C;
 
   // ---- Sequence: the sequence view's words, the event's shape, the message's arrowhead, the renderer, the row
@@ -287,15 +287,13 @@
   }
   ACTIONS['message-up'] = function (hit) { moveMessageRow(hit.id, -1, hit.view); };
   ACTIONS['message-down'] = function (hit) { moveMessageRow(hit.id, 1, hit.view); };
-  // The order field, once the page has written it (this listener is on the panel, so it runs after the one on
-  // #fields): the text's order follows the drawing's, in the same undo step as the field's keystrokes.
-  $('inspector').addEventListener('input', (event) => {
-    const x = event.target && event.target.id === 'f-order' ? extraFieldOf(event) : null;
-    if (x) edit(() => {
+  // The order field: with the message's order, the text's order follows the drawing's, in the same change.
+  FIELD_HOOKS.order = {
+    write: function (x, value) {
+      x.item.order = value;
       sortMessages();
-      return fieldChangeText(x);
-    }, x.fld + ':' + x.item.id);
-  });
+    }
+  };
   // The sequence view's option: the distance between its rows.
   VIEW_PANELS.SequenceView = function (view, write) {
     $('sv-spacing').value = String(rowSpacing(view));
