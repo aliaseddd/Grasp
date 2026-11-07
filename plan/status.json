@@ -11,12 +11,6 @@
     { "id": 9, "name": "Make the repo the tool's own", "status": "done" },
     { "id": 10, "name": "Features from SysON", "status": "in_progress" }
   ],
-  "features": [
-    "label editing",
-    "details view",
-    "validation rules"
-  ],
-  "features_done": [
-    "label editing"
-  ]
+  "features": ["label editing", "details view", "validation rules"],
+  "features_done": ["label editing"]
 }
