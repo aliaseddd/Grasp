@@ -1191,7 +1191,7 @@ How many there are: the specification's validation rules are the constraints of 
 implementation's `org.omg.sysml/model/SysML.uml`, at the release the canvas's metamodel comes from (`2026-09.1`),
 holds 388: 180 `validate…` and 208 `check…`. SysON 2026.11.0 runs 383, its `SysMLValidationRule` enumeration, which
 its own unit test holds to that number (`docs/sysml/syson/features/model.md`). The 204 that `docs/sysml/syson/README.md`
-gave, and the plan repeated, was wrong; that README now says 383. SysON.uml was read in the scratchpad (fetched from
+gave, and the plan repeated, was wrong; that README now says 383. `SysML.uml` was read in the scratchpad (fetched from
 the pilot's repository at the release's commit), never committed; the canvas's messages are its own words.
 
 Which ones the canvas checks, and why only those:
