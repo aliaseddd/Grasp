@@ -2,6 +2,8 @@
 
 `stronghold-proof.sysml` is the proof's structure in SysML v2 textual notation: the page, the app, the three hosts, and the contract between them. `stronghold-proof.svg` draws the model's one view, `proofStructure`, a general view in SysML v2's graphical notation.
 
+The code the model describes is in the Stronghold repository (`aliaseddd/Stronghold`) since November 7, 2026, so the paths on this page and in the model (`app/src/host/load-app.ts`, `hosts/server`) name files there.
+
 ![The proofStructure view: a page holds the hosts and one app, connected by the mount interface; three hosts specialize Host; the contract sits in HostFiles](stronghold-proof.svg)
 
 ## What it says

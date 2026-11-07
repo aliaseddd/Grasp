@@ -1,4 +1,5 @@
-// The Stronghold proof as a SysML v2 model: README.md, "How it fits together", as structure.
+// The Stronghold proof as a SysML v2 model: "How it fits together" in the Stronghold repository's
+// docs/PROOF.md, as structure.
 // stronghold-proof.svg draws the view at the end of the package. README.md in this folder says how
 // the model was checked.
 
