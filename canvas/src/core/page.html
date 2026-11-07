@@ -66,16 +66,18 @@
         <p class="empty" id="inspector-empty">Nothing selected. Click a box, a port, or a line.</p>
         <div class="fields" id="fields" hidden>
           <p class="kind" id="f-kind"></p>
+          <!-- Every field: <label id="l-<field>">… <input id="f-<field>"></label>, one per row of FIELDS, which the panel
+               shows for the kinds that list it. -->
           <label id="l-name">Name <input type="text" id="f-name" autocomplete="off" spellcheck="false"></label>
           <label class="check" id="l-abstract"><input type="checkbox" id="f-abstract"> abstract</label>
           <label id="l-type">Defined by <select id="f-type"></select></label>
-          <label class="check" id="l-type-line"><input type="checkbox" id="f-type-line"> draw the defined-by line</label>
+          <label class="check" id="l-typeLine"><input type="checkbox" id="f-typeLine"> draw the defined-by line</label>
           <label id="l-multiplicity">Multiplicity <input type="text" id="f-multiplicity" autocomplete="off" spellcheck="false" placeholder="1, 0..1, or 1..*"></label>
           <label class="check" id="l-conjugated"><input type="checkbox" id="f-conjugated"> conjugated (~), the other side of the port</label>
           <label id="l-doc">Doc <textarea id="f-doc" rows="2" spellcheck="true"></textarea></label>
           <label id="l-direction">Direction <select id="f-direction"><option value="">undirected</option><option value="in">in</option><option value="out">out</option><option value="inout">inout</option></select></label>
           <label id="l-item">Item (the payload) <select id="f-item"></select></label>
-          <!-- Each slice's fields: <label id="l-<field>">… <input id="f-<field>"></label>, one per row of FIELDS. -->
+          <!-- The features' fields. -->
           <label id="l-interfaceDef">Interface def <select id="f-interfaceDef"></select></label>
           <label id="l-actionKind">Kind of action <select id="f-actionKind"><option value="plain">plain</option><option value="send">send</option><option value="accept">accept</option></select></label>
           <label id="l-payload">Payload <input type="text" id="f-payload" autocomplete="off" spellcheck="false" placeholder="new Alert() to send; x : Type or after 10 [SI::s] to accept"></label>

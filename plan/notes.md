@@ -394,3 +394,147 @@ wrote the format and every element's place, so no file it saved is any of these.
 - The format's name has Stronghold in it. If step 9 renames it, `versionOf` must still read `stronghold-canvas/1` and
   `stronghold-canvas/2`, and the format tests will say so.
 - `docs/REPO_MAP.md` still shows the old single file.
+
+## Session 6, November 7, 2026: step 5, Generate the kind lists, is blocked
+
+Step 5 is blocked, and no code was written for it. `SysML.ecore` is under the Eclipse Public License 2.0, the license the
+standing rules keep SysON's code out of the canvas for, and lists generated from it would bring that license's terms
+into the published page. One commit: `plan/status.json` and these notes. The session then went on to step 6, the first
+step neither done nor blocked (below).
+
+### What was checked
+
+In a scratch clone of the pilot implementation, in the session's scratchpad (not committed):
+
+- The release the validator runs, kernel 0.63.1, is the tag `2026-09.1` (commit `d81b2ad`, October 28, 2026), where
+  `org.omg.sysml` is version 0.63.1. Its `org.omg.sysml/model/SysML.ecore` holds the 182 classifiers (175 classes and 7
+  enumerations; SHA-256 `dd3960e0…b464d6`). The file carries no copyright or license notice of its own, so the
+  repository's license governs it.
+- That license is `LICENSE` at the repository's root: the Eclipse Public License 2.0, with no secondary license named
+  (its Exhibit A is the license's blank template). The README says "This software is licensed under the Eclipse Public
+  License. See the files LICENSE and LICENSE-GPL"; `LICENSE-GPL` no longer exists. Master at `378a870`, which the maps
+  in `docs/sysml/pilot-implementation` were drawn from, is the same.
+- The license changed on May 11, 2026, in commit `1e4405d` ("ST6RI-922 Updated the repository README.adoc and the
+  LICENSE file"), which replaced the LGPL 3.0 with the EPL 2.0 and deleted the GPL 3.0 text. An ecore from before that
+  date is under the LGPL 3.0, whose terms would come into the page the same way, so an older release doesn't help.
+- The OMG's release repository, `Systems-Modeling/SysML-v2-Release`, moved to the EPL 2.0 three days later (commit
+  `9baca59`, May 14, 2026).
+- `www.omg.org` is blocked by this environment's network policy (the proxy refuses it), so the OMG's own terms for the
+  machine-readable metamodel files it publishes with the specification could not be read here.
+
+### Why it blocks the step
+
+This is a reading of the license's text, not legal advice.
+
+- The EPL 2.0 lets anyone copy and change the program, on conditions. A "Modified Work" includes, in its words, "any new
+  file in Source Code form that contains any contents of the Program" (section 1), and a Modified Work passed on as
+  source "must be made available under this Agreement", with a copy of the license (section 3.2).
+- The generated lists would be the ecore's contents: its classifiers' names, their supertypes, what each may contain,
+  and their fields, copied out by a script. The build would put them into `canvas/index.html`, the one file the page is
+  published as. That file would then be a Modified Work, and the page, with all of the canvas's own code in it, would
+  have to be offered under the EPL 2.0.
+- The license leaves out works that hold a program's declarations "solely ... in order to link to, bind by name, or
+  subclass the Program". The canvas doesn't link to the pilot implementation; it would copy the declarations to build
+  lists of its own, so that exception doesn't fit.
+- That is the outcome the standing rules name for SysON: "copied code would bring its license terms into the canvas."
+
+### What would unblock it
+
+Damon's decision, one of:
+
+1. Accept the EPL 2.0 for the generated lists and so for the published page (`index.html`) as a whole: ship the
+   license's text with it, keep the notices, and keep the source available. The files in `src/` that hold none of the
+   lists could stay under his own terms, since the EPL 2.0 binds file by file.
+2. Ask the pilot implementation's copyright holders for permission to use the metamodel's structure under other terms.
+3. Read the metamodel from a source under other terms: the OMG publishes machine-readable metamodel files with the
+   specification, under its own terms, which couldn't be checked from here. If they allow it, the generator would read
+   those files instead of the pilot's ecore, which changes the step as written; a session would need `www.omg.org`
+   allowed in the environment's network to fetch them.
+4. Keep writing kinds by hand from the specification's text, as the 29 are now, and rescope or drop step 5.
+
+Steps 6 to 9 don't need step 5. Step 10's features need kinds that don't exist yet (SysON has many more), so the
+decision matters before step 10.
+
+### Noticed, outside this step
+
+- `docs/sysml/pilot-implementation` and `docs/sysml/syson` hold aider's maps, which quote lines of both projects' EPL 2.0
+  code, with no copy of the license beside them. They aren't in the page.
+
+## Session 6, continued: step 6, Panels from field lists
+
+Step 6 is done. Every field the panel shows, for an element, a line or a view, goes one way: its row in `FIELDS`, by
+which the panel shows it, and the panel's one pair of listeners, which make every change through `edit()`. No field
+has listeners of its own. Three commits, each with every test passing: the fields of elements and lines with the new
+tests, then the view's fields, then `src/README.md`'s rule and these notes.
+
+### Where things are now
+
+- `FIELDS` rows have no `core` flag. The box that draws the defined-by line is a field of its own, `typeLine` (a bool,
+  `stored: false`, like `type`), listed after `type` in the six kinds that have a definition: PartUsage, PortUsage,
+  ItemUsage, ActionUsage, ParameterUsage, StateUsage. Its input is `#f-typeLine` (it was `#f-type-line`).
+- Every view kind's row lists `fields: ['name', 'doc']`. `normalize` keeps a view's listed fields by their rows (a no-op
+  for name and doc, which it sets first), and a new view gets the starting value of any listed field `views.js` doesn't
+  set, as `freshElement` does for an element.
+- `core/page/panel.js`: `renderFields` shows the selection's fields by their rows' types; `fieldOf` finds the field an
+  event is about; `changeField` makes the change through `edit()`, with the key `<field>:<id>` for a field that takes
+  typing; one pair of listeners on `#fields` and on `#view-fields`; `renderHead` writes the lines around the fields (an
+  element's kind, path and views; a view's kind and what it shows).
+- `FIELD_HOOKS` in `core/page/base.js` says what a row can't: `shown`, `value`, `none`, `write`, `said`, `done`, each
+  given the field `x`. The core's rows are in `panel.js` (name, abstract, conjugated, doc, type, typeLine); the sequence
+  view's `order` row sorts the messages inside the same change, in place of a listener of its own.
+- Gone from `C`: `extraFieldOf`, `fieldChangeText`, and the refs `fAbstract`, `fType`, `fTypeLine`, `fMult`, `fConj`,
+  `fDoc`, `vDoc`. `fName` and `vName` stay: `tools.js` and `views.js` focus them after placing an element or adding a view.
+- `src/README.md` has the rule, under "The panel's fields": a new field is a row in `FIELDS`, an entry in its kind's
+  `fields`, and a label holding an input in `core/page.html`; anything else goes in `FIELD_HOOKS`.
+- Not fields, and not moved: a view kind's options (`VIEW_PANELS`: row spacing, scale and unit, grid mode and columns,
+  browser roots), each with rules of its own, and the code links, a list the annotations section edits. Both keep their
+  own controls, as the README says.
+
+What a user can notice, all small:
+
+- Picking another definition in "Defined by" moves the end of the usage's typing rather than replacing the typing with
+  a new one. The line keeps its id and its place in the model's list, so the notes on it stay on it (before, they were
+  moved to the new line), and their labels follow the new end. Picking a definition in the panel no longer puts down an
+  armed tool or forgets the first end of a line being drawn, which the palette's code it borrowed did.
+- A field whose row trims (multiplicity, payload, target, guard, trigger, effect) holds its value trimmed as it is
+  typed. The multiplicity did already; the other five kept the spaces until the model was read again.
+- Once a view's name is left, the notes on the view take its new name. Before, they took it at the next element's
+  rename, or when the model was replaced.
+- A keystroke that leaves a field's value as it was (a space at the end of a trimmed field, "1." in a number field) is
+  no change at all, rather than a step that the run's end then dropped. The multiplicity's run key is
+  `multiplicity:<id>` (it was `mult:<id>`), the key its log entries carry to join a run.
+
+### How it was checked
+
+- Tests: 127 of 127 pass: the 121 from session 5 and 6 in the new `test/fields.test.mjs`.
+  - No field's input has listeners of its own, read through Chrome's DevTools protocol for every row's input in both
+    panels; `#fields` and `#view-fields` each have the one pair; every row but `code` has an input.
+  - Every field of every kind, 123 in all (85 of the 20 element kinds, 22 of the 9 line kinds, 16 of the 8 view
+    kinds), changed through its input as a person does it (two keystrokes and Tab, a click, a pick in a select): each
+    change is one undo step, logged once in that step's words, schedules the save, and the save writes it; Undo brings
+    back the value, the model and what the panel shows. The model is the fixtures merged, each fixture's ids prefixed,
+    with a fixture that adds no kind left out, one view of each view kind, every usage typed, and the first element of
+    each kind with a view-restricted field shown in a view of that kind.
+  - The definition: another definition keeps the typing's id and its note, whose label follows, and the save (the real
+    one, after its pause) writes it; the box hides and draws the line; nothing undefines and the box goes; a definition
+    for an undefined part is a new typing shown as text, with the status line's hint; five Undos bring it all back.
+  - The core's own words, nine cases; a view's name (the eyebrow follows each keystroke, the note on the view takes the
+    name once the field is left, the name's and the doc's words); and trimming as typed.
+- Mutations, each built, tested and taken back: changing the field without `edit()`, a listener of its own on a field,
+  no trimming, a new typing in place of moving the old one's end, the generic words for a rename, and the line box
+  always shown. Each failed one to four of the new tests. The view-name test also fails on the page from the commit
+  before the view's fields moved, and only at the notes' label, the one thing that changed there.
+- Exports: every fixture and the saved model print the same bytes; `canvas/check.sh` accepts the saved model and every
+  fixture, with the same validator warnings session 1 recorded.
+- The panel, screenshotted for a part, a port, a part def, a connection and a view, is pixel for pixel what the page
+  showed before this session.
+- Time: the suite takes about 46 s (38 s before). The field walk is 19 s of it, since each change draws the merged model
+  (130 elements, 8 views) again, which takes 30 to 50 ms here.
+
+### For the next session
+
+- Step 5 waits for Damon's decision on the license (above). Step 7 is next: the scale tests.
+- To put a view kind's options or the code links on the field table, their rows would need a value that lives in
+  `view.options` or in a list, and hooks for their rules (a range, a scale that follows the unit, a table that keeps a
+  column). That would be a step of its own.
+- `docs/REPO_MAP.md` still shows the old single file.

@@ -4,8 +4,8 @@
   const S = C.state;
   const {
     M, PAD, CHILD_TOP, MARGIN, VIEW_GAP, removeFromViewButton, vName, vShow, vShowAdd, deleteViewButton, newViewButton,
-    newViewKind, say, editable, newId, plural, viewById, activeView, viewLayout, viewShowing, rendererFor, fit, edit,
-    setActive
+    newViewKind, say, editable, newId, plural, viewById, activeView, viewLayout, viewShowing, rendererFor, blankField,
+    fit, edit, setActive
   } = C;
 
   // ---- Views: making, moving, showing things in, and deleting them.
@@ -28,6 +28,7 @@
         x: beside ? beside.x + beside.w + VIEW_GAP + MARGIN : 0, y: beside ? beside.y + MARGIN + 12 : 0,
         layout: {}, options: JSON.parse(JSON.stringify(M.VIEW_KINDS[kind].options))
       };
+      M.VIEW_KINDS[kind].fields.forEach((fld) => { if (view[fld] === undefined) blankField(view, fld); });
       S.model.views.push(view);
       return { what: 'Added the ' + M.describeView(S.model, view), log: 'Added the ' + M.describeView(S.model, view) + ', ' + M.an(M.VIEW_KINDS[kind].label) };
     });

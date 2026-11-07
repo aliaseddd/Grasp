@@ -10,7 +10,7 @@
   Object.assign(VIEW_KINDS, {
     // A plan of parts (and items, once that kind is in) drawn to scale: scale is the pixels per unit of the view's unit.
     GeometryView: { name: 'GeometryView', label: 'geometry view', qualified: 'StandardViewDefinitions::GeometryView', renderer: 'geometry',
-      admits: ['PartUsage', 'ItemUsage'], tools: ['PartUsage', 'ItemUsage'], options: { scale: 40, unit: 'm' } },
+      admits: ['PartUsage', 'ItemUsage'], tools: ['PartUsage', 'ItemUsage'], fields: ['name', 'doc'], options: { scale: 40, unit: 'm' } },
   });
   Object.assign(FIELDS, {
     // The spatial fields of a part or item drawn to scale in a geometry view: its shape (a ShapeItems kind whose

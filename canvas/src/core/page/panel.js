@@ -3,11 +3,10 @@
   'use strict';
   const S = C.state;
   const {
-    M, VIEW_PANELS, $, panel, showPanel, inspectorEmpty, fields, fKind, fName, fAbstract, fType, fTypeLine, fMult,
-    fConj, fDoc, fPath, fViews, addNoteButton, removeFromViewButton, deleteButton, viewFields, vKind, vName, vDoc,
-    vShow, vMeta, vShowAdd, deleteViewButton, problemsList, problemsButton, undoButton, say, editable, plural, relById,
-    viewById, viewLayout, viewShowing, rendererFor, center, endpoints, marksFor, applyMarks, showPoint, edit, endEdit,
-    undo, setActive, createRel, deleteView, showable
+    M, VIEW_PANELS, FIELD_HOOKS, $, panel, showPanel, inspectorEmpty, fields, fKind, fPath, fViews, addNoteButton,
+    removeFromViewButton, deleteButton, viewFields, vKind, vShow, vMeta, vShowAdd, deleteViewButton, problemsList,
+    problemsButton, undoButton, say, editable, newId, plural, relById, viewById, viewLayout, viewShowing, rendererFor,
+    center, endpoints, marksFor, applyMarks, showPoint, blankField, edit, endEdit, undo, setActive, deleteView, showable
   } = C;
 
   // ---- Selecting, moving, and the panel.
@@ -72,7 +71,7 @@
     inspectorEmpty.hidden = !!s;
     C.renderCodeSection(s, write);
     if (!s) { renderProblemsList(); return; }
-    if (s.type === 'view') renderViewFields(s.item, write);
+    if (s.type === 'view') renderViewFields(s, write);
     else renderElementFields(s, write);
     renderProblemsList();
   }
@@ -88,149 +87,174 @@
       problemsList.appendChild(li);
     });
   }
-  // The panel for an element or a line: the core fields (name, abstract, defined by, multiplicity, conjugated, doc)
-  // the page fills itself; every other field of the kind goes through its row in FIELDS (renderExtraFields).
+  // The panel for an element or a line: the lines that say what it is, and its fields (renderFields).
   function renderElementFields(s, write) {
     fields.hidden = false;
-    fields.querySelectorAll('label[id^="l-"]').forEach((l) => { l.hidden = true; });
-    if (s.type === 'el') {
-      const el = s.item;
-      const k = M.KINDS[el.kind];
-      fKind.textContent = M.describe(S.model, el);
-      k.fields.forEach((fld) => { const l = $('l-' + fld); if (l && M.FIELDS[fld] && M.FIELDS[fld].core) l.hidden = false; });
-      fName.value = el.name;
-      if (k.fields.indexOf('abstract') >= 0) fAbstract.checked = !!el.abstract;
-      if (k.fields.indexOf('type') >= 0) {
-        while (fType.firstChild) fType.removeChild(fType.firstChild);
-        const none = document.createElement('option');
-        none.value = '';
-        none.textContent = 'nothing yet';
-        fType.appendChild(none);
-        const typing = M.typingOf(S.model, el);
-        S.model.elements.filter((e) => e.kind === k.definedBy).forEach((d) => {
-          const o = document.createElement('option');
-          o.value = d.id;
-          o.textContent = M.textName(d) || '(unnamed)';
-          fType.appendChild(o);
-        });
-        fType.value = typing ? typing.to : '';
-        if (typing) { $('l-type-line').hidden = false; fTypeLine.checked = !typing.hidden; }
-      }
-      if (k.fields.indexOf('multiplicity') >= 0) fMult.value = el.multiplicity || '';
-      if (k.fields.indexOf('conjugated') >= 0) fConj.checked = !!el.conjugated;
-      fDoc.value = el.doc;
-      fPath.textContent = M.qualified(S.model, el);
-      const views = (S.layout.where.get(el.id) || []).map((id) => viewById(id)).filter(Boolean);
-      fViews.textContent = views.length
-        ? 'Shown in ' + views.map((v) => v.name.trim() || '(unnamed view)').join(', ')
-        : 'Shown in no view. A view\'s Show list brings it in.';
-      removeFromViewButton.hidden = !write || !views.length;
-    } else {
-      const rel = s.item;
-      const named = M.RELATIONSHIPS[rel.kind].fields;
-      fKind.textContent = M.describeRel(S.model, rel);
-      if (named.indexOf('name') >= 0) { $('l-name').hidden = false; fName.value = rel.name; }
-      if (named.indexOf('doc') >= 0) { $('l-doc').hidden = false; fDoc.value = rel.doc; }
-      fPath.textContent = '';
-      const views = (S.layout.where.get(rel.id) || []).map((id) => viewById(id)).filter(Boolean);
-      fViews.textContent = views.length ? 'Drawn in ' + views.map((v) => v.name.trim() || '(unnamed view)').join(', ') : 'Drawn in no view: none shows both ends.';
-      removeFromViewButton.hidden = true;
-    }
-    renderExtraFields(s.item, s.type === 'el' ? M.KINDS[s.item.kind].fields : M.RELATIONSHIPS[s.item.kind].fields, write);
-    [fName, fMult, fDoc].forEach((i) => { i.readOnly = !write; });
-    [fAbstract, fType, fTypeLine, fConj].forEach((i) => { i.disabled = !write; });
+    renderHead(s, write);
+    renderFields(s, write);
     deleteButton.hidden = !write;
     addNoteButton.hidden = !write || (s.type === 'el' && M.textName(s.item) === null);
   }
+  // The lines around the selection's fields: for an element or a line, what it is (its kind and name, or the line in
+  // words), its path, and the views it is drawn in, with Remove from view for an element shown in one; for a view, its
+  // kind, and what it shows.
+  function renderHead(s, write) {
+    if (s.type === 'view') {
+      const L = viewLayout(s.item.id);
+      vKind.textContent = s.item.kind;
+      vMeta.textContent = plural(L ? L.shown.size : Object.keys(s.item.layout).length, 'element') + ' shown · ' + M.VIEW_KINDS[s.item.kind].label +
+        (s.item.id === S.active ? ' · active' : '');
+      return;
+    }
+    const views = (S.layout.where.get(s.item.id) || []).map((id) => viewById(id)).filter(Boolean);
+    const names = views.map((v) => v.name.trim() || '(unnamed view)').join(', ');
+    if (s.type === 'el') {
+      fKind.textContent = M.describe(S.model, s.item);
+      fPath.textContent = M.qualified(S.model, s.item);
+      fViews.textContent = views.length ? 'Shown in ' + names : 'Shown in no view. A view\'s Show list brings it in.';
+      removeFromViewButton.hidden = !write || !views.length;
+    } else {
+      fKind.textContent = M.describeRel(S.model, s.item);
+      fPath.textContent = '';
+      fViews.textContent = views.length ? 'Drawn in ' + names : 'Drawn in no view: none shows both ends.';
+      removeFromViewButton.hidden = true;
+    }
+  }
+
+  // ---- The fields, every one of them the same way.
+  //
+  // A field of the selection is a row of M.FIELDS that the selection's kind lists, drawn by a label holding its input:
+  // <label id="l-<field>"> holding <… id="f-<field>"> in #fields, for an element or a line, and l-v-<field> holding
+  // v-<field> in #view-fields, for a view. The panel shows each field by its row's type, and every change to a field
+  // goes through the same two listeners and edit(), so it is an undo step, logged for Claude, and saved. FIELD_HOOKS
+  // (base.js) adds what a field's row can't say.
+
+  // Where the labels and inputs of the selection's fields are, by its type.
+  const PLACES = { el: { label: 'l-', input: 'f-' }, rel: { label: 'l-', input: 'f-' }, view: { label: 'l-v-', input: 'v-' } };
+  function fieldsOf(s) {
+    if (s.type === 'el') return M.KINDS[s.item.kind].fields;
+    return s.type === 'rel' ? M.RELATIONSHIPS[s.item.kind].fields : M.VIEW_KINDS[s.item.kind].fields;
+  }
+  // A field of the selection s with its input, as the hooks are given it; null when its kind doesn't list the field,
+  // or the field has no input in the panel (a field its feature edits in a section of its own: the code links).
+  function fieldAt(s, fld, input) {
+    const spec = M.FIELDS[fld];
+    if (!spec || !input || fieldsOf(s).indexOf(fld) < 0) return null;
+    return { item: s.item, type: s.type, fld: fld, spec: spec, input: input, hooks: FIELD_HOOKS[fld] || {} };
+  }
+  function valueOf(x) { return x.hooks.value ? x.hooks.value(x) : x.item[x.fld]; }
+  // A string, text or number field takes typing: each keystroke is a change, and a run of them one undo step.
+  function typed(spec) { return ['string', 'text', 'number'].indexOf(spec.type) >= 0; }
   // The kind of the view a field's views are checked against: the view that shows the selection, else the active one.
   function viewKindShowing(id) {
     const view = viewById(viewShowing(id) || S.active);
     return view ? view.kind : null;
   }
-  // The fields of the selection the page doesn't handle itself, each through its row in FIELDS and its slice's
-  // <label id="l-<field>"> holding <input id="f-<field>"> in #fields: a bool is a checkbox, a ref a select of the
-  // elements its options allow with nothing first, the rest take the value as text. A field with views shows only
-  // while the selection is drawn in a view of one of those kinds. A field with no input in the panel is its slice's.
-  function renderExtraFields(item, named, write) {
-    const kind = viewKindShowing(item.id);
-    named.forEach((fld) => {
-      const spec = M.FIELDS[fld];
-      const input = $('f-' + fld);
-      const label = $('l-' + fld);
-      if (!spec || spec.core || !input || !label) return;
-      if (spec.views && spec.views.indexOf(kind) < 0) return;
-      const v = item[fld];
-      if (spec.type === 'bool') input.checked = v === true;
-      else if (spec.type === 'ref') {
+  // Fills the selection's fields from the model and shows them: every field's label is hidden, then each field the
+  // selection's kind lists is filled and shown, a bool as a checkbox, an enum as a select of its values, a ref as a
+  // select of the elements its options allow with nothing first, the rest as text. A field with views shows only while
+  // the selection is drawn in a view of one of those kinds, and one with a shown hook only when the hook says so.
+  function renderFields(s, write) {
+    const place = PLACES[s.type];
+    const kind = viewKindShowing(s.item.id);
+    Object.keys(M.FIELDS).forEach((fld) => { const label = $(place.label + fld); if (label) label.hidden = true; });
+    fieldsOf(s).forEach((fld) => {
+      const x = fieldAt(s, fld, $(place.input + fld));
+      const label = $(place.label + fld);
+      if (!x || !label || (x.spec.views && x.spec.views.indexOf(kind) < 0) || (x.hooks.shown && !x.hooks.shown(x))) return;
+      const input = x.input;
+      const v = valueOf(x);
+      if (x.spec.type === 'bool') input.checked = v === true;
+      else if (x.spec.type === 'ref') {
         while (input.firstChild) input.removeChild(input.firstChild);
         const none = document.createElement('option');
         none.value = '';
-        none.textContent = 'nothing';
+        none.textContent = x.hooks.none || 'nothing';
         input.appendChild(none);
-        spec.options(S.model, item).forEach((e) => {
+        x.spec.options(S.model, s.item).forEach((e) => {
           const o = document.createElement('option');
           o.value = e.id;
           o.textContent = M.textName(e) || '(unnamed)';
           input.appendChild(o);
         });
         input.value = typeof v === 'string' ? v : '';
-      } else if (spec.type === 'enum') input.value = spec.values.indexOf(v) >= 0 ? v : spec.values[0];
+      } else if (x.spec.type === 'enum') input.value = x.spec.values.indexOf(v) >= 0 ? v : x.spec.values[0];
       else input.value = v === undefined || v === null ? '' : String(v);
       if (input.tagName === 'SELECT' || input.type === 'checkbox') input.disabled = !write; else input.readOnly = !write;
       label.hidden = false;
     });
   }
-  // The field an input or change event in #fields is about, when it is one of those: null for a core field, which has
-  // listeners of its own, and for anything that isn't a field of the selection.
-  function extraFieldOf(event) {
+  // The field of the selection an input or change event in the panel is about, or null.
+  function fieldOf(event) {
+    const s = resolve(S.selection);
     const input = event.target;
-    const id = input && input.id ? input.id : '';
-    if (id.indexOf('f-') !== 0) return null;
-    const fld = id.slice(2);
-    const spec = M.FIELDS[fld];
-    const el = selectedElement();
-    const rel = selectedRel();
-    const item = el || rel;
-    if (!spec || spec.core || !item) return null;
-    const named = el ? M.KINDS[el.kind].fields : M.RELATIONSHIPS[rel.kind].fields;
-    if (named.indexOf(fld) < 0) return null;
-    return { item: item, fld: fld, spec: spec, input: input, what: el ? M.describe(S.model, el) : 'the ' + M.describeRel(S.model, rel) };
+    if (!s || !input || !input.id) return null;
+    const prefix = PLACES[s.type].input;
+    return input.id.indexOf(prefix) === 0 ? fieldAt(s, input.id.slice(prefix.length), input) : null;
   }
+  // Whether an input is that of a field that takes typing, whatever is selected now.
+  function typedInput(input) {
+    const m = input && input.id ? /^[fv]-(.+)$/.exec(input.id) : null;
+    return !!m && !!M.FIELDS[m[1]] && typed(M.FIELDS[m[1]]);
+  }
+  // The value an input holds, as its field's row reads it: a string with its ends off when the row trims.
   function readInput(spec, input) {
     if (spec.type === 'bool') return input.checked;
     if (spec.type === 'number') return input.value.trim() !== '' && Number.isFinite(+input.value) ? +input.value : '';
-    return input.value;
+    return spec.trim ? input.value.trim() : input.value;
   }
+  // The selection in a sentence: an element as describe says it, a line as "the" and its words, a view as "view" and
+  // its name.
+  function whatOf(x) {
+    if (x.type === 'el') return M.describe(S.model, x.item);
+    return x.type === 'rel' ? 'the ' + M.describeRel(S.model, x.item) : M.describeView(S.model, x.item);
+  }
+  // The words for a change to a field that has none of its own: Set the <label> of <what> to <value>.
   function fieldChangeText(x) {
-    const v = x.item[x.fld];
+    const v = valueOf(x);
     let value = v === '' || v === undefined || v === null ? 'nothing' : String(v);
     if (x.spec.type === 'ref' && v) { const e = S.layout.ids.get(v); value = e ? (M.textName(e) || '(unnamed)') : 'nothing'; }
-    return 'Set the ' + x.spec.label + ' of ' + x.what + ' to ' + value;
+    return 'Set the ' + x.spec.label + ' of ' + whatOf(x) + ' to ' + value;
   }
-  // One pair of listeners for all of those fields: typing in a string, text or number field is one undo step per field,
-  // a run the field's change event ends, which logs it once the field is left; a bool, enum or ref changes at once.
-  fields.addEventListener('input', (event) => {
-    const x = extraFieldOf(event);
-    if (!x || ['string', 'text', 'number'].indexOf(x.spec.type) < 0) return;
-    edit(() => {
-      x.item[x.fld] = readInput(x.spec, x.input);
-      return fieldChangeText(x);
-    }, x.fld + ':' + x.item.id);
-  });
-  fields.addEventListener('change', (event) => {
-    const x = extraFieldOf(event);
-    if (!x) return;
-    if (['string', 'text', 'number'].indexOf(x.spec.type) >= 0) { endEdit(); return; }
-    edit(() => {
-      x.item[x.fld] = readInput(x.spec, x.input);
-      return fieldChangeText(x);
+  // Makes the change a field's input asks for, through edit(): with the field's write, else as the item's property,
+  // in the field's words, else the generic ones. A value the field has already changes nothing. Returns what edit()
+  // returns: what the change touched, or null.
+  function changeField(x, key) {
+    const value = readInput(x.spec, x.input);
+    if (value === valueOf(x)) return null;
+    const touched = edit(() => {
+      if (x.hooks.write) x.hooks.write(x, value); else x.item[x.fld] = value;
+      return x.hooks.said ? x.hooks.said(x) : fieldChangeText(x);
+    }, key);
+    if (touched && x.type === 'view') setActive(S.active); // the eyebrow names the active view
+    return touched;
+  }
+  // The one pair of listeners for every field. Typing in a string, text or number field is one undo step per field, a
+  // run the field's change event ends, which logs it once the field is left; a bool, an enum or a ref changes at once.
+  [fields, viewFields].forEach((box) => {
+    box.addEventListener('input', (event) => {
+      const x = fieldOf(event);
+      if (x && typed(x.spec)) changeField(x, x.fld + ':' + x.item.id);
+    });
+    box.addEventListener('change', (event) => {
+      const x = fieldOf(event);
+      if (x && !typed(x.spec)) {
+        if (changeField(x) && x.hooks.done) x.hooks.done(x);
+        return;
+      }
+      if (!x && !typedInput(event.target)) return;
+      endEdit();
+      if (x && x.hooks.done) x.hooks.done(x);
     });
   });
-  function renderViewFields(view, write) {
+
+  // The panel for a view: the lines that say what it is, its fields (renderFields), what it can show, and its kind's
+  // own options.
+  function renderViewFields(s, write) {
+    const view = s.item;
     viewFields.hidden = false;
-    vKind.textContent = view.kind;
-    vName.value = view.name;
-    vDoc.value = view.doc;
+    renderHead(s, write);
+    renderFields(s, write);
     while (vShow.firstChild) vShow.removeChild(vShow.firstChild);
     const candidates = showable(view);
     if (!candidates.length) {
@@ -248,10 +272,6 @@
       o.textContent = M.describe(S.model, e);
       vShow.appendChild(o);
     });
-    const L = viewLayout(view.id);
-    vMeta.textContent = plural(L ? L.shown.size : Object.keys(view.layout).length, 'element') + ' shown · ' + M.VIEW_KINDS[view.kind].label +
-      (view.id === S.active ? ' · active' : '');
-    [vName, vDoc].forEach((i) => { i.readOnly = !write; });
     vShow.disabled = !write || !candidates.length;
     vShowAdd.disabled = !write || !candidates.length;
     deleteViewButton.hidden = !write;
@@ -270,104 +290,76 @@
     });
   }
 
-  // Typing in a field is a run of changes, one undo step, which the field's change event ends once the field is left:
-  // that logs it.
-  fName.addEventListener('input', () => {
-    const el = selectedElement();
-    const item = el || selectedRel();
-    if (!item) return;
-    edit(() => {
-      item.name = fName.value;
-      return el ? 'Renamed to ' + M.describe(S.model, el) : 'Named the ' + M.describeRel(S.model, item);
-    }, 'name:' + item.id);
-  });
-  fName.addEventListener('change', () => {
-    const el = selectedElement();
-    const rel = selectedRel();
-    if (el) { fKind.textContent = M.describe(S.model, el); fPath.textContent = M.qualified(S.model, el); }
-    else if (rel) fKind.textContent = M.describeRel(S.model, rel);
-    endEdit();
-    syncNoteLabels();
-    C.renderNotes();
-  });
-  fAbstract.addEventListener('change', () => {
-    const el = selectedElement();
-    if (el) edit(() => {
-      el.abstract = fAbstract.checked;
-      return (el.abstract ? 'Made abstract: ' : 'Made concrete: ') + M.describe(S.model, el);
-    });
-  });
-  fType.addEventListener('change', () => {
-    const el = selectedElement();
-    if (!el || !editable()) return;
-    const old = M.typingOf(S.model, el);
-    if (!fType.value) {
-      edit(() => {
-        if (!old) return null;
-        S.model.relationships.splice(S.model.relationships.indexOf(old), 1);
-        return 'Undefined ' + M.describe(S.model, el);
-      });
-      renderInspector();
-      return;
+  // ---- The core's fields, beyond their rows: the words of a rename, of a doc and of the two checkboxes, and the
+  // definition, which is no value of the usage but its FeatureTyping relationship, with the box that draws its line.
+  function definitionOf(typing) { return typing ? S.model.elements.find((e) => e.id === typing.to) || null : null; }
+  Object.assign(FIELD_HOOKS, {
+    name: {
+      said: function (x) {
+        if (x.type === 'el') return 'Renamed to ' + M.describe(S.model, x.item);
+        return x.type === 'rel' ? 'Named the ' + M.describeRel(S.model, x.item) : 'Renamed the view to ' + (x.item.name.trim() || '(unnamed)');
+      },
+      // Once the name is left, the lines that say what the selection is follow it, and so do the notes' labels.
+      done: function () {
+        const s = resolve(S.selection);
+        if (s) renderHead(s, editable());
+        syncNoteLabels();
+        C.renderNotes();
+      }
+    },
+    abstract: {
+      said: function (x) { return (x.item.abstract ? 'Made abstract: ' : 'Made concrete: ') + M.describe(S.model, x.item); }
+    },
+    conjugated: {
+      said: function (x) { return (x.item.conjugated ? 'Conjugated ' : 'Unconjugated ') + M.describe(S.model, x.item); }
+    },
+    doc: {
+      said: function (x) { return 'Wrote the doc of ' + whatOf(x); }
+    },
+    // A usage's definition. Picking one types the usage by it: its typing, when it has one, takes the new end, so the
+    // notes on the line stay on it; else a new typing shows as text, its line not drawn. Picking nothing takes the
+    // typing away.
+    type: {
+      none: 'nothing yet',
+      value: function (x) { const typing = M.typingOf(S.model, x.item); return typing ? typing.to : ''; },
+      write: function (x, value) {
+        const typing = M.typingOf(S.model, x.item);
+        if (!value) { if (typing) S.model.relationships.splice(S.model.relationships.indexOf(typing), 1); return; }
+        if (typing) { typing.to = value; return; }
+        const rel = { id: newId('r'), kind: 'FeatureTyping', from: x.item.id, to: value };
+        M.RELATIONSHIPS.FeatureTyping.fields.forEach((fld) => blankField(rel, fld));
+        rel.hidden = true;
+        S.model.relationships.push(rel);
+      },
+      said: function (x) {
+        const def = definitionOf(M.typingOf(S.model, x.item));
+        return def ? 'Defined ' + M.describe(S.model, x.item) + ' by ' + (M.textName(def) || '(unnamed)') : 'Undefined ' + M.describe(S.model, x.item);
+      },
+      // The box that draws the line comes and goes with the typing, the notes' labels follow the line's end, and the
+      // status line says how a new definition shows.
+      done: function (x) {
+        renderInspector();
+        syncNoteLabels();
+        C.renderNotes();
+        const typing = M.typingOf(S.model, x.item);
+        if (typing) say(FIELD_HOOKS.type.said(x) + '.' + (typing.hidden ? ' It shows as text; tick the box to draw the line too.' : ''));
+      }
+    },
+    // Whether a usage's typing is drawn as a line, or shown as text only: there while the usage has a typing.
+    typeLine: {
+      shown: function (x) { return !!M.typingOf(S.model, x.item); },
+      value: function (x) { const typing = M.typingOf(S.model, x.item); return !!typing && !typing.hidden; },
+      write: function (x, value) {
+        const typing = M.typingOf(S.model, x.item);
+        if (!typing) return;
+        if (value) delete typing.hidden; else typing.hidden = true;
+      },
+      said: function (x) {
+        const typing = M.typingOf(S.model, x.item);
+        return typing ? (typing.hidden ? 'Hid the line ' : 'Drew the line ') + M.describeRel(S.model, typing) : null;
+      }
     }
-    const def = S.layout.ids.get(fType.value);
-    if (!def) return;
-    const rel = createRel('FeatureTyping', el, def, old ? !!old.hidden : true, 'Defined ' + M.describe(S.model, el) + ' by ' + (M.textName(def) || '(unnamed)'));
-    if (!rel) return;
-    select({ type: 'el', id: el.id });
-    say('Defined ' + M.describe(S.model, el) + ' by ' + (M.textName(def) || '(unnamed)') + '.' + (rel.hidden ? ' It shows as text; tick the box to draw the line too.' : ''));
   });
-  fTypeLine.addEventListener('change', () => {
-    const el = selectedElement();
-    const typing = el ? M.typingOf(S.model, el) : null;
-    if (typing) edit(() => {
-      if (fTypeLine.checked) delete typing.hidden; else typing.hidden = true;
-      return (fTypeLine.checked ? 'Drew the line ' : 'Hid the line ') + M.describeRel(S.model, typing);
-    });
-  });
-  fMult.addEventListener('input', () => {
-    const el = selectedElement();
-    if (el) edit(() => {
-      el.multiplicity = fMult.value.trim();
-      return 'Set the multiplicity of ' + M.describe(S.model, el) + ' to ' + (el.multiplicity || 'nothing');
-    }, 'mult:' + el.id);
-  });
-  fMult.addEventListener('change', () => endEdit());
-  fConj.addEventListener('change', () => {
-    const el = selectedElement();
-    if (el) edit(() => {
-      el.conjugated = fConj.checked;
-      return (el.conjugated ? 'Conjugated ' : 'Unconjugated ') + M.describe(S.model, el);
-    });
-  });
-  fDoc.addEventListener('input', () => {
-    const el = selectedElement();
-    const item = el || selectedRel();
-    if (!item) return;
-    edit(() => {
-      item.doc = fDoc.value;
-      return 'Wrote the doc of ' + (el ? M.describe(S.model, el) : 'the ' + M.describeRel(S.model, item));
-    }, 'doc:' + item.id);
-  });
-  fDoc.addEventListener('change', () => endEdit());
-  vName.addEventListener('input', () => {
-    const view = selectedView();
-    if (!view) return;
-    const done = edit(() => {
-      view.name = vName.value;
-      return 'Renamed the view to ' + (view.name.trim() || '(unnamed)');
-    }, 'name:' + view.id);
-    if (done) setActive(S.active); // the eyebrow names the active view
-  });
-  vName.addEventListener('change', () => endEdit());
-  vDoc.addEventListener('input', () => {
-    const view = selectedView();
-    if (view) edit(() => {
-      view.doc = vDoc.value;
-      return 'Wrote the doc of ' + M.describeView(S.model, view);
-    }, 'doc:' + view.id);
-  });
-  vDoc.addEventListener('change', () => endEdit());
 
   // Delete takes an element out of the model and every view, with everything inside it and every line on it; a line
   // out of the model; a view off the plane, its elements staying.
@@ -418,7 +410,7 @@
   showPanel.addEventListener('click', () => setPanel(true));
 
   Object.assign(C, {
-    resolve, select, selectionFor, renderInspector, renderProblemsList, extraFieldOf, fieldChangeText, selectedElement,
-    selectedRel, selectedView, syncNoteLabels, deleteSelection, setPanel
+    resolve, select, selectionFor, renderInspector, renderProblemsList, selectedElement, selectedRel, selectedView,
+    syncNoteLabels, deleteSelection, setPanel
   });
 })(window.SysMLCanvas);

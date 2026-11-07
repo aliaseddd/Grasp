@@ -76,7 +76,7 @@
   });
   Object.assign(VIEW_KINDS, {
     SequenceView: { name: 'SequenceView', label: 'sequence view', qualified: 'StandardViewDefinitions::SequenceView', renderer: 'sequence',
-      admits: ['PartUsage', 'EventOccurrenceUsage'], tools: ['PartUsage', 'EventOccurrenceUsage', '|', 'Message', 'SuccessionAsUsage'], options: { spacing: 56 } },
+      admits: ['PartUsage', 'EventOccurrenceUsage'], tools: ['PartUsage', 'EventOccurrenceUsage', '|', 'Message', 'SuccessionAsUsage'], fields: ['name', 'doc'], options: { spacing: 56 } },
   });
   Object.assign(FIELDS, {
     // Sequence: a message's place in time, a number; the messages with one come first, the lowest at the top.
