@@ -1,5 +1,5 @@
 // The export panel and notes, in local mode (no window.claude): the saved model exports as a package, and a note on an
-// element gets a list entry and a pin, exports as a comment, and goes away with its Delete button.
+// element gets a list entry and a pin, exports as an Issue about the element, and goes away with its Delete button.
 
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
@@ -23,7 +23,7 @@ describe('export', () => {
     await finish(ctx);
   });
 
-  test('a note on the selected element gets an li and a pin, exports as a comment, and its Delete button removes it', async () => {
+  test('a note on the selected element gets an li and a pin, exports as an Issue about it, and its Delete button removes it', async () => {
     const ctx = await openCanvas(browser);
     const { page } = ctx;
     const id = await placeElement(page, 'PartDefinition');
@@ -34,7 +34,7 @@ describe('export', () => {
 
     await li.locator('textarea.text').fill('Rename this to Server');
     const text = await exportText(page);
-    assert.match(text, /\bcomment\b/, 'the note exports as a comment');
+    assert.match(text, /\bmetadata <n\d+> : Issue about StrongholdProof::Host\b/, 'the note exports as an Issue about its element');
     assert.ok(text.includes('Rename this to Server'), `the export holds the note's text:\n${text}`);
 
     const remove = li.locator('button', { hasText: /delete/i });

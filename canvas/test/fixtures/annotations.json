@@ -1,0 +1,92 @@
+{
+  "format": "stronghold-canvas/2",
+  "saved": "2026-11-06T14:00:00.000Z",
+  "model": {
+    "format": "stronghold-canvas/2",
+    "revision": "2026-11-06T11:57:16.000Z",
+    "package": {
+      "name": "StrongholdProof",
+      "doc": "One app, built once with current tools, and thin hosts that load it into a page the same way. The names follow the code: app/, hosts/server, hosts/online, hosts/dev."
+    },
+    "elements": [
+      { "id": "Page", "kind": "PartDefinition", "name": "Page", "abstract": false,
+        "doc": "A page with Stronghold on it: a SharePoint Server page, a SharePoint Online page, a Teams tab, or the dev page. Every Stronghold web part on the page mounts the same app, because the first entry file to load wins (app/src/host/load-app.ts).",
+        "code": [
+          { "path": "app/src/host/load-app.ts", "language": "typescript",
+            "text": "export function loadApp(root: HTMLElement): void {\n  // The first entry file to load wins: a second web part on the page finds the app mounted.\n  if (window.Stronghold) return;\n  mount(root);\n}" }
+        ] },
+      { "id": "Page.hosts", "kind": "PartUsage", "name": "hosts", "owner": "Page", "multiplicity": "1..*", "doc": "" },
+      { "id": "Page.hosts.api", "kind": "PortUsage", "name": "api", "owner": "Page.hosts", "conjugated": true, "multiplicity": "", "doc": "" },
+      { "id": "Page.app", "kind": "PartUsage", "name": "app", "owner": "Page", "multiplicity": "1", "doc": "" },
+      { "id": "Page.app.api", "kind": "PortUsage", "name": "api", "owner": "Page.app", "conjugated": false, "multiplicity": "", "doc": "" },
+      { "id": "Host", "kind": "PartDefinition", "name": "Host", "abstract": true,
+        "doc": "hosts/: the small piece of code that plugs the app into one place. It works out where its package's files are, loads the entry file with the shared loader, and calls mount. It has no settings: it only ever loads the app from its own package.",
+        "code": [
+          { "path": "hosts/README.md", "language": "markdown", "text": "" }
+        ] },
+      { "id": "Host.api", "kind": "PortUsage", "name": "api", "owner": "Host", "conjugated": true, "multiplicity": "", "doc": "" },
+      { "id": "App", "kind": "PartDefinition", "name": "App", "abstract": false,
+        "doc": "app/: Stronghold itself, built once with webpack 5 and TypeScript 5.9. Nothing in it knows about SharePoint." },
+      { "id": "App.api", "kind": "PortUsage", "name": "api", "owner": "App", "conjugated": false, "multiplicity": "", "doc": "" },
+      { "id": "StrongholdApp", "kind": "PortDefinition", "name": "StrongholdApp", "abstract": false,
+        "doc": "What the app's entry file registers on window.Stronghold." },
+      { "id": "ServerHost", "kind": "PartDefinition", "name": "ServerHost", "abstract": false,
+        "doc": "hosts/server: the web part for SharePoint Server." },
+      { "id": "OnlineHost", "kind": "PartDefinition", "name": "OnlineHost", "abstract": false,
+        "doc": "hosts/online: the web part for SharePoint Online, which is also the Teams tab." },
+      { "id": "DevHost", "kind": "PartDefinition", "name": "DevHost", "abstract": false,
+        "doc": "hosts/dev: a plain page that mounts the app the way the SharePoint hosts do. It never ships." }
+    ],
+    "relationships": [
+      { "id": "t-hosts", "kind": "FeatureTyping", "from": "Page.hosts", "to": "Host" },
+      { "id": "t-app", "kind": "FeatureTyping", "from": "Page.app", "to": "App" },
+      { "id": "t-hosts-api", "kind": "FeatureTyping", "from": "Page.hosts.api", "to": "StrongholdApp", "hidden": true },
+      { "id": "t-app-api", "kind": "FeatureTyping", "from": "Page.app.api", "to": "StrongholdApp", "hidden": true },
+      { "id": "t-Host-api", "kind": "FeatureTyping", "from": "Host.api", "to": "StrongholdApp", "hidden": true },
+      { "id": "t-App-api", "kind": "FeatureTyping", "from": "App.api", "to": "StrongholdApp", "hidden": true },
+      { "id": "s-ServerHost", "kind": "Specialization", "from": "ServerHost", "to": "Host" },
+      { "id": "s-OnlineHost", "kind": "Specialization", "from": "OnlineHost", "to": "Host" },
+      { "id": "s-DevHost", "kind": "Specialization", "from": "DevHost", "to": "Host" },
+      { "id": "mount", "kind": "ConnectionUsage", "name": "mount", "from": "Page.hosts.api", "to": "Page.app.api", "doc": "" }
+    ],
+    "views": [
+      { "id": "v-proof", "kind": "GeneralView", "name": "proofStructure", "doc": "", "x": 0, "y": 0,
+        "layout": {
+          "Page": { "x": 32, "y": 72, "w": 760, "h": 250 },
+          "Page.hosts": { "x": 96, "y": 160, "w": 180, "h": 110 },
+          "Page.hosts.api": { "side": "right", "at": 0.5 },
+          "Page.app": { "x": 568, "y": 160, "w": 180, "h": 110 },
+          "Page.app.api": { "side": "left", "at": 0.5 },
+          "Host": { "x": 32, "y": 400, "w": 368, "h": 130 },
+          "Host.api": { "side": "right", "at": 0.5 },
+          "App": { "x": 600, "y": 400, "w": 368, "h": 130 },
+          "App.api": { "side": "right", "at": 0.5 },
+          "StrongholdApp": { "x": 840, "y": 72, "w": 368, "h": 100 },
+          "ServerHost": { "x": 32, "y": 620, "w": 368, "h": 100 },
+          "OnlineHost": { "x": 436, "y": 620, "w": 368, "h": 100 },
+          "DevHost": { "x": 840, "y": 620, "w": 368, "h": 100 }
+        },
+        "options": {} }
+    ]
+  },
+  "notes": [
+    { "id": "n-host-abstract", "no": 1, "target": "Host", "targetLabel": "part def Host",
+      "text": "Should Host stay abstract now that DevHost, the one host that never ships, is a part def of its own?",
+      "by": "user", "created": "2026-11-06T12:10:00.000Z", "updated": "2026-11-06T12:10:00.000Z", "response": "", "resolved": false },
+    { "id": "n-mount-one", "no": 2, "target": "mount", "targetLabel": "connection mount, api to api",
+      "text": "Is the mount one connection or one per host?",
+      "by": "user", "created": "2026-11-06T12:20:00.000Z", "updated": "2026-11-06T12:40:00.000Z",
+      "response": "One connection usage: hosts is [1..*], so each host's api is connected to the app's api.", "resolved": true },
+    { "id": "n-hostfiles", "no": 3, "target": null, "x": 1100, "y": 330, "targetLabel": "the plane",
+      "text": "HostFiles, the package of files a host serves, is not drawn yet. Where does it go: beside Host, or inside it?",
+      "by": "user", "created": "2026-11-06T12:50:00.000Z", "updated": "2026-11-06T12:50:00.000Z", "response": "", "resolved": false }
+  ],
+  "archive": [
+    { "id": "n-page-name", "no": 4, "target": "Page", "targetLabel": "part def Page",
+      "text": "Rename Page to HostPage?",
+      "by": "user", "created": "2026-11-06T11:00:00.000Z", "updated": "2026-11-06T11:30:00.000Z",
+      "response": "No: Page is the SharePoint page itself, whichever host put the app on it, so the name stands.", "resolved": true,
+      "archived": "2026-11-06T12:00:00.000Z",
+      "resolution": "No: Page is the SharePoint page itself, whichever host put the app on it, so the name stands." }
+  ]
+}

@@ -33,7 +33,7 @@ Where the notes are kept:
 
 ## The canvas
 
-Since November 6, 2026, the same model can be drawn and changed on the design canvas in `canvas/`, which replaces the hand-laid-out page below for the loop: boxes are placed and lines drawn there rather than in `draw.mjs`, and the drawing exports the textual model instead of being copied from it. This folder keeps the full model, which has attributes and the package `HostFiles` that the canvas's first slice can't draw yet, and the page below as it was.
+Since November 6, 2026, the same model can be drawn and changed on the design canvas in `canvas/`, which replaces the hand-laid-out page below for the loop: boxes are placed and lines drawn there rather than in `draw.mjs`, and the drawing exports the textual model instead of being copied from it. This folder keeps the full model, which has attributes and the package `HostFiles` that the canvas can't draw yet, and the page below as it was.
 
 ## Working on it with Claude
 

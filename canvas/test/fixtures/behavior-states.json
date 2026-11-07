@@ -1,0 +1,51 @@
+{
+  "model": {
+    "format": "stronghold-canvas/2",
+    "revision": "2026-11-06T15:10:00.000Z",
+    "package": {
+      "name": "StrongholdHost",
+      "doc": "The life of a host's web part: idle until the page mounts it, loading the entry file, then running until the page unmounts it."
+    },
+    "elements": [
+      { "id": "Mount", "kind": "PartDefinition", "name": "Mount", "abstract": false, "doc": "The page puts the web part on." },
+      { "id": "Loaded", "kind": "PartDefinition", "name": "Loaded", "abstract": false, "doc": "The entry file has run." },
+      { "id": "Fault", "kind": "PartDefinition", "name": "Fault", "abstract": false, "doc": "The app threw." },
+      { "id": "Unmount", "kind": "PartDefinition", "name": "Unmount", "abstract": false, "doc": "The page takes the web part off." },
+      { "id": "HostLifecycle", "kind": "StateDefinition", "name": "HostLifecycle", "abstract": false, "parallel": false, "doc": "One web part on one page." },
+      { "id": "HostLifecycle.initial", "kind": "InitialNode", "name": "", "owner": "HostLifecycle", "doc": "" },
+      { "id": "HostLifecycle.idle", "kind": "StateUsage", "name": "idle", "owner": "HostLifecycle", "multiplicity": "", "parallel": false, "doc": "Placed on the page, nothing loaded yet." },
+      { "id": "HostLifecycle.loading", "kind": "StateUsage", "name": "loading", "owner": "HostLifecycle", "multiplicity": "", "parallel": false, "doc": "" },
+      { "id": "HostLifecycle.loading.fetchEntry", "kind": "ActionUsage", "name": "fetchEntry", "owner": "HostLifecycle.loading", "multiplicity": "", "actionKind": "plain", "payload": "", "target": "", "role": "entry", "doc": "Loads the entry file with the shared loader." },
+      { "id": "HostLifecycle.running", "kind": "StateUsage", "name": "running", "owner": "HostLifecycle", "multiplicity": "", "parallel": true, "doc": "" },
+      { "id": "HostLifecycle.running.serving", "kind": "StateUsage", "name": "serving", "owner": "HostLifecycle.running", "multiplicity": "", "parallel": false, "doc": "" },
+      { "id": "HostLifecycle.running.watching", "kind": "StateUsage", "name": "watching", "owner": "HostLifecycle.running", "multiplicity": "", "parallel": false, "doc": "" },
+      { "id": "HostLifecycle.done", "kind": "DoneNode", "name": "", "owner": "HostLifecycle", "doc": "" }
+    ],
+    "relationships": [
+      { "id": "t-initial", "kind": "TransitionUsage", "from": "HostLifecycle.initial", "to": "HostLifecycle.idle", "name": "", "trigger": "", "guard": "", "effect": "", "doc": "" },
+      { "id": "t-mount", "kind": "TransitionUsage", "from": "HostLifecycle.idle", "to": "HostLifecycle.loading", "name": "mount", "trigger": "Mount", "guard": "", "effect": "", "doc": "" },
+      { "id": "t-loaded", "kind": "TransitionUsage", "from": "HostLifecycle.loading", "to": "HostLifecycle.running", "name": "", "trigger": "Loaded", "guard": "loading.fetchEntry.done", "effect": "", "doc": "The app is mounted once the entry file has run." },
+      { "id": "t-fault", "kind": "TransitionUsage", "from": "HostLifecycle.running", "to": "HostLifecycle.idle", "name": "", "trigger": "Fault", "guard": "", "effect": "action restart", "doc": "" },
+      { "id": "t-unmount", "kind": "TransitionUsage", "from": "HostLifecycle.running", "to": "HostLifecycle.done", "name": "unmount", "trigger": "Unmount", "guard": "", "effect": "", "doc": "" }
+    ],
+    "views": [
+      { "id": "v-host", "kind": "StateTransitionView", "name": "hostStates", "doc": "", "x": 0, "y": 0,
+        "layout": {
+          "HostLifecycle": { "x": 32, "y": 72, "w": 760, "h": 520 },
+          "HostLifecycle.initial": { "x": 50, "y": 302, "w": 28, "h": 16 },
+          "HostLifecycle.idle": { "x": 100, "y": 280, "w": 160, "h": 60 },
+          "HostLifecycle.loading": { "x": 380, "y": 100, "w": 220, "h": 60 },
+          "HostLifecycle.loading.fetchEntry": { "x": 20, "y": 48, "w": 180, "h": 60 },
+          "HostLifecycle.running": { "x": 380, "y": 310, "w": 300, "h": 60 },
+          "HostLifecycle.running.serving": { "x": 16, "y": 48, "w": 120, "h": 50 },
+          "HostLifecycle.running.watching": { "x": 160, "y": 48, "w": 120, "h": 50 },
+          "HostLifecycle.done": { "x": 560, "y": 470, "w": 22, "h": 22 }
+        },
+        "options": {} }
+    ]
+  },
+  "notes": [
+    { "id": "n-idle", "no": 1, "target": "HostLifecycle.idle", "targetLabel": "state idle in HostLifecycle", "text": "Idle hosts keep no state at all; is that still true once the page remembers the last app?", "by": "user", "created": "2026-11-06T15:10:00.000Z", "updated": "2026-11-06T15:10:00.000Z", "response": "", "resolved": false },
+    { "id": "n-loaded", "no": 2, "target": "t-loaded", "targetLabel": "transition loading to running", "text": "Does the guard need the entry action at all, or is the Loaded signal enough?", "by": "user", "created": "2026-11-06T15:11:00.000Z", "updated": "2026-11-06T15:11:00.000Z", "response": "", "resolved": false }
+  ]
+}

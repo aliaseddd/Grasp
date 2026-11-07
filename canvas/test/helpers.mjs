@@ -142,7 +142,7 @@ function findEmptyPoint() {
   const drawn = (x, y) => {
     if (x >= panelLeft) return true;
     const hit = document.elementFromPoint(x, y);
-    return !hit || !canvas.contains(hit) || Boolean(hit.closest('[data-el],[data-rel],[data-note],.pin,button,input,textarea,select,a'));
+    return !hit || !canvas.contains(hit) || Boolean(hit.closest('[data-el],[data-rel],[data-note],.pin,.problem,.tab,button,input,textarea,select,a'));
   };
   for (let y = Math.max(box.top, 0) + RY + 4; y <= Math.min(box.bottom, innerHeight) - RY - 4; y += 60) {
     for (let x = Math.max(box.left, 0) + RX + 4; x <= Math.min(box.right, innerWidth) - RX - 4; x += 60) {
@@ -154,6 +154,48 @@ function findEmptyPoint() {
     }
   }
   return null;
+}
+
+/**
+ * Runs in the page: a point in page pixels inside the frame of view `id` (g.frame[data-view]) with nothing drawn
+ * within 40 x 30 of it, below the frame's header tab, or null. A click there goes into that view.
+ */
+function findEmptyPointInFrame(id) {
+  const canvas = document.getElementById('canvas');
+  const outline = document.querySelector(`#drawing g.frame[data-view="${id}"] > rect.outline`);
+  if (!outline) return null;
+  const box = outline.getBoundingClientRect();
+  const stage = document.getElementById('drawing').getBoundingClientRect();
+  const RX = 40;
+  const RY = 30;
+  const panel = document.getElementById('panel');
+  const panelLeft = panel && !panel.hidden ? panel.getBoundingClientRect().left : Infinity;
+  const drawn = (x, y) => {
+    if (x >= panelLeft) return true;
+    const hit = document.elementFromPoint(x, y);
+    return !hit || !canvas.contains(hit) || Boolean(hit.closest('[data-el],[data-rel],[data-note],.pin,.problem,.tab,button,input,textarea,select,a'));
+  };
+  const top = Math.max(box.top, stage.top, 0) + RY + 30;
+  const bottom = Math.min(box.bottom, stage.bottom, innerHeight) - RY - 4;
+  const left = Math.max(box.left, stage.left, 0) + RX + 4;
+  const right = Math.min(box.right, stage.right, innerWidth) - RX - 4;
+  for (let y = top; y <= bottom; y += 30) {
+    for (let x = left; x <= right; x += 30) {
+      let clear = true;
+      for (let dy = -RY; dy <= RY && clear; dy += RY) {
+        for (let dx = -RX; dx <= RX && clear; dx += RX) if (drawn(x + dx, y + dy)) clear = false;
+      }
+      if (clear) return { x, y };
+    }
+  }
+  return null;
+}
+
+/** A point on the empty plane inside one view's frame, in page pixels; fails when the frame has no room on screen. */
+export async function emptyPointIn(page, viewId) {
+  const point = await page.evaluate(findEmptyPointInFrame, viewId);
+  assert.ok(point, `found an empty spot inside the frame of view ${viewId}`);
+  return point;
 }
 
 /** A point on the empty plane, in page pixels. When the visible plane is full, wheel-pans down and looks again. */
@@ -223,3 +265,5 @@ export async function addNote(page) {
 
 export const storeDoc = (page, docPath) => page.evaluate((p) => window.__store.get(p), docPath);
 export const storeDump = (page) => page.evaluate(() => window.__store.dump());
+
+// Helpers a slice's tests share with no other, one region per slice.
