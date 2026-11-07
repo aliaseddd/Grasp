@@ -3,7 +3,7 @@
   'use strict';
   const S = C.state;
   const {
-    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, onScreen, edit,
+    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, asLabel, RENDERERS, onScreen, edit,
     renderInspector, selectedView
   } = C;
 
@@ -110,9 +110,10 @@
         rg.appendChild(node('rect', { x: f(view.x + 1), y: f(top + 1), width: f(L.treeWidth - 2), height: BROWSER_ROW - 2, rx: 3 }, 'outline'));
         if (isEl && row.kids) rg.appendChild(browserToggle(row, x0, top));
         const t = node('text', { x: f(x0 + 18), y: f(top + 16) });
-        const span = (c, s) => { if (!s) return; const ts = node('tspan', {}, c); ts.textContent = s; t.appendChild(ts); };
+        const span = (c, s) => { if (!s) return null; const ts = node('tspan', {}, c); ts.textContent = s; t.appendChild(ts); return ts; };
         span('kw', row.parts.kw);
-        span(isEl ? 'browser-name' : 'browser-rel', row.parts.name);
+        const name = span(isEl ? 'browser-name' : 'browser-rel', row.parts.name);
+        if (name) asLabel(name);
         span('browser-type', row.parts.type);
         span('browser-notes', row.parts.notes);
         rg.appendChild(t);

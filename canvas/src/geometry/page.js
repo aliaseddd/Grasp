@@ -4,7 +4,7 @@
   const S = C.state;
   const {
     M, PAD, VIEW_PANELS, $, say, clamp, editable, f, viewById, viewLayout, frameAround, containerAt, viewAt, node,
-    text, MARKERS, nameLine, RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
+    text, asLabel, MARKERS, nameLine, RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
   } = C;
 
   // The geometry view: a plan of the parts it shows, each drawn as its shape's footprint to scale, x to the right and y
@@ -123,7 +123,7 @@
     const head = node('text', { x: f(x), y: f(y), 'text-anchor': anchor });
     const kw = node('tspan', {}, 'kw');
     kw.textContent = '«' + kind.keyword + '» ';
-    const name = node('tspan', {}, 'uname');
+    const name = asLabel(node('tspan', {}, 'uname'));
     name.textContent = nameLine(el);
     head.appendChild(kw);
     head.appendChild(name);

@@ -35,6 +35,7 @@ export const STYLES = [
   'grid/style.css',
   'browser/style.css',
   'annotations/style.css',
+  'labels/style.css',
   'core/style-end.css',
 ];
 
@@ -83,6 +84,7 @@ export const SCRIPTS = [
   'grid/page.js',
   'browser/page.js',
   'annotations/page.js',
+  'labels/page.js',
   'core/page/boot.js',
 ];
 

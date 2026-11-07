@@ -94,6 +94,7 @@
     renderHead(s, write);
     renderFields(s, write);
     deleteButton.hidden = !write;
+    C.renderLabelButton();   // Edit label, or Rename in a browser view (labels/page.js)
     addNoteButton.hidden = !write || (s.type === 'el' && M.textName(s.item) === null);
   }
   // The lines around the selection's fields: for an element or a line, what it is (its kind and name, or the line in

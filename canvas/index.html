@@ -374,6 +374,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .code-link .code-remove { padding: 6px 8px; font-size: 12px; color: var(--fg-2); border-color: var(--line); }
 .code-link .code-remove:hover { color: var(--danger); border-color: var(--danger); }
 .code-link .code-static { margin: 0; font: 400 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* ==== src/labels/style.css */
+/* Label editing: the box typed into over a label, as the panel's inputs are drawn; labels/page.js sets its place,
+   width, font and size from the label and the camera's zoom. */
+.label-editor {
+  position: absolute; z-index: 2; margin: 0; padding: 1px 5px; box-sizing: border-box;
+  min-height: 0; overflow: hidden; resize: none; white-space: pre-wrap; line-height: 1.3;
+  color: var(--fg); background: var(--card); border: 1px solid var(--accent); border-radius: 4px; box-shadow: var(--shadow);
+}
+.label-editor::placeholder { color: var(--fg-2); }
+.label-editor:focus-visible { outline: none; }
 /* ==== src/core/style-end.css */
 @media (max-width: 720px) {
   /* On a phone the palette is one row that scrolls sideways, so the bar stays short. */
@@ -417,7 +427,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   </header>
 
   <div class="stage">
-    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing, Escape puts a tool down, Delete removes the selection, Ctrl+Z undoes.">
+    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing, Escape puts a tool down, Delete removes the selection, Ctrl+Z undoes. With a box, a port or a line selected, F2 or typing edits its label, and the keys type into it.">
       <svg id="drawing" class="sysml" viewBox="0 0 1200 800" role="img" aria-label="SysML v2 views on a plane"></svg>
     </div>
 
@@ -486,6 +496,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
           <p class="meta" id="f-path"></p>
           <p class="meta" id="f-views"></p>
           <div class="row">
+            <button type="button" id="edit-label">Edit label</button>
             <button type="button" id="add-note">Add note</button>
             <button type="button" id="remove-from-view" title="Take it out of this view. It stays in the model and in the other views.">Remove from view</button>
             <button type="button" class="danger" id="delete-selected">Delete</button>
@@ -5754,6 +5765,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     t.textContent = content;
     return t;
   }
+  // Marks a drawn text (or tspan) as an element's or a line's label: the text label editing opens its box over
+  // (labels/page.js). Each group has at most one of its own.
+  function asLabel(t) {
+    t.setAttribute('data-label', '');
+    return t;
+  }
   // The markers a line may carry at its end or its start (RELATIONSHIPS[kind].line.marker and markerStart): each id
   // and its <marker> markup, put into the drawing's <defs> on every render. The slices add the flow arrow and the rest.
   const MARKERS = {
@@ -5796,7 +5813,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const cx = r.x + r.w / 2;
       g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: radius }, 'outline'));
       g.appendChild(text(cx, r.y + 16, '«' + (el.abstract ? 'abstract ' : '') + kind.keyword + '»', 'kw', 'middle'));
-      g.appendChild(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle'));
+      g.appendChild(asLabel(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle')));
     };
   }
   // Which way the first line drawn from a border item leaves it, as a vector, or null when no drawn line starts or
@@ -5876,7 +5893,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         }
         // The name sits outside the owner, beside the square, on the side no drawn line heads for (portName).
         const at = portName(p, r, L);
-        g.appendChild(text(at.x, at.y, nameLine(p), 'mono', at.anchor));
+        g.appendChild(asLabel(text(at.x, at.y, nameLine(p), 'mono', at.anchor)));
       },
       compartments: false
     }
@@ -6024,7 +6041,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     g.appendChild(line);
     // The label, below the line's middle by the kind's labelOffset (30 unless said; negative puts it above).
     const label = how.label && !(region && region.far) ? how.label(rel, S.model, S.layout.ids) : '';
-    if (label) g.appendChild(text(e.mid.x, e.mid.y + (typeof how.labelOffset === 'number' ? how.labelOffset : 30), label, 'uname', 'middle'));
+    if (label) g.appendChild(asLabel(text(e.mid.x, e.mid.y + (typeof how.labelOffset === 'number' ? how.labelOffset : 30), label, 'uname', 'middle')));
     return g;
   }
   // A view's frame: the outline, the header tab (with a clear rectangle over it that takes the pointer, to select or
@@ -6321,7 +6338,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   Object.assign(C, {
-    node, text, MARKERS, defs, nameLine, portName, SHAPES, COMPARTMENTS, compartmentsOf, ownCompartments, onScreen,
+    node, text, asLabel, MARKERS, defs, nameLine, portName, SHAPES, COMPARTMENTS, compartmentsOf, ownCompartments, onScreen,
     pointsOnScreen, drawBox, drawRel, drawFrame, RENDERERS, freshElement, blankField
   });
 })(window.SysMLCanvas);
@@ -6657,6 +6674,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // What was drawn is drawn again once the window leaves it, or the zoom asks for other detail; else only the pins
     // and badges, which keep their screen size.
     if (S.layout) { if (covered()) renderPins(); else drawAll(); }
+    C.placeLabelEditor();   // a label's box, while one is open, stays over its label (labels/page.js)
     try { localStorage.setItem(CAMERA_KEY, JSON.stringify(S.camera)); } catch (error) { /* a convenience only */ }
   }
   // Fits every frame into the open part of the window.
@@ -7537,6 +7555,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     renderHead(s, write);
     renderFields(s, write);
     deleteButton.hidden = !write;
+    C.renderLabelButton();   // Edit label, or Rename in a browser view (labels/page.js)
     addNoteButton.hidden = !write || (s.type === 'el' && M.textName(s.item) === null);
   }
   // The lines around the selection's fields: for an element or a line, what it is (its kind and name, or the line in
@@ -8858,6 +8877,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   canvas.addEventListener('keydown', (event) => {
     canvas.classList.remove('is-pointer');
+    if (C.labelKey(event)) return;   // a printable key types into the selection's label (labels/page.js)
     const step = 80 / S.camera.k;
     let handled = true;
     if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) { undo(); event.preventDefault(); return; }
@@ -8925,7 +8945,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 (function (C) {
   'use strict';
   const S = C.state;
-  const { M, TOOL_TITLE, TOOL_HINT, BASE_NAME, f, node, text, MARKERS, nameLine, SHAPES, RENDERERS } = C;
+  const { M, TOOL_TITLE, TOOL_HINT, BASE_NAME, f, node, text, asLabel, MARKERS, nameLine, SHAPES, RENDERERS } = C;
 
   // ---- Interconnection: the words for its tools, the item's shape, the flow's head, and a direction for an item
   // placed on a port def.
@@ -8955,7 +8975,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const cx = r.x + r.w / 2;
       g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: 10 }, 'outline'));
       g.appendChild(text(cx, r.y + 16, '«' + (el.direction ? el.direction + ' ' : '') + M.KINDS[el.kind].keyword + '»', 'kw', 'middle'));
-      g.appendChild(text(cx, r.y + 32, nameLine(el), 'uname', 'middle'));
+      g.appendChild(asLabel(text(cx, r.y + 32, nameLine(el), 'uname', 'middle')));
     },
     compartments: true,
     radius: 10,
@@ -8980,7 +9000,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const S = C.state;
   const {
-    M, CHILD_TOP, TOOL_TITLE, TOOL_HINT, BASE_NAME, str, say, f, viewLayout, wrap, node, text, MARKERS, nameLine,
+    M, CHILD_TOP, TOOL_TITLE, TOOL_HINT, BASE_NAME, str, say, f, viewLayout, wrap, node, text, asLabel, MARKERS, nameLine,
     SHAPES, COMPARTMENTS, RENDERERS
   } = C;
 
@@ -9029,7 +9049,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const kind = M.KINDS[el.kind];
     const cx = r.x + r.w / 2;
     g.appendChild(text(cx, r.y + 16, keywords, 'kw', 'middle'));
-    g.appendChild(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle'));
+    g.appendChild(asLabel(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle')));
   }
   // An action: a rounded box whose header says «action», «send action», «accept action» or «entry action», with the
   // notation's glyph beside it for a send (a convex pentagon) or an accept (a notched one).
@@ -9058,7 +9078,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function controlNodeName(el, r, g) {
     const name = M.textName(el);
     if (!name) return;
-    g.appendChild(text(r.x + r.w + 2, r.y + r.h + 9, name, 'mono', 'start'));
+    g.appendChild(asLabel(text(r.x + r.w + 2, r.y + r.h + 9, name, 'mono', 'start')));
   }
   SHAPES.bar = {
     draw: function (el, r, g) {
@@ -9150,7 +9170,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, TOOL_TITLE, TOOL_HINT, BASE_NAME, ACTIONS, VIEW_PANELS, FIELD_HOOKS, $, say, editable, f, relById, viewById,
-    viewLayout, frameAround, ROUTES, endpoints, viewAt, node, text, MARKERS, nameLine, SHAPES, drawBox, drawRel,
+    viewLayout, frameAround, ROUTES, endpoints, viewAt, node, text, asLabel, MARKERS, nameLine, SHAPES, drawBox, drawRel,
     RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
   } = C;
 
@@ -9177,7 +9197,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const cy = r.y + r.h / 2;
       g.appendChild(node('circle', { cx: f(cx), cy: f(cy), r: 10 }, 'event-hit'));
       g.appendChild(node('circle', { cx: f(cx), cy: f(cy), r: EVENT_R }, 'outline'));
-      g.appendChild(text(cx + 10, cy - 5, nameLine(el), 'mono', 'start'));
+      g.appendChild(asLabel(text(cx + 10, cy - 5, nameLine(el), 'mono', 'start')));
     },
     compartments: false, cls: 'event'
   };
@@ -9472,7 +9492,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, PAD, VIEW_PANELS, $, say, clamp, editable, f, viewById, viewLayout, frameAround, containerAt, viewAt, node,
-    text, MARKERS, nameLine, RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
+    text, asLabel, MARKERS, nameLine, RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
   } = C;
 
   // The geometry view: a plan of the parts it shows, each drawn as its shape's footprint to scale, x to the right and y
@@ -9591,7 +9611,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const head = node('text', { x: f(x), y: f(y), 'text-anchor': anchor });
     const kw = node('tspan', {}, 'kw');
     kw.textContent = '«' + kind.keyword + '» ';
-    const name = node('tspan', {}, 'uname');
+    const name = asLabel(node('tspan', {}, 'uname'));
     name.textContent = nameLine(el);
     head.appendChild(kw);
     head.appendChild(name);
@@ -10039,7 +10059,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const S = C.state;
   const {
-    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, onScreen, edit,
+    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, asLabel, RENDERERS, onScreen, edit,
     renderInspector, selectedView
   } = C;
 
@@ -10146,9 +10166,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
         rg.appendChild(node('rect', { x: f(view.x + 1), y: f(top + 1), width: f(L.treeWidth - 2), height: BROWSER_ROW - 2, rx: 3 }, 'outline'));
         if (isEl && row.kids) rg.appendChild(browserToggle(row, x0, top));
         const t = node('text', { x: f(x0 + 18), y: f(top + 16) });
-        const span = (c, s) => { if (!s) return; const ts = node('tspan', {}, c); ts.textContent = s; t.appendChild(ts); };
+        const span = (c, s) => { if (!s) return null; const ts = node('tspan', {}, c); ts.textContent = s; t.appendChild(ts); return ts; };
         span('kw', row.parts.kw);
-        span(isEl ? 'browser-name' : 'browser-rel', row.parts.name);
+        const name = span(isEl ? 'browser-name' : 'browser-rel', row.parts.name);
+        if (name) asLabel(name);
         span('browser-type', row.parts.type);
         span('browser-notes', row.parts.notes);
         rg.appendChild(t);
@@ -10691,6 +10712,240 @@ textarea.text[readonly] { resize: none; background: transparent; }
     leavingNotes, freePin, pinDragStart, movePin, dropPin, archiveButton, renderArchive, listenArchive, replaceArchive,
     renderCodeSection
   });
+})(window.SysMLCanvas);
+// ==== src/labels/page.js
+// Label editing on the page: typing into a label, as SysON's direct edit does. With a box, a border item or a labelled
+// line selected, F2, the panel's Edit label button, or any printable key opens a box over its label in the active view,
+// holding the label's text (M.labelText), all selected, or the key typed, the caret after it. Enter, or leaving the box,
+// makes what the text says (M.applyLabel) as one undo step; Escape puts the box away. In a browser view a row is renamed
+// instead, as SysON's explorer does: typing or Rename opens it, F2 doesn't, and the text becomes the name as it is. A
+// grid's cells are not labels.
+(function (C) {
+  'use strict';
+  const S = C.state;
+  const {
+    M, $, canvas, svg, say, str, editable, newId, viewById, viewLayout, endpoints, freshElement, blankField,
+    showPoint, toDrawing, stageSize, edit, resolve, renderInspector, syncNoteLabels, FIELD_HOOKS
+  } = C;
+
+  const stage = canvas.parentNode;      // .stage: the box floats on the plane beside the drawing, outside #canvas
+  const editButton = $('edit-label');
+  const MIN_WIDTH = 130;                // SysON's box is never narrower than 130 px
+  S.labelEditor = null;                 // the open box: { t, anchor, box }
+
+  // What F2, a key or the button would edit now: the selection, while the page can be changed and the active view
+  // draws it, as { sel, type, item, view, mode }: mode 'label' in a drawing, for what has a label to edit
+  // (M.labelEditable), 'rename' in a browser view, for what has a name (M.renamable). null otherwise: nothing selected,
+  // a view, a grid, or something the active view doesn't draw.
+  function editTarget() {
+    if (!editable() || !S.selection || S.selection.type === 'view') return null;
+    const s = resolve(S.selection);
+    const view = viewById(S.active);
+    if (!s || !view) return null;
+    const renderer = M.VIEW_KINDS[view.kind].renderer;
+    if (renderer === 'grid') return null;
+    const mode = renderer === 'browser' ? 'rename' : 'label';
+    if (mode === 'label' ? !M.labelEditable(s.type, s.item) : !M.renamable(s.type, s.item)) return null;
+    if ((S.layout.where.get(s.item.id) || []).indexOf(view.id) < 0) return null;
+    return { sel: { type: s.type, id: s.item.id }, type: s.type, item: s.item, view: view, mode: mode };
+  }
+
+  // Where the label is on the plane, and how it is written: { x, y, w, h, align, font } in plane units, from the box
+  // of its drawn text (data-label) in the view, or, when none is drawn (far out, an unnamed line or control node), from
+  // the layout. null when the view lays out no place for it.
+  function anchorOf(t) {
+    const g = svg.querySelector('.frame[data-view="' + t.view.id + '"] [data-' + t.type + '="' + t.item.id + '"]');
+    const label = g ? Array.from(g.querySelectorAll('[data-label]')).find((l) => l.closest('[data-el], [data-rel]') === g) : null;
+    if (label) {
+      const b = label.getBoundingClientRect();
+      if (b.width > 0 && b.height > 0) {
+        const p = toDrawing(b.left, b.top);
+        const q = toDrawing(b.right, b.bottom);
+        const holder = label.tagName === 'tspan' ? label.parentNode : label;
+        const anchor = holder.getAttribute('text-anchor');
+        const css = getComputedStyle(label);
+        return {
+          x: p.x, y: p.y, w: q.x - p.x, h: q.y - p.y, align: anchor === 'middle' ? 'center' : anchor === 'end' ? 'right' : 'left',
+          font: { family: css.fontFamily, weight: css.fontWeight, style: css.fontStyle, size: parseFloat(css.fontSize) || 12.5 }
+        };
+      }
+    }
+    const L = viewLayout(t.view.id);
+    if (!L) return null;
+    const sans = { family: getComputedStyle(svg).fontFamily, weight: '500', style: 'normal', size: 12.5 };
+    if (t.type === 'el') {
+      const r = L.rects.get(t.item.id);
+      if (!r) return null;
+      if (r.port) return { x: r.cx + 12, y: r.cy - 18, w: 0, h: 16, align: 'left', font: sans };
+      return { x: r.x, y: Math.min(r.y + 20, r.y + r.h / 2 - 8), w: r.w, h: 16, align: 'center', font: sans };
+    }
+    const e = endpoints(t.item, L);
+    if (!e) return null;
+    const how = M.RELATIONSHIPS[t.item.kind].line || {};
+    const below = typeof how.labelOffset === 'number' ? how.labelOffset : 30;
+    return { x: e.mid.x, y: e.mid.y + below - 13, w: 0, h: 16, align: 'center', font: sans };
+  }
+  // Whether a place on the plane is in the window.
+  function inWindow(a) {
+    const s = stageSize();
+    const k = S.camera.k;
+    const x = (a.x - S.camera.x) * k;
+    const y = (a.y - S.camera.y) * k;
+    return x + a.w * k >= 0 && y + a.h * k >= 0 && x <= s.width && y <= s.height;
+  }
+
+  // Puts the box over its label, at the camera's zoom, as wide as the label or 130 px of the plane, whichever is more;
+  // the camera calls it when it moves (camera.js).
+  function placeLabelEditor() {
+    const ed = S.labelEditor;
+    if (!ed || !S.camera) return;
+    const a = ed.anchor;
+    const k = S.camera.k;
+    const w = Math.max(a.w + 12, MIN_WIDTH);
+    const x = a.align === 'center' ? a.x + a.w / 2 - w / 2 : a.align === 'right' ? a.x + a.w - w : a.x - 6;
+    const box = ed.box;
+    box.style.left = ((x - S.camera.x) * k).toFixed(1) + 'px';
+    box.style.top = ((a.y - 3 - S.camera.y) * k).toFixed(1) + 'px';
+    box.style.width = (w * k).toFixed(1) + 'px';
+    box.style.fontSize = (a.font.size * k).toFixed(2) + 'px';
+    box.style.textAlign = a.align;
+    box.style.height = 'auto';
+    box.style.height = box.scrollHeight + 'px';
+  }
+
+  // Opens the box on what editTarget gives, by F2 or the button (the label's text, all selected) or by a key typed
+  // (that key, the caret after it). Returns whether it opened.
+  function openLabelEditor(typed) {
+    if (S.labelEditor) return false;
+    const t = editTarget();
+    if (!t) return false;
+    let anchor = anchorOf(t);
+    if (!anchor) return false;
+    // A label out of the window is brought into it first, so the box is where the label is drawn.
+    if (!inWindow(anchor)) { showPoint(anchor.x + anchor.w / 2, anchor.y + anchor.h / 2); anchor = anchorOf(t) || anchor; }
+    const box = document.createElement('textarea');
+    box.className = 'label-editor';
+    box.rows = 1;
+    box.spellcheck = false;
+    box.setAttribute('autocomplete', 'off');
+    box.placeholder = 'Enter the new value';
+    box.setAttribute('aria-label', t.mode === 'rename' ? 'New name' : 'Label');
+    box.style.fontFamily = anchor.font.family;
+    box.style.fontWeight = anchor.font.weight;
+    box.style.fontStyle = anchor.font.style;
+    box.value = typed !== undefined ? typed
+      : t.mode === 'rename' ? str(t.item.name).trim()
+        : M.labelText(S.model, { type: t.type, item: t.item });
+    S.labelEditor = { t: t, anchor: anchor, box: box };
+    stage.appendChild(box);
+    placeLabelEditor();
+    box.focus({ preventScroll: true });
+    if (typed !== undefined) box.setSelectionRange(box.value.length, box.value.length);
+    else box.select();
+    box.addEventListener('keydown', onKey);
+    box.addEventListener('input', placeLabelEditor);
+    box.addEventListener('blur', () => finish(true, false));
+    return true;
+  }
+  // The box's keys stay in the box: Enter (without Shift) makes the change, Escape puts the box away, and nothing
+  // reaches the drawing's keys (Delete, the arrows, Ctrl+Z).
+  function onKey(event) {
+    event.stopPropagation();
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); finish(true, true); }
+    else if (event.key === 'Escape') { event.preventDefault(); finish(false, true); }
+  }
+
+  // Makes new elements and lines the page's way, for M.applyLabel.
+  const MAKE = {
+    element: function (kind, name) { return freshElement(kind, name); },
+    line: function (kind, from, to) {
+      const rel = { id: newId('r'), kind: kind, from: from, to: to };
+      M.RELATIONSHIPS[kind].fields.forEach((fld) => blankField(rel, fld));
+      return rel;
+    }
+  };
+  // Closes the box: keep, to make what its text says, as one step through edit(); back, to give the keys back to the
+  // drawing (Enter, Escape; leaving the box by a click leaves the focus where the click put it). The canvas's labels
+  // are one line, so a line break typed with Shift+Enter is read as a space.
+  function finish(keep, back) {
+    const ed = S.labelEditor;
+    if (!ed) return;
+    S.labelEditor = null;
+    const text = ed.box.value.replace(/\r?\n/g, ' ');
+    ed.box.remove();
+    if (back) canvas.focus({ preventScroll: true });
+    if (!keep) return;
+    const s = resolve(ed.t.sel);
+    if (!s) { say('What you were editing is gone, so nothing changed.'); return; }
+    const target = { type: s.type, item: s.item };
+    if (ed.t.mode === 'rename') {
+      // The explorer's rename: the name as typed, no other part read.
+      if (text === str(s.item.name)) return;
+      edit(() => {
+        s.item.name = text;
+        return FIELD_HOOKS.name.said(target);
+      });
+      renderInspector();
+      syncNoteLabels();
+      C.renderNotes();
+      say(FIELD_HOOKS.name.said(target) + '.');
+      return;
+    }
+    let res = null;
+    let words = null;
+    edit(() => {
+      res = M.applyLabel(S.model, target, text, MAKE);
+      words = M.labelWords(S.model, target, res);
+      return words;
+    });
+    if (!res) { say('This page can\'t be changed here, so the label wasn\'t.'); return; }
+    renderInspector();
+    syncNoteLabels();
+    C.renderNotes();
+    // What changed, what is new and where it is, and what the text said that wasn't made.
+    const said = [];
+    if (words) said.push(words.what + '.');
+    res.created.forEach((e) => {
+      const d = M.describe(S.model, e);
+      said.push(d.charAt(0).toUpperCase() + d.slice(1) + ' is new, in no view yet; a view\'s Show list brings it in.');
+    });
+    const left = M.labelLeftOut(res);
+    if (left) said.push(left);
+    if (said.length) say(said.join(' '));
+  }
+
+  // A printable key on the drawing starts editing the selection's label, or renaming its row in a browser view, with
+  // that key; so do the zoom keys (+, -, 0) while such a selection is there, as typing does in SysON. Ctrl or ⌘ with
+  // a key, white space, and the keys that name no character (Escape, Delete, the arrows) do what they did. pointing.js
+  // asks this first and leaves the key alone when it returns true.
+  function labelKey(event) {
+    if (S.labelEditor || event.ctrlKey || event.metaKey || event.isComposing) return false;
+    const key = event.key;
+    if (typeof key !== 'string' || Array.from(key).length !== 1 || /\s/.test(key)) return false;
+    if (!openLabelEditor(key)) return false;
+    event.preventDefault();   // the key is in the box already; the browser mustn't type it again
+    return true;
+  }
+  // F2 edits the selection's label from anywhere on the page, even from another text field, as in SysON; not a row of a
+  // browser view, which SysON's explorer renames by typing or its Rename entry only.
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'F2' || S.labelEditor || event.ctrlKey || event.metaKey || event.altKey) return;
+    const t = editTarget();
+    if (!t || t.mode !== 'label') return;
+    event.preventDefault();
+    openLabelEditor();
+  });
+  // The panel's button: Edit label in a drawing, Rename in a browser view, there while the selection has one.
+  editButton.addEventListener('click', () => openLabelEditor());
+  function renderLabelButton() {
+    const t = editTarget();
+    editButton.hidden = !t;
+    if (!t) return;
+    editButton.textContent = t.mode === 'rename' ? 'Rename' : 'Edit label';
+    editButton.title = t.mode === 'rename' ? 'Rename it here; typing on the row does too' : 'Type into its label; F2 or typing on the drawing does too';
+  }
+
+  Object.assign(C, { placeLabelEditor, openLabelEditor, labelKey, renderLabelButton });
 })(window.SysMLCanvas);
 // ==== src/core/page/boot.js
 // The page's last script: it starts the page, once every script before it has registered what it defines.

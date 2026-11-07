@@ -1,15 +1,19 @@
 // Label editing, as SysON's direct edit: the library's reading of a label's text (readLabel), the text an editor starts
-// from (labelText), and what a text changes (applyLabel), in Node on the Stronghold example and the fixtures.
+// from (labelText), and what a text changes (applyLabel), in Node on the Stronghold example and the fixtures; then the
+// page's box over a label: F2, a typed key and the panel's button open it, Enter or leaving it makes one undo step,
+// logged and saved, Escape puts it away; the zoom keys type while something editable is selected; a browser view's row
+// is renamed as typed; a line's label, a transition's (not edited), and a page that can't be changed.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, test } from 'node:test';
+import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
-import { EXAMPLE, modelLibSource } from './helpers.mjs';
+import { EXAMPLE, checked, emptyPointIn, exportText, finish, launch, modelLibSource, openCanvas, until, zoomLevel } from './helpers.mjs';
 
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
+const SAVED = 'v-proof';   // the example's general view
 
 // As in model-lib.test.mjs: the library run in a vm context with a bare window; its values belong to the context's
 // realm, so the checks compare strings and JSON, never deepEqual.
@@ -277,5 +281,243 @@ describe('label editing: what a text changes', () => {
     assert.match(text, /part def Machine;/);
     assert.match(text, /port api : StrongholdApp;/);
     assert.deepEqual(json(M.validate(M.normalize(json(model))).map((p) => p.message)), [], 'no problems');
+  });
+});
+
+describe('label editing on the page', () => {
+  let browser;
+  before(async () => { browser = await launch(); });
+  after(() => browser?.close());
+
+  const select = (page, sel, view) => page.evaluate(([s, v]) => window.SysMLCanvas.select(s, v), [sel, view]);
+  const box = (page) => page.locator('.label-editor');
+  const steps = (page) => page.evaluate(() => window.SysMLCanvas.state.history.length);
+  const lastStep = (page) => page.evaluate(() => { const h = window.SysMLCanvas.state.history; const top = h[h.length - 1]; return { what: top.what, key: top.key }; });
+  const logTexts = (page) => page.evaluate(() => window.SysMLCanvas.state.changes.map((c) => c.text));
+  const element = (page, id) => page.evaluate((i) => JSON.parse(JSON.stringify(window.SysMLCanvas.state.model.elements.find((e) => e.id === i))), id);
+  async function importState(page, file) {
+    await page.setInputFiles('#import-file', file);
+    await until(page, () => /^Imported /.test(document.querySelector('#status')?.textContent || ''), null, 'the page says it imported the state');
+  }
+
+  test('F2 opens a box over the label with its text selected; Enter makes one step, logged and saved; Undo takes it back', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    await select(page, { type: 'el', id: 'Page.hosts' }, SAVED);
+    await page.keyboard.press('F2');
+    await until(page, () => !!document.querySelector('.label-editor'), null, 'the box opens');
+    assert.equal(await box(page).inputValue(), 'hosts[1..*] : Host');
+    assert.equal(await page.evaluate(() => { const b = document.querySelector('.label-editor'); return b.selectionStart === 0 && b.selectionEnd === b.value.length; }), true, 'all of it is selected');
+    // The box sits over the label it edits.
+    const label = await page.locator(`.frame[data-view="${SAVED}"] [data-el="Page.hosts"] > text[data-label]`).boundingBox();
+    const over = await box(page).boundingBox();
+    assert.ok(Math.abs((over.x + over.width / 2) - (label.x + label.width / 2)) < 4 && Math.abs((over.y + over.height / 2) - (label.y + label.height / 2)) < 8, 'the box is centred on the label');
+    const stepsBefore = await steps(page);
+    const logged = (await logTexts(page)).length;
+    await page.keyboard.type('wheels[4] : Wheel');
+    await page.keyboard.press('Enter');
+    await until(page, () => !document.querySelector('.label-editor'), null, 'Enter closes the box');
+    assert.equal(await steps(page), stepsBefore + 1, 'one undo step');
+    assert.deepEqual(await lastStep(page), { what: 'Edited the label of part wheels in Page', key: null });
+    assert.deepEqual((await logTexts(page)).slice(logged), ['Edited the label of part wheels in Page: renamed it wheels, set its multiplicity to 4, defined it by Wheel, a new part def']);
+    assert.ok(await page.evaluate(() => window.SysMLCanvas.state.saveTimer !== null), 'the save is scheduled');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'canvas', 'the keys go back to the drawing');
+    assert.match(await page.textContent('#status'), /^Edited the label of part wheels in Page\. Part def Wheel is new, in no view yet; a view's Show list brings it in\.$/);
+    await until(page, () => /wheels : Wheel \[4\]/.test(document.querySelector('[data-el="Page.hosts"] > text[data-label]')?.textContent || ''), null, 'the drawing shows the new label');
+    assert.equal(await page.inputValue('#f-name'), 'wheels', 'the panel follows');
+    assert.match(await exportText(page), /part wheels : Wheel \[4\]/);
+    await page.click('#undo');
+    await until(page, () => window.SysMLCanvas.state.model.elements.find((e) => e.id === 'Page.hosts').name === 'hosts', null, 'Undo brings the name back');
+    const hosts = await element(page, 'Page.hosts');
+    assert.equal(hosts.multiplicity, '1..*');
+    assert.ok(await page.evaluate(() => !window.SysMLCanvas.state.model.elements.some((e) => e.name === 'Wheel')), 'and takes the new definition away');
+    await finish(ctx);
+  });
+
+  test('a key typed on the drawing opens the box with that key; Escape puts it away and changes nothing', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    await select(page, { type: 'el', id: 'ServerHost' }, SAVED);
+    await page.focus('#canvas');
+    const stepsBefore = await steps(page);
+    await page.keyboard.press('W');
+    await until(page, () => !!document.querySelector('.label-editor'), null, 'the box opens');
+    assert.equal(await box(page).inputValue(), 'W', 'the key typed replaces the label\'s text');
+    assert.equal(await page.evaluate(() => document.querySelector('.label-editor').selectionStart), 1, 'the caret is after it');
+    await page.keyboard.type('ebHost');
+    await page.keyboard.press('Delete');   // in the box, Delete edits the text, not the model
+    await page.keyboard.press('Escape');
+    await until(page, () => !document.querySelector('.label-editor'), null, 'Escape closes the box');
+    assert.equal(await steps(page), stepsBefore, 'nothing changed');
+    assert.equal((await element(page, 'ServerHost')).name, 'ServerHost');
+    assert.equal(await page.evaluate(() => window.SysMLCanvas.state.selection?.id), 'ServerHost', 'the selection stays');
+    await finish(ctx);
+  });
+
+  test('the zoom keys type while an editable thing is selected, and zoom while nothing is', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    await select(page, { type: 'el', id: 'Page.app' }, SAVED);
+    await page.focus('#canvas');
+    const zoom = await zoomLevel(page);
+    await page.keyboard.press('+');
+    await until(page, () => !!document.querySelector('.label-editor'), null, 'the box opens');
+    assert.equal(await box(page).inputValue(), '+');
+    assert.equal(await zoomLevel(page), zoom, 'the zoom stays');
+    await page.keyboard.press('Escape');
+    await select(page, null);
+    await page.focus('#canvas');
+    await page.keyboard.press('+');
+    await until(page, (z) => { const t = document.querySelector('#zoom-level')?.textContent; return t && parseInt(t, 10) > z; }, zoom, 'with nothing selected, + zooms in');
+    assert.equal(await box(page).count(), 0);
+    await finish(ctx);
+  });
+
+  test('leaving the box makes the change; the button opens it too; what isn\'t kept and what is refused are said', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    await select(page, { type: 'el', id: 'Page.app' }, SAVED);
+    assert.ok(await page.locator('#edit-label').isVisible(), 'the panel has Edit label');
+    assert.equal(await page.textContent('#edit-label'), 'Edit label');
+    await page.click('#edit-label');
+    await until(page, () => !!document.querySelector('.label-editor'), null, 'the button opens the box');
+    assert.equal(await box(page).inputValue(), 'app[1] : App');
+    await page.keyboard.type('ref <A1> application[2] :>> other');
+    await page.click('#inspector-title');
+    await until(page, () => !document.querySelector('.label-editor'), null, 'leaving the box closes it');
+    const app = await element(page, 'Page.app');
+    assert.equal(app.name, 'application');
+    assert.equal(app.multiplicity, '2');
+    assert.equal(await page.textContent('#status'), 'Edited the label of part application in Page. Not kept, as the canvas doesn\'t hold it yet: ref, <A1>, :>> other.');
+    // A click on the drawing leaves the box too, and selects what it is on.
+    await page.keyboard.press('F2');
+    await until(page, () => !!document.querySelector('.label-editor'), null, 'F2 opens the box again');
+    await page.keyboard.type('app');
+    const empty = await emptyPointIn(page, SAVED);
+    await page.mouse.click(empty.x, empty.y);
+    await until(page, () => !document.querySelector('.label-editor'), null, 'a click on the drawing closes the box');
+    assert.equal((await element(page, 'Page.app')).name, 'app', 'and makes the change');
+    await select(page, { type: 'el', id: 'Host' }, SAVED);
+    await page.keyboard.press('F2');
+    await page.keyboard.type('Host :> ServerHost');
+    await page.keyboard.press('Enter');
+    await until(page, () => /go round in a circle/.test(document.querySelector('#status').textContent), null, 'the refusal is said');
+    await finish(ctx);
+  });
+
+  test('a start node, a view and a page that can\'t be changed have no box; the button is not there for them', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    await importState(page, path.join(FIXTURES, 'behavior-actions.json'));
+    await select(page, { type: 'el', id: 'Release.start' }, 'v-release');
+    assert.equal(await page.locator('#edit-label').isVisible(), false);
+    await page.focus('#canvas');
+    await page.keyboard.press('F2');
+    await page.keyboard.press('x');
+    assert.equal(await box(page).count(), 0, 'a start node has no label to edit');
+    await select(page, { type: 'el', id: 'Release.compile' }, 'v-release');
+    await page.evaluate(() => { window.SysMLCanvas.state.mode = 'read'; });
+    await page.keyboard.press('F2');
+    assert.equal(await box(page).count(), 0, 'a page that can\'t be changed opens no box');
+    await page.evaluate(() => { window.SysMLCanvas.state.mode = 'local'; });
+    await page.keyboard.press('F2');
+    await until(page, () => !!document.querySelector('.label-editor'), null, 'the box opens once the page can be changed');
+    await page.keyboard.press('Escape');
+    await finish(ctx);
+  });
+
+  test('a grid\'s cells are not labels: neither F2, a key nor the button opens a box there', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    await importState(page, path.join(FIXTURES, 'grid.json'));
+    await select(page, { type: 'el', id: 'Page.hosts' }, 'v-table');
+    assert.equal(await page.locator('#edit-label').isVisible(), false);
+    await page.keyboard.press('F2');
+    await page.focus('#canvas');
+    await page.keyboard.press('x');
+    assert.equal(await box(page).count(), 0);
+    await select(page, { type: 'el', id: 'Page.hosts' }, 'v-proof');
+    assert.ok(await page.locator('#edit-label').isVisible(), 'the same part in a general view has a label to edit');
+    await finish(ctx);
+  });
+
+  test('the box opens over the label wherever it is drawn: a lifeline, a message, a footprint, a port', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    // Whether the box is centred on the drawn label, within a few pixels across and a line down.
+    async function overLabel(view, type, id, text) {
+      await select(page, { type, id }, view);
+      await page.keyboard.press('F2');
+      await until(page, () => !!document.querySelector('.label-editor'), null, 'the box opens on ' + id);
+      assert.equal(await box(page).inputValue(), text);
+      const label = await page.locator(`.frame[data-view="${view}"] [data-${type}="${id}"] [data-label]`).first().boundingBox();
+      const over = await box(page).boundingBox();
+      const anchor = await page.locator(`.frame[data-view="${view}"] [data-${type}="${id}"] [data-label]`).first().evaluate((l) => (l.tagName === 'tspan' ? l.parentNode : l).getAttribute('text-anchor') || 'start');
+      const x = anchor === 'middle' ? [over.x + over.width / 2, label.x + label.width / 2] : [over.x, label.x];
+      assert.ok(Math.abs(x[0] - x[1]) < 12, id + ': the box is where the label is across (' + x + ')');
+      assert.ok(Math.abs((over.y + over.height / 2) - (label.y + label.height / 2)) < 10, id + ': and down');
+      await page.keyboard.press('Escape');
+    }
+    await overLabel(SAVED, 'el', 'Page.hosts.api', 'api : ~StrongholdApp');
+    await importState(page, path.join(FIXTURES, 'sequence.json'));
+    await page.evaluate(() => window.SysMLCanvas.fit());
+    await overLabel('v-seq', 'el', 'Login.client', 'client : Client');
+    await overLabel('v-seq', 'rel', 'm-login', 'login');
+    await importState(page, path.join(FIXTURES, 'geometry.json'));
+    await page.evaluate(() => window.SysMLCanvas.fit());
+    await overLabel('v-plan', 'el', 'room.desk', 'desk : Desk');
+    await finish(ctx);
+  });
+
+  test('a line\'s label: a connection is renamed; an interface takes its definition; a transition\'s is not edited', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    await select(page, { type: 'rel', id: 'mount' }, SAVED);
+    await page.keyboard.press('F2');
+    await until(page, () => !!document.querySelector('.label-editor'), null, 'the box opens on the line');
+    assert.equal(await box(page).inputValue(), 'mount');
+    await page.keyboard.type('mounting');
+    await page.keyboard.press('Enter');
+    await until(page, () => window.SysMLCanvas.state.model.relationships.find((r) => r.id === 'mount').name === 'mounting', null, 'the connection is renamed');
+    assert.deepEqual(await lastStep(page), { what: 'Edited the label of the connection mounting, api to api', key: null });
+    await importState(page, path.join(FIXTURES, 'interconnection.json'));
+    await select(page, { type: 'rel', id: 'fuelLine' }, 'v-ic');
+    await page.keyboard.press('F2');
+    assert.equal(await box(page).inputValue(), 'fuelLine : FuelLine');
+    await page.keyboard.type('fuelLine : CtrlLink');
+    await page.keyboard.press('Enter');
+    await until(page, () => window.SysMLCanvas.state.model.relationships.find((r) => r.id === 'fuelLine').interfaceDef === 'CtrlLink', null, 'the interface takes its new definition');
+    await importState(page, path.join(FIXTURES, 'behavior-states.json'));
+    await select(page, { type: 'rel', id: 't-mount' }, 'v-host');
+    assert.equal(await page.locator('#edit-label').isVisible(), false);
+    await page.keyboard.press('F2');
+    await page.focus('#canvas');
+    await page.keyboard.press('x');
+    assert.equal(await box(page).count(), 0, 'a transition\'s label is not edited');
+    await finish(ctx);
+  });
+
+  test('in a browser view a row is renamed as typed: a key or Rename opens it, F2 doesn\'t', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    await importState(page, path.join(FIXTURES, 'browser.json'));
+    await select(page, { type: 'el', id: 'Page.hosts' }, 'v-tree');
+    assert.equal(await page.textContent('#edit-label'), 'Rename');
+    await page.keyboard.press('F2');
+    assert.equal(await box(page).count(), 0, 'F2 doesn\'t rename a row');
+    await page.focus('#canvas');
+    await page.keyboard.press('s');
+    await until(page, () => !!document.querySelector('.label-editor'), null, 'a key opens the row\'s box');
+    await page.keyboard.type('ervers : Machine [2]');
+    await page.keyboard.press('Enter');
+    await until(page, () => window.SysMLCanvas.state.model.elements.find((e) => e.id === 'Page.hosts').name === 'servers : Machine [2]', null, 'the name is what was typed');
+    const hosts = await element(page, 'Page.hosts');
+    assert.equal(hosts.multiplicity, '1..*', 'nothing else is read');
+    assert.deepEqual(await lastStep(page), { what: 'Renamed to part servers : Machine [2] in Page', key: null });
+    await page.click('#edit-label');
+    assert.equal(await box(page).inputValue(), 'servers : Machine [2]', 'Rename starts from the name');
+    await page.keyboard.press('Escape');
+    await checked(page);
+    await finish(ctx);
   });
 });

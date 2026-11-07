@@ -16,6 +16,7 @@ One folder per feature, and `core` for what every feature builds on:
 | `grid/` | The grid view. |
 | `browser/` | The browser view. |
 | `annotations/` | Free notes, pins that can be dragged, the archive, and code links. |
+| `labels/` | Editing a label by typing into it, as SysON's direct edit: reading what was typed, the text the box starts from, what the text changes, and the box itself; a browser view's row renamed as typed. |
 
 A feature's folder holds up to three files: `lib.js`, its part of the model library (its rows in the library's tables, and the rules and the export behind them); `page.js`, its part of the page (its tools, shapes, markers, renderer and panel); and `style.css`, its styles. `build.mjs` lists every file in the order it is stitched, and a file in this folder that no list names fails the build. The panel's markup is all in `core/page.html` for now.
 

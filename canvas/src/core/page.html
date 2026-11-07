@@ -39,7 +39,7 @@
   </header>
 
   <div class="stage">
-    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing, Escape puts a tool down, Delete removes the selection, Ctrl+Z undoes.">
+    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing, Escape puts a tool down, Delete removes the selection, Ctrl+Z undoes. With a box, a port or a line selected, F2 or typing edits its label, and the keys type into it.">
       <svg id="drawing" class="sysml" viewBox="0 0 1200 800" role="img" aria-label="SysML v2 views on a plane"></svg>
     </div>
 
@@ -108,6 +108,7 @@
           <p class="meta" id="f-path"></p>
           <p class="meta" id="f-views"></p>
           <div class="row">
+            <button type="button" id="edit-label">Edit label</button>
             <button type="button" id="add-note">Add note</button>
             <button type="button" id="remove-from-view" title="Take it out of this view. It stays in the model and in the other views.">Remove from view</button>
             <button type="button" class="danger" id="delete-selected">Delete</button>

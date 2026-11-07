@@ -45,6 +45,7 @@
     // What was drawn is drawn again once the window leaves it, or the zoom asks for other detail; else only the pins
     // and badges, which keep their screen size.
     if (S.layout) { if (covered()) renderPins(); else drawAll(); }
+    C.placeLabelEditor();   // a label's box, while one is open, stays over its label (labels/page.js)
     try { localStorage.setItem(CAMERA_KEY, JSON.stringify(S.camera)); } catch (error) { /* a convenience only */ }
   }
   // Fits every frame into the open part of the window.

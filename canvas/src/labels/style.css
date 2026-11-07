@@ -1,0 +1,9 @@
+/* Label editing: the box typed into over a label, as the panel's inputs are drawn; labels/page.js sets its place,
+   width, font and size from the label and the camera's zoom. */
+.label-editor {
+  position: absolute; z-index: 2; margin: 0; padding: 1px 5px; box-sizing: border-box;
+  min-height: 0; overflow: hidden; resize: none; white-space: pre-wrap; line-height: 1.3;
+  color: var(--fg); background: var(--card); border: 1px solid var(--accent); border-radius: 4px; box-shadow: var(--shadow);
+}
+.label-editor::placeholder { color: var(--fg-2); }
+.label-editor:focus-visible { outline: none; }
