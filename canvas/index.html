@@ -862,15 +862,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
 // functions, shared with export.mjs and save-state.mjs, which run the library's scripts in Node. This first script
 // holds the four tables that say what the canvas knows, with the core's rows (the element kinds, the relationship
 // kinds, the view kinds, and the fields), and the helpers every feature uses: the names the text reserves and how
-// a name is quoted, how normalize reads what a file carries, and what owns what in a model and what an element is
-// called in a sentence. Each feature's lib.js adds its rows to the tables, reaches into rows before its own (a
-// hook to wrap, a list to push onto), and adds the functions it needs; validate.js and sysml.js read it all, and
-// api.js makes SysMLModel of it.
+// a name is quoted, how a model saved in an older version of the format is upgraded and how normalize reads what a
+// file carries, and what owns what in a model and what an element is called in a sentence. Each feature's lib.js
+// adds its rows to the tables, reaches into rows before its own (a hook to wrap, a list to push onto), and adds the
+// functions it needs; validate.js and sysml.js read it all, and api.js makes SysMLModel of it.
 (function (root) {
   'use strict';
   const lib = root.SysMLModelLib = {};   // what the scripts register for the ones after them; api.js removes it
 
-  const FORMAT = 'stronghold-canvas/2';
+  // The saved format. A model names the version of the format it was saved in, format: 'stronghold-canvas/2' for
+  // version 2. VERSION is the version this library reads and writes; a model saved in an older one is upgraded as it
+  // is read (UPGRADES, by normalize).
+  const VERSION = 2;
+  const FORMAT = 'stronghold-canvas/' + VERSION;
   const VIEW_DEF = 'StandardViewDefinitions::GeneralView';
 
   // Element kinds. keyword is the word the text declares an element of the kind with (part def, port), or, for a kind
@@ -1135,19 +1139,67 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
   }
 
+  // The upgrades, one for each older version of the saved format. UPGRADES[n] takes a model saved in version n, as
+  // it came (any JSON: a file may have been written by hand), to version n + 1, saying the same thing, and leaves the
+  // model it was given as it was. upgrade runs them in turn, so normalize reads the current version only, and what an
+  // older version did differently is written here, once. To change the format: add 1 to VERSION, add the upgrade
+  // from the version before it, and keep a test fixture saved in every version (test/format.test.mjs checks that each
+  // still exports the text it exported when it was saved).
+  const UPGRADES = {
+    // Version 1, the first slice's, drew the model in one general view, which view.name named, and each element
+    // carried its own place in it: x, y, w and h for a box, side and at for a port on its owner's border. Version 2
+    // keeps places in views: the one view becomes the model's view, its layout holding each element's place, and the
+    // elements keep the rest. An element that carried no place gets an empty one, which placement reads the way
+    // version 1 did: at the top left of its owner, at its kind's size, or in the middle of its owner's right side.
+    1: function (raw) {
+      const place = (key) => ['x', 'y', 'w', 'h', 'side', 'at'].indexOf(key) >= 0;
+      const model = pick(raw, (key) => key !== 'view');
+      const places = new Map();
+      if (Array.isArray(raw.elements)) {
+        model.elements = raw.elements.map((e) => {
+          if (!isObject(e)) return e;
+          if (typeof e.id === 'string' && !places.has(e.id)) places.set(e.id, pick(e, place));
+          return pick(e, (key) => !place(key));
+        });
+      }
+      model.format = 'stronghold-canvas/2';
+      model.views = [{ kind: 'GeneralView', name: isObject(raw.view) ? raw.view.name : '', layout: Object.fromEntries(places) }];
+      return model;
+    },
+  };
+  // The keys of an object that keep(key) keeps, with their values, as a new object.
+  function pick(o, keep) {
+    return Object.fromEntries(Object.entries(o).filter((entry) => keep(entry[0])));
+  }
+  // The version of the format a model was saved in: the number its format names, or, for a model that names none (one
+  // written by hand), the version this library reads and writes.
+  function versionOf(raw) {
+    const match = isObject(raw) ? /^stronghold-canvas\/([1-9][0-9]*)$/.exec(str(raw.format)) : null;
+    return match ? Number(match[1]) : VERSION;
+  }
+  // A model saved in any version, in the current version: the upgrade of each version from the one it was saved in.
+  // A model in the current version is returned as it is, and so is one in a version newer than this library knows,
+  // which normalize then reads as well as it can, as it reads any JSON.
+  function upgrade(raw) {
+    let model = raw;
+    for (let version = versionOf(raw); version < VERSION; version += 1) model = UPGRADES[version](model);
+    return model;
+  }
+
   // Takes any JSON and returns a model this page can draw: known kinds, unique ids, owners that exist and can hold
   // what they own, no cycles, relationships whose two ends exist, and views whose layouts place elements the view's
-  // kind admits. A format-1 model, whose elements carry their own places, becomes a model with one general view.
+  // kind admits. A model saved in an older version of the format is upgraded first, so what follows reads the current
+  // version only.
   function normalize(raw) {
-    const r = raw && typeof raw === 'object' ? raw : {};
+    const r = upgrade(raw && typeof raw === 'object' ? raw : {});
     const m = blank();
     m.revision = typeof r.revision === 'string' ? r.revision : null;
     const pkg = isObject(r.package) ? r.package : {};
     m.package.name = str(pkg.name).trim() || 'Model';
     m.package.doc = str(pkg.doc);
 
-    // Elements. A place an element carries itself (format 1, or a convenience for edits made outside the page) is
-    // kept aside and goes into a view's layout below.
+    // Elements. A place an element carries itself, a convenience for edits made outside the page, is kept aside and
+    // goes into a view's layout below.
     const carried = new Map();
     const seen = new Set();
     for (const e of Array.isArray(r.elements) ? r.elements : []) {
@@ -1230,11 +1282,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (!view || view.layout[eid] || !admits(view.kind, el.kind)) return;
       view.layout[eid] = placement(el, c.place);
     });
-    // A model with no views (format 1, or one written without them) gets one general view showing every element, at
-    // the places the elements carried, else in a grid, so nothing is invisible after a load.
+    // A model with no views (one written without them) gets one general view showing every element, at the places
+    // the elements carried, else in a grid, so nothing is invisible after a load.
     if (!m.views.length) {
-      const old = isObject(r.view) ? r.view : {};
-      const view = { id: freeViewId(), kind: 'GeneralView', name: str(old.name).trim(), doc: '', x: 0, y: 0, layout: {}, options: {} };
+      const view = { id: freeViewId(), kind: 'GeneralView', name: '', doc: '', x: 0, y: 0, layout: {}, options: {} };
       carried.forEach((c, eid) => { const el = ids.get(eid); if (el) view.layout[eid] = placement(el, c.place); });
       gridPlace(m, view);
       m.views.push(view);
@@ -1452,11 +1503,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   Object.assign(lib, {
-    FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, NAME, MULTIPLICITY, str, isObject, canContain,
-    admits, hasTrait, textName, blank, placement, normalize, index, relIndex, viewIndex, shownIn, chain, childrenOf,
-    descendants, typingOf, inUsage, specializes, commonOwner, acrossDefinitions, nameTakenBeside, isName, quote, shown,
-    qualified, featurePath, nameable, an, definable, describe, describeRel, describeView, labelFor, inheritedFeatures,
-    boundsOk, RESERVED_NAMES, EXTRA, BODY, commentLines
+    VERSION, FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, NAME, MULTIPLICITY, str, isObject,
+    canContain, admits, hasTrait, textName, blank, placement, versionOf, upgrade, normalize, index, relIndex, viewIndex,
+    shownIn, chain, childrenOf, descendants, typingOf, inUsage, specializes, commonOwner, acrossDefinitions,
+    nameTakenBeside, isName, quote, shown, qualified, featurePath, nameable, an, definable, describe, describeRel,
+    describeView, labelFor, inheritedFeatures, boundsOk, RESERVED_NAMES, EXTRA, BODY, commentLines
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 // ==== src/interconnection/lib.js
@@ -3059,21 +3110,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 // ==== src/core/lib/api.js
 // The model library's last script: SysMLModel, what the page, export.mjs and save-state.mjs use, made of what the
-// scripts before it registered, the same names as ever. SysMLModelLib is removed, so SysMLModel is all that stays.
+// scripts before it registered. SysMLModelLib is removed, so SysMLModel is all that stays.
 (function (root) {
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, canContain, admits, hasTrait,
-    textName, blank, placement, normalize, index, relIndex, viewIndex, shownIn, chain, childrenOf, descendants,
-    typingOf, inUsage, specializes, commonOwner, isName, quote, qualified, featurePath, an, definable, describe,
-    describeRel, describeView, labelFor, inheritedFeatures, EXTRA, validate, toSysML
+    VERSION, FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, canContain, admits,
+    hasTrait, textName, blank, placement, versionOf, upgrade, normalize, index, relIndex, viewIndex, shownIn, chain,
+    childrenOf, descendants, typingOf, inUsage, specializes, commonOwner, isName, quote, qualified, featurePath, an,
+    definable, describe, describeRel, describeView, labelFor, inheritedFeatures, EXTRA, validate, toSysML
   } = lib;
 
   // The library, with what the slices put in EXTRA beside it.
   root.SysMLModel = Object.freeze(Object.assign({
-    FORMAT, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, VIEW_DEF,
-    blank, normalize, validate, toSysML, placement, canContain, admits, hasTrait, textName, index, relIndex, viewIndex, shownIn, chain, childrenOf,
+    VERSION, FORMAT, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, VIEW_DEF,
+    blank, versionOf, upgrade, normalize, validate, toSysML, placement, canContain, admits, hasTrait, textName, index, relIndex, viewIndex, shownIn, chain, childrenOf,
     descendants, typingOf, inUsage, specializes, commonOwner, featurePath, quote, qualified, describe, describeRel, describeView,
     labelFor, isName, inheritedFeatures, an, definable,
   }, EXTRA));
