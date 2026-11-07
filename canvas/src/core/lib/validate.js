@@ -3,7 +3,7 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, hasName, index, childrenOf, shown, an, describe, inheritedFeatures,
+    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, index, childrenOf, shown, an, describe, inheritedFeatures,
     boundsOk, RESERVED_NAMES
   } = lib;
 
@@ -14,26 +14,26 @@
     const ids = index(model);
     const add = (id, message) => problems.push({ id, message });
     const siblings = new Map();
-    const definitionNames = new Set(model.elements.filter((e) => KINDS[e.kind].definition).map((e) => e.name.trim()).filter(Boolean));
+    const definitionNames = new Set(model.elements.filter((e) => KINDS[e.kind].definition).map(textName).filter(Boolean));
     const inRelationship = new Set();
     model.relationships.forEach((r) => { inRelationship.add(r.from); inRelationship.add(r.to); });
     const pkgName = model.package.name.trim();
     for (const el of model.elements) {
       const kind = KINDS[el.kind];
-      const name = el.name.trim();
+      // An element with no name in the text (null: a start node) is never unnamed ('').
+      const name = textName(el);
       const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-      const where = owner ? ' in ' + shown(owner.name) : '';
-      // A kind with no name field is never unnamed.
-      if (!name && hasName(el.kind)) {
+      const where = owner ? ' in ' + shown(textName(owner)) : '';
+      if (name === '') {
         if (kind.definition) add(el.id, an(kind.label, true) + ' has no name.');
         else if (inRelationship.has(el.id) || childrenOf(model, el.id).length) add(el.id, an(kind.label, true) + where + ' has no name, so nothing can refer to it. Name it.');
       }
       if (el.multiplicity && (!MULTIPLICITY.test(el.multiplicity) || !boundsOk(el.multiplicity))) {
         add(el.id, 'The multiplicity "' + el.multiplicity + '" of ' + describe(model, el, ids) + ' is not like 1, 0..1, or 1..*.');
       }
-      // The name rules are for names the text writes: a kind with no name field (a start node, which the page names
-      // start1 for itself) takes no part in them.
-      if (name && hasName(el.kind)) {
+      // The name rules are for names the text writes: an element with no name in the text (a start node, which the page
+      // names start1 for itself) takes no part in them.
+      if (name) {
         // Two with one name beside each other: both are marked, since either could be the one to rename.
         const key = (el.owner === undefined ? '' : el.owner) + '/' + name;
         const twin = siblings.get(key);
@@ -47,7 +47,7 @@
         if (RESERVED_NAMES.has(name)) add(el.id, 'The name ' + name + ' belongs to the standard library. Rename ' + describe(model, el, ids) + '.');
         const inherited = owner ? inheritedFeatures(model, owner, ids).get(name) : null;
         if (inherited && inherited.kind !== el.kind) {
-          add(el.id, describe(model, el, ids) + ' is named like the ' + KINDS[inherited.kind].label + ' ' + name + ' that ' + shown(owner.name) + ' inherits. Rename it.');
+          add(el.id, describe(model, el, ids) + ' is named like the ' + KINDS[inherited.kind].label + ' ' + name + ' that ' + shown(textName(owner)) + ' inherits. Rename it.');
         }
       }
       if (kind.check) kind.check(model, el, ids, add);

@@ -3,7 +3,7 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    RELATIONSHIPS, VIEW_KINDS, hasName, index, chain, childrenOf, quote, qualified, nameable, describe, describeView,
+    RELATIONSHIPS, VIEW_KINDS, textName, index, chain, childrenOf, quote, qualified, nameable, describe, describeView,
     EXTRA
   } = lib;
 
@@ -17,7 +17,7 @@
       check: function (model, view, ids, add) {
         (browserRoots(model, view, ids) || []).forEach((root) => {
           if (!nameable(model, root, ids)) {
-            add(view.id, 'The ' + describeView(model, view) + ' can\'t expose its root ' + describe(model, root, ids) + ' by name: ' + (hasName(root.kind) ? 'it, or what it is in, has no name. Name it.' : 'the text has no name for it.'));
+            add(view.id, 'The ' + describeView(model, view) + ' can\'t expose its root ' + describe(model, root, ids) + ' by name: ' + (textName(root) === null ? 'the text has no name for it.' : 'it, or what it is in, has no name. Name it.'));
           }
         });
       },

@@ -107,7 +107,7 @@
     let what = null;
     if (hit) {
       const el = hit.type === 'el' ? S.layout.ids.get(hit.id) : null;
-      if (el && !M.hasName(el.kind)) {
+      if (el && M.textName(el) === null) {
         say(M.an(M.KINDS[el.kind].label, true) + ' can\'t carry a note. Drop the pin on the element it belongs to instead.');
       } else if (hit.id !== n.target) {
         n.target = hit.id;

@@ -27,30 +27,31 @@
   // Cuts a text to n characters, or to what fits a cell width px wide, with an ellipsis.
   function gridClipChars(s, n) { return s.length > n ? s.slice(0, Math.max(1, n - 1)) + '…' : s; }
   function gridClip(s, width) { return gridClipChars(s, Math.max(2, Math.floor((width - 2 * GRID_PAD) / GRID_CHAR))); }
-  // An element's dotted path from the package, Page.hosts.api, so two ports named api can be told apart; a kind with no
-  // name field (a start node) goes by its label, as in a browser: Release.start.
+  // An element's dotted path from the package, Page.hosts.api, so two ports named api can be told apart; an element with
+  // no name in the text (a start node) goes by its kind's label, as in a browser: Release.start.
   function gridPath(el, ids) { return M.chain(S.model, el, ids).map(gridName).join('.'); }
-  // What stands for an element's name: its name, (unnamed) when it has none, or its kind's label when its kind has no
-  // name field.
-  function gridName(el) { return M.hasName(el.kind) ? el.name.trim() || '(unnamed)' : M.KINDS[el.kind].label; }
+  // What stands for an element's name: its name, (unnamed) when it has none, or its kind's label when it has no name in
+  // the text.
+  function gridName(el) { const name = M.textName(el); return name === null ? M.KINDS[el.kind].label : name || '(unnamed)'; }
   // The text of a table cell: what the column says of the element. The notes and problems columns read the page's
   // lists; found, when given, stands in for the problems (what validate finds now, while sorting).
   function gridCell(el, col, ids, found) {
     const kind = M.KINDS[el.kind];
-    // A kind with no name field is said by its label in both columns (start, initial node), as the browser says it.
-    if (col === 'kind') return M.hasName(el.kind) ? kind.keyword : kind.label;
+    // An element with no name in the text is said by its kind's label in both columns (start, initial node), as the
+    // browser says it.
+    if (col === 'kind') return M.textName(el) === null ? kind.label : kind.keyword;
     if (col === 'name') return gridName(el);
     if (col === 'type') {
       const typing = kind.usage ? M.typingOf(S.model, el) : null;
       const def = typing ? ids.get(typing.to) : null;
-      return def ? (el.conjugated ? '~' : '') + (def.name.trim() || '(unnamed)') : '';
+      return def ? (el.conjugated ? '~' : '') + gridName(def) : '';
     }
     if (col === 'multiplicity') return el.multiplicity || '';
     if (col === 'owner') { const o = el.owner !== undefined ? ids.get(el.owner) : null; return o ? gridPath(o, ids) : ''; }
     if (col === 'doc') return el.doc.replace(/\s+/g, ' ').trim();
     if (col === 'specializes') {
       return S.model.relationships.filter((r) => r.kind === 'Specialization' && r.from === el.id && ids.has(r.to))
-        .map((r) => ids.get(r.to).name.trim() || '(unnamed)').join(', ');
+        .map((r) => gridName(ids.get(r.to))).join(', ');
     }
     if (col === 'notes') return S.notes.filter((n) => n.target === el.id).sort(byNumber).map((n) => String(n.no)).join(', ');
     if (col === 'code') return (Array.isArray(el.code) ? el.code : []).map((c) => c.path.trim() || '(no path)').join(', ');

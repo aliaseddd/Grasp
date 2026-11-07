@@ -62,3 +62,11 @@ Every change to the model goes through `C.edit(change, key)`, in `core/page/chan
 - A `key` joins a run of changes into one undo step: the keystrokes of one field, the moves of one drag. The run is logged once, in its last words, when it ends: at `endEdit()`, which the field's change event or the drag's drop calls, or when a change with another key comes. A run that ends where it started is no step.
 - Each change, and Undo, first checks that the model is as the last change left it. A change made anywhere else would be in no undo step and missing from what changes touched, so it is thrown as an error, which the console and the tests see.
 - Outside `edit`, only `changes.js` replaces the whole model: Undo, and `loadModel` for a model from storage. Import state replaces it through `edit`, as one undo step.
+
+## Names
+
+Whether an element has a name in the text is decided in one place, `textName(el)` in `core/lib/model.js` (`M.textName` on the page). It returns the element's name, trimmed; `''` while it has none (an unnamed part, which the text may still write, as `part : Host;`); or `null` when the text has no name for it at all, whatever its name field holds. That is a start, done or initial node, whose kind has no name field: the page keeps a name such as `start1` in one for itself, and that name is never written, shown or compared with another.
+
+- Read an element's name through `textName`, never as `el.name`, and never decide it by testing the element's kind or its kind's fields. The two exceptions store the name rather than read it: `normalize`, which keeps what a file carries, and the panel's Name box, which edits it.
+- To ask it of a kind, ask it of an element of the kind with no name yet: `textName({ kind })` is `null` for a kind whose elements have no name in the text, `''` otherwise.
+- A path in the text (`qualified`, `featurePath`) reaches an element with no name in the text by its kind's keyword, the word the text has for what it stands for: `first start then a1;`. A relationship's name is still read from the relationship.

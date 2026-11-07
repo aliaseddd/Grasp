@@ -79,8 +79,9 @@
   // its lower right, where no succession comes or goes: the lines leave the middle of a bar's sides and a diamond's
   // four corners.
   function controlNodeName(el, r, g) {
-    if (!el.name.trim()) return;
-    g.appendChild(text(r.x + r.w + 2, r.y + r.h + 9, el.name.trim(), 'mono', 'start'));
+    const name = M.textName(el);
+    if (!name) return;
+    g.appendChild(text(r.x + r.w + 2, r.y + r.h + 9, name, 'mono', 'start'));
   }
   SHAPES.bar = {
     draw: function (el, r, g) {

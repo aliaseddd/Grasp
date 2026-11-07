@@ -5,18 +5,19 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, NAME, MULTIPLICITY, str, hasTrait, chain, childrenOf, typingOf,
-    commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, an, describe, describeRel, EXTRA, BODY,
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, NAME, MULTIPLICITY, str, hasTrait, textName, childrenOf, typingOf,
+    commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel, EXTRA, BODY,
     commentLines
   } = lib;
 
   Object.assign(KINDS, {
     // Behavior: the action flow view's kinds (an action def, actions with their parameters on the border, the four
     // control nodes, and start and done) and the state view's (a state def, states, the initial node). Start, done
-    // and the initial node have no name field: they stand for the start and done every action and state inherits,
-    // and for a state's entry, so their heads are null and the text never declares them; a succession or transition
-    // ending on one writes start or done, and a state's body writes the entry idiom for its initial node. The hooks
-    // are functions further down this script, which hoist.
+    // and the initial node have no name field, so no name in the text (textName): they stand for the start and done
+    // every action and state inherits, and for a state's entry, so their heads are null and the text never declares
+    // them; a succession or transition ending on one writes the keyword of its kind, start or done (featurePath), and a
+    // state's body writes the entry idiom for its initial node. The hooks are functions further down this script,
+    // which hoist.
     ActionDefinition: { keyword: 'action def', label: 'action def', definition: true, usage: false, contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
     ActionUsage: { keyword: 'action', label: 'action', definition: false, usage: true, contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false,
       definedBy: 'ActionDefinition', size: [180, 60], shape: 'action', fields: ['name', 'type', 'multiplicity', 'actionKind', 'payload', 'target', 'role', 'doc'], traits: ['successionEnd', 'transitionEnd'],
@@ -105,18 +106,10 @@
     const def = typing ? ids.get(typing.to) : null;
     return def && def.kind === KINDS[el.kind].definedBy ? def : null;
   }
-  // An end of a succession or transition in the text: start or done for the pseudo nodes, else the quoted name; and
-  // the path to it from the body it is written in, like featurePath.
-  function behaviorEndName(el) { return el.kind === 'StartNode' ? 'start' : el.kind === 'DoneNode' ? 'done' : quote(el.name); }
-  function behaviorEndPath(model, ownerId, el, ids) {
-    const c = chain(model, el, ids);
-    const start = ownerId === null ? 0 : c.findIndex((e) => e.id === ownerId) + 1;
-    return c.slice(start).map(behaviorEndName).join('.');
-  }
   // Whether a target names a port of the model, by its last segment: a send goes via a port and to anything else.
   function namesAPort(model, target) {
     const last = String(target).split('.').pop().trim();
-    return model.elements.some((e) => e.kind === 'PortUsage' && (e.name.trim() === last || quote(e.name) === last));
+    return model.elements.some((e) => e.kind === 'PortUsage' && (textName(e) === last || quote(textName(e)) === last));
   }
   // The type a trigger or an accept payload names, as the text reads it: the whole text, or what follows the colon of
   // x : Type, up to a via; null for a timing or a condition (after …, when …, at …), for a qualified name (SI::s, which
@@ -131,14 +124,14 @@
   }
   function checkNamedType(model, id, text, what, add) {
     const type = namedType(text);
-    if (type && !model.elements.some((e) => KINDS[e.kind].definition && e.name.trim() === type)) {
+    if (type && !model.elements.some((e) => KINDS[e.kind].definition && textName(e) === type)) {
       add(id, what + ' names ' + type + ', which is no definition in the model, so the text can\'t resolve it. Name a part def or item def, as x : Type, or write after …, when … or at ….');
     }
   }
   // An element inside an action or a state can't take a name the library gives every action and state.
   function checkInheritedName(model, el, ids, add) {
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-    const name = str(el.name).trim();
+    const name = textName(el);
     if (owner && (isActionOwner(owner.kind) || isStateOwner(owner.kind)) && INHERITED_BEHAVIOR_NAMES.has(name)) {
       add(el.id, 'The name ' + name + ' is one every ' + (isActionOwner(owner.kind) ? 'action' : 'state') + ' already has inside it. Rename ' + describe(model, el, ids) + '.');
     }
@@ -169,10 +162,10 @@
   // parameter) neither the type nor the generals are written.
   function parameterText(model, p, ids) {
     const typing = typingOf(model, p);
-    let text = (p.direction ? p.direction + ' ' : '') + 'item' + (p.name.trim() ? ' ' + quote(p.name) : '');
-    if (typing && ids.get(typing.to)) text += ' : ' + quote(ids.get(typing.to).name);
+    let text = (p.direction ? p.direction + ' ' : '') + 'item' + (textName(p) ? ' ' + quote(textName(p)) : '');
+    if (typing && ids.get(typing.to)) text += ' : ' + quote(textName(ids.get(typing.to)));
     if (p.multiplicity && MULTIPLICITY.test(p.multiplicity)) text += ' [' + p.multiplicity + ']';
-    const generals = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === p.id && ids.get(r.to)).map((r) => quote(ids.get(r.to).name));
+    const generals = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === p.id && ids.get(r.to)).map((r) => quote(textName(ids.get(r.to))));
     if (generals.length) text += ' :> ' + generals.join(', ');
     return text;
   }
@@ -199,13 +192,13 @@
     const own = parametersOf(model, el.id);
     if (!def || !own.length) return;
     const inherited = parametersOf(model, def.id);
-    const named = (list, name) => (name ? list.find((p) => p.name.trim() === name) : undefined);
+    const named = (list, name) => (name ? list.find((p) => textName(p) === name) : undefined);
     inherited.forEach((p) => {
-      const mine = named(own, p.name.trim());
+      const mine = named(own, textName(p));
       if (mine) declare(model, mine, parameterText(model, mine, h.ids), depth, h);
       else h.line(depth, parameterText(model, p, new Map()) + ';');
     });
-    own.filter((p) => !named(inherited, p.name.trim())).forEach((p) => declare(model, p, parameterText(model, p, h.ids), depth, h));
+    own.filter((p) => !named(inherited, textName(p))).forEach((p) => declare(model, p, parameterText(model, p, h.ids), depth, h));
   }
   // A parameter of an action def, or of an action with no definition, declares itself; one of a typed action is
   // written by the action's body, in its definition's order.
@@ -235,12 +228,13 @@
     const what = describe(model, el, ids);
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
     if (!el.direction) add(el.id, what + ' needs a direction: in, out or inout.');
-    if (!el.name.trim() && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) add(el.id, what + ' has no name. Name it, so flows and bindings can reach it.');
-    if (owner && owner.kind === 'ActionUsage' && el.name.trim()) {
+    const name = textName(el);
+    if (name === '' && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) add(el.id, what + ' has no name. Name it, so flows and bindings can reach it.');
+    if (owner && owner.kind === 'ActionUsage' && name) {
       const def = typingDefinitionOf(model, owner, ids);
-      const inherited = def ? parametersOf(model, def.id).find((p) => p.name.trim() === el.name.trim()) : null;
+      const inherited = def ? parametersOf(model, def.id).find((p) => textName(p) === name) : null;
       if (inherited && inherited.direction !== el.direction) {
-        add(el.id, what + ' goes ' + (el.direction || 'no way yet') + ', but the parameter ' + inherited.name.trim() + ' of ' + shown(def.name) + ' goes ' + (inherited.direction || 'no way') + '. Match the direction, or rename it.');
+        add(el.id, what + ' goes ' + (el.direction || 'no way yet') + ', but the parameter ' + name + ' of ' + shown(textName(def)) + ' goes ' + (inherited.direction || 'no way') + '. Match the direction, or rename it.');
       }
     }
     checkInheritedName(model, el, ids, add);
@@ -288,8 +282,8 @@
     if (out.length > 1) add(el.id, 'One transition leaves an initial node; the ' + what + ' has ' + out.length + '.');
     const entry = entryActionOf(model, owner.id);
     out.forEach((t) => {
-      if (str(t.trigger).trim()) add(t.id, 'The transition out of the initial node is taken as ' + shown(owner.name) + ' is entered, so it has no trigger. Clear the trigger of the ' + describeRel(model, t, ids) + '.');
-      if (!entry && (str(t.name).trim() || str(t.doc).trim() || str(t.effect).trim())) add(t.id, 'The transition out of the initial node carries a name, a doc or an effect only when it leaves an entry action. Add an action with the role entry to ' + shown(owner.name) + ', or clear it.');
+      if (str(t.trigger).trim()) add(t.id, 'The transition out of the initial node is taken as ' + shown(textName(owner)) + ' is entered, so it has no trigger. Clear the trigger of the ' + describeRel(model, t, ids) + '.');
+      if (!entry && (str(t.name).trim() || str(t.doc).trim() || str(t.effect).trim())) add(t.id, 'The transition out of the initial node carries a name, a doc or an effect only when it leaves an entry action. Add an action with the role entry to ' + shown(textName(owner)) + ', or clear it.');
     });
   }
 
@@ -309,7 +303,7 @@
     if (initial && t && el.parallel !== true && !entryActionOf(model, el.id)) {
       const guard = str(t.guard).trim();
       h.line(depth, 'entry;');
-      h.line(depth, (guard ? 'if ' + guard + ' then ' : 'then ') + behaviorEndPath(model, el.id, h.ids.get(t.to), h.ids) + ';');
+      h.line(depth, (guard ? 'if ' + guard + ' then ' : 'then ') + featurePath(model, el.id, h.ids.get(t.to), h.ids) + ';');
       // A named transition's notes are the notes block's (about the name the check asks the user to clear).
       if (!str(t.name).trim()) h.notesOn(t.id).forEach((n) => h.note(depth, n, null, 'On ' + describeRel(model, t, h.ids) + ': ' + n.text));
       return;
@@ -325,7 +319,7 @@
     // The initial node's transition leaves the entry action by name (transition first init then s1;), so an unnamed
     // entry action leaves it nowhere to be written.
     const entry = entryActionOf(model, el.id);
-    if (entry && !entry.name.trim() && childrenOf(model, el.id).some((e) => e.kind === 'InitialNode')) {
+    if (entry && textName(entry) === '' && childrenOf(model, el.id).some((e) => e.kind === 'InitialNode')) {
       add(entry.id, 'The entry action of ' + what + ' has no name, so the transition out of the initial node can\'t leave it. Name it.');
     }
     checkInheritedName(model, el, ids, add);
@@ -402,7 +396,7 @@
     const ownerId = el.owner === undefined ? null : el.owner;
     branches.slice().sort((a, b) => rank(a) - rank(b)).forEach((r) => {
       const g = str(r.guard).trim();
-      writeBehaviorRel(h, r, (g === 'else' ? 'else ' : g ? 'if ' + g + ' then ' : 'then ') + behaviorEndPath(model, ownerId, h.ids.get(r.to), h.ids), depth);
+      writeBehaviorRel(h, r, (g === 'else' ? 'else ' : g ? 'if ' + g + ' then ' : 'then ') + featurePath(model, ownerId, h.ids.get(r.to), h.ids), depth);
     });
   }
   function checkSuccession(model, rel, ids, add) {
@@ -411,7 +405,7 @@
     if (str(rel.guard).trim() === 'else' && a && b) {
       if (a.kind !== 'DecisionNode') add(rel.id, 'An else branch leaves a decision; the ' + describeRel(model, rel, ids) + ' leaves ' + describe(model, a, ids) + '. Give it a guard instead.');
       else if (str(rel.name).trim()) add(rel.id, 'An else branch has no name in the text. Clear the name of the ' + describeRel(model, rel, ids) + ', or give it a guard.');
-      else if (commonOwner(model, a, b, ids) !== (a.owner === undefined ? null : a.owner)) add(rel.id, 'The else branch out of ' + describe(model, a, ids) + ' must lead to something beside it, inside ' + (a.owner !== undefined ? shown(ids.get(a.owner).name) : 'the package') + '.');
+      else if (commonOwner(model, a, b, ids) !== (a.owner === undefined ? null : a.owner)) add(rel.id, 'The else branch out of ' + describe(model, a, ids) + ' must lead to something beside it, inside ' + (a.owner !== undefined ? shown(textName(ids.get(a.owner))) : 'the package') + '.');
     }
     checkBehaviorRelName(model, rel, ids, add);
   }
@@ -423,8 +417,8 @@
     const a = h.ids.get(rel.from);
     const b = h.ids.get(rel.to);
     const guard = str(rel.guard).trim();
-    const head = (str(rel.name).trim() ? 'succession ' + quote(rel.name) + ' ' : '') + 'first ' + behaviorEndPath(model, ownerId, a, h.ids) +
-      (guard && guard !== 'else' ? ' if ' + guard : '') + ' then ' + behaviorEndPath(model, ownerId, b, h.ids);
+    const head = (str(rel.name).trim() ? 'succession ' + quote(rel.name) + ' ' : '') + 'first ' + featurePath(model, ownerId, a, h.ids) +
+      (guard && guard !== 'else' ? ' if ' + guard : '') + ' then ' + featurePath(model, ownerId, b, h.ids);
     writeBehaviorRel(h, rel, head, depth);
   }
   function transitionFirst(model, a, ids) {
@@ -443,7 +437,7 @@
     const owner = commonOwner(model, a, b, ids);
     const o = owner === null ? null : ids.get(owner);
     if (!o || !isStateOwner(o.kind)) return 'A transition needs a state def or a state around both its ends; ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' have none. Draw it inside one state def or state.';
-    if (a.kind === 'InitialNode' && a.owner !== owner) return 'The transition out of ' + describe(model, a, ids) + ' stays inside ' + shown(ids.get(a.owner).name) + '; ' + describe(model, b, ids) + ' is outside it.';
+    if (a.kind === 'InitialNode' && a.owner !== owner) return 'The transition out of ' + describe(model, a, ids) + ' stays inside ' + shown(textName(ids.get(a.owner))) + '; ' + describe(model, b, ids) + ' is outside it.';
     return behaviorBodyProblem(model, a, b, ids, 'transition');
   }
   // The notation's label: trigger [guard] / effect, each when present; the name isn't part of it.
@@ -469,18 +463,18 @@
   function writeTransition(model, rel, ownerId, depth, out, h) {
     const a = h.ids.get(rel.from);
     const b = h.ids.get(rel.to);
-    let source = behaviorEndPath(model, ownerId, a, h.ids);
+    let source = featurePath(model, ownerId, a, h.ids);
     let trigger = str(rel.trigger).trim();
     if (a.kind === 'InitialNode') {
       const entry = a.owner !== undefined ? entryActionOf(model, a.owner) : null;
-      if (!entry || !entry.name.trim()) return;
-      source = behaviorEndPath(model, ownerId, entry, h.ids);
+      if (!entry || !textName(entry)) return;
+      source = featurePath(model, ownerId, entry, h.ids);
       trigger = '';
     }
     const guard = str(rel.guard).trim();
     const effect = str(rel.effect).trim();
     const head = 'transition ' + (str(rel.name).trim() ? quote(rel.name) + ' ' : '') + 'first ' + source +
-      (trigger ? ' accept ' + trigger : '') + (guard ? ' if ' + guard : '') + (effect ? ' do ' + effect : '') + ' then ' + behaviorEndPath(model, ownerId, b, h.ids);
+      (trigger ? ' accept ' + trigger : '') + (guard ? ' if ' + guard : '') + (effect ? ' do ' + effect : '') + ' then ' + featurePath(model, ownerId, b, h.ids);
     writeBehaviorRel(h, rel, head, depth);
   }
 

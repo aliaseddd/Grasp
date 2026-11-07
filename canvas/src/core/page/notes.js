@@ -133,8 +133,8 @@
   function addNote() {
     const s = resolve(S.selection);
     if (!s || s.type === 'view' || !editable()) return;
-    // A note's about needs a name, so an element of a kind without one (a start node) can't carry a note.
-    if (s.type === 'el' && !M.hasName(s.item.kind)) {
+    // A note's about needs a name, so an element with no name in the text (a start node) can't carry a note.
+    if (s.type === 'el' && M.textName(s.item) === null) {
       say(M.an(M.KINDS[s.item.kind].label, true) + ' can\'t carry a note. Note the ' + (s.item.owner !== undefined ? 'element it belongs to' : 'package') + ' instead.');
       return;
     }

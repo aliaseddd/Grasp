@@ -27,11 +27,12 @@
     }
     const el = row.item;
     const kind = M.KINDS[el.kind];
-    const named = M.hasName(el.kind);
-    const parts = { kw: named && kind.keyword ? '«' + kind.keyword + '» ' : '', name: named ? el.name.trim() || '(unnamed)' : kind.label, type: '', notes: '' };
+    // An element with no name in the text (a start node) goes by its kind's label, with no keyword.
+    const name = M.textName(el);
+    const parts = { kw: name !== null && kind.keyword ? '«' + kind.keyword + '» ' : '', name: name === null ? kind.label : name || '(unnamed)', type: '', notes: '' };
     if (kind.usage) {
       const typing = M.typingOf(S.model, el);
-      if (typing) { const def = ids.get(typing.to); parts.type += ' : ' + (el.conjugated ? '~' : '') + (def ? def.name.trim() || '(unnamed)' : '?'); }
+      if (typing) { const def = ids.get(typing.to); parts.type += ' : ' + (el.conjugated ? '~' : '') + (def ? M.textName(def) || '(unnamed)' : '?'); }
       if (el.multiplicity) parts.type += ' [' + el.multiplicity + ']';
     }
     const count = S.notes.filter((n) => n.target === el.id).length;

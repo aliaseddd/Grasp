@@ -39,12 +39,12 @@
   // The name line of a box: the name, its definition's after a colon, the multiplicity in brackets. ids, the element
   // index, is for a caller that runs before the layout is set (a renderer's layout); the current layout's otherwise.
   function nameLine(el, ids) {
-    let s = el.name.trim() || '(unnamed)';
+    let s = M.textName(el) || '(unnamed)';
     if (M.KINDS[el.kind].usage) {
       const typing = M.typingOf(S.model, el);
       if (typing) {
         const def = (ids || S.layout.ids).get(typing.to);
-        s += ' : ' + (el.conjugated ? '~' : '') + (def ? def.name.trim() || '(unnamed)' : '?');
+        s += ' : ' + (el.conjugated ? '~' : '') + (def ? M.textName(def) || '(unnamed)' : '?');
       }
       if (el.multiplicity) s += ' [' + el.multiplicity + ']';
     }

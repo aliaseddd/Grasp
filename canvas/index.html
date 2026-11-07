@@ -873,11 +873,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const FORMAT = 'stronghold-canvas/2';
   const VIEW_DEF = 'StandardViewDefinitions::GeneralView';
 
-  // Element kinds. contains is the kinds an element may own (false: none); onBorder draws it on its owner's
-  // border; definedBy is the definition kind a usage is typed by; size the default box; shape names the entry of
-  // the page's SHAPES that draws it (rect, rounded, port; an unknown shape is drawn as a rect, or as a port on a
-  // border); fields the panel's fields that apply, each a row of FIELDS below, which normalize keeps by their types;
-  // traits the words the relationship rules may ask about with hasTrait (connectable, flowEnd, bindable, lifeline…).
+  // Element kinds. keyword is the word the text declares an element of the kind with (part def, port), or, for a kind
+  // whose elements have no name in the text (no name field: textName), the word the text has for what they stand for
+  // (start, done); label is the kind in sentences. contains is the kinds an element may own (false: none); onBorder
+  // draws it on its owner's border; definedBy is the definition kind a usage is typed by; size the default box; shape
+  // names the entry of the page's SHAPES that draws it (rect, rounded, port; an unknown shape is drawn as a rect, or as
+  // a port on a border); fields the panel's fields that apply, each a row of FIELDS below, which normalize keeps by
+  // their types; traits the words the relationship rules may ask about with hasTrait (connectable, flowEnd, bindable,
+  // lifeline…).
   // A kind may also carry hooks for the export and the checks: head(model, el, h) returns the head of its
   // declaration, everything before the ' {' or ';' (h.headOf(el) is the generated one, to build on), or null for an
   // element the text doesn't declare (a start node), which is then left out with everything inside it; body(model,
@@ -1059,11 +1062,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const k = KINDS[kind];
     return !!(k && k.traits) && k.traits.indexOf(trait) >= 0;
   }
-  // Whether a kind's elements carry a name (name is one of its fields). A start node has none: it is never "unnamed",
-  // and nothing can be about it by name.
-  function hasName(kind) {
-    const k = KINDS[kind];
-    return !!k && k.fields.indexOf('name') >= 0;
+  // Whether an element has a name in the text, and which: the one place that decides it. An element whose kind has a
+  // name field has its name, trimmed, or '' while it has none (an unnamed part, which the text may still write, as
+  // part : Host;). An element whose kind has none has no name in the text at all, whatever its name field holds:
+  // null. Those are the start, done and initial nodes, which stand for what the text has already (the start and done
+  // every action inherits, a state's entry), so the name the page keeps in one for itself (start1) is never written,
+  // shown or compared. Whatever asks whether an element is named, or reads an element's name, asks here; to ask it of
+  // a kind, ask it of an element of the kind with no name yet, { kind }: '' when the kind's elements take names.
+  function textName(el) {
+    const kind = KINDS[el.kind];
+    return kind && kind.fields.indexOf('name') >= 0 ? str(el.name).trim() : null;
   }
 
   function blank() {
@@ -1312,7 +1320,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function nameTakenBeside(model, rel, ids, among) {
     const name = str(rel.name).trim();
     const o = RELATIONSHIPS[rel.kind].owner(model, rel, ids) || '';
-    return model.elements.some((e) => hasName(e.kind) && e.name.trim() === name && (e.owner === undefined ? '' : e.owner) === o) ||
+    return model.elements.some((e) => textName(e) === name && (e.owner === undefined ? '' : e.owner) === o) ||
       among.some((r) => r !== rel && str(r.name).trim() === name && ids.has(r.from) && ids.has(r.to) && (RELATIONSHIPS[r.kind].owner(model, r, ids) || '') === o);
   }
 
@@ -1322,19 +1330,26 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return isName(n) ? n : "'" + n.replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
   }
   function shown(name) { return String(name == null ? '' : name).trim() || '(unnamed)'; }
-  function qualified(model, el, ids) {
-    return [model.package.name].concat(chain(model, el, ids).map((e) => e.name)).map(quote).join('::');
+  // An element as a step of a path in the text: its name, quoted (unnamed when it has none, the name an unnamed
+  // definition is written with), or, for an element with no name in the text, its kind's keyword, the word the text has
+  // for what it stands for: first start then a1; leaves the start of the action it is in, which a start node draws.
+  function segment(el) {
+    const name = textName(el);
+    return name === null ? KINDS[el.kind].keyword : quote(name);
   }
-  // The path to a feature from the element it is declared in: hosts.api from Page.
+  function qualified(model, el, ids) {
+    return [quote(model.package.name)].concat(chain(model, el, ids).map(segment)).join('::');
+  }
+  // The path to a feature from the element it is declared in: hosts.api from Page, done from an action.
   function featurePath(model, ownerId, el, ids) {
     const c = chain(model, el, ids);
     const start = ownerId === null ? 0 : c.findIndex((e) => e.id === ownerId) + 1;
-    return c.slice(start).map((e) => quote(e.name)).join('.');
+    return c.slice(start).map(segment).join('.');
   }
-  // Whether the text can name an element by its qualified name: it and every owner have a name field and a name. A
-  // start node (no name field), or anything inside an unnamed part, can't be exposed or annotated by name.
+  // Whether the text can name an element by its qualified name: it and every owner have a name in the text. A start
+  // node (no name in the text), or anything inside an unnamed part, can't be exposed or annotated by name.
   function nameable(model, el, ids) {
-    return chain(model, el, ids).every((c) => hasName(c.kind) && c.name.trim());
+    return chain(model, el, ids).every((c) => !!textName(c));
   }
   // A label with its indefinite article: "a part", "an item", "an action flow view". Some labels start with a vowel,
   // so 'a ' + label reads wrong for them; capital gives the "A"/"An" that opens a sentence.
@@ -1349,19 +1364,20 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return labels.length > 1 ? labels.slice(0, -1).join(', ') + ' or ' + labels[labels.length - 1] : labels.join('');
   }
 
-  // An element in a sentence: its kind's label, its name (or "(unnamed)"), and the owner it is in. An element of a kind
-  // with no name field is just its label: "start in a1".
+  // An element in a sentence: its kind's label, its name (or "(unnamed)"), and the owner it is in. An element with no
+  // name in the text is just its label: "start in a1".
   function describe(model, el, ids) {
     ids = ids || index(model);
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-    return KINDS[el.kind].label + (hasName(el.kind) ? ' ' + shown(el.name) : '') + (owner ? ' in ' + shown(owner.name) : '');
+    const name = textName(el);
+    return KINDS[el.kind].label + (name === null ? '' : ' ' + shown(name)) + (owner ? ' in ' + shown(textName(owner)) : '');
   }
   function describeRel(model, rel, ids) {
     ids = ids || index(model);
     const a = ids.get(rel.from);
     const b = ids.get(rel.to);
-    // An end of a kind with no name field is said by its kind (describe), not as "(unnamed)".
-    const end = (e) => (!e ? '?' : hasName(e.kind) ? shown(e.name) : describe(model, e, ids));
+    // An end with no name in the text is said by its kind (describe), not as "(unnamed)".
+    const end = (e) => (!e ? '?' : textName(e) === null ? describe(model, e, ids) : shown(textName(e)));
     const from = end(a);
     const to = end(b);
     if (rel.kind === 'Specialization') return from + ' specializes ' + to;
@@ -1379,8 +1395,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   // The features a type gets from elsewhere, by name: those of what it is defined by and of what it specializes,
-  // all the way up, and, for a usage that redefines a feature of its owner's type, those of that feature. A kind with no
-  // name field (a start node, named start1 by the page for itself) has no name the text could inherit.
+  // all the way up, and, for a usage that redefines a feature of its owner's type, those of that feature. An element
+  // with no name in the text (a start node, which the page names start1 for itself) has no name to inherit.
   function inheritedFeatures(model, type, ids, seen) {
     ids = ids || index(model);
     seen = seen || new Set();
@@ -1388,15 +1404,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const take = (t) => {
       if (!t || seen.has(t.id)) return;
       seen.add(t.id);
-      childrenOf(model, t.id).forEach((c) => { if (hasName(c.kind) && c.name.trim() && !out.has(c.name.trim())) out.set(c.name.trim(), c); });
+      childrenOf(model, t.id).forEach((c) => { const name = textName(c); if (name && !out.has(name)) out.set(name, c); });
       inheritedFeatures(model, t, ids, seen).forEach((c, name) => { if (!out.has(name)) out.set(name, c); });
     };
     const typing = typingOf(model, type);
     if (typing) take(ids.get(typing.to));
     model.relationships.filter((r) => r.kind === 'Specialization' && r.from === type.id).forEach((r) => take(ids.get(r.to)));
-    if (!typing && type.owner !== undefined && type.name.trim()) {
+    const typeName = textName(type);
+    if (!typing && type.owner !== undefined && typeName) {
       const owner = ids.get(type.owner);
-      const redefined = owner ? inheritedFeatures(model, owner, ids, seen).get(type.name.trim()) : null;
+      const redefined = owner ? inheritedFeatures(model, owner, ids, seen).get(typeName) : null;
       if (redefined && redefined.kind === type.kind) take(redefined);
     }
     return out;
@@ -1436,7 +1453,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   Object.assign(lib, {
     FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, NAME, MULTIPLICITY, str, isObject, canContain,
-    admits, hasTrait, hasName, blank, placement, normalize, index, relIndex, viewIndex, shownIn, chain, childrenOf,
+    admits, hasTrait, textName, blank, placement, normalize, index, relIndex, viewIndex, shownIn, chain, childrenOf,
     descendants, typingOf, inUsage, specializes, commonOwner, acrossDefinitions, nameTakenBeside, isName, quote, shown,
     qualified, featurePath, nameable, an, definable, describe, describeRel, describeView, labelFor, inheritedFeatures,
     boundsOk, RESERVED_NAMES, EXTRA, BODY, commentLines
@@ -1449,7 +1466,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, index, childrenOf, typingOf, specializes, commonOwner,
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, textName, index, childrenOf, typingOf, specializes, commonOwner,
     acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel, inheritedFeatures, EXTRA
   } = lib;
 
@@ -1501,11 +1518,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
       line: { route: 'straight', marker: null, cls: 'interface',
         label: function (rel, model, ids) {
           const def = model && ids && rel.interfaceDef ? ids.get(rel.interfaceDef) : null;
-          return '«interface»' + (rel.name.trim() ? ' ' + rel.name.trim() : '') + (def ? ' : ' + shown(def.name) : '');
+          return '«interface»' + (rel.name.trim() ? ' ' + rel.name.trim() : '') + (def ? ' : ' + shown(textName(def)) : '');
         } },
       toSysML: function (model, rel, ownerId, depth, out, h) {
         const def = rel.interfaceDef ? h.ids.get(rel.interfaceDef) : null;
-        const head = 'interface ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (def ? ': ' + quote(def.name) + ' ' : '') +
+        const head = 'interface ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (def ? ': ' + quote(textName(def)) + ' ' : '') +
           'connect ' + featurePath(model, ownerId, h.ids.get(rel.from), h.ids) + ' to ' + featurePath(model, ownerId, h.ids.get(rel.to), h.ids);
         connectorStatement(rel, head, depth, h);
       },
@@ -1533,11 +1550,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
       line: { route: 'straight', marker: 'm-flow', cls: 'flow',
         label: function (rel, model, ids) {
           const item = model && ids && rel.item ? ids.get(rel.item) : null;
-          return (rel.name.trim() + (item ? ' of ' + shown(item.name) : '')).trim();
+          return (rel.name.trim() + (item ? ' of ' + shown(textName(item)) : '')).trim();
         } },
       toSysML: function (model, rel, ownerId, depth, out, h) {
         const item = rel.item ? h.ids.get(rel.item) : null;
-        const head = 'flow ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (item ? 'of ' + quote(item.name) + ' ' : '') +
+        const head = 'flow ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (item ? 'of ' + quote(textName(item)) + ' ' : '') +
           'from ' + flowEndPath(model, rel, 'from', ownerId, h.ids) + ' to ' + flowEndPath(model, rel, 'to', ownerId, h.ids);
         connectorStatement(rel, head, depth, h);
       },
@@ -1552,7 +1569,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         // Bound things are one thing, so they are of one definition (a port def and its conjugate count as one).
         const ta = definitionOf(model, a, ids);
         const tb = definitionOf(model, b, ids);
-        if (ta && tb && ta.def.id !== tb.def.id) return 'A binding joins two things of one definition; ' + describe(model, a, ids) + ' is defined by ' + shown(ta.def.name) + ' and ' + describe(model, b, ids) + ' by ' + shown(tb.def.name) + '.';
+        if (ta && tb && ta.def.id !== tb.def.id) return 'A binding joins two things of one definition; ' + describe(model, a, ids) + ' is defined by ' + shown(textName(ta.def)) + ' and ' + describe(model, b, ids) + ' by ' + shown(textName(tb.def)) + '.';
         if (!!ta !== !!tb) return 'A binding joins two things of one definition; ' + describe(model, ta ? b : a, ids) + ' is defined by nothing yet.';
         if (!ta && a.kind !== b.kind) return 'A binding joins two ports or two items, not ' + an(KINDS[a.kind].label) + ' and ' + an(KINDS[b.kind].label) + '.';
         return acrossDefinitions(model, 'A binding', a, b, ids);
@@ -1623,7 +1640,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const typing = typingOf(model, cur);
       if (typing && ids.has(typing.to)) return { def: ids.get(typing.to), conjugated: cur.conjugated === true };
       const owner = cur.owner !== undefined ? ids.get(cur.owner) : null;
-      const inherited = owner && cur.name.trim() ? inheritedFeatures(model, owner, ids).get(cur.name.trim()) : null;
+      const inherited = owner && textName(cur) ? inheritedFeatures(model, owner, ids).get(textName(cur)) : null;
       cur = inherited && inherited.kind === el.kind ? inherited : null;
     }
     return null;
@@ -1683,10 +1700,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (!typed) return { el: end, item: null, problem: describe(model, end, ids) + ' has no port def, so nothing can flow through it. Define it by a port def that carries an item.' };
       if (!itemDef) return { el: end, item: null, problem: null }; // flowProblems says so once, for the flow
       const found = portItems(model, end, ids).filter((x) => goes(x.direction) && typingOf(model, x.item) && typingOf(model, x.item).to === itemDef.id).map((x) => x.item);
-      const seen = (typed.conjugated ? 'a conjugated ' : 'a ') + shown(typed.def.name);
+      const seen = (typed.conjugated ? 'a conjugated ' : 'a ') + shown(textName(typed.def));
       const way = out ? 'out' : 'in';
-      if (!found.length) return { el: end, item: null, problem: describe(model, end, ids) + ', ' + seen + ', carries no item of ' + shown(itemDef.name) + ' going ' + way + ', so the flow can\'t ' + verb + ' there.' };
-      if (found.length > 1) return { el: end, item: found[0], problem: describe(model, end, ids) + ', ' + seen + ', carries more than one item of ' + shown(itemDef.name) + ' going ' + way + ' (' + found.map((i) => shown(i.name)).join(', ') + '), so the flow can\'t tell which to ' + verb + ' at. Keep one.' };
+      if (!found.length) return { el: end, item: null, problem: describe(model, end, ids) + ', ' + seen + ', carries no item of ' + shown(textName(itemDef)) + ' going ' + way + ', so the flow can\'t ' + verb + ' there.' };
+      if (found.length > 1) return { el: end, item: found[0], problem: describe(model, end, ids) + ', ' + seen + ', carries more than one item of ' + shown(textName(itemDef)) + ' going ' + way + ' (' + found.map((i) => shown(textName(i))).join(', ') + '), so the flow can\'t tell which to ' + verb + ' at. Keep one.' };
       return { el: end, item: found[0], problem: null };
     }
     if (end.direction !== undefined) {
@@ -1695,7 +1712,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     if (itemDef) {
       const typed = definitionOf(model, end, ids);
-      if (typed && typed.def.id !== itemDef.id && !specializes(model, typed.def, itemDef)) return { el: end, item: null, problem: describe(model, end, ids) + ' is of ' + shown(typed.def.name) + ', not ' + shown(itemDef.name) + ', so the flow\'s item doesn\'t match it.' };
+      if (typed && typed.def.id !== itemDef.id && !specializes(model, typed.def, itemDef)) return { el: end, item: null, problem: describe(model, end, ids) + ' is of ' + shown(textName(typed.def)) + ', not ' + shown(textName(itemDef)) + ', so the flow\'s item doesn\'t match it.' };
     }
     return { el: end, item: null, problem: null };
   }
@@ -1704,7 +1721,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function flowEndPath(model, rel, which, ownerId, ids) {
     const r = flowEnd(model, rel, which, ids);
     const path = featurePath(model, ownerId, r.el, ids);
-    return r.item ? path + '.' + quote(r.item.name) : path;
+    return r.item ? path + '.' + quote(textName(r.item)) : path;
   }
   // What keeps a flow from being written as it should: a flow through a port with no item, and the ends flowEnd can't
   // write.
@@ -1727,7 +1744,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   function portTypeName(model, port, ids) {
     const typed = definitionOf(model, port, ids);
-    return typed ? (typed.conjugated ? '~' : '') + shown(typed.def.name) : 'nothing';
+    return typed ? (typed.conjugated ? '~' : '') + shown(textName(typed.def)) : 'nothing';
   }
   // Whether a typed interface's two ports match the two ends of its interface def, one each, conjugation counted: a
   // sentence saying which doesn't, or null. The def's own check says when it hasn't two ends; a def with more can't
@@ -1742,14 +1759,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const b = ids.get(rel.to);
     if (!hasTrait(a.kind, 'interfaceEnd') || !hasTrait(b.kind, 'interfaceEnd')) return null; // the ends rule says so
     if (ends.length > 2) {
-      return describe(model, def, ids) + ' has ' + ends.length + ' ends (' + ends.map((e) => shown(e.name)).join(', ') + '), so an interface between two ports can\'t be typed by it. Keep two ends on it, or type the ' + describeRel(model, rel, ids) + ' by another def.';
+      return describe(model, def, ids) + ' has ' + ends.length + ' ends (' + ends.map((e) => shown(textName(e))).join(', ') + '), so an interface between two ports can\'t be typed by it. Keep two ends on it, or type the ' + describeRel(model, rel, ids) + ' by another def.';
     }
     const sa = portSignature(model, a, ids);
     const sb = portSignature(model, b, ids);
     const s0 = portSignature(model, ends[0], ids);
     const s1 = portSignature(model, ends[1], ids);
     if ((sa === s0 && sb === s1) || (sa === s1 && sb === s0)) return null;
-    const endsText = ends.map((e) => shown(e.name) + ' : ' + portTypeName(model, e, ids)).join(' and ');
+    const endsText = ends.map((e) => shown(textName(e)) + ' : ' + portTypeName(model, e, ids)).join(' and ');
     const wrong = [a, b].find((p) => { const s = portSignature(model, p, ids); return s !== s0 && s !== s1; });
     if (wrong) return describe(model, wrong, ids) + ', defined by ' + portTypeName(model, wrong, ids) + ', matches no end of ' + describe(model, def, ids) + ' (its ends are ' + endsText + ').';
     return 'Both ends of the ' + describeRel(model, rel, ids) + ' match the same end of ' + describe(model, def, ids) + ' (its ends are ' + endsText + '); one of them should be the other.';
@@ -1777,18 +1794,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, NAME, MULTIPLICITY, str, hasTrait, chain, childrenOf, typingOf,
-    commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, an, describe, describeRel, EXTRA, BODY,
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, NAME, MULTIPLICITY, str, hasTrait, textName, childrenOf, typingOf,
+    commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel, EXTRA, BODY,
     commentLines
   } = lib;
 
   Object.assign(KINDS, {
     // Behavior: the action flow view's kinds (an action def, actions with their parameters on the border, the four
     // control nodes, and start and done) and the state view's (a state def, states, the initial node). Start, done
-    // and the initial node have no name field: they stand for the start and done every action and state inherits,
-    // and for a state's entry, so their heads are null and the text never declares them; a succession or transition
-    // ending on one writes start or done, and a state's body writes the entry idiom for its initial node. The hooks
-    // are functions further down this script, which hoist.
+    // and the initial node have no name field, so no name in the text (textName): they stand for the start and done
+    // every action and state inherits, and for a state's entry, so their heads are null and the text never declares
+    // them; a succession or transition ending on one writes the keyword of its kind, start or done (featurePath), and a
+    // state's body writes the entry idiom for its initial node. The hooks are functions further down this script,
+    // which hoist.
     ActionDefinition: { keyword: 'action def', label: 'action def', definition: true, usage: false, contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
     ActionUsage: { keyword: 'action', label: 'action', definition: false, usage: true, contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false,
       definedBy: 'ActionDefinition', size: [180, 60], shape: 'action', fields: ['name', 'type', 'multiplicity', 'actionKind', 'payload', 'target', 'role', 'doc'], traits: ['successionEnd', 'transitionEnd'],
@@ -1877,18 +1895,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const def = typing ? ids.get(typing.to) : null;
     return def && def.kind === KINDS[el.kind].definedBy ? def : null;
   }
-  // An end of a succession or transition in the text: start or done for the pseudo nodes, else the quoted name; and
-  // the path to it from the body it is written in, like featurePath.
-  function behaviorEndName(el) { return el.kind === 'StartNode' ? 'start' : el.kind === 'DoneNode' ? 'done' : quote(el.name); }
-  function behaviorEndPath(model, ownerId, el, ids) {
-    const c = chain(model, el, ids);
-    const start = ownerId === null ? 0 : c.findIndex((e) => e.id === ownerId) + 1;
-    return c.slice(start).map(behaviorEndName).join('.');
-  }
   // Whether a target names a port of the model, by its last segment: a send goes via a port and to anything else.
   function namesAPort(model, target) {
     const last = String(target).split('.').pop().trim();
-    return model.elements.some((e) => e.kind === 'PortUsage' && (e.name.trim() === last || quote(e.name) === last));
+    return model.elements.some((e) => e.kind === 'PortUsage' && (textName(e) === last || quote(textName(e)) === last));
   }
   // The type a trigger or an accept payload names, as the text reads it: the whole text, or what follows the colon of
   // x : Type, up to a via; null for a timing or a condition (after …, when …, at …), for a qualified name (SI::s, which
@@ -1903,14 +1913,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   function checkNamedType(model, id, text, what, add) {
     const type = namedType(text);
-    if (type && !model.elements.some((e) => KINDS[e.kind].definition && e.name.trim() === type)) {
+    if (type && !model.elements.some((e) => KINDS[e.kind].definition && textName(e) === type)) {
       add(id, what + ' names ' + type + ', which is no definition in the model, so the text can\'t resolve it. Name a part def or item def, as x : Type, or write after …, when … or at ….');
     }
   }
   // An element inside an action or a state can't take a name the library gives every action and state.
   function checkInheritedName(model, el, ids, add) {
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-    const name = str(el.name).trim();
+    const name = textName(el);
     if (owner && (isActionOwner(owner.kind) || isStateOwner(owner.kind)) && INHERITED_BEHAVIOR_NAMES.has(name)) {
       add(el.id, 'The name ' + name + ' is one every ' + (isActionOwner(owner.kind) ? 'action' : 'state') + ' already has inside it. Rename ' + describe(model, el, ids) + '.');
     }
@@ -1941,10 +1951,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // parameter) neither the type nor the generals are written.
   function parameterText(model, p, ids) {
     const typing = typingOf(model, p);
-    let text = (p.direction ? p.direction + ' ' : '') + 'item' + (p.name.trim() ? ' ' + quote(p.name) : '');
-    if (typing && ids.get(typing.to)) text += ' : ' + quote(ids.get(typing.to).name);
+    let text = (p.direction ? p.direction + ' ' : '') + 'item' + (textName(p) ? ' ' + quote(textName(p)) : '');
+    if (typing && ids.get(typing.to)) text += ' : ' + quote(textName(ids.get(typing.to)));
     if (p.multiplicity && MULTIPLICITY.test(p.multiplicity)) text += ' [' + p.multiplicity + ']';
-    const generals = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === p.id && ids.get(r.to)).map((r) => quote(ids.get(r.to).name));
+    const generals = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === p.id && ids.get(r.to)).map((r) => quote(textName(ids.get(r.to))));
     if (generals.length) text += ' :> ' + generals.join(', ');
     return text;
   }
@@ -1971,13 +1981,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const own = parametersOf(model, el.id);
     if (!def || !own.length) return;
     const inherited = parametersOf(model, def.id);
-    const named = (list, name) => (name ? list.find((p) => p.name.trim() === name) : undefined);
+    const named = (list, name) => (name ? list.find((p) => textName(p) === name) : undefined);
     inherited.forEach((p) => {
-      const mine = named(own, p.name.trim());
+      const mine = named(own, textName(p));
       if (mine) declare(model, mine, parameterText(model, mine, h.ids), depth, h);
       else h.line(depth, parameterText(model, p, new Map()) + ';');
     });
-    own.filter((p) => !named(inherited, p.name.trim())).forEach((p) => declare(model, p, parameterText(model, p, h.ids), depth, h));
+    own.filter((p) => !named(inherited, textName(p))).forEach((p) => declare(model, p, parameterText(model, p, h.ids), depth, h));
   }
   // A parameter of an action def, or of an action with no definition, declares itself; one of a typed action is
   // written by the action's body, in its definition's order.
@@ -2007,12 +2017,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const what = describe(model, el, ids);
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
     if (!el.direction) add(el.id, what + ' needs a direction: in, out or inout.');
-    if (!el.name.trim() && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) add(el.id, what + ' has no name. Name it, so flows and bindings can reach it.');
-    if (owner && owner.kind === 'ActionUsage' && el.name.trim()) {
+    const name = textName(el);
+    if (name === '' && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) add(el.id, what + ' has no name. Name it, so flows and bindings can reach it.');
+    if (owner && owner.kind === 'ActionUsage' && name) {
       const def = typingDefinitionOf(model, owner, ids);
-      const inherited = def ? parametersOf(model, def.id).find((p) => p.name.trim() === el.name.trim()) : null;
+      const inherited = def ? parametersOf(model, def.id).find((p) => textName(p) === name) : null;
       if (inherited && inherited.direction !== el.direction) {
-        add(el.id, what + ' goes ' + (el.direction || 'no way yet') + ', but the parameter ' + inherited.name.trim() + ' of ' + shown(def.name) + ' goes ' + (inherited.direction || 'no way') + '. Match the direction, or rename it.');
+        add(el.id, what + ' goes ' + (el.direction || 'no way yet') + ', but the parameter ' + name + ' of ' + shown(textName(def)) + ' goes ' + (inherited.direction || 'no way') + '. Match the direction, or rename it.');
       }
     }
     checkInheritedName(model, el, ids, add);
@@ -2060,8 +2071,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (out.length > 1) add(el.id, 'One transition leaves an initial node; the ' + what + ' has ' + out.length + '.');
     const entry = entryActionOf(model, owner.id);
     out.forEach((t) => {
-      if (str(t.trigger).trim()) add(t.id, 'The transition out of the initial node is taken as ' + shown(owner.name) + ' is entered, so it has no trigger. Clear the trigger of the ' + describeRel(model, t, ids) + '.');
-      if (!entry && (str(t.name).trim() || str(t.doc).trim() || str(t.effect).trim())) add(t.id, 'The transition out of the initial node carries a name, a doc or an effect only when it leaves an entry action. Add an action with the role entry to ' + shown(owner.name) + ', or clear it.');
+      if (str(t.trigger).trim()) add(t.id, 'The transition out of the initial node is taken as ' + shown(textName(owner)) + ' is entered, so it has no trigger. Clear the trigger of the ' + describeRel(model, t, ids) + '.');
+      if (!entry && (str(t.name).trim() || str(t.doc).trim() || str(t.effect).trim())) add(t.id, 'The transition out of the initial node carries a name, a doc or an effect only when it leaves an entry action. Add an action with the role entry to ' + shown(textName(owner)) + ', or clear it.');
     });
   }
 
@@ -2081,7 +2092,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (initial && t && el.parallel !== true && !entryActionOf(model, el.id)) {
       const guard = str(t.guard).trim();
       h.line(depth, 'entry;');
-      h.line(depth, (guard ? 'if ' + guard + ' then ' : 'then ') + behaviorEndPath(model, el.id, h.ids.get(t.to), h.ids) + ';');
+      h.line(depth, (guard ? 'if ' + guard + ' then ' : 'then ') + featurePath(model, el.id, h.ids.get(t.to), h.ids) + ';');
       // A named transition's notes are the notes block's (about the name the check asks the user to clear).
       if (!str(t.name).trim()) h.notesOn(t.id).forEach((n) => h.note(depth, n, null, 'On ' + describeRel(model, t, h.ids) + ': ' + n.text));
       return;
@@ -2097,7 +2108,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // The initial node's transition leaves the entry action by name (transition first init then s1;), so an unnamed
     // entry action leaves it nowhere to be written.
     const entry = entryActionOf(model, el.id);
-    if (entry && !entry.name.trim() && childrenOf(model, el.id).some((e) => e.kind === 'InitialNode')) {
+    if (entry && textName(entry) === '' && childrenOf(model, el.id).some((e) => e.kind === 'InitialNode')) {
       add(entry.id, 'The entry action of ' + what + ' has no name, so the transition out of the initial node can\'t leave it. Name it.');
     }
     checkInheritedName(model, el, ids, add);
@@ -2174,7 +2185,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const ownerId = el.owner === undefined ? null : el.owner;
     branches.slice().sort((a, b) => rank(a) - rank(b)).forEach((r) => {
       const g = str(r.guard).trim();
-      writeBehaviorRel(h, r, (g === 'else' ? 'else ' : g ? 'if ' + g + ' then ' : 'then ') + behaviorEndPath(model, ownerId, h.ids.get(r.to), h.ids), depth);
+      writeBehaviorRel(h, r, (g === 'else' ? 'else ' : g ? 'if ' + g + ' then ' : 'then ') + featurePath(model, ownerId, h.ids.get(r.to), h.ids), depth);
     });
   }
   function checkSuccession(model, rel, ids, add) {
@@ -2183,7 +2194,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (str(rel.guard).trim() === 'else' && a && b) {
       if (a.kind !== 'DecisionNode') add(rel.id, 'An else branch leaves a decision; the ' + describeRel(model, rel, ids) + ' leaves ' + describe(model, a, ids) + '. Give it a guard instead.');
       else if (str(rel.name).trim()) add(rel.id, 'An else branch has no name in the text. Clear the name of the ' + describeRel(model, rel, ids) + ', or give it a guard.');
-      else if (commonOwner(model, a, b, ids) !== (a.owner === undefined ? null : a.owner)) add(rel.id, 'The else branch out of ' + describe(model, a, ids) + ' must lead to something beside it, inside ' + (a.owner !== undefined ? shown(ids.get(a.owner).name) : 'the package') + '.');
+      else if (commonOwner(model, a, b, ids) !== (a.owner === undefined ? null : a.owner)) add(rel.id, 'The else branch out of ' + describe(model, a, ids) + ' must lead to something beside it, inside ' + (a.owner !== undefined ? shown(textName(ids.get(a.owner))) : 'the package') + '.');
     }
     checkBehaviorRelName(model, rel, ids, add);
   }
@@ -2195,8 +2206,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const a = h.ids.get(rel.from);
     const b = h.ids.get(rel.to);
     const guard = str(rel.guard).trim();
-    const head = (str(rel.name).trim() ? 'succession ' + quote(rel.name) + ' ' : '') + 'first ' + behaviorEndPath(model, ownerId, a, h.ids) +
-      (guard && guard !== 'else' ? ' if ' + guard : '') + ' then ' + behaviorEndPath(model, ownerId, b, h.ids);
+    const head = (str(rel.name).trim() ? 'succession ' + quote(rel.name) + ' ' : '') + 'first ' + featurePath(model, ownerId, a, h.ids) +
+      (guard && guard !== 'else' ? ' if ' + guard : '') + ' then ' + featurePath(model, ownerId, b, h.ids);
     writeBehaviorRel(h, rel, head, depth);
   }
   function transitionFirst(model, a, ids) {
@@ -2215,7 +2226,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const owner = commonOwner(model, a, b, ids);
     const o = owner === null ? null : ids.get(owner);
     if (!o || !isStateOwner(o.kind)) return 'A transition needs a state def or a state around both its ends; ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' have none. Draw it inside one state def or state.';
-    if (a.kind === 'InitialNode' && a.owner !== owner) return 'The transition out of ' + describe(model, a, ids) + ' stays inside ' + shown(ids.get(a.owner).name) + '; ' + describe(model, b, ids) + ' is outside it.';
+    if (a.kind === 'InitialNode' && a.owner !== owner) return 'The transition out of ' + describe(model, a, ids) + ' stays inside ' + shown(textName(ids.get(a.owner))) + '; ' + describe(model, b, ids) + ' is outside it.';
     return behaviorBodyProblem(model, a, b, ids, 'transition');
   }
   // The notation's label: trigger [guard] / effect, each when present; the name isn't part of it.
@@ -2241,18 +2252,18 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function writeTransition(model, rel, ownerId, depth, out, h) {
     const a = h.ids.get(rel.from);
     const b = h.ids.get(rel.to);
-    let source = behaviorEndPath(model, ownerId, a, h.ids);
+    let source = featurePath(model, ownerId, a, h.ids);
     let trigger = str(rel.trigger).trim();
     if (a.kind === 'InitialNode') {
       const entry = a.owner !== undefined ? entryActionOf(model, a.owner) : null;
-      if (!entry || !entry.name.trim()) return;
-      source = behaviorEndPath(model, ownerId, entry, h.ids);
+      if (!entry || !textName(entry)) return;
+      source = featurePath(model, ownerId, entry, h.ids);
       trigger = '';
     }
     const guard = str(rel.guard).trim();
     const effect = str(rel.effect).trim();
     const head = 'transition ' + (str(rel.name).trim() ? quote(rel.name) + ' ' : '') + 'first ' + source +
-      (trigger ? ' accept ' + trigger : '') + (guard ? ' if ' + guard : '') + (effect ? ' do ' + effect : '') + ' then ' + behaviorEndPath(model, ownerId, b, h.ids);
+      (trigger ? ' accept ' + trigger : '') + (guard ? ' if ' + guard : '') + (effect ? ' do ' + effect : '') + ' then ' + featurePath(model, ownerId, b, h.ids);
     writeBehaviorRel(h, rel, head, depth);
   }
 
@@ -2269,8 +2280,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown,
-    featurePath, describe, describeRel, EXTRA, BODY, declare
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, textName, commonOwner, acrossDefinitions, nameTakenBeside, quote,
+    shown, featurePath, describe, describeRel, EXTRA, BODY, declare
   } = lib;
 
   Object.assign(KINDS, {
@@ -2287,9 +2298,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
       // The core says so once something refers to it; an event nothing refers to yet still needs its name, since a
       // message can only start or end on it by name.
       check: function (model, el, ids, add) {
-        if (!el.name.trim() && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) {
+        if (textName(el) === '' && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) {
           const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-          add(el.id, 'An event' + (owner ? ' in ' + shown(owner.name) : '') + ' has no name. Name it, so a message can start or end on it.');
+          add(el.id, 'An event' + (owner ? ' in ' + shown(textName(owner)) : '') + ' has no name. Name it, so a message can start or end on it.');
         }
       } },
   });
@@ -2321,13 +2332,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
       line: { route: 'straight', marker: 'm-message', cls: 'message', labelOffset: -8,
         label: function (rel, model, ids) {
           const item = rel.item ? ids.get(rel.item) : null;
-          return [rel.name.trim(), item ? 'of ' + shown(item.name) : ''].filter(Boolean).join(' ');
+          return [rel.name.trim(), item ? 'of ' + shown(textName(item)) : ''].filter(Boolean).join(' ');
         } },
       toSysML: function (model, rel, ownerId, depth, out, h) {
         const a = h.ids.get(rel.from);
         const b = h.ids.get(rel.to);
         const item = rel.item ? h.ids.get(rel.item) : null;
-        const head = 'message ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (item ? 'of ' + quote(item.name) + ' ' : '') +
+        const head = 'message ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (item ? 'of ' + quote(textName(item)) + ' ' : '') +
           'from ' + featurePath(model, ownerId, a, h.ids) + ' to ' + featurePath(model, ownerId, b, h.ids);
         // A note on an unnamed message can't be about it by name, so it goes inside the message's body.
         const inside = rel.name.trim() ? [] : h.notesOn(rel.id);
@@ -2390,7 +2401,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, VIEW_KINDS, FIELDS, hasTrait, hasName, chain, quote, describe, inheritedFeatures, EXTRA, BODY
+    KINDS, VIEW_KINDS, FIELDS, hasTrait, textName, chain, quote, describe, inheritedFeatures, EXTRA, BODY
   } = lib;
 
   Object.assign(VIEW_KINDS, {
@@ -2458,7 +2469,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const seen = new Set([el.id]);
     const walk = (e) => {
       const owner = e.owner !== undefined ? ids.get(e.owner) : null;
-      const inherited = owner && e.name.trim() ? inheritedFeatures(model, owner, ids).get(e.name.trim()) : null;
+      const inherited = owner && textName(e) ? inheritedFeatures(model, owner, ids).get(textName(e)) : null;
       const next = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === e.id).map((r) => ids.get(r.to));
       if (inherited && inherited.kind === e.kind) next.push(inherited);
       next.forEach((g) => { if (g && !seen.has(g.id)) { seen.add(g.id); out.push(g); walk(g); } });
@@ -2486,17 +2497,17 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // An element named like a library name the geometry text imports shadows it where that text can see it, and the
   // text breaks. The text sits in the body of the element drawn to scale, where a name resolves through the members
   // of that body, of each owner's body on the way up (inherited ones included) and of the package; a port named in
-  // on a part beside the spatial one is out of its sight (the pilot resolves ['in'] to the unit there), and so is
-  // the hidden name of a kind the text never declares (a start node).
+  // on a part beside the spatial one is out of its sight (the pilot resolves ['in'] to the unit there), and an
+  // element with no name in the text (a start node, whatever name the page keeps in it) shadows nothing.
   function geoNameCheck(model, el, ids, add) {
-    const name = el.name.trim();
-    if (!hasName(el.kind) || !GEO_LIBRARY_NAMES.has(name) || !model.elements.some((x) => geoExported(x) && geoSees(model, x, el, ids))) return;
+    const name = textName(el);
+    if (!name || !GEO_LIBRARY_NAMES.has(name) || !model.elements.some((x) => geoExported(x) && geoSees(model, x, el, ids))) return;
     add(el.id, 'The name ' + name + ' is one the geometry text brings in from the library, so the text would mix them up. Rename ' + describe(model, el, ids) + '.');
   }
   // Whether the geometry text of x sees el by name: el is at the top of the package, or right inside x or one of its
   // owners, or a feature x or one of its owners inherits.
   function geoSees(model, x, el, ids) {
-    return el.owner === undefined || chain(model, x, ids).some((a) => a.id === el.owner || inheritedFeatures(model, a, ids).get(el.name.trim()) === el);
+    return el.owner === undefined || chain(model, x, ids).some((a) => a.id === el.owner || inheritedFeatures(model, a, ids).get(textName(el)) === el);
   }
   // The spatial statements of a usage's body: its shape with the dimensions it sets, then its position as a translation
   // of its coordinate frame, with the imports they need (validated: critique/g01, g02, g08b, g10, g11; the units, a
@@ -2602,7 +2613,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    RELATIONSHIPS, VIEW_KINDS, hasName, index, chain, childrenOf, quote, qualified, nameable, describe, describeView,
+    RELATIONSHIPS, VIEW_KINDS, textName, index, chain, childrenOf, quote, qualified, nameable, describe, describeView,
     EXTRA
   } = lib;
 
@@ -2616,7 +2627,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       check: function (model, view, ids, add) {
         (browserRoots(model, view, ids) || []).forEach((root) => {
           if (!nameable(model, root, ids)) {
-            add(view.id, 'The ' + describeView(model, view) + ' can\'t expose its root ' + describe(model, root, ids) + ' by name: ' + (hasName(root.kind) ? 'it, or what it is in, has no name. Name it.' : 'the text has no name for it.'));
+            add(view.id, 'The ' + describeView(model, view) + ' can\'t expose its root ' + describe(model, root, ids) + ' by name: ' + (textName(root) === null ? 'the text has no name for it.' : 'it, or what it is in, has no name. Name it.'));
           }
         });
       },
@@ -2685,7 +2696,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 (function (root) {
   'use strict';
   const lib = root.SysMLModelLib;
-  const { KINDS, FIELDS, str, hasName, quote, nameable, RESERVED_NAMES, EXTRA, BODY } = lib;
+  const { KINDS, FIELDS, str, textName, quote, nameable, RESERVED_NAMES, EXTRA, BODY } = lib;
 
   Object.assign(FIELDS, {
     // The code links an element carries: a list of { path, language, text }, read by tidyCode. The annotations slice's
@@ -2695,8 +2706,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   // Every kind the text declares may carry code links, so the panel's code section and the export's textual
   // representations apply to every such element. A start, done or initial node has no name and no line of its own in
-  // the text, so a rep inside it would have nowhere to go: those kinds don't carry the field.
-  Object.keys(KINDS).filter(hasName).forEach((k) => KINDS[k].fields.push('code'));
+  // the text, so a rep inside it would have nowhere to go: the kinds whose elements have no name in the text don't
+  // carry the field.
+  Object.keys(KINDS).filter((k) => textName({ kind: k }) !== null).forEach((k) => KINDS[k].fields.push('code'));
 
   // The names the notes' forms take from the standard library (private import ModelingMetadata::*): a model element
   // named like one of them would shadow the import, and the validator then can't type the metadata.
@@ -2789,7 +2801,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, hasName, index, childrenOf, shown, an, describe, inheritedFeatures,
+    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, index, childrenOf, shown, an, describe, inheritedFeatures,
     boundsOk, RESERVED_NAMES
   } = lib;
 
@@ -2800,26 +2812,26 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const ids = index(model);
     const add = (id, message) => problems.push({ id, message });
     const siblings = new Map();
-    const definitionNames = new Set(model.elements.filter((e) => KINDS[e.kind].definition).map((e) => e.name.trim()).filter(Boolean));
+    const definitionNames = new Set(model.elements.filter((e) => KINDS[e.kind].definition).map(textName).filter(Boolean));
     const inRelationship = new Set();
     model.relationships.forEach((r) => { inRelationship.add(r.from); inRelationship.add(r.to); });
     const pkgName = model.package.name.trim();
     for (const el of model.elements) {
       const kind = KINDS[el.kind];
-      const name = el.name.trim();
+      // An element with no name in the text (null: a start node) is never unnamed ('').
+      const name = textName(el);
       const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-      const where = owner ? ' in ' + shown(owner.name) : '';
-      // A kind with no name field is never unnamed.
-      if (!name && hasName(el.kind)) {
+      const where = owner ? ' in ' + shown(textName(owner)) : '';
+      if (name === '') {
         if (kind.definition) add(el.id, an(kind.label, true) + ' has no name.');
         else if (inRelationship.has(el.id) || childrenOf(model, el.id).length) add(el.id, an(kind.label, true) + where + ' has no name, so nothing can refer to it. Name it.');
       }
       if (el.multiplicity && (!MULTIPLICITY.test(el.multiplicity) || !boundsOk(el.multiplicity))) {
         add(el.id, 'The multiplicity "' + el.multiplicity + '" of ' + describe(model, el, ids) + ' is not like 1, 0..1, or 1..*.');
       }
-      // The name rules are for names the text writes: a kind with no name field (a start node, which the page names
-      // start1 for itself) takes no part in them.
-      if (name && hasName(el.kind)) {
+      // The name rules are for names the text writes: an element with no name in the text (a start node, which the page
+      // names start1 for itself) takes no part in them.
+      if (name) {
         // Two with one name beside each other: both are marked, since either could be the one to rename.
         const key = (el.owner === undefined ? '' : el.owner) + '/' + name;
         const twin = siblings.get(key);
@@ -2833,7 +2845,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         if (RESERVED_NAMES.has(name)) add(el.id, 'The name ' + name + ' belongs to the standard library. Rename ' + describe(model, el, ids) + '.');
         const inherited = owner ? inheritedFeatures(model, owner, ids).get(name) : null;
         if (inherited && inherited.kind !== el.kind) {
-          add(el.id, describe(model, el, ids) + ' is named like the ' + KINDS[inherited.kind].label + ' ' + name + ' that ' + shown(owner.name) + ' inherits. Rename it.');
+          add(el.id, describe(model, el, ids) + ' is named like the ' + KINDS[inherited.kind].label + ' ' + name + ' that ' + shown(textName(owner)) + ' inherits. Rename it.');
         }
       }
       if (kind.check) kind.check(model, el, ids, add);
@@ -2871,9 +2883,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, normalize, index, relIndex, childrenOf, typingOf, commonOwner,
-    quote, shown, qualified, featurePath, nameable, describe, describeRel, inheritedFeatures, BODY, noteRecords,
-    noteStatements, commentLines
+    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, normalize, index, relIndex, childrenOf, typingOf,
+    commonOwner, quote, shown, qualified, featurePath, nameable, describe, describeRel, inheritedFeatures, BODY,
+    noteRecords, noteStatements, commentLines
   } = lib;
 
   // The notes and the archived notes are written together, at the end of the package (noteRecords, noteStatements).
@@ -2913,18 +2925,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
     function headOf(el) {
       const kind = KINDS[el.kind];
       const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-      const inherited = owner && el.name.trim() ? inheritedFeatures(model, owner, ids).get(el.name.trim()) : null;
+      const name = textName(el);
+      const inherited = owner && name ? inheritedFeatures(model, owner, ids).get(name) : null;
       const redefines = !!inherited && inherited.kind === el.kind;
       // A usage may go unnamed ("part : Host;"); a definition can't, so an unnamed one is written as unnamed.
-      const name = el.name.trim() ? quote(el.name) : (kind.definition ? quote('unnamed') : '');
-      let head = (el.abstract ? 'abstract ' : '') + kind.keyword + (redefines ? ' :>> ' + quote(el.name) : (name ? ' ' + name : ''));
+      const written = name ? quote(name) : (kind.definition ? quote('unnamed') : '');
+      let head = (el.abstract ? 'abstract ' : '') + kind.keyword + (redefines ? ' :>> ' + quote(name) : (written ? ' ' + written : ''));
       if (kind.usage) {
         const typing = typingOf(model, el);
-        if (typing) head += ' : ' + (el.conjugated ? '~' : '') + quote(ids.get(typing.to).name);
+        if (typing) head += ' : ' + (el.conjugated ? '~' : '') + quote(textName(ids.get(typing.to)));
         if (el.multiplicity && MULTIPLICITY.test(el.multiplicity)) head += ' [' + el.multiplicity + ']';
       }
       const general = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === el.id)
-        .map((r) => quote(ids.get(r.to).name));
+        .map((r) => quote(textName(ids.get(r.to))));
       if (general.length) head += ' :> ' + general.join(', ');
       return head;
     }
@@ -3052,7 +3065,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const lib = root.SysMLModelLib;
   const {
     FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, canContain, admits, hasTrait,
-    hasName, blank, placement, normalize, index, relIndex, viewIndex, shownIn, chain, childrenOf, descendants,
+    textName, blank, placement, normalize, index, relIndex, viewIndex, shownIn, chain, childrenOf, descendants,
     typingOf, inUsage, specializes, commonOwner, isName, quote, qualified, featurePath, an, definable, describe,
     describeRel, describeView, labelFor, inheritedFeatures, EXTRA, validate, toSysML
   } = lib;
@@ -3060,7 +3073,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // The library, with what the slices put in EXTRA beside it.
   root.SysMLModel = Object.freeze(Object.assign({
     FORMAT, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, VIEW_DEF,
-    blank, normalize, validate, toSysML, placement, canContain, admits, hasTrait, hasName, index, relIndex, viewIndex, shownIn, chain, childrenOf,
+    blank, normalize, validate, toSysML, placement, canContain, admits, hasTrait, textName, index, relIndex, viewIndex, shownIn, chain, childrenOf,
     descendants, typingOf, inUsage, specializes, commonOwner, featurePath, quote, qualified, describe, describeRel, describeView,
     labelFor, isName, inheritedFeatures, an, definable,
   }, EXTRA));
@@ -3556,12 +3569,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // The name line of a box: the name, its definition's after a colon, the multiplicity in brackets. ids, the element
   // index, is for a caller that runs before the layout is set (a renderer's layout); the current layout's otherwise.
   function nameLine(el, ids) {
-    let s = el.name.trim() || '(unnamed)';
+    let s = M.textName(el) || '(unnamed)';
     if (M.KINDS[el.kind].usage) {
       const typing = M.typingOf(S.model, el);
       if (typing) {
         const def = (ids || S.layout.ids).get(typing.to);
-        s += ' : ' + (el.conjugated ? '~' : '') + (def ? def.name.trim() || '(unnamed)' : '?');
+        s += ' : ' + (el.conjugated ? '~' : '') + (def ? M.textName(def) || '(unnamed)' : '?');
       }
       if (el.multiplicity) s += ' [' + el.multiplicity + ']';
     }
@@ -4422,7 +4435,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   function freeName(kind, ownerId) {
     const base = BASE_NAME[kind] || kind;
-    const taken = new Set(M.childrenOf(S.model, ownerId).map((e) => e.name.trim()));
+    // The names the text has beside it: the name the page keeps in a start node takes none.
+    const taken = new Set(M.childrenOf(S.model, ownerId).map(M.textName));
     let i = 1;
     while (taken.has(base + i)) i++;
     return base + i;
@@ -4499,8 +4513,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!el) return;
     setTool(null);
     C.select({ type: 'el', id: el.id }, view.id);
-    // A kind with no name field (a start node) has nothing to name, and the panel shows no name input for it.
-    if (!M.hasName(kind)) { say('Added ' + M.describe(S.model, el) + ' to ' + M.describeView(S.model, view) + '.'); return; }
+    // An element with no name in the text (a start node) has nothing to name: the panel shows no name input for it.
+    if (M.textName(el) === null) { say('Added ' + M.describe(S.model, el) + ' to ' + M.describeView(S.model, view) + '.'); return; }
     say('Added ' + M.describe(S.model, el) + ' to ' + M.describeView(S.model, view) + '. Name it in the panel.');
     fName.focus({ preventScroll: true });
     fName.select();
@@ -4800,7 +4814,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         S.model.elements.filter((e) => e.kind === k.definedBy).forEach((d) => {
           const o = document.createElement('option');
           o.value = d.id;
-          o.textContent = d.name.trim() || '(unnamed)';
+          o.textContent = M.textName(d) || '(unnamed)';
           fType.appendChild(o);
         });
         fType.value = typing ? typing.to : '';
@@ -4830,7 +4844,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     [fName, fMult, fDoc].forEach((i) => { i.readOnly = !write; });
     [fAbstract, fType, fTypeLine, fConj].forEach((i) => { i.disabled = !write; });
     deleteButton.hidden = !write;
-    addNoteButton.hidden = !write || (s.type === 'el' && !M.hasName(s.item.kind));
+    addNoteButton.hidden = !write || (s.type === 'el' && M.textName(s.item) === null);
   }
   // The kind of the view a field's views are checked against: the view that shows the selection, else the active one.
   function viewKindShowing(id) {
@@ -4860,7 +4874,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         spec.options(S.model, item).forEach((e) => {
           const o = document.createElement('option');
           o.value = e.id;
-          o.textContent = e.name.trim() || '(unnamed)';
+          o.textContent = M.textName(e) || '(unnamed)';
           input.appendChild(o);
         });
         input.value = typeof v === 'string' ? v : '';
@@ -4894,7 +4908,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function fieldChangeText(x) {
     const v = x.item[x.fld];
     let value = v === '' || v === undefined || v === null ? 'nothing' : String(v);
-    if (x.spec.type === 'ref' && v) { const e = S.layout.ids.get(v); value = e ? (e.name.trim() || '(unnamed)') : 'nothing'; }
+    if (x.spec.type === 'ref' && v) { const e = S.layout.ids.get(v); value = e ? (M.textName(e) || '(unnamed)') : 'nothing'; }
     return 'Set the ' + x.spec.label + ' of ' + x.what + ' to ' + value;
   }
   // One pair of listeners for all of those fields: typing in a string, text or number field is one undo step per field,
@@ -5002,10 +5016,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     const def = S.layout.ids.get(fType.value);
     if (!def) return;
-    const rel = createRel('FeatureTyping', el, def, old ? !!old.hidden : true, 'Defined ' + M.describe(S.model, el) + ' by ' + (def.name.trim() || '(unnamed)'));
+    const rel = createRel('FeatureTyping', el, def, old ? !!old.hidden : true, 'Defined ' + M.describe(S.model, el) + ' by ' + (M.textName(def) || '(unnamed)'));
     if (!rel) return;
     select({ type: 'el', id: el.id });
-    say('Defined ' + M.describe(S.model, el) + ' by ' + def.name + '.' + (rel.hidden ? ' It shows as text; tick the box to draw the line too.' : ''));
+    say('Defined ' + M.describe(S.model, el) + ' by ' + (M.textName(def) || '(unnamed)') + '.' + (rel.hidden ? ' It shows as text; tick the box to draw the line too.' : ''));
   });
   fTypeLine.addEventListener('change', () => {
     const el = selectedElement();
@@ -5248,8 +5262,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function addNote() {
     const s = resolve(S.selection);
     if (!s || s.type === 'view' || !editable()) return;
-    // A note's about needs a name, so an element of a kind without one (a start node) can't carry a note.
-    if (s.type === 'el' && !M.hasName(s.item.kind)) {
+    // A note's about needs a name, so an element with no name in the text (a start node) can't carry a note.
+    if (s.type === 'el' && M.textName(s.item) === null) {
       say(M.an(M.KINDS[s.item.kind].label, true) + ' can\'t carry a note. Note the ' + (s.item.owner !== undefined ? 'element it belongs to' : 'package') + ' instead.');
       return;
     }
@@ -6043,8 +6057,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // its lower right, where no succession comes or goes: the lines leave the middle of a bar's sides and a diamond's
   // four corners.
   function controlNodeName(el, r, g) {
-    if (!el.name.trim()) return;
-    g.appendChild(text(r.x + r.w + 2, r.y + r.h + 9, el.name.trim(), 'mono', 'start'));
+    const name = M.textName(el);
+    if (!name) return;
+    g.appendChild(text(r.x + r.w + 2, r.y + r.h + 9, name, 'mono', 'start'));
   }
   SHAPES.bar = {
     draw: function (el, r, g) {
@@ -6718,30 +6733,31 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // Cuts a text to n characters, or to what fits a cell width px wide, with an ellipsis.
   function gridClipChars(s, n) { return s.length > n ? s.slice(0, Math.max(1, n - 1)) + '…' : s; }
   function gridClip(s, width) { return gridClipChars(s, Math.max(2, Math.floor((width - 2 * GRID_PAD) / GRID_CHAR))); }
-  // An element's dotted path from the package, Page.hosts.api, so two ports named api can be told apart; a kind with no
-  // name field (a start node) goes by its label, as in a browser: Release.start.
+  // An element's dotted path from the package, Page.hosts.api, so two ports named api can be told apart; an element with
+  // no name in the text (a start node) goes by its kind's label, as in a browser: Release.start.
   function gridPath(el, ids) { return M.chain(S.model, el, ids).map(gridName).join('.'); }
-  // What stands for an element's name: its name, (unnamed) when it has none, or its kind's label when its kind has no
-  // name field.
-  function gridName(el) { return M.hasName(el.kind) ? el.name.trim() || '(unnamed)' : M.KINDS[el.kind].label; }
+  // What stands for an element's name: its name, (unnamed) when it has none, or its kind's label when it has no name in
+  // the text.
+  function gridName(el) { const name = M.textName(el); return name === null ? M.KINDS[el.kind].label : name || '(unnamed)'; }
   // The text of a table cell: what the column says of the element. The notes and problems columns read the page's
   // lists; found, when given, stands in for the problems (what validate finds now, while sorting).
   function gridCell(el, col, ids, found) {
     const kind = M.KINDS[el.kind];
-    // A kind with no name field is said by its label in both columns (start, initial node), as the browser says it.
-    if (col === 'kind') return M.hasName(el.kind) ? kind.keyword : kind.label;
+    // An element with no name in the text is said by its kind's label in both columns (start, initial node), as the
+    // browser says it.
+    if (col === 'kind') return M.textName(el) === null ? kind.label : kind.keyword;
     if (col === 'name') return gridName(el);
     if (col === 'type') {
       const typing = kind.usage ? M.typingOf(S.model, el) : null;
       const def = typing ? ids.get(typing.to) : null;
-      return def ? (el.conjugated ? '~' : '') + (def.name.trim() || '(unnamed)') : '';
+      return def ? (el.conjugated ? '~' : '') + gridName(def) : '';
     }
     if (col === 'multiplicity') return el.multiplicity || '';
     if (col === 'owner') { const o = el.owner !== undefined ? ids.get(el.owner) : null; return o ? gridPath(o, ids) : ''; }
     if (col === 'doc') return el.doc.replace(/\s+/g, ' ').trim();
     if (col === 'specializes') {
       return S.model.relationships.filter((r) => r.kind === 'Specialization' && r.from === el.id && ids.has(r.to))
-        .map((r) => ids.get(r.to).name.trim() || '(unnamed)').join(', ');
+        .map((r) => gridName(ids.get(r.to))).join(', ');
     }
     if (col === 'notes') return S.notes.filter((n) => n.target === el.id).sort(byNumber).map((n) => String(n.no)).join(', ');
     if (col === 'code') return (Array.isArray(el.code) ? el.code : []).map((c) => c.path.trim() || '(no path)').join(', ');
@@ -7042,11 +7058,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     const el = row.item;
     const kind = M.KINDS[el.kind];
-    const named = M.hasName(el.kind);
-    const parts = { kw: named && kind.keyword ? '«' + kind.keyword + '» ' : '', name: named ? el.name.trim() || '(unnamed)' : kind.label, type: '', notes: '' };
+    // An element with no name in the text (a start node) goes by its kind's label, with no keyword.
+    const name = M.textName(el);
+    const parts = { kw: name !== null && kind.keyword ? '«' + kind.keyword + '» ' : '', name: name === null ? kind.label : name || '(unnamed)', type: '', notes: '' };
     if (kind.usage) {
       const typing = M.typingOf(S.model, el);
-      if (typing) { const def = ids.get(typing.to); parts.type += ' : ' + (el.conjugated ? '~' : '') + (def ? def.name.trim() || '(unnamed)' : '?'); }
+      if (typing) { const def = ids.get(typing.to); parts.type += ' : ' + (el.conjugated ? '~' : '') + (def ? M.textName(def) || '(unnamed)' : '?'); }
       if (el.multiplicity) parts.type += ' [' + el.multiplicity + ']';
     }
     const count = S.notes.filter((n) => n.target === el.id).length;
@@ -7315,7 +7332,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     let what = null;
     if (hit) {
       const el = hit.type === 'el' ? S.layout.ids.get(hit.id) : null;
-      if (el && !M.hasName(el.kind)) {
+      if (el && M.textName(el) === null) {
         say(M.an(M.KINDS[el.kind].label, true) + ' can\'t carry a note. Drop the pin on the element it belongs to instead.');
       } else if (hit.id !== n.target) {
         n.target = hit.id;

@@ -110,7 +110,7 @@
         S.model.elements.filter((e) => e.kind === k.definedBy).forEach((d) => {
           const o = document.createElement('option');
           o.value = d.id;
-          o.textContent = d.name.trim() || '(unnamed)';
+          o.textContent = M.textName(d) || '(unnamed)';
           fType.appendChild(o);
         });
         fType.value = typing ? typing.to : '';
@@ -140,7 +140,7 @@
     [fName, fMult, fDoc].forEach((i) => { i.readOnly = !write; });
     [fAbstract, fType, fTypeLine, fConj].forEach((i) => { i.disabled = !write; });
     deleteButton.hidden = !write;
-    addNoteButton.hidden = !write || (s.type === 'el' && !M.hasName(s.item.kind));
+    addNoteButton.hidden = !write || (s.type === 'el' && M.textName(s.item) === null);
   }
   // The kind of the view a field's views are checked against: the view that shows the selection, else the active one.
   function viewKindShowing(id) {
@@ -170,7 +170,7 @@
         spec.options(S.model, item).forEach((e) => {
           const o = document.createElement('option');
           o.value = e.id;
-          o.textContent = e.name.trim() || '(unnamed)';
+          o.textContent = M.textName(e) || '(unnamed)';
           input.appendChild(o);
         });
         input.value = typeof v === 'string' ? v : '';
@@ -204,7 +204,7 @@
   function fieldChangeText(x) {
     const v = x.item[x.fld];
     let value = v === '' || v === undefined || v === null ? 'nothing' : String(v);
-    if (x.spec.type === 'ref' && v) { const e = S.layout.ids.get(v); value = e ? (e.name.trim() || '(unnamed)') : 'nothing'; }
+    if (x.spec.type === 'ref' && v) { const e = S.layout.ids.get(v); value = e ? (M.textName(e) || '(unnamed)') : 'nothing'; }
     return 'Set the ' + x.spec.label + ' of ' + x.what + ' to ' + value;
   }
   // One pair of listeners for all of those fields: typing in a string, text or number field is one undo step per field,
@@ -312,10 +312,10 @@
     }
     const def = S.layout.ids.get(fType.value);
     if (!def) return;
-    const rel = createRel('FeatureTyping', el, def, old ? !!old.hidden : true, 'Defined ' + M.describe(S.model, el) + ' by ' + (def.name.trim() || '(unnamed)'));
+    const rel = createRel('FeatureTyping', el, def, old ? !!old.hidden : true, 'Defined ' + M.describe(S.model, el) + ' by ' + (M.textName(def) || '(unnamed)'));
     if (!rel) return;
     select({ type: 'el', id: el.id });
-    say('Defined ' + M.describe(S.model, el) + ' by ' + def.name + '.' + (rel.hidden ? ' It shows as text; tick the box to draw the line too.' : ''));
+    say('Defined ' + M.describe(S.model, el) + ' by ' + (M.textName(def) || '(unnamed)') + '.' + (rel.hidden ? ' It shows as text; tick the box to draw the line too.' : ''));
   });
   fTypeLine.addEventListener('change', () => {
     const el = selectedElement();

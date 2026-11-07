@@ -3,7 +3,7 @@
 (function (root) {
   'use strict';
   const lib = root.SysMLModelLib;
-  const { KINDS, FIELDS, str, hasName, quote, nameable, RESERVED_NAMES, EXTRA, BODY } = lib;
+  const { KINDS, FIELDS, str, textName, quote, nameable, RESERVED_NAMES, EXTRA, BODY } = lib;
 
   Object.assign(FIELDS, {
     // The code links an element carries: a list of { path, language, text }, read by tidyCode. The annotations slice's
@@ -13,8 +13,9 @@
 
   // Every kind the text declares may carry code links, so the panel's code section and the export's textual
   // representations apply to every such element. A start, done or initial node has no name and no line of its own in
-  // the text, so a rep inside it would have nowhere to go: those kinds don't carry the field.
-  Object.keys(KINDS).filter(hasName).forEach((k) => KINDS[k].fields.push('code'));
+  // the text, so a rep inside it would have nowhere to go: the kinds whose elements have no name in the text don't
+  // carry the field.
+  Object.keys(KINDS).filter((k) => textName({ kind: k }) !== null).forEach((k) => KINDS[k].fields.push('code'));
 
   // The names the notes' forms take from the standard library (private import ModelingMetadata::*): a model element
   // named like one of them would shadow the import, and the validator then can't type the metadata.
