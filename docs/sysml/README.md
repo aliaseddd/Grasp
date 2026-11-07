@@ -64,3 +64,7 @@ To have the kernel draw the model as well, install the release's Jupyter kernel 
 ## The pilot implementation
 
 [`pilot-implementation/`](pilot-implementation) maps the code of the SysML v2 Pilot Implementation, which the release's Jupyter kernel is built from: aider's repo maps of it, and how its projects fit together, from the grammars to the kernel.
+
+## SysON
+
+[`syson/`](syson) maps the code of Eclipse SysON, a web-based SysML v2 modeling tool built on Sirius Web: aider's repo maps of it, and how its modules fit together, from the metamodel to the frontend.
