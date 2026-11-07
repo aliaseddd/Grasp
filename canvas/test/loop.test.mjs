@@ -1,9 +1,10 @@
 // The loop's other direction: Claude writes into the store from its side, and the open page picks it up live. A
-// response to a note appears under the note, and a changed working model redraws the drawing.
+// response to a note appears under the note, and a whole model written to model/working redraws the drawing. And the
+// page hears its own writes of the model back without taking them for a change from elsewhere.
 
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import { addNote, embeddedModel, finish, launch, openCanvas, placeElement, rename, storeDoc, until } from './helpers.mjs';
+import { addNote, embeddedModel, finish, launch, openCanvas, placeElement, rename, storedModel, until, untilStored } from './helpers.mjs';
 
 describe('the loop from the store side', () => {
   let browser;
@@ -53,11 +54,16 @@ describe('the loop from the store side', () => {
     const { page } = ctx;
     const id = await placeElement(page, 'PortDefinition');
     await rename(page, id, 'Api');
-    await until(page, (i) => { const w = window.__store.get('model/working'); return Boolean(w) && JSON.stringify(w.model).includes(JSON.stringify(i)) && JSON.stringify(w.model).includes('"Api"'); }, id, 'the renamed element reaches the store');
+    await untilStored(page, (model) => model.elements.some((e) => e.id === id && e.name === 'Api'), 'the renamed element reaches the store');
+    // Once the save is done (its parts, its head, and the parts no head names any more deleted), the store goes quiet.
+    await until(page, () => window.__store.idle() > 300, null, 'the store goes quiet after the save');
+    const writes = () => page.evaluate(() => window.__store.log.filter((call) => call.op !== 'onSnapshot' && call.op !== 'use' && call.path.startsWith('model/')).length);
+    const settled = await writes();
     await page.waitForTimeout(1200);
-    const working = await storeDoc(page, 'model/working');
-    assert.equal(working.model.elements.filter((e) => e.id === id).length, 1, 'the element is in the store once');
+    const model = await storedModel(page);
+    assert.equal(model.elements.filter((e) => e.id === id).length, 1, 'the element is in the store once');
     assert.equal(await page.locator(`g[data-el="${id}"]`).count(), 1, 'and drawn once');
+    assert.equal(await writes(), settled, 'hearing its own write back, the page writes nothing more');
     assert.doesNotMatch(await page.textContent('#status'), /updated elsewhere/i, 'its own write is not reported as a change from elsewhere');
     await finish(ctx);
   });

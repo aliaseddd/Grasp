@@ -64,7 +64,7 @@
       if (el.actionKind === 'send') g.appendChild(node('path', { d: 'M' + f(r.x + 8) + ',' + f(r.y + 8) + ' h10 l5,5 l-5,5 h-10 Z' }, 'action-glyph'));
       else if (el.actionKind === 'accept') g.appendChild(node('path', { d: 'M' + f(r.x + 8) + ',' + f(r.y + 8) + ' h15 v10 h-15 l5,-5 Z' }, 'action-glyph'));
     },
-    compartments: true, cls: 'action'
+    compartments: true, cls: 'action', radius: 10
   };
   // A state def (square corners) or a state (rounder than a part), with «parallel» beside the keyword when it is.
   SHAPES.state = {
@@ -73,7 +73,7 @@
       g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: kind.definition ? 0 : 16 }, 'outline'));
       behaviorHeader(el, r, g, '«' + (el.abstract ? 'abstract ' : '') + kind.keyword + '»' + (el.parallel ? ' «parallel»' : ''));
     },
-    compartments: true, cls: 'state'
+    compartments: true, cls: 'state', radius: function (el) { return M.KINDS[el.kind].definition ? 0 : 16; }
   };
   // The control nodes: a bar for a fork or a join, a diamond for a decision or a merge, each with its name hanging at
   // its lower right, where no succession comes or goes: the lines leave the middle of a bar's sides and a diamond's
@@ -155,7 +155,7 @@
     const owner = el.owner !== undefined ? S.layout.ids.get(el.owner) : null;
     const fits = !!owner && (home === 'action' ? M.isActionOwner(owner.kind) : home === 'state' ? M.isStateOwner(owner.kind) : M.isActionOwner(owner.kind) || M.isStateOwner(owner.kind));
     if (!fits) {
-      S.model.elements.splice(S.model.elements.indexOf(el), 1);
+      S.model.elements.splice(S.model.elements.findIndex((e) => e.id === el.id), 1);
       delete view.layout[el.id];
       say('Click inside ' + (home === 'action' ? 'an action def or an action' : home === 'state' ? 'a state def or a state' : 'an action def, an action, a state def or a state') + ' to put the ' + M.KINDS[kind].label + ' there.');
       return null;

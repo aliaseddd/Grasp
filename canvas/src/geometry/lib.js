@@ -4,7 +4,8 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, VIEW_KINDS, FIELDS, hasTrait, textName, chain, quote, describe, inheritedFeatures, EXTRA, BODY
+    KINDS, VIEW_KINDS, FIELDS, hasTrait, textName, perReading, linesFrom, chain, quote, describe, inheritedFeature, EXTRA,
+    BODY
   } = lib;
 
   Object.assign(VIEW_KINDS, {
@@ -72,8 +73,8 @@
     const seen = new Set([el.id]);
     const walk = (e) => {
       const owner = e.owner !== undefined ? ids.get(e.owner) : null;
-      const inherited = owner && textName(e) ? inheritedFeatures(model, owner, ids).get(textName(e)) : null;
-      const next = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === e.id).map((r) => ids.get(r.to));
+      const inherited = owner && textName(e) ? inheritedFeature(model, owner, textName(e), ids) : null;
+      const next = linesFrom(model, e.id, 'Specialization').map((r) => ids.get(r.to));
       if (inherited && inherited.kind === e.kind) next.push(inherited);
       next.forEach((g) => { if (g && !seen.has(g.id)) { seen.add(g.id); out.push(g); walk(g); } });
     };
@@ -101,16 +102,19 @@
   // text breaks. The text sits in the body of the element drawn to scale, where a name resolves through the members
   // of that body, of each owner's body on the way up (inherited ones included) and of the package; a port named in
   // on a part beside the spatial one is out of its sight (the pilot resolves ['in'] to the unit there), and an
-  // element with no name in the text (a start node, whatever name the page keeps in it) shadows nothing.
+  // element with no name in the text (a start node, whatever name the page keeps in it) shadows nothing. During a
+  // reading, the elements that have spatial text are found once.
   function geoNameCheck(model, el, ids, add) {
     const name = textName(el);
-    if (!name || !GEO_LIBRARY_NAMES.has(name) || !model.elements.some((x) => geoExported(x) && geoSees(model, x, el, ids))) return;
+    if (!name || !GEO_LIBRARY_NAMES.has(name)) return;
+    const spatial = perReading(model, 'geometry:exported', () => model.elements.filter(geoExported)) || model.elements;
+    if (!spatial.some((x) => geoExported(x) && geoSees(model, x, el, ids))) return;
     add(el.id, 'The name ' + name + ' is one the geometry text brings in from the library, so the text would mix them up. Rename ' + describe(model, el, ids) + '.');
   }
   // Whether the geometry text of x sees el by name: el is at the top of the package, or right inside x or one of its
   // owners, or a feature x or one of its owners inherits.
   function geoSees(model, x, el, ids) {
-    return el.owner === undefined || chain(model, x, ids).some((a) => a.id === el.owner || inheritedFeatures(model, a, ids).get(textName(el)) === el);
+    return el.owner === undefined || chain(model, x, ids).some((a) => a.id === el.owner || inheritedFeature(model, a, textName(el), ids) === el);
   }
   // The spatial statements of a usage's body: its shape with the dimensions it sets, then its position as a translation
   // of its coordinate frame, with the imports they need (validated: critique/g01, g02, g08b, g10, g11; the units, a

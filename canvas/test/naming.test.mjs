@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import vm from 'node:vm';
-import { emptyPointIn, exportText, finish, launch, modelLibSource, openCanvas, pageSource, placeElement, rename, until } from './helpers.mjs';
+import { checked, emptyPointIn, exportText, finish, launch, modelLibSource, openCanvas, pageSource, placeElement, rename, until } from './helpers.mjs';
 
 // As in model-lib.test.mjs: the library run in a vm context with a bare window (its values belong to the context's
 // realm, so the checks compare strings, never deepEqual); el(id, kind, name, extra) with its owner read from a dotted
@@ -184,6 +184,7 @@ describe('naming', () => {
       const action = await placeInside(page, 'ActionUsage', def);
       await rename(page, action, 'start1');
       await page.locator('#f-name').dispatchEvent('change');
+      await checked(page);
       assert.ok(await page.locator('#problems').isHidden(), 'an action named like the start node beside it is no clash');
 
       const states = await addView(page, 'StateTransitionView');
@@ -207,6 +208,7 @@ describe('naming', () => {
       await until(page, () => !!document.querySelector('#drawing g.frame[data-view="v1"] g[data-el="A.start"]'), null, 'the imported action def is drawn');
       const action = await placeInside(page, 'ActionUsage', 'A');
       assert.equal(await nameKept(page, action), 'action1', 'the name the start node keeps doesn\'t take it');
+      await checked(page);
       assert.ok(await page.locator('#problems').isHidden(), 'and nothing clashes');
       await finish(ctx);
     });

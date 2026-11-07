@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { elementIds, emptyPointIn, exportText, finish, launch, openCanvas, placeElement, relationshipIds, selectedId, until } from './helpers.mjs';
+import { checked, elementIds, emptyPointIn, exportText, finish, launch, openCanvas, placeElement, relationshipIds, selectedId, until } from './helpers.mjs';
 
 const FIXTURE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'behavior-actions.json');
 
@@ -241,6 +241,7 @@ describe('behavior: action flow view', () => {
     const fork = await placeInside(page, 'ForkNode', def);
     await fit(page);
     await drawEdge(page, 'SuccessionAsUsage', a, fork);
+    await checked(page);
     assert.ok(await page.locator('#problems').isHidden(), 'one succession into a fork is fine');
     await drawEdge(page, 'SuccessionAsUsage', b, fork);
     await until(page, (id) => document.querySelector(`g[data-el="${id}"]`)?.classList.contains('is-problem'), fork, 'the fork is marked');

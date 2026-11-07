@@ -793,3 +793,171 @@ element to find the lines declared in it (2.85 s of 3.3 s at 2,500 elements).
 - The export takes 57 s at 10,000 elements. Step 8 doesn't name it, but the lookups that would make the checks fast
   (owner to children, element to typing, owner to declared lines) would make `declaredIn` fast too.
 - `docs/REPO_MAP.md` still shows the old single file.
+
+## Session 9, November 7, 2026: step 8, Scale work
+
+Step 8 is done. The four scale tests pass and their todo marks are gone: at 5,000 elements in 3 views a keystroke in the
+name field takes about 5.5 ms and a drag move about 6 ms; at 10,000 elements the checks take about 25 ms and the model
+saves to the store as 49 parts within its limits, which a second page reads back as the same model. Every fixture still
+exports its pinned text. Two large tracks that touch no page code were each done by an agent in its own git worktree, as
+the plan allows (the library's lookups; the store's layout), and merged here after the page's own work; their reports
+and their scratch tools are in the session's scratchpad. 20 commits and 2 merges, each with every test passing; the
+last takes the todo marks off and adds these notes.
+
+### Where things are now
+
+The model records its own changes (`core/page/changes.js`):
+
+- Every object and array in the model is a `Proxy` of itself, whose target is the plain object, holding the same Proxies
+  as its children. Reads go straight to the target (no get trap); the set, deleteProperty and defineProperty traps note
+  each write before making it: for an object, each key and what it held first (`{ had, old }`); for an array, a copy of
+  its items. `track(value, home)` makes a value part of the model, and `homes` says where each object sits (the model,
+  a list, an item of a list, inside an item, a view's layout, a place in it), which is how the notes name what a
+  change touched.
+- `edit()` keeps one change's notes, `touchedBy(notes)` gives `{ elements, relationships, views }` in model order (null
+  when every key holds what it held), and an undo step keeps its notes, merged across a run (`absorb`), not a copy of
+  the model. `restore(notes)` is Undo. A run back where it started is no step, as before. A change that puts a whole
+  model in place of the old one (Import state) keeps the old one as `notes.replaced`, and its touched still comes from
+  comparing the two (`capture`, `difference`, kept for this).
+- A write made while no change is open goes into `stray`, reported at the next change or Undo with the same words as
+  before ("The model was changed outside edit(): …").
+- `howToDraw(notes)` tells `render` what the change needs: `{ views, patch, structure, shown }`: a change that only
+  wrote places and views' x and y (patch), one that also put places in layouts or took them out (shown), or any other
+  (views null); structure says it changed which elements, lines and views there are, their order, ids, kinds, owners or
+  ends.
+- An object a change makes and puts into the model becomes its Proxy there, while the change's own variable stays the
+  plain object: code that looks for it again by identity reads it back from the model. The graph renderer's `place`
+  returns `S.model.elements[last]`, and the behavior view's refusal finds the node it took back by id (it used
+  `indexOf`, which worked by luck).
+- Reads through the Proxies cost about 2.5 times a plain object's in V8, and `JSON.stringify` about 3 times
+  (measured in Node on the 5,000-element model: a full scan 2.4 ms against 0.8 ms).
+
+What is drawn (`render.js`, `layout.js`, `drawing.js`, `camera.js`; `src/README.md`, "Drawing"):
+
+- Each view draws only what the window shows, with a margin of half the window on each side, at least 240 units
+  (`S.region`); `applyCamera` draws again once the window leaves it, or the zoom crosses 25% (`covered`). Below 25% a
+  graph view draws boxes as outlines (a shape's `radius`, a number or a function of the element), border items as
+  squares, and lines without labels. The frames' own pieces are always drawn (`data-chrome`).
+- `computeLayout(previous, plan)` lays out again only the views a change can have altered: for a move, the views it
+  touched, keeping their lines (`L.rels`, `L.drawn`, `L.byEnd`) and every box's compartments; for showing or hiding,
+  the views it touched; for anything else every view, unless its renderer's `keeps(view, L, plan, ids)` says the layout
+  still holds (the graph's: no box the change touched has other compartments now, and none shows a compartment that
+  reads beyond its element, `own: false`). A change that left the structure as it was keeps the element index, which
+  is the lookups' own (`idsOf`). `where.get(id)` is worked out per call from the views' `shown` and `drawn`.
+- A renderer may `patch(view, g, before, L, region, moving)` what it drew. The graph renderer's `patchMoves` draws again
+  the boxes and border items whose rect changed, the lines on them and the border items at those lines' ends, and the
+  frame's pieces; its `patchContent` compares each drawn group's `sign` (what its drawing is made from: the element's
+  fields, rect, compartments, name line, and a border item's glyph and name place; a line's fields, points, label) and
+  draws again those that differ. Anything coming on screen, going, or changing order makes the view draw again whole.
+- The browser's rows and a grid's rows and a matrix's columns are drawn as they come on screen. The sequence and geometry
+  views draw their whole content while their frame is on screen, and are drawn again whole after a change.
+- The stage's size is read once and kept (`stageSize`), refreshed on resize and at each gesture's start, so a drag move
+  doesn't make the browser lay the page out.
+- The page keeps `M.lookups(S.model)` from one drawing to the next and makes it again only after a change to the
+  structure (`reading`, `forget` in `render.js`); a line by id comes from it too (`lineById`).
+
+When the checks run: once the changes pause, as the save does (`S.checkTimer`, `check()` in `render.js`); at once when
+the model is a new one (the page starting, a model from elsewhere, Undo, an import); and at once when something needs
+them (`checkNow()`: the export panel, the HUD's button). A view whose renderer draws the problems (`problems: true`, the
+grid) is drawn again when they change.
+
+The library's lookups (the agent's track; `src/README.md`, "Lookups"): `lookups(model)` holds maps of the model's
+structure, each made on its first use; `reading(model, fn, look)` makes every helper asked about that model object
+answer from them, and `perReading` keeps what depends on names for one reading. `validate`, `toSysML`, `descendants`
+and `browserRows` read in a reading. New helpers on `SysMLModel`: `lookups`, `reading`, `idsOf`, `elementsOfKind`,
+`linesOfKind`, `linesFrom`, `linesTo`, `linesAt`, `inheritedFeature`. `nameTakenBeside`'s fourth argument is now
+`{ before, kind }`. A look must be made again after an element, line or view is added, removed or replaced, an id, kind,
+owner or end changes, or a list is reordered; the model must not change while a reading runs (the sequence view's order
+renumbering stays inside its change, outside any reading).
+
+The store's layout 2 (the agent's track; `canvas/README.md`, "On the published page"; `src/README.md`, "The store"):
+
+- `core/lib/stored.js`: `STORE` (the paths, the store's limits, the 192 KiB cap on a part), `splitModel`, `storeHead`,
+  `storedKey`, `assembleModel`, `readStore`, `measureBody`. The head, `model/current`, is `{ layout: 2, baseRevision,
+  format, revision, package, elements, relationships, views (each list's record count), parts: [ids], changes, updated }`;
+  each part, `model/current/parts/<id>`, is `{ records: [...] }`, cut where a record's identity hashes to a boundary (or
+  before 192 KiB), and named by a 64-bit hash of what it holds. A view's record keeps its `layout` key holding the count
+  of the `[id, place]` entries after it, so the model comes back JSON for JSON.
+- `core/page/store.js`: a save writes the parts the store hasn't got, three at a time, then the head, then deletes the
+  parts no head names; it listens to the head, the parts and `model/working`; a model in `model/working` with the file's
+  revision (an older page's store, or one Claude hands over whole) is taken through `normalize`, and so `M.upgrade`,
+  saved in layout 2, and deleted; a head in a newer layout turns the page read-only and is never written over; a part a
+  shown head names that disappears is written again (`repair`). A record too large for a part is named in the status
+  and not sent.
+- `refused()` says what went wrong by the store's code and the store's own words; the page turns read-only only for
+  revoked or not_granted, or invalid_argument while the platform hasn't said whether the viewer may write
+  (`can('data.write')` null), as `db.d.ts` advises. `attempt()` retries an unavailable call once and a busy one twice,
+  and a busy save is tried again from 2 s to 30 s.
+- `export.mjs` and `save-state.mjs` take a dump of the store's documents by path as well as a state file (what Claude
+  writes from what it reads); `check.sh` passes it through.
+
+What a user can notice:
+
+- The problems show once the changes pause (0.8 s), not at each keystroke; the export panel and the problems button
+  check at once.
+- Zoomed out below 25%, the graph views draw outlines without words, glyphs or labels.
+- Large models stay quick to type in, drag in and import, and keep saving past the 900 elements where saving stopped.
+- A refused save says what went wrong and leaves the page editable, unless the store says this viewer may not write.
+- The store holds the model as `model/current` and its parts; `model/working` still takes a whole model handed over live
+  (small models: a document is at most 256 KiB), and older stores open and move to layout 2 by themselves.
+
+### The measured times
+
+This container, quiet, on the generated models, the way the tests take them (medians; the keystroke and the drag move
+are opening / joining an undo step). Before is session 8's table.
+
+| What | Before | After |
+|---|---|---|
+| Keystroke at 5,000 elements | 1,691 / 1,692 ms | 5.8 / 5.4 ms |
+| Drag move at 5,000 elements | 1,759 / 1,725 ms | 5.9 / 5.8 ms (the frame 1.1–1.5 ms; it was 111–118 ms) |
+| Keystroke at 10,000 elements | 5,196 / 4,865 ms | 8.9 / 8.7 ms |
+| Drag move at 10,000 elements | 5,271 / 5,048 ms | 12.5 / 8.0 ms |
+| Checks at 10,000 elements, in the page | 1,835 ms | 22.5 ms (the scale test's own samples: 27 ms) |
+| Checks at 10,000, on the page's own model after the pause | (in every render) | about 37 ms |
+| Export at 10,000 elements, Node | 57 s (47.9 s on a quiet machine) | 0.14 s |
+| Import at 5,000 / 10,000 elements | 4.3 s / 13 s | 0.4 s / 0.7 s |
+| Save at 10,000 elements | one 2,974 KiB document, refused | 49 parts, 2,994 KiB in all, the largest 192 KiB, a head of 1.3 KiB, written in 118 ms (fake store); about 30 ms of the page's time to split |
+| A rename's save at 10,000 elements | the whole model | 1 part of 107 KiB and the head, 1 old part deleted |
+
+### How it was checked
+
+- Tests: 175 of 175 pass, none todo. The documented command exits 0, three runs in a row in about 70 s each; the
+  one-process run (`node --test canvas/test/`) passes too. New: `visible.test.mjs` (6: what the window shows, the far
+  drawing, a browser's and a grid's rows, a drag that patches in place and leaves what drawing everything again draws
+  after each move and drop, a rename that draws again only the definition and the part it types, with a letter typed
+  and taken back, a doc, and the checks after the pause and at the export), `lookups.test.mjs` (5), `stored.test.mjs`
+  (10), `store-dump.test.mjs` (3), `store-layout.test.mjs` (8: an old store upgraded, a refused save by quota and by
+  invalid_argument, busy, unknown permission, a doc too large, a model written over, a lost part written again, a newer
+  layout).
+- Mutations: taking out the patch's lines, its frame, or the border items at a line's ends fails the drag test; leaving
+  the name line out of a sign fails the rename test; a redraw that doesn't keep the new sign (a real bug, found by the
+  code-links test, fixed) fails the typed-and-taken-back test. The lookups agent put 12 faults into the lookups one at a
+  time, and each fails `lookups.test.mjs`.
+- Equivalence of the lookups: a differential tester ran the library from the start of the session beside the new one,
+  over the fixtures, `state.json`, scale models from 31 to 10,000 elements and 480 mutated models per seed with many
+  problems (three seeds): 15 million helper answers each time, and `normalize`, `validate` and `toSysML` byte for byte,
+  with no difference.
+- Exports: the saved model prints SHA-256 `9825ca06…`, every fixture its pinned `.sysml`, and `canvas/check.sh` accepts
+  the saved model and all nine fixtures with the three warnings session 1 recorded. A dump of a page's store holding a
+  300-element model exports the same text as its state file, and `check.sh` accepts it.
+- Tests changed, assertions kept: `lookAt` finds the element through the layout (an element off screen isn't drawn);
+  eight problem assertions in `behavior-actions`, `interconnection` and `naming` first wait for the checks
+  (`checked` in `helpers.mjs`), since they run once the changes pause, which also keeps "nothing is wrong" from passing
+  before the checks have run; `shared.test.mjs` and `loop.test.mjs` read the store's model through the new helper
+  `storedModel` (Claude's live `model/working` test is unchanged); `fake-store.test.mjs` counts the page's 5
+  subscriptions (the refusal comes at the 60th it makes, not the 62nd). The four scale tests lost their todo marks only.
+
+### For the next session
+
+- Step 9: make the repository the tool's own. Ask Damon for the new name; the format's name (`stronghold-canvas/2`)
+  and the store and camera keys carry Stronghold too.
+- The store's layout needs trying on the published page before it is relied on: the first save of 10,000 elements is
+  49 writes, three at a time, and `db.d.ts` gives no numbers for the call rate or concurrent writes. Two pages editing
+  one store at once are only last-writer-wins plus `repair`.
+- A save splits the whole model each time (about 30 ms at 10,000 elements, after the pause); the notes `edit()` keeps say
+  which records a change touched, which would make it incremental. The checks after the pause take about 37 ms there.
+- A drag at 10,000 elements lays its view out again (about 3,000 boxes); laying out only what moved would halve it.
+- The sequence and geometry views are drawn again whole after each change, and the grid's matrix still makes a cell per
+  pair; all three are small today.
+- Agents' worktrees live under `.claude/worktrees`, which is in this clone's `.git/info/exclude`, not in `.gitignore`.
+- The licensing of `metamodel.js` is still open (session 7). `docs/REPO_MAP.md` still shows the old single file.

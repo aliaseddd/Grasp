@@ -2156,7 +2156,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       },
       // One definition per usage: the first typing of a usage stands, and every later one is the problem.
       check: function (model, rel, ids, add) {
-        const first = model.relationships.find((r) => r.kind === 'FeatureTyping' && r.from === rel.from && ids.has(r.to));
+        const first = linesFrom(model, rel.from, 'FeatureTyping').find((r) => ids.has(r.to));
         if (first !== rel) add(rel.id, describe(model, ids.get(rel.from), ids) + ' is defined by more than one definition.');
       },
       owner: function () { return null; },
@@ -2181,8 +2181,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       check: function (model, rel, ids, add) {
         const cname = rel.name.trim();
         if (!cname) return;
-        const before = model.relationships.slice(0, model.relationships.indexOf(rel));
-        if (nameTakenBeside(model, rel, ids, before.filter((r) => r.kind === 'ConnectionUsage'))) add(rel.id, 'The connection ' + cname + ' is named like something else beside it. Rename one.');
+        if (nameTakenBeside(model, rel, ids, { before: true, kind: 'ConnectionUsage' })) add(rel.id, 'The connection ' + cname + ' is named like something else beside it. Rename one.');
       },
       owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
       line: { route: 'straight', marker: null, cls: 'connection', label: function (rel) { return rel.name.trim(); } },
@@ -2231,7 +2230,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const FIELDS = {
     name: attributeField('declaredName', { label: 'name' }),
     abstract: attributeField('isAbstract', { label: 'abstract' }),
-    type: { type: 'ref', label: 'definition', stored: false, options: function (model, item) { return model.elements.filter((e) => e.kind === KINDS[item.kind].definedBy); } },
+    type: { type: 'ref', label: 'definition', stored: false, options: function (model, item) { return elementsOfKind(model, KINDS[item.kind].definedBy); } },
     typeLine: { type: 'bool', label: 'defined-by line', stored: false },
     multiplicity: { type: 'string', label: 'multiplicity', trim: true },
     conjugated: { type: 'bool', label: 'conjugated' },
@@ -2241,7 +2240,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // core row has yet, so the select offers nothing until a slice brings it). No core kind lists them, so the panel
     // shows neither until a slice's kind does.
     direction: attributeField('direction', { label: 'direction' }),
-    item: { type: 'ref', label: 'item', options: function (model) { return model.elements.filter((e) => e.kind === 'ItemDefinition'); } },
+    item: { type: 'ref', label: 'item', options: function (model) { return elementsOfKind(model, 'ItemDefinition'); } },
   };
 
   const SIDES = ['top', 'right', 'bottom', 'left'];
@@ -2501,7 +2500,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!m.views.length) {
       const view = { id: freeViewId(), kind: 'GeneralView', name: '', doc: '', x: 0, y: 0, layout: {}, options: {} };
       carried.forEach((c, eid) => { const el = ids.get(eid); if (el) view.layout[eid] = placement(el, c.place); });
-      gridPlace(m, view);
+      // gridPlace asks for each box's children, and the elements are all in by now.
+      reading(m, () => gridPlace(m, view));
       m.views.push(view);
     }
     // A border item is shown only where its owner is.
@@ -2517,12 +2517,184 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function index(model) { return new Map(model.elements.map((e) => [e.id, e])); }
   function relIndex(model) { return new Map(model.relationships.map((r) => [r.id, r])); }
   function viewIndex(model) { return new Map(model.views.map((v) => [v.id, v])); }
-  // The ids of the views that show an element.
-  function shownIn(model, id) { return model.views.filter((v) => !!v.layout[id]).map((v) => v.id); }
+
+  // ---- Lookups. The helpers below find what they are asked about a model (the elements an element owns, a usage's
+  // typing, the lines at an element…) by looking through the model's lists, a pass over the model for each answer.
+  // While a reading of the model is in progress (reading), they answer from its lookups instead, in a step or in as
+  // many steps as the answer is long, with the same answers in the same order: model order where the scan gives model
+  // order, the first match where it finds one, and a new list where it gives a new list. validate and toSysML read the
+  // whole model that way. A check or a writer asks these helpers what it needs; it doesn't look through the model's
+  // lists for each element itself, and what no helper answers yet becomes a lookup here.
+
+  // A model's lookups: what the helpers would otherwise look through its lists for. Each map is made on its first use,
+  // in one pass, from the model as it is then. A look reads the model's structure only: which elements, relationships
+  // and views there are and in what order, and of each its id, its kind, and its owner or its two ends. So it stays
+  // right while names, fields and places change, and is made again once the structure changes (an element, line or
+  // view added, removed or replaced, an owner or an end changed, a list reordered). What an answer needs beyond the
+  // structure, a name say, is worked out once per reading (perReading). A look never changes the model and keeps
+  // nothing on its objects; it holds the objects themselves, as the model's lists hold them. The lists it answers with
+  // are its own, so the helpers copy one before handing it out.
+  const NONE = Object.freeze([]);
+  function lookups(model) {
+    const maps = new Map();
+    const made = (key, make) => {
+      let map = maps.get(key);
+      if (!map) { map = make(); maps.set(key, map); }
+      return map;
+    };
+    const push = (map, key, item) => {
+      const list = map.get(key);
+      if (list) list.push(item); else map.set(key, [item]);
+    };
+    // The items of a list by their ids, the last of any that share an id (as index has them).
+    const byId = (list) => { const map = new Map(); for (const item of list) map.set(item.id, item); return map; };
+    // The items of a list in lists by key(item), in the list's order; by kind first when kinds is set.
+    const grouped = (list, key, kinds) => {
+      const map = new Map();
+      for (const item of list) {
+        let into = map;
+        if (kinds) {
+          into = map.get(item.kind);
+          if (!into) { into = new Map(); map.set(item.kind, into); }
+        }
+        push(into, key(item), item);
+      }
+      return map;
+    };
+    // The list under key: a map matches a key as === does, but NaN, which === matches with nothing.
+    const under = (map, key) => (key === key && map && map.get(key)) || NONE;
+    const lines = (name, key, id, kind) => (kind === undefined
+      ? under(made(name, () => grouped(model.relationships, key)), id)
+      : under(kind === kind && made(name + 'Kind', () => grouped(model.relationships, key, true)).get(kind), id));
+    return {
+      model: model,
+      // The elements, the relationships and the views by id.
+      ids: () => made('ids', () => byId(model.elements)),
+      rels: () => made('rels', () => byId(model.relationships)),
+      views: () => made('views', () => byId(model.views)),
+      // The elements an element owns (childrenOf: null or undefined for the top of the package), and the elements whose
+      // owner is the value given, whatever it is (undefined for the top).
+      children: (id) => under(made('owned', () => grouped(model.elements, (e) => e.owner)), id === null ? undefined : id),
+      owned: (owner) => under(made('owned', () => grouped(model.elements, (e) => e.owner)), owner),
+      // The elements of a kind, and the relationships of a kind.
+      ofKind: (kind) => under(made('ofKind', () => grouped(model.elements, (e) => e.kind)), kind),
+      linesOfKind: (kind) => under(made('linesOfKind', () => grouped(model.relationships, (r) => r.kind)), kind),
+      // The relationships from an element, and to one, of one kind when one is given.
+      from: (id, kind) => lines('from', (r) => r.from, id, kind),
+      to: (id, kind) => lines('to', (r) => r.to, id, kind),
+      // The relationships from or to an element, each once.
+      at: (id) => under(made('at', () => {
+        const map = new Map();
+        for (const r of model.relationships) {
+          push(map, r.from, r);
+          if (r.to !== r.from) push(map, r.to, r);
+        }
+        return map;
+      }), id),
+      // Where a relationship first stands in the model's list, or -1 (indexOf).
+      position: (rel) => {
+        const map = made('position', () => {
+          const first = new Map();
+          model.relationships.forEach((r, i) => { if (!first.has(r)) first.set(r, i); });
+          return first;
+        });
+        return map.has(rel) ? map.get(rel) : -1;
+      },
+    };
+  }
+
+  // The readings in progress, the innermost last: each { model, look, memo }.
+  const readings = [];
+  function readingOf(model) {
+    for (let i = readings.length - 1; i >= 0; i -= 1) if (readings[i].model === model) return readings[i];
+    return null;
+  }
+  // Runs fn and returns what it returns. While it runs, every helper asked about this model (this very object, as the
+  // helpers are given it) answers from look, the model's lookups (lookups(model) when none is given), and what an
+  // answer needs beyond them is worked out once for the reading. The model must not change while fn runs: nothing
+  // would notice, and the answers would be the model's as it was. A reading of the same model inside fn goes on in
+  // this one. A reading of another model opens its own beside this one, which still answers for its own model; each
+  // reading ends when its fn does, however it does, a throw included, and the readings around it go on. fn runs at
+  // once, so work that waits for a promise goes on outside the reading.
+  function reading(model, fn, look) {
+    if (readingOf(model)) return fn();
+    if (look && look.model !== model) throw new Error('These lookups were made for another model.');
+    readings.push({ model: model, look: look || lookups(model), memo: new Map() });
+    try {
+      return fn();
+    } finally {
+      readings.pop();
+    }
+  }
+  // The lookups of the reading of a model in progress, or null.
+  function lookOf(model) {
+    const r = readingOf(model);
+    return r ? r.look : null;
+  }
+  // What make() returns, worked out once per reading of the model and kept under key until the reading ends: what a
+  // helper needs beyond the lookups (the names beside each owner, say), which may change between readings. Outside a
+  // reading, null: the caller looks through the model itself.
+  function perReading(model, key, make) {
+    const r = readingOf(model);
+    if (!r) return null;
+    if (!r.memo.has(key)) r.memo.set(key, make());
+    return r.memo.get(key);
+  }
+  // The elements by id, for reading: during a reading the look's own map, which the caller must not change; else a new
+  // index.
+  function idsOf(model) {
+    const look = lookOf(model);
+    return look ? look.ids() : index(model);
+  }
+  // The elements of a kind, and the relationships of a kind, in model order, as a new list.
+  function elementsOfKind(model, kind) {
+    const look = lookOf(model);
+    return look ? look.ofKind(kind).slice() : model.elements.filter((e) => e.kind === kind);
+  }
+  function linesOfKind(model, kind) {
+    const look = lookOf(model);
+    return look ? look.linesOfKind(kind).slice() : model.relationships.filter((r) => r.kind === kind);
+  }
+  // The relationships that start at an element (linesFrom) and that end at one (linesTo), of one kind when a kind is
+  // given, and those that do either (linesAt), in model order, as a new list.
+  function linesFrom(model, id, kind) {
+    const look = lookOf(model);
+    return look ? look.from(id, kind).slice() : model.relationships.filter((r) => r.from === id && (kind === undefined || r.kind === kind));
+  }
+  function linesTo(model, id, kind) {
+    const look = lookOf(model);
+    return look ? look.to(id, kind).slice() : model.relationships.filter((r) => r.to === id && (kind === undefined || r.kind === kind));
+  }
+  function linesAt(model, id) {
+    const look = lookOf(model);
+    return look ? look.at(id).slice() : model.relationships.filter((r) => r.from === id || r.to === id);
+  }
+
+  // The ids of the views that show an element. During a reading, from the ids each view's layout holds, worked out
+  // once; an id a layout could also find among the properties every object has (constructor, say) is looked for in
+  // each view, as outside a reading.
+  function shownIn(model, id) {
+    const shown = perReading(model, 'shownIn', () => {
+      const views = new Map();
+      const inherited = new Set();
+      model.views.forEach((v) => {
+        const layout = v.layout;
+        Object.getOwnPropertyNames(layout).forEach((key) => {
+          if (!layout[key]) return;
+          const list = views.get(key);
+          if (list) list.push(v.id); else views.set(key, [v.id]);
+        });
+        for (let p = Object.getPrototypeOf(layout); p; p = Object.getPrototypeOf(p)) Object.getOwnPropertyNames(p).forEach((key) => inherited.add(key));
+      });
+      return { views: views, inherited: inherited };
+    });
+    if (shown && typeof id === 'string' && !shown.inherited.has(id)) return (shown.views.get(id) || NONE).slice();
+    return model.views.filter((v) => !!v.layout[id]).map((v) => v.id);
+  }
 
   // The element and its owners, outermost first.
   function chain(model, el, ids) {
-    ids = ids || index(model);
+    ids = ids || idsOf(model);
     const out = [];
     const guard = new Set();
     let cur = el;
@@ -2534,20 +2706,29 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return out;
   }
   function childrenOf(model, id) {
+    const look = lookOf(model);
+    if (look) return look.children(id).slice();
     return model.elements.filter((e) => (id === null || id === undefined ? e.owner === undefined : e.owner === id));
   }
+  // Everything inside an element (null: the package), depth first. The walk asks for the children of each element it
+  // finds, so it runs in a reading of the model.
   function descendants(model, id) {
-    const out = [];
-    const walk = (parent) => childrenOf(model, parent).forEach((c) => { out.push(c); walk(c.id); });
-    walk(id);
-    return out;
+    return reading(model, () => {
+      const out = [];
+      const walk = (parent) => childrenOf(model, parent).forEach((c) => { out.push(c); walk(c.id); });
+      walk(id);
+      return out;
+    });
   }
   function typingOf(model, el) {
+    const look = lookOf(model);
+    if (look) return look.from(el.id, 'FeatureTyping')[0] || null;
     return model.relationships.find((r) => r.kind === 'FeatureTyping' && r.from === el.id) || null;
   }
   function inUsage(model, el, ids) { return chain(model, el, ids).some((e) => e.kind === 'PartUsage'); }
   // Whether sub specializes general, directly or through others.
   function specializes(model, sub, general) {
+    const look = lookOf(model);
     const seen = new Set();
     const stack = [sub.id];
     while (stack.length) {
@@ -2555,14 +2736,14 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (id === general.id) return true;
       if (seen.has(id)) continue;
       seen.add(id);
-      model.relationships.filter((r) => r.kind === 'Specialization' && r.from === id).forEach((r) => stack.push(r.to));
+      (look ? look.from(id, 'Specialization') : model.relationships.filter((r) => r.kind === 'Specialization' && r.from === id)).forEach((r) => stack.push(r.to));
     }
     return false;
   }
 
   // The owner a connection is declared in: the innermost element that holds both ends, or null for the package.
   function commonOwner(model, a, b, ids) {
-    ids = ids || index(model);
+    ids = ids || idsOf(model);
     const ca = chain(model, a, ids).slice(0, -1).map((e) => e.id);
     const cb = new Set(chain(model, b, ids).slice(0, -1).map((e) => e.id));
     let found = null;
@@ -2580,13 +2761,60 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   // Whether a named relationship's name is taken beside it: by an element declared right in the body the relationship
   // is written in (the package when its owner is null), or by another named relationship written there, among those
-  // given. Each kind's check says which it looks at (the ones before it, or every other one), so which line is marked
-  // when two clash still depends on the kinds and their order.
+  // among says: the ones before it in the model's list when among.before is set, of the kind among.kind when that is
+  // set, else every one. Each kind's check says which it looks at (the ones before it, or every other one), so which
+  // line is marked when two clash still depends on the kinds and their order. During a reading, the names beside each
+  // owner, and the lines of each name beside each owner, are worked out once.
   function nameTakenBeside(model, rel, ids, among) {
     const name = str(rel.name).trim();
-    const o = RELATIONSHIPS[rel.kind].owner(model, rel, ids) || '';
-    return model.elements.some((e) => textName(e) === name && (e.owner === undefined ? '' : e.owner) === o) ||
-      among.some((r) => r !== rel && str(r.name).trim() === name && ids.has(r.from) && ids.has(r.to) && (RELATIONSHIPS[r.kind].owner(model, r, ids) || '') === o);
+    const ownerOf = (r) => RELATIONSHIPS[r.kind].owner(model, r, ids) || '';
+    const o = ownerOf(rel);
+    const list = model.relationships;
+    const look = lookOf(model);
+    const names = look && perReading(model, 'namesBeside', () => {
+      const map = new Map();
+      for (const e of model.elements) {
+        const key = e.owner === undefined ? '' : e.owner;
+        if (!map.has(key)) map.set(key, new Set());
+        map.get(key).add(textName(e));
+      }
+      return map;
+    });
+    if (names ? names.has(o) && names.get(o).has(name) : model.elements.some((e) => textName(e) === name && (e.owner === undefined ? '' : e.owner) === o)) return true;
+    if (!look || ids !== look.ids()) {
+      const pool = (among.before ? list.slice(0, list.indexOf(rel)) : list).filter((r) => !among.kind || r.kind === among.kind);
+      return pool.some((r) => r !== rel && str(r.name).trim() === name && ids.has(r.from) && ids.has(r.to) && ownerOf(r) === o);
+    }
+    // The places in the list of the lines of each name, then, the first time a name is asked about, of those with both
+    // ends among ids by the owner they are written in.
+    const lines = perReading(model, 'linesBeside', () => {
+      const byName = new Map();
+      list.forEach((r, i) => {
+        const key = str(r.name).trim();
+        if (!byName.has(key)) byName.set(key, []);
+        byName.get(key).push(i);
+      });
+      return { byName: byName, beside: new Map() };
+    });
+    if (!lines.beside.has(name)) {
+      const byOwner = new Map();
+      (lines.byName.get(name) || NONE).forEach((i) => {
+        const r = list[i];
+        if (!ids.has(r.from) || !ids.has(r.to)) return;
+        const key = ownerOf(r);
+        if (!byOwner.has(key)) byOwner.set(key, []);
+        byOwner.get(key).push(i);
+      });
+      lines.beside.set(name, byOwner);
+    }
+    // Before rel is before the first place it has, or before the last place when it has none (slice(0, -1)).
+    const at = among.before ? look.position(rel) : -1;
+    const end = !among.before ? list.length : at >= 0 ? at : list.length - 1;
+    for (const i of lines.beside.get(name).get(o) || NONE) {
+      if (i >= end) break;
+      if (list[i] !== rel && (!among.kind || list[i].kind === among.kind)) return true;
+    }
+    return false;
   }
 
   function isName(s) { return NAME.test(s) && !KEYWORDS.has(s); }
@@ -2632,13 +2860,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // An element in a sentence: its kind's label, its name (or "(unnamed)"), and the owner it is in. An element with no
   // name in the text is just its label: "start in a1".
   function describe(model, el, ids) {
-    ids = ids || index(model);
+    ids = ids || idsOf(model);
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
     const name = textName(el);
     return KINDS[el.kind].label + (name === null ? '' : ' ' + shown(name)) + (owner ? ' in ' + shown(textName(owner)) : '');
   }
   function describeRel(model, rel, ids) {
-    ids = ids || index(model);
+    ids = ids || idsOf(model);
     const a = ids.get(rel.from);
     const b = ids.get(rel.to);
     // An end with no name in the text is said by its kind (describe), not as "(unnamed)".
@@ -2651,30 +2879,35 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   function describeView(model, view) { return 'view ' + shown(view.name); }
   function labelFor(model, targetId) {
-    const el = index(model).get(targetId);
+    const look = lookOf(model);
+    const el = (look ? look.ids() : index(model)).get(targetId);
     if (el) return describe(model, el);
-    const rel = relIndex(model).get(targetId);
+    const rel = (look ? look.rels() : relIndex(model)).get(targetId);
     if (rel) return describeRel(model, rel);
-    const view = viewIndex(model).get(targetId);
+    const view = (look ? look.views() : viewIndex(model)).get(targetId);
     return view ? describeView(model, view) : '';
   }
 
   // The features a type gets from elsewhere, by name: those of what it is defined by and of what it specializes,
   // all the way up, and, for a usage that redefines a feature of its owner's type, those of that feature. An element
-  // with no name in the text (a start node, which the page names start1 for itself) has no name to inherit.
+  // with no name in the text (a start node, which the page names start1 for itself) has no name to inherit. During a
+  // reading, with the look's own ids (or none given), a type's are worked out once for the reading, and each call
+  // gets a copy.
   function inheritedFeatures(model, type, ids, seen) {
-    ids = ids || index(model);
+    const r = readingOf(model);
+    ids = ids || (r ? r.look.ids() : index(model));
+    if (r && !seen && ids === r.look.ids()) return new Map(inheritedOnce(r, model, type, ids));
     seen = seen || new Set();
     const out = new Map();
     const take = (t) => {
       if (!t || seen.has(t.id)) return;
       seen.add(t.id);
-      childrenOf(model, t.id).forEach((c) => { const name = textName(c); if (name && !out.has(name)) out.set(name, c); });
+      (r ? r.look.children(t.id) : childrenOf(model, t.id)).forEach((c) => { const name = textName(c); if (name && !out.has(name)) out.set(name, c); });
       inheritedFeatures(model, t, ids, seen).forEach((c, name) => { if (!out.has(name)) out.set(name, c); });
     };
     const typing = typingOf(model, type);
     if (typing) take(ids.get(typing.to));
-    model.relationships.filter((r) => r.kind === 'Specialization' && r.from === type.id).forEach((r) => take(ids.get(r.to)));
+    (r ? r.look.from(type.id, 'Specialization') : model.relationships.filter((x) => x.kind === 'Specialization' && x.from === type.id)).forEach((x) => take(ids.get(x.to)));
     const typeName = textName(type);
     if (!typing && type.owner !== undefined && typeName) {
       const owner = ids.get(type.owner);
@@ -2682,6 +2915,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (redefined && redefined.kind === type.kind) take(redefined);
     }
     return out;
+  }
+  // A type's inherited features in a reading of its model, worked out the first time they are asked for: the model
+  // doesn't change while the reading lasts, and the look's ids are the model's, so they are the same every time.
+  function inheritedOnce(r, model, type, ids) {
+    if (!r.memo.has('inherited')) r.memo.set('inherited', new Map());
+    const memo = r.memo.get('inherited');
+    if (!memo.has(type)) memo.set(type, inheritedFeatures(model, type, ids, new Set()));
+    return memo.get(type);
+  }
+  // The feature of a name that a type inherits, or undefined: inheritedFeatures(model, type, ids).get(name), without
+  // the copy during a reading.
+  function inheritedFeature(model, type, name, ids) {
+    const r = readingOf(model);
+    ids = ids || (r ? r.look.ids() : index(model));
+    return (r && ids === r.look.ids() ? inheritedOnce(r, model, type, ids) : inheritedFeatures(model, type, ids)).get(name);
   }
   const MAX_BOUND = 2147483647;
   function boundsOk(mult) {
@@ -2720,9 +2968,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
     VERSION, FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, NAME, MULTIPLICITY, str, isObject,
     addKinds, addRelationships, attributeField,
     canContain, admits, hasTrait, textName, blank, placement, versionOf, upgrade, normalize, index, relIndex, viewIndex,
+    lookups, reading, perReading, idsOf, elementsOfKind, linesOfKind, linesFrom, linesTo, linesAt,
     shownIn, chain, childrenOf, descendants, typingOf, inUsage, specializes, commonOwner, acrossDefinitions,
     nameTakenBeside, isName, quote, shown, qualified, featurePath, nameable, an, definable, describe, describeRel,
-    describeView, labelFor, inheritedFeatures, boundsOk, RESERVED_NAMES, EXTRA, BODY, commentLines
+    describeView, labelFor, inheritedFeatures, inheritedFeature, boundsOk, RESERVED_NAMES, EXTRA, BODY, commentLines
   });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 // ==== src/interconnection/lib.js
@@ -2732,9 +2981,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, index, childrenOf, typingOf,
-    specializes, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel,
-    inheritedFeatures, EXTRA
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, idsOf, elementsOfKind,
+    childrenOf, typingOf, specializes, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an,
+    describe, describeRel, inheritedFeature, EXTRA
   } = lib;
 
   addKinds({
@@ -2863,7 +3112,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   });
   Object.assign(FIELDS, {
     // The interface def an interface is typed by.
-    interfaceDef: { type: 'ref', label: 'interface def', options: function (model) { return model.elements.filter((e) => e.kind === 'InterfaceDefinition'); } },
+    interfaceDef: { type: 'ref', label: 'interface def', options: function (model) { return elementsOfKind(model, 'InterfaceDefinition'); } },
   });
 
   // Interconnection: items live in part defs, parts and port defs; a port is an interface's, a flow's and a binding's
@@ -2908,7 +3157,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const typing = typingOf(model, cur);
       if (typing && ids.has(typing.to)) return { def: ids.get(typing.to), conjugated: cur.conjugated === true };
       const owner = cur.owner !== undefined ? ids.get(cur.owner) : null;
-      const inherited = owner && textName(cur) ? inheritedFeatures(model, owner, ids).get(textName(cur)) : null;
+      const inherited = owner && textName(cur) ? inheritedFeature(model, owner, textName(cur), ids) : null;
       cur = inherited && inherited.kind === el.kind ? inherited : null;
     }
     return null;
@@ -2928,7 +3177,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // The glyph a port shows: in when every directed item of its def comes in, out when every one goes out, inout when
   // they mix or any goes both ways, null when there are none.
   function portWay(model, port) {
-    const ways = new Set(portItems(model, port, index(model)).map((x) => x.direction));
+    const ways = new Set(portItems(model, port, idsOf(model)).map((x) => x.direction));
     if (!ways.size) return null;
     return ways.size === 1 && !ways.has('inout') ? ways.values().next().value : 'inout';
   }
@@ -2950,7 +3199,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // checks an interface, a flow or a binding against everything beside it.
   function connectorNameClash(model, rel, ids, add) {
     const cname = rel.name.trim();
-    if (cname && nameTakenBeside(model, rel, ids, model.relationships)) add(rel.id, 'The ' + RELATIONSHIPS[rel.kind].label + ' ' + cname + ' is named like something else beside it. Rename one.');
+    if (cname && nameTakenBeside(model, rel, ids, {})) add(rel.id, 'The ' + RELATIONSHIPS[rel.kind].label + ' ' + cname + ' is named like something else beside it. Rename one.');
   }
   // The end of a flow as the text names it (which is 'from' or 'to'): for a port, the directed item of its port def
   // that is of the flow's item and goes out of the source or into the target, through the port's conjugation; for
@@ -3063,8 +3312,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const lib = root.SysMLModelLib;
   const {
     KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, NAME, MULTIPLICITY, addKinds, addRelationships, attributeField, str,
-    hasTrait, textName, childrenOf, typingOf, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath,
-    an, describe, describeRel, EXTRA, BODY, commentLines
+    hasTrait, textName, perReading, elementsOfKind, linesFrom, linesTo, linesAt, childrenOf, typingOf, commonOwner,
+    acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel, EXTRA, BODY, commentLines
   } = lib;
 
   addKinds({
@@ -3153,10 +3402,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     'subperformances timeEnclosedOccurrences suboccurrences portionOfLife localClock predecessors successors').split(' '));
   // The relationships of one kind that lead into and out of an element.
   function behaviorLinksOf(model, id, kind) {
-    return {
-      into: model.relationships.filter((r) => r.kind === kind && r.to === id),
-      outOf: model.relationships.filter((r) => r.kind === kind && r.from === id)
-    };
+    return { into: linesTo(model, id, kind), outOf: linesFrom(model, id, kind) };
   }
   function parametersOf(model, id) { return childrenOf(model, id).filter((e) => e.kind === 'ParameterUsage'); }
   function entryActionOf(model, stateId) { return childrenOf(model, stateId).find((e) => e.kind === 'ActionUsage' && e.role === 'entry') || null; }
@@ -3167,8 +3413,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return def && def.kind === KINDS[el.kind].definedBy ? def : null;
   }
   // Whether a target names a port of the model, by its last segment: a send goes via a port and to anything else.
+  // During a reading, the ports' names, plain and quoted, are gathered once.
   function namesAPort(model, target) {
     const last = String(target).split('.').pop().trim();
+    const names = perReading(model, 'behavior:portNames', () => {
+      const set = new Set();
+      elementsOfKind(model, 'PortUsage').forEach((e) => { set.add(textName(e)); set.add(quote(textName(e))); });
+      return set;
+    });
+    if (names) return names.has(last);
     return model.elements.some((e) => e.kind === 'PortUsage' && (textName(e) === last || quote(textName(e)) === last));
   }
   // The type a trigger or an accept payload names, as the text reads it: the whole text, or what follows the colon of
@@ -3182,9 +3435,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (colon >= 0) s = s.slice(colon + 1).trim();
     return NAME.test(s) ? s : null;
   }
+  // During a reading, the definitions' names are gathered once.
   function checkNamedType(model, id, text, what, add) {
     const type = namedType(text);
-    if (type && !model.elements.some((e) => KINDS[e.kind].definition && textName(e) === type)) {
+    const definitions = type && perReading(model, 'behavior:definitionNames', () => new Set(model.elements.filter((e) => KINDS[e.kind].definition).map(textName)));
+    if (type && !(definitions ? definitions.has(type) : model.elements.some((e) => KINDS[e.kind].definition && textName(e) === type))) {
       add(id, what + ' names ' + type + ', which is no definition in the model, so the text can\'t resolve it. Name a part def or item def, as x : Type, or write after …, when … or at ….');
     }
   }
@@ -3225,7 +3480,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     let text = (p.direction ? p.direction + ' ' : '') + 'item' + (textName(p) ? ' ' + quote(textName(p)) : '');
     if (typing && ids.get(typing.to)) text += ' : ' + quote(textName(ids.get(typing.to)));
     if (p.multiplicity && MULTIPLICITY.test(p.multiplicity)) text += ' [' + p.multiplicity + ']';
-    const generals = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === p.id && ids.get(r.to)).map((r) => quote(textName(ids.get(r.to))));
+    const generals = linesFrom(model, p.id, 'Specialization').filter((r) => ids.get(r.to)).map((r) => quote(textName(ids.get(r.to))));
     if (generals.length) text += ' :> ' + generals.join(', ');
     return text;
   }
@@ -3289,7 +3544,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
     if (!el.direction) add(el.id, what + ' needs a direction: in, out or inout.');
     const name = textName(el);
-    if (name === '' && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) add(el.id, what + ' has no name. Name it, so flows and bindings can reach it.');
+    if (name === '' && !linesAt(model, el.id).length) add(el.id, what + ' has no name. Name it, so flows and bindings can reach it.');
     if (owner && owner.kind === 'ActionUsage' && name) {
       const def = typingDefinitionOf(model, owner, ids);
       const inherited = def ? parametersOf(model, def.id).find((p) => textName(p) === name) : null;
@@ -3403,8 +3658,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const name = str(rel.name).trim();
     if (!name) return;
     const o = RELATIONSHIPS[rel.kind].owner(model, rel, ids);
-    const before = model.relationships.slice(0, model.relationships.indexOf(rel));
-    if (nameTakenBeside(model, rel, ids, before)) add(rel.id, 'The ' + describeRel(model, rel, ids) + ' is named like something else beside it. Rename one.');
+    if (nameTakenBeside(model, rel, ids, { before: true })) add(rel.id, 'The ' + describeRel(model, rel, ids) + ' is named like something else beside it. Rename one.');
     if (o !== null && INHERITED_BEHAVIOR_NAMES.has(name)) add(rel.id, 'The name ' + name + ' is one every action and state already has inside it. Rename the ' + describeRel(model, rel, ids) + '.');
   }
   // Both ends of a succession or transition are written in one body: the innermost element holding both, or the
@@ -3551,8 +3805,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, commonOwner, acrossDefinitions,
-    nameTakenBeside, quote, shown, featurePath, describe, describeRel, EXTRA, BODY, declare
+    KINDS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, perReading, linesOfKind, linesAt,
+    childrenOf, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, describe, describeRel, EXTRA,
+    BODY, declare
   } = lib;
 
   addKinds({
@@ -3569,7 +3824,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       // The core says so once something refers to it; an event nothing refers to yet still needs its name, since a
       // message can only start or end on it by name.
       check: function (model, el, ids, add) {
-        if (textName(el) === '' && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) {
+        if (textName(el) === '' && !linesAt(model, el.id).length) {
           const owner = el.owner !== undefined ? ids.get(el.owner) : null;
           add(el.id, 'An event' + (owner ? ' in ' + shown(textName(owner)) : '') + ' has no name. Name it, so a message can start or end on it.');
         }
@@ -3595,7 +3850,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       // another named line declared there. The payload, when there is one, is an item def.
       check: function (model, rel, ids, add) {
         const mname = rel.name.trim();
-        if (mname && nameTakenBeside(model, rel, ids, model.relationships)) add(rel.id, 'The message ' + mname + ' is named like something else beside it. Rename one.');
+        if (mname && nameTakenBeside(model, rel, ids, {})) add(rel.id, 'The message ' + mname + ' is named like something else beside it. Rename one.');
         if (rel.item && ids.has(rel.item) && ids.get(rel.item).kind !== 'ItemDefinition') {
           add(rel.id, 'The ' + describeRel(model, rel, ids) + ' carries ' + describe(model, ids.get(rel.item), ids) + ', which is not an item def.');
         }
@@ -3635,20 +3890,37 @@ textarea.text[readonly] { resize: none; background: transparent; }
   KINDS.PartUsage.contains.push('EventOccurrenceUsage');
   KINDS.PartUsage.traits.push('lifeline', 'occurrence');
   // Sequence: the time order. The messages in order: those with a numeric order first, by it, then the rest as the
-  // model has them, so a new message, with no order yet, lands last.
+  // model has them, so a new message, with no order yet, lands last. During a reading they are put in order once.
   function messagesInOrder(model) {
+    const ordered = perReading(model, 'sequence:messages', () => inTimeOrder(linesOfKind(model, 'Message')));
+    return ordered ? ordered.slice() : inTimeOrder(model.relationships.filter((r) => r.kind === 'Message'));
+  }
+  // Messages, given in model order, in time order.
+  function inTimeOrder(messages) {
     const numbered = (r) => (typeof r.order === 'number' ? 0 : 1);
-    return model.relationships.map((r, i) => ({ r: r, i: i })).filter((x) => x.r.kind === 'Message')
+    return messages.map((r, i) => ({ r: r, i: i }))
       .sort((a, b) => (numbered(a.r) - numbered(b.r)) || (numbered(a.r) === 0 ? a.r.order - b.r.order : 0) || (a.i - b.i))
       .map((x) => x.r);
   }
   // A lifeline's events in time order: an event a message starts or ends on takes its place from the first such
   // message's place in time, so the chain always agrees with the rows a sequence view draws; the others keep their
-  // places among their siblings in model.elements, which the sequence view's place and drop set by height.
+  // places among their siblings in model.elements, which the sequence view's place and drop set by height. During a
+  // reading, the first message at each element is found once.
   function eventOrder(model, ownerId) {
-    const events = model.elements.filter((e) => e.kind === 'EventOccurrenceUsage' && e.owner === ownerId);
-    const messages = messagesInOrder(model);
-    const keyOf = (e) => { const i = messages.findIndex((m) => m.from === e.id || m.to === e.id); return i < 0 ? null : i; };
+    // childrenOf takes null for the top of the package; here it is an owner like any other.
+    const events = (ownerId === null ? model.elements.filter((e) => e.owner === null) : childrenOf(model, ownerId)).filter((e) => e.kind === 'EventOccurrenceUsage');
+    const first = perReading(model, 'sequence:firstMessage', () => {
+      const at = new Map();
+      messagesInOrder(model).forEach((m, i) => {
+        if (!at.has(m.from)) at.set(m.from, i);
+        if (!at.has(m.to)) at.set(m.to, i);
+      });
+      return at;
+    });
+    const messages = first ? null : messagesInOrder(model);
+    const keyOf = first
+      ? (e) => (e.id === e.id && first.has(e.id) ? first.get(e.id) : null)
+      : (e) => { const i = messages.findIndex((m) => m.from === e.id || m.to === e.id); return i < 0 ? null : i; };
     const keyed = events.map((e, i) => ({ e: e, i: i, key: keyOf(e) })).filter((x) => x.key !== null);
     const slots = keyed.map((x) => x.i);
     keyed.sort((a, b) => (a.key - b.key) || (a.i - b.i));
@@ -3673,7 +3945,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, VIEW_KINDS, FIELDS, hasTrait, textName, chain, quote, describe, inheritedFeatures, EXTRA, BODY
+    KINDS, VIEW_KINDS, FIELDS, hasTrait, textName, perReading, linesFrom, chain, quote, describe, inheritedFeature, EXTRA,
+    BODY
   } = lib;
 
   Object.assign(VIEW_KINDS, {
@@ -3741,8 +4014,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const seen = new Set([el.id]);
     const walk = (e) => {
       const owner = e.owner !== undefined ? ids.get(e.owner) : null;
-      const inherited = owner && textName(e) ? inheritedFeatures(model, owner, ids).get(textName(e)) : null;
-      const next = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === e.id).map((r) => ids.get(r.to));
+      const inherited = owner && textName(e) ? inheritedFeature(model, owner, textName(e), ids) : null;
+      const next = linesFrom(model, e.id, 'Specialization').map((r) => ids.get(r.to));
       if (inherited && inherited.kind === e.kind) next.push(inherited);
       next.forEach((g) => { if (g && !seen.has(g.id)) { seen.add(g.id); out.push(g); walk(g); } });
     };
@@ -3770,16 +4043,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // text breaks. The text sits in the body of the element drawn to scale, where a name resolves through the members
   // of that body, of each owner's body on the way up (inherited ones included) and of the package; a port named in
   // on a part beside the spatial one is out of its sight (the pilot resolves ['in'] to the unit there), and an
-  // element with no name in the text (a start node, whatever name the page keeps in it) shadows nothing.
+  // element with no name in the text (a start node, whatever name the page keeps in it) shadows nothing. During a
+  // reading, the elements that have spatial text are found once.
   function geoNameCheck(model, el, ids, add) {
     const name = textName(el);
-    if (!name || !GEO_LIBRARY_NAMES.has(name) || !model.elements.some((x) => geoExported(x) && geoSees(model, x, el, ids))) return;
+    if (!name || !GEO_LIBRARY_NAMES.has(name)) return;
+    const spatial = perReading(model, 'geometry:exported', () => model.elements.filter(geoExported)) || model.elements;
+    if (!spatial.some((x) => geoExported(x) && geoSees(model, x, el, ids))) return;
     add(el.id, 'The name ' + name + ' is one the geometry text brings in from the library, so the text would mix them up. Rename ' + describe(model, el, ids) + '.');
   }
   // Whether the geometry text of x sees el by name: el is at the top of the package, or right inside x or one of its
   // owners, or a feature x or one of its owners inherits.
   function geoSees(model, x, el, ids) {
-    return el.owner === undefined || chain(model, x, ids).some((a) => a.id === el.owner || inheritedFeatures(model, a, ids).get(textName(el)) === el);
+    return el.owner === undefined || chain(model, x, ids).some((a) => a.id === el.owner || inheritedFeature(model, a, textName(el), ids) === el);
   }
   // The spatial statements of a usage's body: its shape with the dimensions it sets, then its position as a translation
   // of its coordinate frame, with the imports they need (validated: critique/g01, g02, g08b, g10, g11; the units, a
@@ -3885,8 +4161,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    RELATIONSHIPS, VIEW_KINDS, textName, index, chain, childrenOf, quote, qualified, nameable, describe, describeView,
-    EXTRA
+    RELATIONSHIPS, VIEW_KINDS, textName, reading, idsOf, chain, childrenOf, quote, qualified, nameable, describe,
+    describeView, EXTRA
   } = lib;
 
   Object.assign(VIEW_KINDS, {
@@ -3921,7 +4197,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // elements its roots option names that are in the model, in model order, leaving out one that sits inside another
   // root, since that root's subtree shows it already. A roots option that isn't a list counts as the whole package.
   function browserRoots(model, view, ids) {
-    ids = ids || index(model);
+    ids = ids || idsOf(model);
     const want = view.options && Array.isArray(view.options.roots) ? view.options.roots : null;
     if (want === null) return null;
     const set = new Set(want.filter((id) => typeof id === 'string' && ids.has(id)));
@@ -3931,9 +4207,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // what it owns under it, unless the view folds it (its id in options.collapsed), then the relationships declared in
   // it. The package's relationships, and those declared above a root, come last. A relationship is a row only when
   // both of its ends are rows, so what is drawn in the view is what pins and badges can find. Each row is
-  // { type: 'el' | 'rel', id, item, depth, kids (whether anything is inside it), folded }.
+  // { type: 'el' | 'rel', id, item, depth, kids (whether anything is inside it), folded }. The walk asks for the
+  // children of each element, so it runs in a reading of the model.
   function browserRows(model, view, ids) {
-    ids = ids || index(model);
+    return reading(model, () => treeRows(model, view, ids || idsOf(model)));
+  }
+  function treeRows(model, view, ids) {
     const roots = browserRoots(model, view, ids);
     const folded = new Set(view.options && Array.isArray(view.options.collapsed) ? view.options.collapsed : []);
     const nodes = new Map(); // element id → its node, for the elements that are rows
@@ -4073,15 +4352,18 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, index, childrenOf, shown, an, describe, inheritedFeatures,
-    boundsOk, RESERVED_NAMES
+    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, reading, idsOf, childrenOf, shown, an, describe,
+    inheritedFeature, boundsOk, RESERVED_NAMES
   } = lib;
 
   // What keeps the model from being correct SysML. Each problem names the element, relationship, or view it is about
-  // (null: the package).
+  // (null: the package). The checks run in a reading of the model, so the helpers they ask answer from its lookups.
   function validate(model) {
+    return reading(model, () => problemsOf(model));
+  }
+  function problemsOf(model) {
     const problems = [];
-    const ids = index(model);
+    const ids = idsOf(model);
     const add = (id, message) => problems.push({ id, message });
     const siblings = new Map();
     const definitionNames = new Set(model.elements.filter((e) => KINDS[e.kind].definition).map(textName).filter(Boolean));
@@ -4115,7 +4397,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         if (kind.usage && definitionNames.has(name)) add(el.id, describe(model, el, ids) + ' is named like a definition, so the text would mix them up. Rename one.');
         if (name === pkgName) add(el.id, describe(model, el, ids) + ' is named like the package, so the text would mix them up. Rename one.');
         if (RESERVED_NAMES.has(name)) add(el.id, 'The name ' + name + ' belongs to the standard library. Rename ' + describe(model, el, ids) + '.');
-        const inherited = owner ? inheritedFeatures(model, owner, ids).get(name) : null;
+        const inherited = owner ? inheritedFeature(model, owner, name, ids) : null;
         if (inherited && inherited.kind !== el.kind) {
           add(el.id, describe(model, el, ids) + ' is named like the ' + KINDS[inherited.kind].label + ' ' + name + ' that ' + shown(textName(owner)) + ' inherits. Rename it.');
         }
@@ -4155,15 +4437,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, normalize, index, relIndex, childrenOf, typingOf,
-    commonOwner, quote, shown, qualified, featurePath, nameable, describe, describeRel, inheritedFeatures, BODY,
-    noteRecords, noteStatements, commentLines
+    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, normalize, relIndex, reading, idsOf, linesFrom,
+    childrenOf, typingOf, commonOwner, quote, shown, qualified, featurePath, nameable, describe, describeRel,
+    inheritedFeature, BODY, noteRecords, noteStatements, commentLines
   } = lib;
 
   // The notes and the archived notes are written together, at the end of the package (noteRecords, noteStatements).
+  // The text is written in a reading of the model, so the helpers the writers ask answer from its lookups.
   function toSysML(model, notes, archive) {
     model = normalize(model);
-    const ids = index(model);
+    return reading(model, () => textOf(model, notes, archive));
+  }
+  function textOf(model, notes, archive) {
+    const ids = idsOf(model);
     const rels = relIndex(model);
     const noteList = noteRecords(notes, archive);
     const out = [];
@@ -4171,15 +4457,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const line = (depth, text) => out.push('    '.repeat(depth) + text);
     const comment = (depth, head, text) => commentLines(depth, head, text).forEach((l) => out.push(l));
     const noteText = (n) => n.text + (n.response.trim() ? '\nClaude: ' + n.response.trim() : '');
-    // The relationships written as statements in an element's body (null: the package's), by each kind's own rule.
-    const declaredIn = (ownerId) => model.relationships.filter((r) => RELATIONSHIPS[r.kind].toSysML && RELATIONSHIPS[r.kind].owner(model, r, ids) === ownerId);
+    const listsBy = (list, key) => {
+      const map = new Map();
+      list.forEach((item) => { const k = key(item); if (map.has(k)) map.get(k).push(item); else map.set(k, [item]); });
+      return map;
+    };
+    // The relationships written as statements in an element's body (null: the package's), by each kind's own rule,
+    // each kind's owner asked once for each relationship; and the notes on each element or relationship.
+    const declared = listsBy(model.relationships.filter((r) => RELATIONSHIPS[r.kind].toSysML), (r) => RELATIONSHIPS[r.kind].owner(model, r, ids));
+    const declaredIn = (ownerId) => (declared.get(ownerId) || []).slice();
+    const notesBy = listsBy(noteList, (n) => n.target);
     // What the hooks may use (a kind's head and body, a relationship kind's toSysML): line(depth, text) and
     // comment(depth, head, text) write out; needImport(qualifiedName) asks for a private import at the top of the
     // package; headOf(el) is the generated head of an element; the rest are the library's functions with the model
     // and its index filled in.
     const helpers = {
       ids: ids, line: line, comment: comment, noteText: noteText, quote: quote, featurePath: featurePath, shown: shown,
-      notesOn: (id) => noteList.filter((n) => n.target === id),
+      notesOn: (id) => (notesBy.get(id) || []).slice(),
       // A note in its standard forms (noteStatements), written at depth through this object's own line, so a hook's
       // lines land where its other lines do; about null writes it inside the body it is in. Asks for the import.
       note: function (depth, n, about, text) { noteStatements(n, about, text).forEach((s) => this.line(depth, s)); imports.add('ModelingMetadata::*'); },
@@ -4198,7 +4492,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const kind = KINDS[el.kind];
       const owner = el.owner !== undefined ? ids.get(el.owner) : null;
       const name = textName(el);
-      const inherited = owner && name ? inheritedFeatures(model, owner, ids).get(name) : null;
+      const inherited = owner && name ? inheritedFeature(model, owner, name, ids) : null;
       const redefines = !!inherited && inherited.kind === el.kind;
       // A usage may go unnamed ("part : Host;"); a definition can't, so an unnamed one is written as unnamed.
       const written = name ? quote(name) : (kind.definition ? quote('unnamed') : '');
@@ -4208,8 +4502,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         if (typing) head += ' : ' + (el.conjugated ? '~' : '') + quote(textName(ids.get(typing.to)));
         if (el.multiplicity && MULTIPLICITY.test(el.multiplicity)) head += ' [' + el.multiplicity + ']';
       }
-      const general = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === el.id)
-        .map((r) => quote(textName(ids.get(r.to))));
+      const general = linesFrom(model, el.id, 'Specialization').map((r) => quote(textName(ids.get(r.to))));
       if (general.length) head += ' :> ' + general.join(', ');
       return head;
     }
@@ -4329,6 +4622,349 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   Object.assign(lib, { toSysML });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/core/lib/stored.js
+// The model as the page's store keeps it on the published page: layout 2. The store takes documents of at most
+// 256 KiB serialized and 32 levels deep, and at most 25,000 of them, so a large model can't be one document. It is
+// kept as a head and its parts:
+//
+//   - model/current, the head: the store's own fields (layout, baseRevision, parts, changes, updated) and the model's
+//     own fields in the model's key order (format, revision, package), each of its three lists given as the number
+//     of records it has in the parts. parts is the ids of the parts, in order.
+//   - model/current/parts/<id>, one document per part, { records: [...] }. The model's content is one sequence of
+//     records: each element in model order, each relationship in model order, then for each view in model order the
+//     view with the number of its layout's entries in place of its layout, followed by those entries, each [the id of
+//     an element or a line, its place], in the layout's own key order. The sequence is cut into parts after each
+//     record whose identity (its id, or its view's id and its own) hashes to a boundary, and before a record that
+//     would take a part past 192 KiB, so an insertion or a removal changes the part it falls in, and perhaps one
+//     beside it, and not every part after it. A part's id is a hash of what it holds: a part that didn't change keeps
+//     its id, and the store keeps it as it is.
+//
+// model/working holds a whole model handed over from elsewhere, { baseRevision, model, changes, updated } (layout 1, as
+// older pages kept the model, and as Claude may write one): the page takes it, saves it in layout 2, and deletes it.
+// splitModel and storeHead make the documents, assembleModel makes the model of them again, JSON for JSON, and
+// readStore reads the model from a dump of the store's documents the way the page does, for export.mjs and
+// save-state.mjs.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const { isObject } = lib;
+
+  // The layout the page writes, its documents' paths, and the store's limits (db.d.ts): a document of at most 256 KiB
+  // serialized, counted in UTF-8 bytes, and 32 levels deep. A part holds at most 192 KiB, well inside them. A record
+  // ends a part when its identity's hash is a multiple of every, one record in every on average, which makes the
+  // parts of the scale models about 64 KiB.
+  const STORE = Object.freeze({
+    layout: 2,
+    working: 'model/working', head: 'model/current', parts: 'model/current/parts', notes: 'notes', archive: 'archive',
+    documentBytes: 256 * 1024, depth: 32, partBytes: 192 * 1024, every: 640,
+  });
+  const LISTS = ['elements', 'relationships', 'views'];
+  // The head's fields that are the store's, not the model's.
+  const OWN = ['layout', 'baseRevision', 'parts', 'changes', 'updated'];
+  // A part's body around its records: {"records":[]}.
+  const EMPTY = 14;
+
+  // How many bytes a text takes in UTF-8, the way the store counts a document's size.
+  function utf8Bytes(text) {
+    if (!/[^\x00-\x7f]/.test(text)) return text.length;
+    let bytes = 0;
+    for (let i = 0; i < text.length; i++) {
+      const c = text.charCodeAt(i);
+      if (c < 0x80) bytes += 1;
+      else if (c < 0x800) bytes += 2;
+      else if (c >= 0xd800 && c < 0xdc00 && (text.charCodeAt(i + 1) & 0xfc00) === 0xdc00) { bytes += 4; i += 1; }
+      else bytes += 3;
+    }
+    return bytes;
+  }
+  // How many levels a JSON text nests, the way the store counts them: an object or a list is one level more than the
+  // deepest value in it. The most brackets open at once outside the text's strings.
+  function depthOf(text) {
+    let open = 0;
+    let most = 0;
+    let quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text.charCodeAt(i);
+      if (quoted) {
+        if (c === 92) i += 1;               // a backslash: the next character is escaped
+        else if (c === 34) quoted = false;  // the closing quote
+      } else if (c === 34) quoted = true;
+      else if (c === 123 || c === 91) { open += 1; if (open > most) most = open; }
+      else if (c === 125 || c === 93) open -= 1;
+    }
+    return most;
+  }
+  // How many objects and lists a JSON text opens at most: its { and [, those in its strings too. A text can't nest
+  // deeper than that, so a record that opens few needs no closer look (depthOf reads every character).
+  function opens(text) {
+    let n = 0;
+    for (let i = text.indexOf('{'); i >= 0; i = text.indexOf('{', i + 1)) n += 1;
+    for (let i = text.indexOf('['); i >= 0; i = text.indexOf('[', i + 1)) n += 1;
+    return n;
+  }
+  // A document body's size and depth, as the store measures them: { bytes, depth }.
+  function measureBody(body) {
+    const text = JSON.stringify(body);
+    return { bytes: utf8Bytes(text), depth: depthOf(text) };
+  }
+  // A hash of a text: two 32-bit lanes, each multiplying in every character, mixed into each other at the end. (imul is
+  // taken once: in Node the library runs in a context of its own, where every lookup of a global is slow.)
+  const imul = Math.imul;
+  function hash(text) {
+    let a = 0xdeadbeef;
+    let b = 0x41c6ce57;
+    for (let i = 0; i < text.length; i++) {
+      const c = text.charCodeAt(i);
+      a = imul(a ^ c, 2654435761);
+      b = imul(b ^ c, 1597334677);
+    }
+    a = imul(a ^ (a >>> 16), 2246822507) ^ imul(b ^ (b >>> 13), 3266489909);
+    b = imul(b ^ (b >>> 16), 2246822507) ^ imul(a ^ (a >>> 13), 3266489909);
+    return [a >>> 0, b >>> 0];
+  }
+  const hex = (n) => ('0000000' + n.toString(16)).slice(-8);
+  // A part's id: the 64-bit hash of its body's JSON, as 16 hex digits.
+  function partId(text) {
+    const h = hash(text);
+    return hex(h[1]) + hex(h[0]);
+  }
+  const copy = (value) => JSON.parse(JSON.stringify(value));
+  // The key of an object's member that takes the most room as JSON (why: 'bytes'), or nests the deepest (why: 'depth'),
+  // or null for anything but an object: what to shorten in a record or a head the store can't take.
+  function culprit(value, why) {
+    if (!isObject(value)) return null;
+    let found = null;
+    let most = -1;
+    Object.keys(value).forEach((key) => {
+      const text = JSON.stringify(value[key]);
+      const size = text === undefined ? 0 : why === 'depth' ? depthOf(text) : text.length;
+      if (size > most) { most = size; found = key; }
+    });
+    return found;
+  }
+  const kib = (bytes) => (bytes / 1024).toFixed(1).replace(/\.0$/, '');
+  // The error for something the store can't take, with its record saying which it is and why: { list (elements,
+  // relationships, views, layout for an entry of a view's layout, or head), id, view (an entry's), why (bytes: too
+  // large; depth: nested too deep), bytes, depth (of the document it would be in), limit, field (its member that takes
+  // the most room, what to shorten) }.
+  function refusal(what, value, why, bytes, depth) {
+    const limit = why === 'depth' ? STORE.depth : what.list === 'head' ? STORE.documentBytes : STORE.partBytes;
+    const record = { list: what.list, id: what.id === undefined ? null : what.id };
+    if (what.view !== undefined) record.view = what.view;
+    Object.assign(record, { why: why, bytes: bytes, depth: depth, limit: limit, field: culprit(value, why) });
+    const name = what.list === 'head' ? 'The head of the model' : 'The record of ' + what.list + ' ' + record.id + (record.view ? ' in view ' + record.view : '');
+    const error = new Error(name + (why === 'depth'
+      ? ' would nest ' + depth + ' levels deep, more than a document of the store holds (' + limit + ').'
+      : ' is ' + kib(bytes) + ' KiB, more than ' + (what.list === 'head' ? 'a document of the store' : 'a part') + ' holds (' + kib(limit) + ' KiB).'));
+    error.record = record;
+    return error;
+  }
+
+  // The model in layout 2: { fields, parts }. fields is what the head holds of the model: its own fields in its key
+  // order, each list as the number of records it has in the parts. parts is the parts in order, each { id, text,
+  // bytes, records }: text is the part's body as JSON, { records: [...] }, which JSON.parse makes the body to write;
+  // bytes its size in UTF-8; records how many it holds. The model is read, never kept or changed: what is returned is
+  // made of its JSON. A record that can't go into a part, too large for one or nested too deep for a document of the
+  // store, is refused with an error whose record says which it is and why (refusal).
+  function splitModel(model) {
+    if (!isObject(model)) throw new TypeError('A model to store is an object.');
+    const fields = {};
+    Object.keys(model).forEach((key) => {
+      if (OWN.indexOf(key) >= 0) throw new TypeError('A model to store has no field ' + key + ': the head of the model keeps that name for the store.');
+      if (LISTS.indexOf(key) >= 0) {
+        if (!Array.isArray(model[key])) throw new TypeError('A model to store keeps its ' + key + ' in a list.');
+        fields[key] = model[key].length;
+        return;
+      }
+      const text = JSON.stringify(model[key]);
+      if (text !== undefined) fields[key] = JSON.parse(text);
+    });
+    const parts = [];
+    let texts = [];
+    let bytes = EMPTY;
+    const close = () => {
+      if (!texts.length) return;
+      const text = '{"records":[' + texts.join(',') + ']}';
+      parts.push({ id: partId(text), text: text, bytes: bytes, records: texts.length });
+      texts = [];
+      bytes = EMPTY;
+    };
+    const add = (value, identity, what) => {
+      const text = JSON.stringify(value) || 'null';
+      const size = utf8Bytes(text);
+      // In its part, a record is two levels down ({ records: [ … ] }) and among at least {"records":[]}. Its depth is
+      // read only when it opens enough to nest too deep; otherwise what it opens is bound enough.
+      const most = opens(text);
+      const depth = (most + 2 > STORE.depth ? depthOf(text) : most) + 2;
+      if (EMPTY + size > STORE.partBytes) throw refusal(what, value, 'bytes', EMPTY + size, depth);
+      if (depth > STORE.depth) throw refusal(what, value, 'depth', EMPTY + size, depth);
+      if (texts.length && bytes + 1 + size > STORE.partBytes) close();
+      bytes += (texts.length ? 1 : 0) + size;
+      texts.push(text);
+      if (hash(identity)[0] % STORE.every === 0) close();
+    };
+    const idOf = (item) => (isObject(item) && typeof item.id === 'string' ? item.id : null);
+    ['elements', 'relationships'].forEach((list) => {
+      if (Array.isArray(model[list])) model[list].forEach((item, i) => add(item, String(idOf(item) || list + ' ' + i), { list: list, id: idOf(item) }));
+    });
+    if (Array.isArray(model.views)) {
+      model.views.forEach((view, i) => {
+        if (!isObject(view)) throw new TypeError('A model to store has views that are objects.');
+        const layout = view.layout;
+        if (layout !== undefined && !isObject(layout)) throw new TypeError('A view to store keeps its layout in an object.');
+        const id = idOf(view) || 'views ' + i;
+        const own = {};
+        Object.keys(view).forEach((key) => { own[key] = key === 'layout' && layout !== undefined ? Object.keys(layout).length : view[key]; });
+        add(own, id, { list: 'views', id: idOf(view) });
+        if (layout !== undefined) Object.keys(layout).forEach((key) => add([key, layout[key]], id + ' ' + key, { list: 'layout', id: key, view: idOf(view) }));
+      });
+    }
+    close();
+    return { fields: fields, parts: parts };
+  }
+
+  // The head for a model split by splitModel: { layout, baseRevision, the model's own fields, parts, changes,
+  // updated }. changes is the log of what was done that Claude reads, newest last: when the head would be more than a
+  // document of the store holds, its oldest entries are left out until it fits. A head that doesn't fit with no
+  // changes at all is refused as a record too large is, its record naming the model's field that takes the most room.
+  function storeHead(split, extra) {
+    extra = extra || {};
+    const head = { layout: STORE.layout, baseRevision: extra.baseRevision === undefined ? null : extra.baseRevision };
+    Object.keys(split.fields).forEach((key) => { head[key] = split.fields[key]; });
+    head.parts = split.parts.map((part) => part.id);
+    head.changes = [];
+    head.updated = extra.updated === undefined ? null : extra.updated;
+    const bare = measureBody(head);
+    if (bare.bytes > STORE.documentBytes || bare.depth > STORE.depth) {
+      const fields = {};
+      Object.keys(split.fields).forEach((key) => { if (LISTS.indexOf(key) < 0) fields[key] = split.fields[key]; });
+      throw refusal({ list: 'head' }, fields, bare.bytes > STORE.documentBytes ? 'bytes' : 'depth', bare.bytes, bare.depth);
+    }
+    const changes = Array.isArray(extra.changes) ? extra.changes : [];
+    let bytes = bare.bytes;
+    let kept = 0;
+    for (let i = changes.length - 1; i >= 0; i--) {
+      const text = JSON.stringify(changes[i]) || 'null';
+      const more = utf8Bytes(text) + (kept ? 1 : 0);
+      if (bytes + more > STORE.documentBytes || depthOf(text) + 2 > STORE.depth) break;
+      bytes += more;
+      kept += 1;
+    }
+    head.changes = copy(changes.slice(changes.length - kept));
+    return head;
+  }
+
+  // What model a head holds, as a text: its model's fields and its parts. Two heads with the same key hold the same
+  // model, since a part's id says what it holds; their changes and times may differ.
+  function storedKey(head) {
+    if (!isObject(head)) return null;
+    const own = {};
+    Object.keys(head).forEach((key) => { if (key === 'parts' || OWN.indexOf(key) < 0) own[key] = head[key]; });
+    return JSON.stringify(own);
+  }
+
+  // A count the head or a view's record gives: a whole number, 0 or more.
+  function count(value, what) {
+    if (!Number.isInteger(value) || value < 0) throw new Error('The head of the model gives ' + what + ' as ' + JSON.stringify(value) + ', which is no count of records.');
+    return value;
+  }
+  // The model a head and its parts hold, made again, JSON for JSON: the inverse of splitModel. partOf(id) gives the
+  // body of the part with that id, or nothing while there is none; until every part the head names is there, the model
+  // is null. The model shares nothing with the head or the bodies. A head and parts that don't fit together (more
+  // records than the head counts, or fewer, or a record where a view or a layout's entry should be) are an error.
+  function assembleModel(head, partOf) {
+    if (!isObject(head) || !Array.isArray(head.parts)) throw new Error('The head of the model names no parts.');
+    const records = [];
+    for (const id of head.parts) {
+      const body = partOf(id);
+      if (!isObject(body) || !Array.isArray(body.records)) return null;
+      for (let i = 0; i < body.records.length; i++) records.push(body.records[i]);
+    }
+    let at = 0;
+    const next = (what) => {
+      if (at >= records.length) throw new Error('The parts of the model hold fewer records than its head counts: ' + what + ' is missing.');
+      return records[at++];
+    };
+    const lists = {};
+    ['elements', 'relationships'].forEach((list) => {
+      if (head[list] === undefined) return;
+      const n = count(head[list], list);
+      lists[list] = [];
+      for (let i = 0; i < n; i++) lists[list].push(next('one of the ' + list));
+    });
+    if (head.views !== undefined) {
+      const n = count(head.views, 'views');
+      lists.views = [];
+      for (let i = 0; i < n; i++) {
+        const record = next('a view');
+        if (!isObject(record)) throw new Error('The parts of the model hold ' + JSON.stringify(record) + ' where a view should be.');
+        const view = {};
+        Object.keys(record).forEach((key) => {
+          if (key !== 'layout') { put(view, key, record[key]); return; }
+          const entries = count(record.layout, 'the layout of a view');
+          const layout = {};
+          for (let j = 0; j < entries; j++) {
+            const entry = next('an entry of the layout of view ' + record.id);
+            if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string') throw new Error('The parts of the model hold ' + JSON.stringify(entry) + ' where an entry of the layout of view ' + record.id + ' should be.');
+            put(layout, entry[0], entry[1]);
+          }
+          view.layout = layout;
+        });
+        lists.views.push(view);
+      }
+    }
+    if (at !== records.length) throw new Error('The parts of the model hold ' + (records.length - at) + ' records more than its head counts.');
+    const model = {};
+    Object.keys(head).forEach((key) => {
+      if (OWN.indexOf(key) < 0) put(model, key, LISTS.indexOf(key) >= 0 ? lists[key] : head[key]);
+    });
+    return copy(model);
+  }
+  // Sets an object's own member, even one named __proto__, which plain assignment would take for the prototype.
+  function put(object, key, value) {
+    Object.defineProperty(object, key, { value: value, enumerable: true, writable: true, configurable: true });
+  }
+
+  // What a dump of the page's store holds: its documents' bodies by path (what the tests' __store.dump() gives, and
+  // what Claude can write from what it reads). Returns { model, from, baseRevision, changes, notes, archive }: the
+  // model the page would take, made of the documents it was in; from, the path of the document it came from
+  // (model/working or model/current), null when the store holds no model; the notes and the archived notes of the
+  // collections notes and archive, each with its id, in the order of their numbers. The page takes a whole model in
+  // model/working before the one model/current holds, as new input, and only one based on the revision of the file it
+  // was published from: given that revision, a model based on it is taken before one that isn't. A head in a layout
+  // this library doesn't read is an error, and so is one whose parts the dump doesn't hold.
+  function readStore(dump, revision) {
+    if (!isObject(dump)) throw new TypeError('A dump of the store is an object of documents by path.');
+    const working = isObject(dump[STORE.working]) && isObject(dump[STORE.working].model) ? dump[STORE.working] : null;
+    const head = isObject(dump[STORE.head]) ? dump[STORE.head] : null;
+    const based = (body) => !!body && revision !== undefined && revision !== null && body.baseRevision === revision;
+    const pick = [based(working) && working, based(head) && head, working, head].find(Boolean) || null;
+    let model = null;
+    if (pick === working && working) model = copy(working.model);
+    else if (pick) {
+      if (pick.layout !== STORE.layout) {
+        throw new Error(STORE.head + ' is in layout ' + JSON.stringify(pick.layout) + (typeof pick.layout === 'number' && pick.layout > STORE.layout
+          ? ', which a newer version of the canvas wrote.' : ', which is no layout of the canvas.') + ' This one reads layout ' + STORE.layout + '.');
+      }
+      model = assembleModel(pick, (id) => dump[STORE.parts + '/' + id]);
+      if (!model) throw new Error(STORE.head + ' names a part the dump doesn\'t hold: ' + pick.parts.filter((id) => !isObject(dump[STORE.parts + '/' + id])).join(', ') + '.');
+    }
+    const collected = (collection) => Object.keys(dump)
+      .filter((path) => path.indexOf(collection + '/') === 0 && path.split('/').length === 2 && isObject(dump[path]))
+      .map((path) => Object.assign(copy(dump[path]), { id: path.slice(collection.length + 1) }))
+      .sort((a, b) => ((a.no || 0) - (b.no || 0)) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return {
+      model: model,
+      from: !pick ? null : pick === working ? STORE.working : STORE.head,
+      baseRevision: pick && pick.baseRevision !== undefined ? pick.baseRevision : null,
+      changes: pick && Array.isArray(pick.changes) ? copy(pick.changes) : [],
+      notes: collected(STORE.notes),
+      archive: collected(STORE.archive),
+    };
+  }
+
+  Object.assign(lib, { STORE, measureBody, splitModel, storeHead, storedKey, assembleModel, readStore });
+})(typeof globalThis !== 'undefined' ? globalThis : window);
 // ==== src/core/lib/api.js
 // The model library's last script: SysMLModel, what the page, export.mjs and save-state.mjs use, made of what the
 // scripts before it registered. SysMLModelLib is removed, so SysMLModel is all that stays.
@@ -4337,17 +4973,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const lib = root.SysMLModelLib;
   const {
     METAMODEL, VERSION, FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, canContain, admits,
-    hasTrait, textName, blank, placement, versionOf, upgrade, normalize, index, relIndex, viewIndex, shownIn, chain,
-    childrenOf, descendants, typingOf, inUsage, specializes, commonOwner, isName, quote, qualified, featurePath, an,
-    definable, describe, describeRel, describeView, labelFor, inheritedFeatures, EXTRA, validate, toSysML
+    hasTrait, textName, blank, placement, versionOf, upgrade, normalize, index, relIndex, viewIndex, lookups, reading,
+    idsOf, elementsOfKind, linesOfKind, linesFrom, linesTo, linesAt, shownIn, chain, childrenOf, descendants, typingOf,
+    inUsage, specializes, commonOwner, isName, quote, qualified, featurePath, an, definable, describe, describeRel,
+    describeView, labelFor, inheritedFeatures, inheritedFeature, EXTRA, validate, toSysML,
+    STORE, measureBody, splitModel, storeHead, storedKey, assembleModel, readStore
   } = lib;
 
   // The library, with what the slices put in EXTRA beside it.
   root.SysMLModel = Object.freeze(Object.assign({
     METAMODEL, VERSION, FORMAT, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, VIEW_DEF,
-    blank, versionOf, upgrade, normalize, validate, toSysML, placement, canContain, admits, hasTrait, textName, index, relIndex, viewIndex, shownIn, chain, childrenOf,
+    blank, versionOf, upgrade, normalize, validate, toSysML, placement, canContain, admits, hasTrait, textName, index, relIndex, viewIndex,
+    lookups, reading, idsOf, elementsOfKind, linesOfKind, linesFrom, linesTo, linesAt, shownIn, chain, childrenOf,
     descendants, typingOf, inUsage, specializes, commonOwner, featurePath, quote, qualified, describe, describeRel, describeView,
-    labelFor, isName, inheritedFeatures, an, definable,
+    labelFor, isName, inheritedFeatures, inheritedFeature, an, definable,
+    STORE, measureBody, splitModel, storeHead, storedKey, assembleModel, readStore,
   }, EXTRA));
   delete root.SysMLModelLib;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
@@ -4366,7 +5006,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const NS = 'http://www.w3.org/2000/svg';
   const STATE_KEY = 'stronghold-canvas:';          // + the revision of the saved model, when the page is opened as a file
   const CAMERA_KEY = 'stronghold-canvas-camera:v1';
-  const WORKING = 'model/working';                   // the shared store's document for the working model
+  // The shared store's documents for the model, in its layout 2 (the library's stored.js says what each holds): the
+  // head, the collection of the parts it names, and a whole model handed over from elsewhere, which the page takes,
+  // saves in layout 2 and deletes.
+  const CURRENT = M.STORE.head;                      // model/current
+  const PARTS = M.STORE.parts;                       // model/current/parts
+  const WORKING = M.STORE.working;                   // model/working
   const NOTES = 'notes';                             // the shared store's collection of notes
   const PAUSE = 800;                                 // how long a change waits before it is saved, in ms
   const MIN_ZOOM = 0.1;
@@ -4475,7 +5120,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const str = (v, d) => (typeof v === 'string' ? v : (d === undefined ? '' : d));
 
   Object.assign(C, {
-    M, NS, STATE_KEY, CAMERA_KEY, WORKING, NOTES, PAUSE, MIN_ZOOM, MAX_ZOOM, HEADER, HEAD_H, LEAD, PAD, CHILD_TOP,
+    M, NS, STATE_KEY, CAMERA_KEY, CURRENT, PARTS, WORKING, NOTES, PAUSE, MIN_ZOOM, MAX_ZOOM, HEADER, HEAD_H, LEAD, PAD, CHILD_TOP,
     PORT, MARGIN, MIN_FRAME, VIEW_GAP, HISTORY, NARROW, WHERE, TOOL_TITLE, TOOL_HINT, BASE_NAME, TOOLS, ACTIONS,
     VIEW_PANELS, FIELD_HOOKS, $, canvas, svg, hint, status, zoomLevel, hud, eyebrow, palette, panel, showPanel,
     inspectorEmpty, fields, fKind, fName, fPath, fViews, addNoteButton, removeFromViewButton, deleteButton, viewFields,
@@ -4612,9 +5257,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   // The layout of one graph view: rects in plane coordinates for the elements it shows, kids by their parent in
-  // the view ('' for the view's own ground), parentOf the other way round, comps the compartments of each box.
-  function graphLayout(view, ids) {
-    const order = new Map(S.model.elements.map((e, i) => [e.id, i]));
+  // the view ('' for the view's own ground), parentOf the other way round, comps the compartments of each box. order,
+  // when given, is each element's place in the model's list, which computeLayout makes once for every view; before,
+  // when given, is the view's layout before a change, whose compartments still hold for a box of the same width: for
+  // every box after a change that only moved things (touched not given), and else for a box the change didn't touch
+  // whose compartments read nothing but itself (touched, the ids of the elements it touched).
+  function graphLayout(view, ids, order, before, touched) {
+    order = order || new Map(S.model.elements.map((e, i) => [e.id, i]));
     const shown = new Set(Object.keys(view.layout).filter((id) => ids.has(id)));
     const kids = new Map();
     const parentOf = new Map();
@@ -4633,11 +5282,17 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const sizes = new Map();
     const rects = new Map();
     const comps = new Map();
+    const widths = new Map();     // the width each box's compartments were wrapped to
+    let foreign = false;          // whether a box shows a compartment that reads more than the box's element
     function size(el) {
       const lay = view.layout[el.id];
       const shape = C.SHAPES[M.KINDS[el.kind].shape] || C.SHAPES.rect;
-      const blocks = shape.compartments ? C.compartmentsOf(el, lay.w) : [];
+      if (shape.compartments && !C.ownCompartments(el)) foreign = true;
+      const same = before && before.widths && before.widths.get(el.id) === lay.w && (!touched || (!touched.has(el.id) && C.ownCompartments(el)));
+      const kept = same ? before.comps.get(el.id) : null;
+      const blocks = kept || (shape.compartments ? C.compartmentsOf(el, lay.w) : []);
       comps.set(el.id, blocks);
+      widths.set(el.id, lay.w);
       // A shape with compartments is at least its header high; one without (a small node) may be any height.
       let bottom = (shape.compartments ? HEADER : 0) + blocks.reduce((h, c) => h + HEAD_H + LEAD * c.lines.length + 6, 0);
       let right = 0;
@@ -4672,7 +5327,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
         x2: Math.max(box.x2, r.x + r.w), y2: Math.max(box.y2, r.y + r.h)
       } : { x: r.x, y: r.y, x2: r.x + r.w, y2: r.y + r.h };
     }
-    return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: comps, frameRect: frameAround(view, box) };
+    return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: comps, widths: widths, foreign: foreign, frameRect: frameAround(view, box) };
+  }
+  // Whether a graph view's layout L still holds after a change to what things are, not to which there are or where
+  // (render, keeps): the rest of a graph layout is made from the view's places and the model's structure, so it does
+  // when no box the change touched has other compartments now, and no box shows a compartment that reads beyond its
+  // own element.
+  function graphKeeps(view, L, plan, ids) {
+    if (L.foreign) return false;
+    for (const id of plan.touched) {
+      if (!L.shown.has(id)) continue;
+      const el = ids.get(id);
+      const lay = view.layout[id];
+      const shape = C.SHAPES[M.KINDS[el.kind].shape] || C.SHAPES.rect;
+      const now = shape.compartments ? C.compartmentsOf(el, lay.w) : [];
+      if (JSON.stringify(now) !== JSON.stringify(L.comps.get(id) || [])) return false;
+    }
+    return true;
   }
   // The frame around a view's content: its bounding box plus the margin, never smaller than the minimum. An empty
   // view's frame starts at the view's origin.
@@ -4684,27 +5355,74 @@ textarea.text[readonly] { resize: none; background: transparent; }
     fr.h = Math.max(fr.h, MIN_FRAME[1]);
     return fr;
   }
-  // Every view's layout, plus where: for each element and drawn line, the views it is drawn in; and bounds, the
-  // box around every frame.
-  function computeLayout() {
-    const ids = M.index(S.model);
+  // Every view's layout, plus where: for each element and drawn line, the views it is drawn in (where.get(id), a
+  // list of view ids, or undefined for none); and bounds, the box around every frame. Given the layout from before a
+  // change (previous) and what the change can have altered (plan, from render), it lays out again only what it must:
+  // plan.views, when given, are the views a change that showed, hid or moved things touched, and the others keep
+  // their layouts; plan.moving says it only moved things, so a view laid out again draws the same lines, and its
+  // renderer may keep what moves can't change. With no plan.views, every view is laid out again, unless its renderer
+  // says the change can't have altered its layout (keeps(view, L, plan)); a renderer laying a view out again is told
+  // what the change touched (plan.touched, the ids of the elements), to keep what that can't have changed. A change
+  // that left the model's structure as it was (plan.structure false: no element added, removed or moved in the list)
+  // keeps the element index, and one that touched no line and showed or hid nothing keeps each view's lines. With no
+  // previous layout, everything is laid out anew.
+  function computeLayout(previous, plan) {
+    const kept = !!previous && !!plan && (!!plan.views || !plan.structure);
+    // The element index the library's lookups hold, in a reading (render lays out in one), which the helpers then
+    // answer from at their quickest; a new one outside a reading.
+    const ids = kept ? previous.ids : M.idsOf(S.model);
+    const order = kept ? previous.order : new Map(S.model.elements.map((e, i) => [e.id, i]));
     const views = new Map();
-    const where = new Map();
-    const drawnIn = (id, viewId) => { if (!where.has(id)) where.set(id, []); where.get(id).push(viewId); };
     let b = null;
     for (const view of S.model.views) {
-      const L = rendererFor(view).layout(view, ids);
+      const was = previous ? previous.views.get(view.id) : null;
+      const same = !!was && was.view === view;
+      const r = rendererFor(view);
+      let L;
+      if (kept && same && plan.views && !plan.views.has(view.id)) L = was;
+      else if (kept && same && plan.views && plan.moving) L = sameLines(r.layout(view, ids, order, was), was);
+      else if (plan && same && !plan.views) {
+        const still = !plan.structure && !plan.shown;
+        // A layout that still holds after a change to lines still draws other lines (a line hidden, say).
+        if (still && r.keeps && r.keeps(view, was, plan, ids)) L = plan.lines.size ? drawnLines(Object.assign({}, was, { byEnd: undefined })) : was;
+        else {
+          L = r.layout(view, ids, order, was, plan.touched);
+          if (still && !plan.lines.size && L.shown.size === was.shown.size) sameLines(L, was);
+          else drawnLines(L);
+        }
+      } else L = drawnLines(r.layout(view, ids, order));
       views.set(view.id, L);
-      L.shown.forEach((id) => drawnIn(id, view.id));
-      // A line is drawn in the view when the renderer routed it itself (L.lines holds every line such a renderer
-      // draws), else, for a renderer that draws every line between the rects it has, when both ends are drawn there.
-      S.model.relationships.forEach((rel) => { if (!rel.hidden && (L.lines ? L.lines.has(rel.id) : (L.rects.has(rel.from) && L.rects.has(rel.to)))) drawnIn(rel.id, view.id); });
       const fr = L.frameRect;
       b = b ? { x: Math.min(b.x, fr.x), y: Math.min(b.y, fr.y), x2: Math.max(b.x2, fr.x + fr.w), y2: Math.max(b.y2, fr.y + fr.h) }
         : { x: fr.x, y: fr.y, x2: fr.x + fr.w, y2: fr.y + fr.h };
     }
     const bounds = b ? { x: b.x, y: b.y, w: b.x2 - b.x, h: b.y2 - b.y } : { x: -220, y: -140, w: 440, h: 280 };
-    return { ids: ids, views: views, where: where, bounds: bounds };
+    return { ids: ids, order: order, views: views, where: whereIn(views), bounds: bounds };
+  }
+  // A view laid out again draws the lines it drew before: a change that touched no line, and showed or hid nothing.
+  function sameLines(L, was) {
+    L.rels = was.rels;
+    L.drawn = was.drawn;
+    L.byEnd = was.byEnd;
+    return L;
+  }
+  // The lines a view layout draws, as L.rels (the relationships, in the model's order) and L.drawn (their ids): those
+  // the renderer routed itself, when it routes (L.lines holds every line such a renderer draws), else, for a renderer
+  // that draws every line between the rects it has, those with both ends drawn there; never a line that is hidden.
+  function drawnLines(L) {
+    L.rels = S.model.relationships.filter((rel) => !rel.hidden && (L.lines ? L.lines.has(rel.id) : (L.rects.has(rel.from) && L.rects.has(rel.to))));
+    L.drawn = new Set(L.rels.map((rel) => rel.id));
+    return L;
+  }
+  // Which views draw an element or a line, asked of the views' layouts one id at a time.
+  function whereIn(views) {
+    return {
+      get: function (id) {
+        const out = [];
+        views.forEach((L, viewId) => { if (L.shown.has(id) || L.drawn.has(id)) out.push(viewId); });
+        return out.length ? out : undefined;
+      }
+    };
   }
 
   function center(r) { return r.port ? { x: r.cx, y: r.cy } : { x: r.x + r.w / 2, y: r.y + r.h / 2 }; }
@@ -4776,8 +5494,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // The innermost box under point p in view layout L that can hold an element of kind (any box that holds things
   // when kind is null), leaving out except and everything inside it. Null: the view's own ground.
   function containerAt(L, p, except, kind) {
+    // What is inside except, as far as the view shows it: what it holds in the view, which is everything inside it in
+    // the model that the view shows, since a shown box sits in its nearest shown owner.
     const skip = new Set();
-    if (except) { skip.add(except.id); M.descendants(S.model, except.id).forEach((d) => skip.add(d.id)); }
+    const inside = (id) => { skip.add(id); (L.kids.get(id) || []).forEach((k) => inside(k.id)); };
+    if (except) inside(except.id);
     let best = null;
     L.shown.forEach((id) => {
       const el = S.layout.ids.get(id);
@@ -4798,7 +5519,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   Object.assign(C, {
-    wrap, graphLayout, frameAround, computeLayout, center, ROUTES, endpoints, nearestBorder, contains, containerAt,
+    wrap, graphLayout, graphKeeps, frameAround, computeLayout, center, ROUTES, endpoints, nearestBorder, contains, containerAt,
     viewAt
   });
 })(window.SysMLCanvas);
@@ -4810,7 +5531,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, NS, HEADER, HEAD_H, LEAD, PAD, CHILD_TOP, say, f, newId, viewById, viewLayout, rendererFor, wrap, graphLayout,
-    frameAround, endpoints, nearestBorder, contains, containerAt, viewAt
+    graphKeeps, frameAround, endpoints, nearestBorder, contains, containerAt, viewAt
   } = C;
 
   // ---- Drawing.
@@ -4858,7 +5579,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // How the graph renderer draws an element of each shape, by the name in KINDS[kind].shape: draw(el, r, g, L) puts
   // the outline and the header (the keyword line, the name line) into the element's group g, for its rect r in plane
   // coordinates; compartments says whether the generic compartments (COMPARTMENTS) are drawn under the header and
-  // counted in the box's height; cls, when present, is added to the group's classes. A box whose shape is unknown is
+  // counted in the box's height; radius, for a shape with compartments, is the corners' radius of the outline it is
+  // drawn as far out (a number, or a function of the element; 0 unless said); cls, when present, is added to the
+  // group's classes. A box whose shape is unknown is
   // drawn as a rect, a border item as a port. The slices add diamond, bar, dot, a parameter's square and the rest.
   function boxShape(radius) {
     return function (el, r, g) {
@@ -4872,7 +5595,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // Which way the first line drawn from a border item leaves it, as a vector, or null when no drawn line starts or
   // ends on it in view layout L.
   function lineWay(p, L) {
-    for (const rel of S.model.relationships) {
+    for (const rel of linesAt(L, p.id)) {
       if (rel.hidden || (rel.from !== p.id && rel.to !== p.id)) continue;
       const e = endpoints(rel, L);
       if (!e) continue;
@@ -4881,6 +5604,17 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (d.x || d.y) return d;
     }
     return null;
+  }
+  // The lines view layout L draws that start or end on an element, in the model's order: from L.rels, indexed by
+  // end the first time it is asked; every line, for a layout that doesn't list its lines yet.
+  function linesAt(L, id) {
+    if (!L.rels) return S.model.relationships;
+    if (!L.byEnd) {
+      L.byEnd = new Map();
+      const add = (end, rel) => { if (!L.byEnd.has(end)) L.byEnd.set(end, []); L.byEnd.get(end).push(rel); };
+      L.rels.forEach((rel) => { add(rel.from, rel); if (rel.to !== rel.from) add(rel.to, rel); });
+    }
+    return L.byEnd.get(id) || [];
   }
   // Where a border item's name goes, outside the owner and beside the square: above and to the right of a port on the
   // right border, below and to the left on the left border (so two ports facing each other never share a line),
@@ -4900,8 +5634,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return r.side === 'top' ? { x: c, y: cy - 13, anchor: 'middle', on: 'above' } : { x: c, y: cy + 22, anchor: 'middle', on: 'below' };
   }
   const SHAPES = {
-    rect: { draw: boxShape(0), compartments: true },
-    rounded: { draw: boxShape(10), compartments: true },
+    rect: { draw: boxShape(0), compartments: true, radius: 0 },
+    rounded: { draw: boxShape(10), compartments: true, radius: 10 },
     // A port: a small square on its owner's border, a glyph in it, and its name outside the owner.
     port: {
       draw: function (p, r, g, L) {
@@ -4943,10 +5677,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // The compartments a box may show under its header, in this order: applies(el) says whether the element has one,
   // head is its title (a string, or a function of the element), lines(el, width) its text as lines wrapped for a box
   // width px wide (none: no compartment), and cls, when present, the class of its lines (doc, the 11px sans, unless
-  // said otherwise; mono is the code font). Each takes HEAD_H + LEAD per line + 6 of the box's height. The doc is the
-  // first; the slices push the code links, a state's actions and the rest.
+  // said otherwise; mono is the code font); own: true says the compartment reads nothing but the element itself, so a
+  // change to other elements leaves it as it was. Each takes HEAD_H + LEAD per line + 6 of the box's height. The doc
+  // is the first; the slices push the code links, a state's actions and the rest.
   const COMPARTMENTS = [
-    { applies: function (el) { return M.KINDS[el.kind].fields.indexOf('doc') >= 0 && el.doc.trim() !== ''; }, head: 'doc', cls: 'doc',
+    { applies: function (el) { return M.KINDS[el.kind].fields.indexOf('doc') >= 0 && el.doc.trim() !== ''; }, head: 'doc', cls: 'doc', own: true,
       lines: function (el, width) { return wrap(el.doc, Math.max(12, Math.floor((width - 24) / 6.1))); } }
   ];
   // The compartments an element shows in a box width px wide: those that apply and have lines, as { head, lines, cls }.
@@ -4959,18 +5694,86 @@ textarea.text[readonly] { resize: none; background: transparent; }
     });
     return out;
   }
-  // A box: its shape's outline and header, its compartments when the shape has them, then what is inside it.
-  function drawBox(el, parent, L) {
+  // Whether every compartment an element shows reads nothing but the element (each row that applies says own).
+  function ownCompartments(el) { return COMPARTMENTS.every((c) => c.own || !c.applies(el)); }
+  // ---- What is drawn of a view's content: what the window shows, with a margin round it (the region render() drew
+  // for, { x, y, x2, y2, far }), and less of each thing when the camera is far out (region.far): a box's outline
+  // without its words, a border item's square, a line without its label. A null region draws everything in full.
+  function onScreen(r, region) {
+    return !region || (r.x <= region.x2 && r.x + r.w >= region.x && r.y <= region.y2 && r.y + r.h >= region.y);
+  }
+  function pointsOnScreen(pts, region) {
+    if (!region) return true;
+    let x = Infinity;
+    let y = Infinity;
+    let x2 = -Infinity;
+    let y2 = -Infinity;
+    pts.forEach((p) => { x = Math.min(x, p.x); y = Math.min(y, p.y); x2 = Math.max(x2, p.x); y2 = Math.max(y2, p.y); });
+    return onScreen({ x: x, y: y, w: x2 - x, h: y2 - y }, region);
+  }
+  // A box: its own drawing, then the boxes inside it that are on screen, then the border items on it.
+  function drawBox(el, parent, L, region) {
+    const g = node('g', { 'data-el': el.id, 'data-kind': el.kind, 'data-view': L.view.id }, elClass(el));
+    drawOwn(el, g, L, region);
+    const kids = L.kids.get(el.id) || [];
+    kids.forEach((k) => { if (!M.KINDS[k.kind].onBorder && onScreen(L.rects.get(k.id), region)) drawBox(k, g, L, region); });
+    kids.forEach((k) => { if (M.KINDS[k.kind].onBorder) drawPort(k, g, L, region); });
+    parent.appendChild(g);
+  }
+  // What an element's own drawing is made from, as a string kept on its group (g.sign), so a change can tell what it
+  // must draw again by comparing (patch): the element's fields, its rect, its compartments, its name line, and, for a
+  // border item, its glyph and where its name goes. A graph shape draws from these alone; one that read anything else
+  // (another element's field, say) would have to bring it in here.
+  function signOwn(el, L, region) {
     const kind = M.KINDS[el.kind];
-    const shape = SHAPES[kind.shape] || SHAPES.rect;
     const r = L.rects.get(el.id);
-    const g = node('g', { 'data-el': el.id, 'data-kind': el.kind, 'data-view': L.view.id }, 'el ' + (kind.definition ? 'def' : 'usage') + (el.abstract ? ' is-abstract' : '') + (shape.cls ? ' ' + shape.cls : ''));
+    const far = !!region && region.far;
+    const parts = [far ? 'far' : '', JSON.stringify(el), r.x, r.y, r.w, r.h, r.side || '', JSON.stringify(L.comps.get(el.id) || null), far ? '' : nameLine(el)];
+    if (kind.onBorder && !far) parts.push(kind.glyph ? kind.glyph(S.model, el) : '', JSON.stringify(portName(el, r, L)));
+    return parts.join('|');
+  }
+  // The classes of an element's group: what it is, and the shape's own.
+  function elClass(el) {
+    const kind = M.KINDS[el.kind];
+    if (kind.onBorder) { const shape = SHAPES[kind.shape] || SHAPES.port; return 'el port' + (shape.cls ? ' ' + shape.cls : ''); }
+    const shape = SHAPES[kind.shape] || SHAPES.rect;
+    return 'el ' + (kind.definition ? 'def' : 'usage') + (el.abstract ? ' is-abstract' : '') + (shape.cls ? ' ' + shape.cls : '');
+  }
+  // What an element's group draws of the element itself, ahead of the groups of what it holds: its shape, and its
+  // compartments when the shape has them. Far out, a box is its outline alone and a border item its square.
+  function drawOwn(el, g, L, region) {
+    g.sign = signOwn(el, L, region);
+    const kind = M.KINDS[el.kind];
+    const r = L.rects.get(el.id);
+    const far = !!region && region.far;
+    if (kind.onBorder) {
+      if (far) g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: r.w, height: r.h, rx: 2.5 }, 'outline'));
+      else (SHAPES[kind.shape] || SHAPES.port).draw(el, r, g, L);
+      return;
+    }
+    const shape = SHAPES[kind.shape] || SHAPES.rect;
+    if (far && shape.compartments) {
+      const rx = typeof shape.radius === 'function' ? shape.radius(el) : shape.radius || 0;
+      g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: rx }, 'outline'));
+      return;
+    }
     shape.draw(el, r, g, L);
     if (shape.compartments) drawCompartments(el, r, g, L);
-    const kids = L.kids.get(el.id) || [];
-    kids.filter((k) => !M.KINDS[k.kind].onBorder).forEach((k) => drawBox(k, g, L));
-    kids.filter((k) => M.KINDS[k.kind].onBorder).forEach((k) => drawPort(k, g, L));
-    parent.appendChild(g);
+  }
+  // The marks the page puts on a group (the selection, a problem, the pointer), which a drawing again keeps.
+  const MARKS = ['is-selected', 'is-source', 'is-problem', 'is-hover', 'is-drop'];
+  // Draws an element's own part of its group again, as it is now, leaving the groups of what it holds in place; its
+  // classes follow what it is, and its marks stay.
+  function redrawOwn(el, g, L, region) {
+    const marks = MARKS.filter((m) => g.classList.contains(m));
+    g.setAttribute('class', [elClass(el)].concat(marks).join(' '));
+    g.setAttribute('data-kind', el.kind);
+    Array.from(g.childNodes).forEach((c) => { if (c.nodeType !== 1 || !c.hasAttribute('data-el')) g.removeChild(c); });
+    const fresh = node('g');
+    drawOwn(el, fresh, L, region);
+    g.sign = fresh.sign;
+    const first = g.firstChild;
+    while (fresh.firstChild) g.insertBefore(fresh.firstChild, first);
   }
   // The compartments under a box's header, one block each, stacked: a rule, the head in italics, then the lines.
   function drawCompartments(el, r, g, L) {
@@ -4984,18 +5787,28 @@ textarea.text[readonly] { resize: none; background: transparent; }
     });
   }
   // A border item, by its kind's shape (a port unless the shape is known).
-  function drawPort(p, parent, L) {
-    const shape = SHAPES[M.KINDS[p.kind].shape] || SHAPES.port;
-    const r = L.rects.get(p.id);
-    const g = node('g', { 'data-el': p.id, 'data-kind': p.kind, 'data-view': L.view.id }, 'el port' + (shape.cls ? ' ' + shape.cls : ''));
-    shape.draw(p, r, g, L);
+  function drawPort(p, parent, L, region) {
+    const g = node('g', { 'data-el': p.id, 'data-kind': p.kind, 'data-view': L.view.id }, elClass(p));
+    drawOwn(p, g, L, region);
     parent.appendChild(g);
   }
-  function drawRel(rel, parent, L) {
+  // A line, when it has two ends in view layout L and comes on screen.
+  function drawRel(rel, parent, L, region) {
     const e = endpoints(rel, L);
-    if (!e) return;
+    if (!e || !pointsOnScreen(e.pts, region)) return;
+    parent.appendChild(relGroup(rel, e, L, region));
+  }
+  // What a line's drawing is made from, kept on its group as signOwn's is: its fields, its points, and its label.
+  function signRel(rel, e, region) {
+    const how = M.RELATIONSHIPS[rel.kind].line;
+    const label = how.label && !(region && region.far) ? how.label(rel, S.model, S.layout.ids) : '';
+    return [region && region.far ? 'far' : '', JSON.stringify(rel), JSON.stringify(e.pts), label].join('|');
+  }
+  // A line's group: the wide stroke that takes the pointer, the line with its markers, and its label (not far out).
+  function relGroup(rel, e, L, region) {
     const how = M.RELATIONSHIPS[rel.kind].line;
     const g = node('g', { 'data-rel': rel.id, 'data-kind': rel.kind, 'data-view': L.view.id }, 'rel ' + how.cls);
+    g.sign = signRel(rel, e, region);
     const d = e.pts.map((p, i) => (i ? ' L' : 'M') + f(p.x) + ',' + f(p.y)).join('');
     g.appendChild(node('path', { d: d }, 'hit'));
     const line = node('path', { d: d }, 'line');
@@ -5003,20 +5816,33 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (how.markerStart) line.setAttribute('marker-start', 'url(#' + how.markerStart + ')');
     g.appendChild(line);
     // The label, below the line's middle by the kind's labelOffset (30 unless said; negative puts it above).
-    const label = how.label ? how.label(rel, S.model, S.layout.ids) : '';
+    const label = how.label && !(region && region.far) ? how.label(rel, S.model, S.layout.ids) : '';
     if (label) g.appendChild(text(e.mid.x, e.mid.y + (typeof how.labelOffset === 'number' ? how.labelOffset : 30), label, 'uname', 'middle'));
-    parent.appendChild(g);
+    return g;
   }
   // A view's frame: the outline, the header tab (with a clear rectangle over it that takes the pointer, to select or
-  // move the view), then the view's content by its kind's renderer.
-  function drawFrame(view, L) {
-    const fr = L.frameRect;
+  // move the view), then, when the frame comes on screen, the view's content by its kind's renderer.
+  function drawFrame(view, L, region) {
     const g = node('g', { 'data-view': view.id }, 'frame' + (view.id === S.active ? ' is-active' : ''));
-    g.appendChild(node('rect', { x: f(fr.x), y: f(fr.y), width: f(fr.w), height: f(fr.h), rx: 12 }, 'outline'));
+    drawChrome(view, L, g, null);
+    if (onScreen(L.frameRect, region)) rendererFor(view).draw(view, g, L, region);
+    return g;
+  }
+  // What a frame's own pieces are made from, kept on its group as signOwn's is.
+  function signChrome(view, L) { return [view.name, view.kind, JSON.stringify(L.frameRect), M.describeView(S.model, view)].join('|'); }
+  // The frame's own pieces, each marked data-chrome so a patch can draw them again: put at the front of g, before
+  // the content.
+  function drawChrome(view, L, g) {
+    g.sign = signChrome(view, L);
+    Array.from(g.children).forEach((c) => { if (c.hasAttribute('data-chrome')) g.removeChild(c); });
+    const fr = L.frameRect;
+    const first = g.firstChild;
+    const add = (n) => { n.setAttribute('data-chrome', ''); g.insertBefore(n, first); };
+    add(node('rect', { x: f(fr.x), y: f(fr.y), width: f(fr.w), height: f(fr.h), rx: 12 }, 'outline'));
     const name = view.name.trim() || 'view';
     const label = '«view» ' + name + ' : ' + view.kind;
     const tabW = Math.min(fr.w - 24, 16 + label.length * 6.6);
-    g.appendChild(node('path', { d: 'M' + f(fr.x) + ',' + f(fr.y + 26) + ' H' + f(fr.x + tabW) + ' A8,8 0 0 0 ' + f(fr.x + tabW + 8) + ',' + f(fr.y + 18) + ' V' + f(fr.y) }, 'outline'));
+    add(node('path', { d: 'M' + f(fr.x) + ',' + f(fr.y + 26) + ' H' + f(fr.x + tabW) + ' A8,8 0 0 0 ' + f(fr.x + tabW + 8) + ',' + f(fr.y + 18) + ' V' + f(fr.y) }, 'outline'));
     const t = node('text', { x: f(fr.x + 12), y: f(fr.y + 18) });
     const a = node('tspan', {}, 'kw');
     a.textContent = '«view» ';
@@ -5027,14 +5853,97 @@ textarea.text[readonly] { resize: none; background: transparent; }
     t.appendChild(a);
     t.appendChild(b);
     t.appendChild(c);
-    g.appendChild(t);
+    add(t);
     const tab = node('rect', { x: f(fr.x), y: f(fr.y), width: f(tabW + 8), height: 26 }, 'tab');
     const title = node('title');
     title.textContent = M.describeView(S.model, view) + ', ' + M.an(M.VIEW_KINDS[view.kind].label) + '. Click to select it, drag to move it.';
     tab.appendChild(title);
-    g.appendChild(tab);
-    rendererFor(view).draw(view, g, L);
-    return g;
+    add(tab);
+  }
+
+  // ---- Drawing again just what a change altered, in a graph view's groups (its renderer's patch).
+
+  // The element groups drawn in a graph view's content, by id.
+  function drawnElements(els) {
+    const drawn = new Map();
+    els.querySelectorAll('g[data-el]').forEach((n) => drawn.set(n.getAttribute('data-el'), n));
+    return drawn;
+  }
+  // Whether element id, laid out at r, is drawn in view layout L, given what else is, as drawBox draws: a border item
+  // when its owner's box is, a box when it comes on screen and its parent in the view is drawn, or it sits on the
+  // view's ground.
+  function belongsDrawn(id, r, L, drawn, region) {
+    const parent = L.parentOf.get(id);
+    if (r.port) return !!parent && drawn.has(parent);
+    return (!parent || drawn.has(parent)) && onScreen(r, region);
+  }
+  // A change that only moved things: each drawn box or border item whose rect changed draws its own part again, each
+  // drawn line with an end that moved is drawn again, and so are the border items at the ends of those lines, whose
+  // names keep clear of them; the frame's pieces follow the frame. Something coming on screen or going off it is the
+  // whole view's to draw again (false).
+  function patchMoves(view, g, els, rels, before, L, region) {
+    if (before.shown.size !== L.shown.size) return false;
+    const drawn = drawnElements(els);
+    const changed = new Set();
+    for (const [id, r] of L.rects) {
+      const o = before.rects.get(id);
+      if (!o) return false;
+      if (o.x === r.x && o.y === r.y && o.w === r.w && o.h === r.h && o.side === r.side) continue;
+      changed.add(id);
+      if (belongsDrawn(id, r, L, drawn, region) !== drawn.has(id)) return false;
+    }
+    const ids = S.layout.ids;
+    changed.forEach((id) => { if (drawn.has(id)) redrawOwn(ids.get(id), drawn.get(id), L, region); });
+    const lines = new Map();
+    rels.querySelectorAll(':scope > g[data-rel]').forEach((n) => lines.set(n.getAttribute('data-rel'), n));
+    const ends = new Set();
+    for (const rel of L.rels) {
+      if (!changed.has(rel.from) && !changed.has(rel.to)) continue;
+      const e = endpoints(rel, L);
+      const n = lines.get(rel.id);
+      if (!n) { if (e && pointsOnScreen(e.pts, region)) return false; continue; }
+      rels.replaceChild(relGroup(rel, e, L, region), n);
+      ends.add(rel.from);
+      ends.add(rel.to);
+    }
+    ends.forEach((id) => { const n = drawn.get(id); if (n && !changed.has(id) && L.rects.get(id).port) redrawOwn(ids.get(id), n, L, region); });
+    if (g.sign !== signChrome(view, L)) drawChrome(view, L, g);
+    return true;
+  }
+  // Any other change (a name, a field, a definition, a line drawn or deleted): each drawn group whose drawing is made
+  // from something else now (its sign, see signOwn and signRel) draws its own part again, and so does the frame. When
+  // what is drawn would differ (something to draw that isn't drawn, or drawn that isn't there now, or in another
+  // order, or in another box), the whole view is drawn again (false).
+  function patchContent(view, g, els, rels, L, region) {
+    const ids = S.layout.ids;
+    const drawn = drawnElements(els);
+    for (const [id, n] of drawn) {
+      const parent = L.parentOf.get(id);
+      const host = n.parentNode && n.parentNode.getAttribute ? n.parentNode.getAttribute('data-el') : null;
+      if (!ids.has(id) || !L.rects.has(id) || (parent || null) !== (host || null)) return false;
+    }
+    for (const [id, r] of L.rects) if (!drawn.has(id) && belongsDrawn(id, r, L, drawn, region)) return false;
+    // The order the groups are drawn in, which drawBox follows: the boxes, then the border items, each in the view's
+    // order of its parent's kids.
+    const order = (key, box) => (L.kids.get(key) || []).filter((k) => drawn.has(k.id) && !M.KINDS[k.kind].onBorder === box).map((k) => k.id);
+    const inOrder = (key, container) => {
+      const want = order(key, true).concat(order(key, false));
+      const have = Array.from(container.children).filter((c) => c.hasAttribute('data-el')).map((c) => c.getAttribute('data-el'));
+      return want.length === have.length && want.every((id, i) => id === have[i]);
+    };
+    if (!inOrder('', els)) return false;
+    for (const [id, n] of drawn) if (!inOrder(id, n)) return false;
+    drawn.forEach((n, id) => { if (n.sign !== signOwn(ids.get(id), L, region)) redrawOwn(ids.get(id), n, L, region); });
+    const lines = Array.from(rels.children).filter((c) => c.hasAttribute('data-rel'));
+    const shown = [];
+    for (const rel of L.rels) {
+      const e = endpoints(rel, L);
+      if (e && pointsOnScreen(e.pts, region)) shown.push({ rel: rel, e: e });
+    }
+    if (shown.length !== lines.length || shown.some((x, i) => x.rel.id !== lines[i].getAttribute('data-rel'))) return false;
+    shown.forEach((x, i) => { if (lines[i].sign !== signRel(x.rel, x.e, region)) rels.replaceChild(relGroup(x.rel, x.e, L, region), lines[i]); });
+    if (g.sign !== signChrome(view, L)) drawChrome(view, L, g);
+    return true;
   }
 
   // The renderers, by the name a view kind gives in VIEW_KINDS. Each lays a view out: layout(view, ids) returns
@@ -5044,25 +5953,40 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // (from frameAround), and lines (optional: relationship id → the points of a line the renderer routed itself; a
   // renderer that fills it draws those lines and no other, and only they count as drawn in its view) }.
   // Pins, badges, lines, the Show list and the panel read shown, rects, comps and endpoints(), so a renderer that
-  // fills them gets all of that for free. It draws its content into the frame's group (draw(view, g, L)) and, when
+  // fills them gets all of that for free. It draws its content into the frame's group (draw(view, g, L, region): the
+  // region is the part of the plane being drawn, which a renderer may keep to, see onScreen; null is all of it). A
+  // renderer may also patch(view, g, before, L, region, moving) the content it drew after a change: draw again just
+  // what the change altered, from the view's layout before it (before) to the one now (L), and return true; or return
+  // false, and the view's content is drawn again whole. moving says the change only moved things. A renderer may say
+  // a view's layout still holds after a change to what things are (keeps(view, L, plan, ids), plan.touched the ids
+  // of the elements touched), so it isn't laid out again. When the view's elements can be placed and moved by hand, it
   // the view's elements can be placed and moved by hand, places one (place(view, kind, p, hit) adds the element to
   // the model and the view's layout, or says why not and returns null), starts a drag of one (dragStart(view, el, p)
   // returns the drag record or null), moves it (drag(view, el, d, p)), and finishes (drop(view, el, d, p, event)
   // returns { undo, text, key, say } for the undo entry, the change log and the status, or null when nothing
   // changed). A renderer that shows every element of the model whatever the view's layout says (the browser) carries
-  // showsAll: true: the Show list and Remove from view then say so. The slices add sequence, geometry, grid and
+  // showsAll: true: the Show list and Remove from view then say so. One that draws what the checks found (the grid's
+  // problems column) carries problems: true, and is drawn again when the checks find something else. The slices add sequence, geometry, grid and
   // browser in their regions below (RENDERERS.sequence = {…}).
   const RENDERERS = {
     graph: {
       layout: graphLayout,
-      draw: function (view, g, L) {
+      keeps: graphKeeps,
+      draw: function (view, g, L, region) {
         // Boxes first, then lines on top of them, so a line between things inside a box shows over the box's fill.
         const els = node('g', {}, 'els');
         const rels = node('g', {}, 'rels');
         g.appendChild(els);
         g.appendChild(rels);
-        (L.kids.get('') || []).filter((e) => !M.KINDS[e.kind].onBorder).forEach((el) => drawBox(el, els, L));
-        S.model.relationships.forEach((rel) => { if (!rel.hidden) drawRel(rel, rels, L); });
+        (L.kids.get('') || []).forEach((el) => { if (!M.KINDS[el.kind].onBorder && onScreen(L.rects.get(el.id), region)) drawBox(el, els, L, region); });
+        L.rels.forEach((rel) => drawRel(rel, rels, L, region));
+      },
+      // Draws again what a change altered, in the groups already drawn (see patchMoves and patchContent).
+      patch: function (view, g, before, L, region, moving) {
+        const els = g.querySelector(':scope > g.els');
+        const rels = g.querySelector(':scope > g.rels');
+        if (!before || !els || !rels || !onScreen(L.frameRect, region)) return false;
+        return moving ? patchMoves(view, g, els, rels, before, L, region) : patchContent(view, g, els, rels, L, region);
       },
       place: function (view, kind, p, hit) {
         const k = M.KINDS[kind];
@@ -5092,7 +6016,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
           view.layout[el.id] = lay;
         }
         S.model.elements.push(el);
-        return el;
+        return S.model.elements[S.model.elements.length - 1]; // the model's own object, which records what is written to it
       },
       dragStart: function (view, el, p) {
         const lay = view.layout[el.id];
@@ -5190,19 +6114,83 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   Object.assign(C, {
-    node, text, MARKERS, defs, nameLine, portName, SHAPES, COMPARTMENTS, compartmentsOf, drawBox, drawRel, drawFrame,
-    RENDERERS, freshElement, blankField
+    node, text, MARKERS, defs, nameLine, portName, SHAPES, COMPARTMENTS, compartmentsOf, ownCompartments, onScreen,
+    pointsOnScreen, drawBox, drawRel, drawFrame, RENDERERS, freshElement, blankField
   });
 })(window.SysMLCanvas);
 // ==== src/core/page/render.js
-// Redrawing: the whole drawing from the model, with its checks, the notes' pins and the problems' badges on top,
-// and the marks that show the selection.
+// Redrawing: the drawing from the model, a view at a time and only as far as the window shows it, with the notes'
+// pins and the problems' badges on top and the marks that show the selection; and the checks, which run once the
+// changes pause, as the save does.
 (function (C) {
   'use strict';
   const S = C.state;
   const {
-    M, svg, problemsButton, f, plural, byNumber, relById, computeLayout, endpoints, node, defs, portName, drawFrame
+    M, svg, problemsButton, f, plural, byNumber, relById, viewById, rendererFor, computeLayout, endpoints, node, defs,
+    portName, drawFrame
   } = C;
+
+  // ---- The library's lookups, for everything the drawing and the checks ask of the model.
+
+  // The lookups the library builds for the model as it is, kept from one drawing to the next until the model changes
+  // (render forgets them), so a drawing or the checks answer from them rather than looking through the model.
+  let look = null;
+  let looked = null;
+  function reading(fn) {
+    if (typeof M.reading !== 'function') return fn();
+    if (!look || looked !== S.model) { look = M.lookups(S.model); looked = S.model; }
+    return M.reading(S.model, fn, look);
+  }
+  function forget() { look = null; looked = null; }
+  // A line by its id: from the lookups while they are the model's, as they are between changes; else from the model.
+  function lineById(id) { return look && looked === S.model ? look.rels().get(id) || null : relById(id); }
+
+  // ---- What is drawn: the part of the plane the window shows, and a margin round it.
+
+  const FAR = 0.25;              // below this zoom the graph views draw less: their text would be under 3 px tall
+  S.region = null;               // the part of the plane last drawn, { x, y, x2, y2, far }, or null before the first
+  function windowNow() {
+    const s = C.stageSize();
+    return { x: S.camera.x, y: S.camera.y, x2: S.camera.x + s.width / S.camera.k, y2: S.camera.y + s.height / S.camera.k };
+  }
+  // The region to draw for the window now: the window, half its size again on each side (at least 240 units), so a
+  // pan or a drag goes some way before anything new needs drawing.
+  function regionNow() {
+    const w = windowNow();
+    const mx = Math.max((w.x2 - w.x) / 2, 240);
+    const my = Math.max((w.y2 - w.y) / 2, 240);
+    return { x: w.x - mx, y: w.y - my, x2: w.x2 + mx, y2: w.y2 + my, far: S.camera.k < FAR };
+  }
+  // Whether what was last drawn still covers the window, at the detail the zoom asks for.
+  function covered() {
+    const R = S.region;
+    if (!R || !S.camera) return false;
+    const w = windowNow();
+    return R.far === (S.camera.k < FAR) && w.x >= R.x && w.y >= R.y && w.x2 <= R.x2 && w.y2 <= R.y2;
+  }
+
+  // Draws every view's frame again, and of its content what the window shows now, then the pins, badges and marks.
+  function drawAll() {
+    S.region = regionNow();
+    reading(() => {
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      svg.appendChild(defs());
+      svg.appendChild(node('rect', { x: -100000, y: -100000, width: 200000, height: 200000, fill: 'url(#plane-dots)' }, 'plane'));
+      S.model.views.forEach((view) => svg.appendChild(drawFrame(view, S.layout.views.get(view.id), S.region)));
+      svg.appendChild(node('g', {}, 'pins'));
+      svg.appendChild(node('g', {}, 'problems'));
+      decorate();
+    });
+  }
+  // Draws one view's frame and content again, in its place among the frames.
+  function redrawView(view) {
+    const old = svg.querySelector(':scope > .frame[data-view="' + view.id + '"]');
+    const fresh = drawFrame(view, S.layout.views.get(view.id), S.region);
+    if (old) svg.replaceChild(fresh, old);
+    else svg.insertBefore(fresh, svg.querySelector(':scope > .pins'));
+  }
+
+  // ---- Pins and badges, drawn at screen size on top of everything.
 
   // Where a note's pin sits in view layout L: on the top edge of a box, beside a port's square away from its name, on
   // the middle of a line. Pins on the same thing step aside by a screen distance, so they stay apart when zoomed out.
@@ -5220,11 +6208,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (r.side === 'left') return { x: r.cx - 16 - step, y: on === 'above' ? r.cy + 14 : r.cy - 14 };
       return { x: on === 'right' ? r.cx - 18 - step : r.cx + 18 + step, y: r.cy };
     }
-    const rel = relById(n.target);
+    const rel = lineById(n.target);
     if (!rel) return null;
     if (rel.hidden) { const from = L.rects.get(rel.from); return from ? { x: (from.port ? from.cx : from.x) + 12 + step, y: (from.port ? from.cy : from.y) - 16 } : null; }
     // Only where the view draws the line: a plan, say, has the ends but no line for a pin to sit on.
-    if ((S.layout.where.get(rel.id) || []).indexOf(L.view.id) < 0) return null;
+    if (!L.drawn.has(rel.id)) return null;
     const e = endpoints(rel, L);
     if (!e) return null;
     // On the line's middle, or above its label when the kind puts the label above the line, where a screen-sized pin
@@ -5242,6 +6230,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return off - 14;
   }
   function pinTransform(x, y) { return 'translate(' + f(x) + ' ' + f(y) + ') scale(' + (1 / (S.camera ? S.camera.k : 1)).toFixed(4) + ')'; }
+  // Whether a point is in the part of the plane drawn.
+  function inRegion(at) { const R = S.region; return !R || (at.x >= R.x && at.x <= R.x2 && at.y >= R.y && at.y <= R.y2); }
   function drawPins(layer) {
     while (layer.firstChild) layer.removeChild(layer.firstChild);
     const seen = {};
@@ -5270,7 +6260,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // line starts from, since the line itself can't be pointed at.
   function marksFor(p) {
     if (p.id === null) return [];
-    const rel = relById(p.id);
+    const rel = lineById(p.id);
     return rel && rel.hidden ? [p.id, rel.from] : [p.id];
   }
   // Where a problem's badge sits in view layout L: at a box's top-right corner, inside a port's corner, above the
@@ -5284,14 +6274,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (r.side === 'left') return { x: r.cx + 16, y: r.cy + 14 };
       return { x: r.cx - 18, y: r.cy };
     }
-    const rel = relById(id);
+    const rel = lineById(id);
     if (!rel || rel.hidden) return null;
-    if ((S.layout.where.get(rel.id) || []).indexOf(L.view.id) < 0) return null;
+    if (!L.drawn.has(rel.id)) return null;
     const e = endpoints(rel, L);
     if (!e) return null;
     const top = labelTop(rel);
     return { x: e.mid.x, y: top ? e.mid.y + top - 9 / (S.camera ? S.camera.k : 1) : e.mid.y - 14 };
   }
+  // The problems' badges, on what has a problem where it is drawn on screen.
   function drawBadges(layer) {
     while (layer.firstChild) layer.removeChild(layer.firstChild);
     const byTarget = new Map();
@@ -5299,7 +6290,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     byTarget.forEach((messages, id) => {
       S.layout.views.forEach((L) => {
         const at = badgeAnchor(id, L);
-        if (!at) return;
+        if (!at || !inRegion(at)) return;
         const g = node('g', { 'data-for': id, 'data-view': L.view.id, transform: pinTransform(at.x, at.y) }, 'problem');
         const title = node('title');
         title.textContent = messages.join(' ');
@@ -5312,43 +6303,68 @@ textarea.text[readonly] { resize: none; background: transparent; }
       });
     });
   }
+  // Marks what is drawn of everything that has a problem, and unmarks the rest.
   function markProblems() {
     const ids = new Set();
     S.problems.forEach((p) => marksFor(p).forEach((id) => ids.add(id)));
-    ids.forEach((id) => svg.querySelectorAll('[data-el="' + id + '"], [data-rel="' + id + '"], .frame[data-view="' + id + '"]').forEach((g) => g.classList.add('is-problem')));
+    svg.querySelectorAll('[data-el], [data-rel], .frame[data-view]').forEach((g) => {
+      const id = g.getAttribute('data-el') || g.getAttribute('data-rel') || (g.classList.contains('frame') ? g.getAttribute('data-view') : null);
+      g.classList.toggle('is-problem', ids.has(id));
+    });
   }
   // Pins and badges are drawn at screen size, so they are drawn again whenever the camera moves.
   function renderPins() {
     const pins = svg.querySelector('.pins');
     const badges = svg.querySelector('.problems');
-    if (pins) drawPins(pins);
-    if (badges) drawBadges(badges);
+    reading(() => {
+      if (pins) drawPins(pins);
+      if (badges) drawBadges(badges);
+    });
   }
-
-  // Redraws the whole drawing from the model, and checks it. The panel is drawn separately, so typing in it isn't
-  // interrupted.
-  function render() {
-    S.layout = computeLayout();
-    const found = M.validate(S.model);
-    if (JSON.stringify(found) !== JSON.stringify(S.problems)) S.problemCursor = -1;
-    S.problems = found;
-    while (svg.firstChild) svg.removeChild(svg.firstChild);
-    svg.appendChild(defs());
-    svg.appendChild(node('rect', { x: -100000, y: -100000, width: 200000, height: 200000, fill: 'url(#plane-dots)' }, 'plane'));
-    // Each view in its frame, then the pins and the badges on top of everything.
-    S.model.views.forEach((view) => svg.appendChild(drawFrame(view, S.layout.views.get(view.id))));
-    const pins = node('g', {}, 'pins');
-    const badges = node('g', {}, 'problems');
-    svg.appendChild(pins);
-    svg.appendChild(badges);
-    drawPins(pins);
-    drawBadges(badges);
+  // What sits on the drawing: the pins, the badges and the marks, and the HUD's count of the problems.
+  function decorate() {
+    renderPins();
     markProblems();
     applyMarks();
     problemsButton.hidden = !S.problems.length;
     problemsButton.textContent = plural(S.problems.length, 'problem');
     C.renderProblemsList();
-    if (S.camera) C.applyCamera(); else C.fit();
+  }
+
+  // ---- Redrawing after a change.
+
+  // Brings the drawing up to date with the model. After a change, edit() says what it touched (touched, the ids of
+  // the elements, lines and views) and what the drawing must do about it (how, see howToDraw in changes.js): how.views,
+  // the views to lay out again, when the change can't have moved anything outside them, and how.patch, when it only
+  // moved things; else every view is laid out again, or keeps its layout when its renderer says the change can't have
+  // altered it (keeps). The lookups are made again only after a change to the model's structure (how.structure).
+  // Either way each view's renderer may then patch
+  // what it drew, drawing again just what changed, else the view is drawn again; a change that showed or hid things
+  // draws its views again. With no touched, the model is a new one (the page starting, a model from elsewhere, an
+  // Undo, an import): everything is drawn anew, and the checks run at once.
+  function render(touched, how) {
+    if (!how || how.structure) forget();
+    const before = S.layout;
+    const plan = touched && before ? {
+      views: how && how.views ? how.views : null, moving: !!(how && how.patch), structure: !how || how.structure, shown: !!(how && how.shown),
+      touched: new Set(touched.elements), lines: new Set(touched.relationships)
+    } : null;
+    reading(() => { S.layout = computeLayout(plan ? before : null, plan); });
+    const frames = Array.from(svg.querySelectorAll(':scope > .frame')).map((g) => g.getAttribute('data-view')).join(' ');
+    if (!S.camera) C.fit();
+    else if (!plan || !covered() || frames !== S.model.views.map((v) => v.id).join(' ')) drawAll();
+    else {
+      reading(() => (plan.views ? Array.from(plan.views) : S.model.views.map((v) => v.id)).forEach((id) => {
+        const view = viewById(id);
+        if (!view) return;
+        const r = rendererFor(view);
+        const g = svg.querySelector(':scope > .frame[data-view="' + id + '"]');
+        const showing = !!plan.views && !plan.moving;
+        if (showing || !r.patch || !g || !r.patch(view, g, before.views.get(id), S.layout.views.get(id), S.region, plan.moving)) redrawView(view);
+      }));
+      decorate();
+    }
+    if (!touched) check();
   }
   // Every group that draws the selection: an element or line may be drawn in several frames.
   function groupsFor(sel) {
@@ -5362,14 +6378,36 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (S.pending) svg.querySelectorAll('[data-el="' + S.pending + '"]').forEach((g) => g.classList.add('is-source'));
   }
 
-  Object.assign(C, { pinTransform, marksFor, renderPins, render, applyMarks });
+  // ---- The checks.
+
+  // Checks the model: what validate finds is the page's list of problems, which the badges, the marks, the HUD's
+  // button and the panel show. They run once the changes pause, as the save does (changes.js schedules them), at once
+  // when the model is a new one, and at once when something needs them up to date (the export).
+  S.checkTimer = null;
+  function check() {
+    clearTimeout(S.checkTimer);
+    S.checkTimer = null;
+    const found = reading(() => M.validate(S.model));
+    if (JSON.stringify(found) === JSON.stringify(S.problems)) return;
+    S.problemCursor = -1;
+    S.problems = found;
+    // A view that draws the problems itself (a grid's problems column) is drawn again.
+    reading(() => S.model.views.forEach((view) => { if (rendererFor(view).problems) redrawView(view); }));
+    decorate();
+  }
+  // Runs the checks now when some are waiting for the pause.
+  function checkNow() { if (S.checkTimer) check(); }
+
+  Object.assign(C, {
+    reading, covered, drawAll, pinTransform, marksFor, renderPins, render, applyMarks, check, checkNow
+  });
 })(window.SysMLCanvas);
 // ==== src/core/page/camera.js
 // The camera: where the window looks on the plane and how far in it is zoomed, kept in this browser.
 (function (C) {
   'use strict';
   const S = C.state;
-  const { CAMERA_KEY, MIN_ZOOM, MAX_ZOOM, canvas, svg, zoomLevel, hud, panel, clamp, renderPins, render } = C;
+  const { CAMERA_KEY, MIN_ZOOM, MAX_ZOOM, canvas, svg, zoomLevel, hud, panel, clamp, covered, drawAll, renderPins, render } = C;
 
   // ---- The camera.
 
@@ -5382,10 +6420,17 @@ textarea.text[readonly] { resize: none; background: transparent; }
     } catch (error) { /* start fitted */ }
     return null;
   }
+  // Where the stage is in the window and how big, kept until it is resized (stageChanged), so reading it doesn't make
+  // the browser lay the page out in the middle of a change.
+  let stage = null;
   function stageSize() {
-    const r = canvas.getBoundingClientRect();
-    return { left: r.left, top: r.top, width: Math.max(r.width, 1), height: Math.max(r.height, 1) };
+    if (!stage) {
+      const r = canvas.getBoundingClientRect();
+      stage = { left: r.left, top: r.top, width: Math.max(r.width, 1), height: Math.max(r.height, 1) };
+    }
+    return stage;
   }
+  function stageChanged() { stage = null; }
   // The part of the window the panel doesn't cover.
   function openArea() {
     const s = stageSize();
@@ -5402,7 +6447,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
     svg.setAttribute('viewBox', [S.camera.x, S.camera.y, s.width / S.camera.k, s.height / S.camera.k].map((v) => v.toFixed(2)).join(' '));
     svg.classList.toggle('is-far', S.camera.k < 0.35);
     zoomLevel.textContent = Math.round(S.camera.k * 100) + '%';
-    if (S.layout) renderPins();
+    // What was drawn is drawn again once the window leaves it, or the zoom asks for other detail; else only the pins
+    // and badges, which keep their screen size.
+    if (S.layout) { if (covered()) renderPins(); else drawAll(); }
     try { localStorage.setItem(CAMERA_KEY, JSON.stringify(S.camera)); } catch (error) { /* a convenience only */ }
   }
   // Fits every frame into the open part of the window.
@@ -5439,7 +6486,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return { x: point.x, y: point.y };
   }
 
-  Object.assign(C, { stageSize, applyCamera, fit, zoomAt, zoomAtCenter, showPoint, toDrawing });
+  Object.assign(C, { stageSize, stageChanged, applyCamera, fit, zoomAt, zoomAtCenter, showPoint, toDrawing });
 })(window.SysMLCanvas);
 // ==== src/core/page/changes.js
 // Changes: the one way the model changes (edit), with what each change touched; the log Claude reads; when to save;
@@ -5447,23 +6494,195 @@ textarea.text[readonly] { resize: none; background: transparent; }
 (function (C) {
   'use strict';
   const S = C.state;
-  const { M, PAUSE, HISTORY, undoButton, now, say, editable, viewById, render, applyMarks } = C;
+  const { M, PAUSE, HISTORY, undoButton, now, say, editable, viewById, render, applyMarks, check } = C;
+
+  const LISTS = ['elements', 'relationships', 'views'];
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+  // ---- The model keeps a note of every write made to it.
+  //
+  // Every object and array in the model is a Proxy of itself: its target is the plain object, which holds the same
+  // Proxies as its children, so whatever is read from the model is a Proxy, and reads go straight to the target. Only
+  // writes are trapped: before a key of an object changes, or is deleted, the object, the key and what the key held
+  // are noted (the first time in a change); before an array changes, a copy of its items is. So edit() learns what a
+  // change touched from the notes alone, without looking through the model, Undo puts back what the notes say, and
+  // a write made while no change is open is noted as a mistake (stray), reported when the next change comes.
+
+  const targets = new WeakMap();   // a Proxy -> its target
+  const proxies = new WeakMap();   // a target -> its Proxy
+  const homes = new WeakMap();     // a target -> where it sits in the model, for what a write to it touches
+  // Where things sit: the model itself, one of its three lists, an item of a list (whose id is its own), something
+  // inside an item, a view's layout, a place in a layout (the id it places), and the rest (the package).
+  const ROOT = { at: 'root' };
+  const REST = { at: 'rest' };
+  const LIST = {};
+  const ITEM = {};
+  LISTS.forEach((list) => { LIST[list] = { at: 'list', list: list }; ITEM[list] = { at: 'item', list: list }; });
+  function homeIn(t, k) {
+    const h = homes.get(t) || REST;
+    if (h.at === 'root') return LIST[k] || REST;
+    if (h.at === 'list') return ITEM[h.list];
+    if (h.at === 'item') return h.list === 'views' && k === 'layout' ? { at: 'layout', view: t } : { at: 'in', item: t, list: h.list };
+    if (h.at === 'layout') return { at: 'place', view: h.view, id: String(k) };
+    return h; // inside an item, or inside a place: the same item or place
+  }
+  // Makes a value part of the model, where home says: an object or array becomes the Proxy of itself, its children
+  // first. A Proxy already in the model stays itself, and moves home.
+  function track(value, home) {
+    if (value === null || typeof value !== 'object') return value;
+    const target = targets.get(value) || value;
+    if (proxies.has(target)) { homes.set(target, home); return proxies.get(target); }
+    homes.set(target, home);
+    const keys = Array.isArray(target) ? target.keys() : Object.keys(target);
+    for (const k of keys) {
+      const child = target[k];
+      if (child !== null && typeof child === 'object') target[k] = track(child, homeIn(target, k));
+    }
+    const proxy = new Proxy(target, TRAPS);
+    targets.set(proxy, target);
+    proxies.set(target, proxy);
+    return proxy;
+  }
+  const TRAPS = {
+    set: function (t, k, v) { noteWrite(t, k); t[k] = track(v, homeIn(t, k)); return true; },
+    deleteProperty: function (t, k) { noteWrite(t, k); return delete t[k]; },
+    defineProperty: function (t, k, d) {
+      noteWrite(t, k);
+      return Reflect.defineProperty(t, k, 'value' in d ? Object.assign({}, d, { value: track(d.value, homeIn(t, k)) }) : d);
+    }
+  };
+
+  // The notes of one change, or of a run of them: for each object, each key written and what it held first
+  // ({ had, old }); for each array, a copy of its items as they were first; and the model the change replaced, when it
+  // put a whole new one in its place.
+  function newNotes() { return { objects: new Map(), lists: new Map(), replaced: null }; }
+  let writing = null;              // the notes of the change that is open, or null
+  let stray = newNotes();          // writes made while no change was open
+  function noteWrite(t, k) {
+    const notes = writing || stray;
+    if (Array.isArray(t)) { if (!notes.lists.has(t)) notes.lists.set(t, t.slice()); return; }
+    let keys = notes.objects.get(t);
+    if (!keys) { keys = new Map(); notes.objects.set(t, keys); }
+    if (!keys.has(k)) keys.set(k, { had: own(t, k), old: t[k] });
+  }
+  // Joins a later change's notes to its run's: what the run noted first stays.
+  function absorb(run, later) {
+    later.objects.forEach((keys, t) => {
+      const mine = run.objects.get(t);
+      if (!mine) { run.objects.set(t, keys); return; }
+      keys.forEach((note, k) => { if (!mine.has(k)) mine.set(k, note); });
+    });
+    later.lists.forEach((copy, t) => { if (!run.lists.has(t)) run.lists.set(t, copy); });
+    if (!run.replaced) run.replaced = later.replaced;
+  }
+  // Puts back what the notes say was there, past the traps, so nothing is noted. A change that replaced the model
+  // gives the old one back.
+  function restore(notes) {
+    notes.objects.forEach((keys, t) => keys.forEach((note, k) => { if (note.had) t[k] = note.old; else delete t[k]; }));
+    notes.lists.forEach((copy, t) => { t.length = 0; copy.forEach((item) => t.push(item)); });
+    if (notes.replaced) S.model = notes.replaced;
+  }
+  function sameItems(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
 
   // ---- What a change touched.
 
-  const LISTS = ['elements', 'relationships', 'views'];
+  // What the notes say changed, as the ids of what it touched, a list each: { elements, relationships, views }, each
+  // in the model's order; null when nothing changed (every key written holds what it held, every array its items).
+  // One is touched when it was added, removed or changed, or moved in its list, whose order is the text's (a sequence
+  // view keeps its events in model order). A change to a view's layout touches the view, and each element or line
+  // whose place in it changed.
+  function touchedBy(notes) {
+    const found = { elements: new Set(), relationships: new Set(), views: new Set() };
+    const before = {};           // a list's items before the change, where it changed
+    let rest = false;
+    // Whether a place is a line's: not when the drawing knows it as an element; else the lines' ids, before the
+    // change (as the notes have the list) and after it, say.
+    let lines = null;
+    const isLine = (id) => {
+      if (S.layout && S.layout.ids.has(id)) return false;
+      if (!lines) {
+        lines = new Set(S.model.relationships.map((r) => r.id));
+        const root = notes.objects.get(targets.get(S.model));
+        const was = root ? root.get('relationships') : null;
+        if (was && Array.isArray(was.old)) was.old.forEach((r) => lines.add(r.id));
+        notes.lists.forEach((copy, t) => { if (homes.get(t) === LIST.relationships) copy.forEach((r) => lines.add(r.id)); });
+      }
+      return lines.has(id);
+    };
+    const placed = (view, id) => { found.views.add(view.id); found[isLine(id) ? 'relationships' : 'elements'].add(id); };
+    const changedList = (list, was, is) => {
+      before[list] = was;
+      const old = new Map(was.map((x) => [x.id, x]));
+      const ids = new Set(is.map((x) => x.id));
+      was.forEach((x) => { if (!ids.has(x.id)) found[list].add(x.id); });
+      is.forEach((x) => {
+        const o = old.get(x.id);
+        if (!o || (o !== x && JSON.stringify(o) !== JSON.stringify(x))) found[list].add(x.id);
+      });
+      moved(was.map((x) => x.id), is.map((x) => x.id)).forEach((id) => found[list].add(id));
+    };
+    notes.lists.forEach((copy, t) => {
+      if (sameItems(copy, t)) return;
+      const h = homes.get(t) || REST;
+      if (h.at === 'list') changedList(h.list, copy, t);
+      else if (h.at === 'in') found[h.list].add(h.item.id);
+      else if (h.at === 'place') placed(h.view, h.id);
+      else rest = true;
+    });
+    notes.objects.forEach((keys, t) => {
+      const h = homes.get(t) || REST;
+      keys.forEach((note, k) => {
+        const has = own(t, k);
+        if (has === note.had && (!has || t[k] === note.old)) return;
+        if (h.at === 'root') {
+          if (LIST[k]) changedList(k, Array.isArray(note.old) ? note.old.slice() : [], Array.isArray(t[k]) ? t[k].slice() : []);
+          else rest = true;
+        } else if (h.at === 'item') {
+          found[h.list].add(t.id);
+          // A layout put in place of another: each place that differs between the two.
+          if (h.list === 'views' && k === 'layout') {
+            const a = note.had && note.old ? note.old : {};
+            const b = has && t[k] ? t[k] : {};
+            new Set(Object.keys(a).concat(Object.keys(b))).forEach((id) => { if (JSON.stringify(a[id]) !== JSON.stringify(b[id])) placed(t, id); });
+          }
+        } else if (h.at === 'in') found[h.list].add(h.item.id);
+        else if (h.at === 'layout') placed(h.view, String(k));
+        else if (h.at === 'place') placed(h.view, h.id);
+        else rest = true;
+      });
+    });
+    if (LISTS.every((list) => !found[list].size) && !rest) return null;
+    const out = {};
+    LISTS.forEach((list) => {
+      const ids = Array.from(found[list]);
+      // In the order the list had before the change, those it added last, in its order now.
+      if (ids.length > 1) {
+        const was = before[list] || S.model[list];
+        const at = new Map(was.map((x, i) => [x.id, i]));
+        S.model[list].forEach((x, i) => { if (!at.has(x.id)) at.set(x.id, was.length + i); });
+        ids.sort((a, b) => at.get(a) - at.get(b));
+      }
+      out[list] = ids;
+    });
+    return out;
+  }
 
-  // The model in parts, each as its JSON, so the model before a change can be told from the model after it: the
-  // elements and the relationships by id, each view by id without its layout, each view's layout by the id of what it
-  // places, the order of the three lists, and the rest (the package).
+  // For a change that put a whole new model in place of the old one: the model in parts, each as its JSON, so the
+  // model before the change can be told from the model after it: the elements and the relationships by id, each view
+  // by id without its layout, each view's layout by the id of what it places, the order of the three lists, and the
+  // rest (the package).
   function capture(model) {
     const byId = (list) => new Map(list.map((x) => [x.id, JSON.stringify(x)]));
     const views = new Map();
     const places = new Map();
     model.views.forEach((view) => {
-      const own = Object.assign({}, view);
-      delete own.layout;
-      views.set(view.id, JSON.stringify(own));
+      const fields = Object.assign({}, view);
+      delete fields.layout;
+      views.set(view.id, JSON.stringify(fields));
       const layout = view.layout || {};
       places.set(view.id, new Map(Object.keys(layout).map((id) => [id, JSON.stringify(layout[id])])));
     });
@@ -5473,10 +6692,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     LISTS.forEach((list) => { order[list] = model[list].map((x) => x.id); });
     return { elements: byId(model.elements), relationships: byId(model.relationships), views: views, places: places, order: order, rest: JSON.stringify(rest) };
   }
-  // What changed from capture a to capture b, as the ids of what it touched, a list each: { elements, relationships,
-  // views }; null when nothing changed. One is touched when it was added, removed or changed, or moved in its list,
-  // whose order is the text's (a sequence view keeps its events in model order). A change to a view's layout touches
-  // the view, and each element or line whose place in it changed.
+  // What changed from capture a to capture b, as touchedBy says it; null when nothing changed.
   function difference(a, b) {
     const touched = { elements: new Set(), relationships: new Set(), views: new Set() };
     const compare = (x, y, into) => {
@@ -5502,6 +6718,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (x.length === y.length && x.every((id, i) => id === y[i])) return [];
     const place = new Map(x.map((id, i) => [id, i]));
     const both = y.filter((id) => place.has(id));
+    // Most changes add or take away and keep the rest in order: then nothing moved.
+    let last = -1;
+    if (both.every((id) => { const p = place.get(id); const ok = p > last; last = p; return ok; })) return [];
     const tails = [];            // tails[k]: where in both the best run of k + 1 found so far ends
     const back = [];             // back[i]: where in both the one before i on its run is, or -1
     both.forEach((id, i) => {
@@ -5527,10 +6746,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ---- The one way the model changes.
 
   S.saveTimer = null;
-  // The model as the last change left it, and its parts as capture found them. A change made to the model outside
-  // edit, a mistake in the page's code, would be in no undo step and missing from what a change touched, so the next
-  // change, and Undo, check the model against it first.
-  let settled = null;
+  S.model = track(S.model, ROOT);
 
   // Every change to the model goes through edit(change, key). change() changes the model and returns what it did: a
   // string, the words for the Undo button and the log; { what, log, key } when the log needs other words (log) or
@@ -5543,7 +6759,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // with the same key, one after another. A run is logged once, in its last words, when it ends: at endEdit(), which
   // the field's change event or the drag's drop calls, or when a change with another key comes first.
   //
-  // Returns what the change touched (see difference), or null when nothing was done: the page can't be changed here,
+  // Returns what the change touched (see touchedBy), or null when nothing was done: the page can't be changed here,
   // or change() did nothing.
   function edit(change, key) {
     if (!editable()) return null;
@@ -5551,31 +6767,69 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (open && open.key !== null && open.key !== key) endEdit();
     const top = S.history[S.history.length - 1];
     const joins = !!key && !!top && top.key === key;
-    const was = capture(S.model);
-    checkSettled(was);
-    const before = joins ? null : snapshot();
-    let said = words(change(), key);
-    const after = capture(S.model);
-    settled = { model: S.model, parts: after };
-    const diff = difference(was, after);
+    reportStray();
+    const model = S.model;
+    const notes = newNotes();
+    writing = notes;
+    let result;
+    try { result = change(); } finally { writing = null; }
+    let said = words(result, key);
+    let touched;
+    if (S.model !== model) {
+      // A whole new model in place of the old one (an import): the new one becomes part of the record, and what it
+      // touched is found by comparing the two.
+      S.model = track(S.model, ROOT);
+      notes.replaced = model;
+      touched = difference(capture(model), capture(S.model));
+    } else touched = touchedBy(notes);
     if (!said) {
-      if (!diff) return null;
-      mistake('A change given to edit() said it did nothing, yet it changed', diff);
+      if (!touched) return null;
+      mistake('A change given to edit() said it did nothing, yet it changed', touched);
       said = words('Changed the model', key);
     }
-    const touched = diff || nothingTouched();
+    touched = touched || nothingTouched();
     if (joins) {
       Object.assign(top, { what: said.what, log: said.log, logKey: said.key });
       merge(top.touched, touched);
+      absorb(top.notes, notes);
     } else {
-      S.history.push({ json: before, what: said.what, key: key || null, touched: touched, log: said.log, logKey: said.key });
+      S.history.push({ notes: notes, what: said.what, key: key || null, touched: touched, log: said.log, logKey: said.key });
       if (S.history.length > HISTORY) S.history.shift();
       if (!key) logChange(said.log, said.key);
     }
     updateUndo();
-    render();
+    render(touched, howToDraw(notes, touched));
     changed();
     return touched;
+  }
+  // What the drawing must do about a change, from its notes (see render): { views, patch, structure, shown }. A change
+  // that only moved things (each write was to a place in a view's layout, or to a view's x or y) lays out again just
+  // the views it touched (views), and may draw again just what moved (patch); one that showed or hid things in views
+  // (a place put in a layout or taken out of it) lays out just those views again (shown); any other can have moved
+  // anything, in any view (views null). structure says the change altered which elements, lines and views there are,
+  // or their order, kinds, owners or ends: what the library's lookups are made from. Null for a whole new model.
+  const STRUCTURE = { elements: ['id', 'kind', 'owner'], relationships: ['id', 'kind', 'from', 'to'], views: ['id', 'kind'] };
+  function howToDraw(notes, touched) {
+    if (notes.replaced) return null;
+    let patch = true;
+    let shown = false;
+    let structure = false;
+    for (const t of notes.lists.keys()) {
+      const h = homes.get(t) || REST;
+      if (h.at === 'list') structure = true;
+      if (h.at !== 'place') patch = false;
+    }
+    for (const [t, keys] of notes.objects) {
+      const h = homes.get(t) || REST;
+      if (h.at === 'place') continue;
+      if (h.at === 'layout') { shown = true; continue; }
+      if (h.at === 'item' && h.list === 'views' && Array.from(keys.keys()).every((k) => k === 'x' || k === 'y')) continue;
+      patch = false;
+      if (h.at === 'root' || (h.at === 'item' && Array.from(keys.keys()).some((k) => STRUCTURE[h.list].indexOf(k) >= 0))) structure = true;
+    }
+    if (patch && !shown) return { views: new Set(touched.views), patch: true, structure: false, shown: false };
+    if (patch) return { views: new Set(touched.views), patch: false, structure: false, shown: true };
+    return { views: null, patch: false, structure: structure, shown: shown };
   }
   // What a change says it did, as { what, log, key }, or null when it says it did nothing.
   function words(said, key) {
@@ -5583,11 +6837,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (typeof said === 'string') return { what: said, log: said, key: key || null };
     return { what: said.what, log: said.log || said.what, key: said.key === undefined ? key || null : said.key };
   }
-  // Reports a change made to the model outside edit since the last change.
-  function checkSettled(parts) {
-    if (!settled || settled.model !== S.model) return;
-    const stray = difference(settled.parts, parts || capture(S.model));
-    if (stray) mistake('The model was changed outside edit()', stray);
+  // Reports the writes made to the model outside edit since the last change: a mistake in the page's code, which no
+  // undo step holds.
+  function reportStray() {
+    const notes = stray;
+    stray = newNotes();
+    const touched = notes.objects.size || notes.lists.size ? touchedBy(notes) : null;
+    if (touched) mistake('The model was changed outside edit()', touched);
   }
   // A mistake in the page's code is thrown as an error of its own, once what the page is doing now is done, so the
   // page goes on while the console, and the tests, see it.
@@ -5602,7 +6858,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const top = S.history[S.history.length - 1];
     if (!top || top.key === null) return;
     top.key = null;
-    if (top.json === snapshot()) S.history.pop();
+    if (!top.notes.replaced && !touchedBy(top.notes)) S.history.pop();
     else logChange(top.log, top.logKey);
     updateUndo();
     changed();
@@ -5622,27 +6878,27 @@ textarea.text[readonly] { resize: none; background: transparent; }
     S.changes.push(entry);
     if (S.changes.length > 200) S.changes = S.changes.slice(-200);
   }
-  // The save waits for a pause in the changes.
+  // The save waits for a pause in the changes, and so do the checks (render.js).
   function changed() {
     clearTimeout(S.saveTimer);
     S.saveTimer = setTimeout(C.persist, PAUSE);
+    clearTimeout(S.checkTimer);
+    S.checkTimer = setTimeout(check, PAUSE);
   }
-  function snapshot() { return JSON.stringify(S.model); }
 
   function updateUndo() {
     const top = S.history[S.history.length - 1];
     undoButton.disabled = !top || !editable();
     undoButton.title = top ? 'Undo: ' + top.what : 'Nothing to undo';
   }
-  // Takes the newest change back: the model goes back to what it was before it.
+  // Takes the newest change back: what it wrote goes back to what it was before it.
   function undo() {
     if (!editable()) return;
     endEdit();
     if (!S.history.length) return;
-    checkSettled();
+    reportStray();
     const entry = S.history.pop();
-    S.model = M.normalize(JSON.parse(entry.json));
-    settled = null;
+    restore(entry.notes);
     modelReplaced();
     logChange('Undid: ' + entry.what);
     changed();
@@ -5652,9 +6908,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // when it was changed elsewhere. It isn't a change made here, so it is neither logged nor saved, and what was done
   // here before it can't be taken back.
   function loadModel(raw) {
-    S.model = M.normalize(raw);
+    S.model = track(M.normalize(raw), ROOT);
     S.history = [];
-    settled = null;
+    stray = newNotes();
   }
   // After the model was swapped for another (undo, the store, an import): the active view and the selection are kept
   // when they still exist, everything is drawn again, and the notes' labels follow.
@@ -6031,6 +7287,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   // The HUD's button: the first thing that has a problem, then the next, round and round.
   function nextProblem() {
+    C.checkNow(); // the problems as they are now, when checks wait for the pause
     const named = S.problems.filter((p) => p.id !== null);
     if (!named.length) { if (S.problems.length) say(S.problems[0].message); return; }
     S.problemCursor = (S.problemCursor + 1) % named.length;
@@ -6575,15 +7832,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const S = C.state;
   const {
-    M, STATE_KEY, WORKING, NOTES, WHERE, hint, status, newViewButton, newViewKind, where, warning, downloadButton,
-    importButton, str, saved, now, say, editable, plural, isNote, tidyNote, tidyArchived, render, logChange,
-    updateUndo, loadModel, modelReplaced, baseHint, setActive, renderInspector, renderNotes
+    M, STATE_KEY, CURRENT, PARTS, WORKING, NOTES, WHERE, hint, status, newViewButton, newViewKind, where, warning,
+    downloadButton, importButton, str, saved, now, say, editable, plural, isNote, tidyNote, tidyArchived, render,
+    logChange, updateUndo, loadModel, modelReplaced, baseHint, setActive, renderInspector, renderNotes
   } = C;
 
   // ---- Where the model and the notes are kept. Published on claude.ai: the page's store, which Claude reads too.
   // Opened as a file: this browser, starting from what is saved in the file.
 
   let reason = '';               // said under the notes in place of the mode's words, when there is a reason (setMode)
+  let mayWrite = null;           // can('data.write'): whether this viewer may write; null when the platform said nothing
 
   function start() {
     Object.keys(M.VIEW_KINDS).forEach((k) => {
@@ -6603,7 +7861,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
         return null;
       }
       S.db = found;
-      return claude.use('user').then((user) => (user ? user.can('data.write') : null)).then((allowed) => startShared(allowed !== false));
+      return claude.use('user').then((user) => (user ? user.can('data.write') : null)).then((allowed) => {
+        mayWrite = allowed === true || allowed === false ? allowed : null;
+        startShared(allowed !== false);
+      });
     }).catch(() => {
       if (S.mode === 'loading') setMode('read', 'The shared store couldn\'t be reached. Reload the page to try again.');
     });
@@ -6655,39 +7916,99 @@ textarea.text[readonly] { resize: none; background: transparent; }
     renderNotes();
   }
 
-  // -- The page's store: one document with the working model, and a collection with one document per note.
-  let lastWritten = null;        // the model as last written or read, to tell our own writes coming back
+  // -- The page's store. The model is kept in the store's layout 2 (the library's stored.js): the head, model/current,
+  // says what the model is and names its parts in order, and each part, model/current/parts/<id>, holds a run of the
+  // model's records and is named by a hash of what it holds, so a part that didn't change is never written again. A
+  // save writes the parts the store hasn't got, then the head, then deletes the parts no head names any more: a reader
+  // of the old head still finds its parts, since they go only after the new head is in. model/working holds a whole
+  // model handed over from elsewhere (layout 1, as older pages kept the model, or written by Claude): the page takes
+  // it, saves it in layout 2, and deletes it. The notes are a collection with one document per note.
+  const WRITERS = 3;             // how many parts a save writes at once, each a document of its own
+  let head = null;               // the store's head, as last heard
+  let headKey = null;            // the model it holds (storedKey)
+  let working = null;            // a whole model in model/working based on the file's revision, as last heard, or null
+  let workingJSON = null;        // its model, as JSON
+  const held = new Set();        // the ids of the parts the store holds, as last heard, with those written here since
+  const bodies = new Map();      // part id -> body, for those parts and for the parts of the head shown here
+  let shownKey = null;           // the model shown here, as the store names one (storedKey), once it was saved or taken
+  let shownParts = new Set();    // the ids of the parts that head names
+  // What the page has dealt with, so each is dealt with once, however often the listeners ask again: the head (its
+  // key) and the whole model in model/working (its JSON) last taken, known as this page's own, or written over.
+  let settledHead = null;
+  let settledWorking = null;
+  let saving = null;             // the save under way: 'writing' its parts and head, then 'tidying' what it left behind
+  let pending = false;           // a change made here isn't in the store yet: from its save until its head is in
+  let again = false;             // a save was asked for while one was under way, so another follows it
+  let retry = null;              // the timer of a save the store was too busy to take, tried again later
+  let busy = 0;                  // how many saves in a row the store was too busy to take
+  let unsavedSaid = '';          // what the status said of a model that couldn't be saved, until one is
   let overwritten = null;        // when a model from elsewhere came while a change here waited to be saved: its time
-  let modelQueue = Promise.resolve();
+  let heardHead = false;
+  let heardParts = false;
+  let heardWorking = false;
+  let seenParts = false;         // whether the collection of parts has answered at all, as a save waits for it
   const noteQueue = {};
   const dirty = new Map();       // note id -> a counter while a change made here hasn't been written
-  let heardModel = false;
+  const heardModel = () => heardHead && heardParts && heardWorking;
 
   function startShared(writable) {
     S.mode = writable ? 'shared' : 'read';
     reason = '';
-    const slow = setTimeout(() => { if (!heardModel || !S.heardNotes) say('The shared store can\'t be reached yet, so this may be out of date.'); }, 10000);
-    const heard = () => { if (heardModel && S.heardNotes) { clearTimeout(slow); if (status.textContent.indexOf('shared store') >= 0) say(''); } };
+    const slow = setTimeout(() => { if (!heardModel() || !S.heardNotes) say('The shared store can\'t be reached yet, so this may be out of date.'); }, 10000);
+    const answered = () => { if (heardModel() && S.heardNotes) { clearTimeout(slow); if (status.textContent.indexOf('shared store') >= 0) say(''); } };
+    const stopped = () => setMode('read', 'The shared store stopped answering. Reload the page to see the latest.');
+    // Each listener notes what the store holds, then asks whether a model from elsewhere is there to take. One that
+    // comes before the store has answered about the head, the parts and model/working is the model as the page found
+    // it, and taken without a word.
+    S.db.doc(CURRENT).onSnapshot((snap) => {
+      const before = heardModel();
+      if (!snap.metadata.fromCache) heardHead = true;
+      head = snap.exists ? snap.data() || null : null;
+      headKey = head ? M.storedKey(head) : null;
+      if (head && typeof head.layout === 'number' && head.layout > M.STORE.layout) {
+        // A newer version of the canvas keeps the model in a layout this one can't read, and mustn't write over.
+        setMode('read', 'The model in the shared store was saved by a newer version of the canvas, so this page can\'t show or change it. Reload the page to get the newer version.');
+        answered();
+        return;
+      }
+      consider(before);
+      repair();
+      answered();
+    }, stopped);
+    S.db.collection(PARTS).onSnapshot((snap) => {
+      const before = heardModel();
+      if (!snap.metadata.fromCache) heardParts = true;
+      snap.docChanges().forEach((change) => {
+        const id = change.doc.id;
+        if (change.type !== 'removed') {
+          held.add(id);
+          bodies.set(id, change.doc.data());
+        } else if (!snap.metadata.fromCache) {
+          // A cached view may lack what the store holds; only the store's own answer says a part is gone.
+          held.delete(id);
+          if (!shownParts.has(id)) bodies.delete(id);
+        }
+      });
+      const first = !seenParts;
+      seenParts = true;
+      consider(before);
+      repair();
+      if (first && pending && !saving) persist();
+      answered();
+    }, stopped);
     S.db.doc(WORKING).onSnapshot((snap) => {
-      const first = !heardModel;
-      if (!snap.metadata.fromCache && !heardModel) { heardModel = true; heard(); }
+      const before = heardModel();
+      if (!snap.metadata.fromCache) heardWorking = true;
       const data = snap.exists ? snap.data() : null;
-      if (!data || data.baseRevision !== saved.model.revision || !data.model) return;
-      const json = JSON.stringify(data.model);
-      if (json === lastWritten) return;
-      // While a change made here waits for its save (or a drag is under way) a model from elsewhere isn't taken: this
-      // page's write follows and wins, and persist says so, here and in the change log, which Claude reads.
-      if (S.drag || S.saveTimer) { overwritten = str(data.updated) || now(); return; }
-      lastWritten = json;
-      // A model from elsewhere is a new starting point: what was done here before it can't be taken back.
-      loadModel(data.model);
-      if (Array.isArray(data.changes)) S.changes = data.changes.slice(-200);
-      modelReplaced();
-      if (!first && !snap.metadata.hasPendingWrites) say('The model was updated elsewhere, so the undo history starts afresh.');
-    }, () => setMode('read', 'The shared store stopped answering. Reload the page to see the latest.'));
+      // A model of another revision of the file is left alone, as it was before layout 2.
+      working = data && data.baseRevision === saved.model.revision && data.model && typeof data.model === 'object' ? data : null;
+      workingJSON = working ? JSON.stringify(working.model) : null;
+      consider(before);
+      answered();
+    }, stopped);
     S.db.collection(NOTES).onSnapshot((snap) => {
       const first = !S.heardNotes;
-      if (!snap.metadata.fromCache && !S.heardNotes) { S.heardNotes = true; heard(); }
+      if (!snap.metadata.fromCache && !S.heardNotes) { S.heardNotes = true; answered(); }
       const remote = new Map();
       snap.docs.forEach((doc) => {
         const body = doc.data();
@@ -6712,19 +8033,191 @@ textarea.text[readonly] { resize: none; background: transparent; }
     renderInspector();
     renderNotes();
   }
+
+  // While a change made here waits for its save (or a drag is under way, or the save is writing), a model from
+  // elsewhere isn't taken: this page's write follows and wins, and persist says so, here and in the change log, which
+  // Claude reads.
+  const waiting = () => !!(S.drag || S.saveTimer || pending || retry);
+
+  // Takes what the store holds when it is a model from elsewhere: a whole model handed over in model/working first, as
+  // new input, else the head's, once every part it names is there. before: whether the store had answered about the
+  // model before what was heard now; until it has, a model taken is the one the page found, and taken without a word.
+  function consider(before) {
+    if (working) { takeWorking(before); return; }
+    if (!head || head.layout !== M.STORE.layout || head.baseRevision !== saved.model.revision || !Array.isArray(head.parts)) return;
+    const key = headKey;
+    if (key === shownKey) { settledHead = key; return; }     // the model shown here: its own write, heard back
+    if (key === settledHead || !head.parts.every((id) => bodies.has(id))) return;   // dealt with already, or not all there yet
+    settledHead = key;
+    if (waiting()) { overwritten = str(head.updated) || now(); return; }
+    let model;
+    try {
+      model = M.assembleModel(head, (id) => bodies.get(id));
+    } catch (error) {
+      say('The model in the shared store couldn\'t be read, so this is the model as it was: ' + error.message);
+      return;
+    }
+    show(key, head.parts);
+    // A model from elsewhere is a new starting point: what was done here before it can't be taken back.
+    loadModel(model);
+    if (Array.isArray(head.changes)) S.changes = head.changes.slice(-200);
+    modelReplaced();
+    if (before) say('The model was updated elsewhere, so the undo history starts afresh.');
+  }
+  function takeWorking(before) {
+    if (workingJSON === settledWorking) return;  // taken already, or written over: a save in layout 2 deletes it
+    settledWorking = workingJSON;
+    if (waiting()) { overwritten = str(working.updated) || now(); return; }
+    loadModel(working.model);
+    if (Array.isArray(working.changes)) S.changes = working.changes.slice(-200);
+    modelReplaced();
+    if (before) say('The model was updated elsewhere, so the undo history starts afresh.');
+    persist();                                   // in layout 2; once its head is in, model/working is deleted
+  }
+  // The head shown here now: its key, and the parts it names, whose bodies the page keeps while it shows them.
+  function show(key, ids) {
+    shownKey = key;
+    shownParts = new Set(ids);
+    Array.from(bodies.keys()).forEach((id) => { if (!held.has(id) && !shownParts.has(id)) bodies.delete(id); });
+  }
+
+  // A save stops once the page can no longer write (it turned read-only while the save was under way): stillShared()
+  // goes on while it can, and rejects with STOPPED once it can't.
+  const STOPPED = {};
+  const stillShared = () => (S.mode === 'shared' ? Promise.resolve() : Promise.reject(STOPPED));
+
+  // Saves the model: the parts the store hasn't got, a few at a time and each once, then the head, then what no head
+  // names any more. One save at a time; one asked for meanwhile follows it. Nothing is sent that the store would
+  // refuse for its size: a record too large for a part, or a head too large for a document, is said instead, and the
+  // model saves once it is shortened.
   function persist() {
     S.saveTimer = null;
     if (S.mode === 'local') { saveLocal(); return; }
     if (S.mode !== 'shared') return;
+    if (saving) { again = true; return; }
+    clearTimeout(retry);
+    retry = null;
+    again = false;
+    pending = true;
+    if (!seenParts) return;                      // the collection of parts answers first, so what it holds isn't written again
     if (overwritten) {
       logChange('Wrote this page\'s model over a change made elsewhere at ' + overwritten + ', which came while a change here waited to be saved');
       say('The model was changed elsewhere while you were editing; this page\'s version was written over it.');
       overwritten = null;
     }
-    const body = { baseRevision: saved.model.revision, model: JSON.parse(JSON.stringify(S.model)), changes: S.changes.slice(-200), updated: now() };
-    lastWritten = JSON.stringify(body.model);
-    modelQueue = modelQueue.then(() => attempt(() => S.db.doc(WORKING).set(body))).catch((error) => refused(error, 'The change to the model wasn\'t saved.'));
+    let split;
+    let next;
+    try {
+      split = M.splitModel(S.model);
+      next = M.storeHead(split, { baseRevision: saved.model.revision, changes: S.changes, updated: now() });
+    } catch (error) {
+      if (!error || !error.record) throw error;
+      cantSave(error.record);
+      return;
+    }
+    const absorbed = workingJSON;                // the whole model in model/working this save takes in, or writes over
+    saving = 'writing';
+    show(M.storedKey(next), next.parts);         // so its head, heard back, is known as this page's own
+    writeModel(split, next).then(() => {
+      saving = 'tidying';
+      pending = false;
+      busy = 0;
+      if (unsavedSaid && status.textContent === unsavedSaid) say('The model is saved again.');
+      unsavedSaid = '';
+      return tidy(next, absorbed);
+    }).catch((error) => {
+      if (error === STOPPED) return;
+      if (error && error.code === 'resource_exhausted' && saving === 'writing') {
+        busy += 1;
+        const delay = Math.round(Math.min(30000, 2000 * Math.pow(2, busy - 1)) * (0.75 + Math.random() / 2));
+        retry = setTimeout(() => { retry = null; persist(); }, delay);
+        refused(error, 'The change to the model isn\'t saved yet.', delay);
+      } else if (saving === 'writing') {
+        refused(error, 'The change to the model wasn\'t saved.');
+      } else {
+        refused(error, 'An old part of the model wasn\'t deleted from the shared store.');
+      }
+    }).then(() => {
+      saving = null;
+      if (S.mode !== 'shared') return;
+      if (again || (overwritten && !retry)) persist();
+      else { consider(true); repair(); }
+    });
   }
+  // Writes the parts the store hasn't got, then the head, unless the store holds that head already.
+  function writeModel(split, next) {
+    const missing = [];
+    const seen = new Set();
+    split.parts.forEach((part) => { if (!held.has(part.id) && !seen.has(part.id)) { seen.add(part.id); missing.push(part); } });
+    return inTurn(missing, WRITERS, (part) => stillShared().then(() => {
+      const body = JSON.parse(part.text);
+      return attempt(() => S.db.doc(PARTS + '/' + part.id).set(body)).then(() => { held.add(part.id); bodies.set(part.id, body); });
+    })).then(stillShared).then(() => {
+      if (sameHead(head, next)) return null;
+      return attempt(() => S.db.doc(CURRENT).set(next));
+    });
+  }
+  // Whether two heads are the same but for when they were written.
+  function sameHead(a, b) {
+    const bare = (h) => JSON.stringify(Object.assign({}, h, { updated: null }));
+    return !!a && !!b && bare(a) === bare(b);
+  }
+  // Once a new head is in, what no head names any more: the parts neither it nor the head heard last names (another
+  // page may have written one since), one delete at a time; and the whole model in model/working this save took in or
+  // wrote over, unless another came since.
+  function tidy(next, absorbed) {
+    const keep = new Set(next.parts);
+    const doomed = Array.from(held).filter((id) => !keep.has(id));
+    return inTurn(doomed, 1, (id) => {
+      if (S.mode !== 'shared' || (head && Array.isArray(head.parts) && head.parts.indexOf(id) >= 0)) return Promise.resolve();
+      return attempt(() => S.db.doc(PARTS + '/' + id).delete()).then(() => { held.delete(id); if (!shownParts.has(id)) bodies.delete(id); });
+    }).then(() => {
+      if (S.mode !== 'shared' || !absorbed || workingJSON !== absorbed) return null;
+      return attempt(() => S.db.doc(WORKING).delete());
+    });
+  }
+  // A part the store's head names that has gone from the store, deleted by another page saving at the same time, is
+  // written again by a page that shows that head, so the head doesn't name a part the store hasn't got for long.
+  function repair() {
+    if (saving || S.mode !== 'shared' || !head || !Array.isArray(head.parts) || headKey !== shownKey) return;
+    const lost = head.parts.filter((id, i) => !held.has(id) && bodies.has(id) && head.parts.indexOf(id) === i);
+    if (!lost.length) return;
+    saving = 'writing';
+    inTurn(lost, WRITERS, (id) => stillShared().then(() => attempt(() => S.db.doc(PARTS + '/' + id).set(bodies.get(id)))).then(() => { held.add(id); }))
+      .catch((error) => { if (error !== STOPPED) refused(error, 'A part of the model the shared store lost wasn\'t written again.'); })
+      .then(() => { saving = null; if (again && S.mode === 'shared') persist(); });
+  }
+  // Runs job(item) for each item, at most width at a time, and resolves once every job started has settled: rejects
+  // with the first refusal, after which no more are started.
+  function inTurn(items, width, job) {
+    let next = 0;
+    let failed = null;
+    const lane = () => {
+      if (failed || next >= items.length) return Promise.resolve();
+      return job(items[next++]).then(lane, (error) => { if (!failed) failed = { error: error }; });
+    };
+    const lanes = [];
+    for (let i = 0; i < width; i++) lanes.push(lane());
+    return Promise.all(lanes).then(() => { if (failed) throw failed.error; });
+  }
+  // Says why the model can't be saved, naming what is too large and what to shorten. Nothing is sent: the change stays
+  // here, waiting to be saved, and saves once it fits.
+  function cantSave(record) {
+    const kib = (bytes) => (bytes / 1024).toFixed(1).replace(/\.0$/, '');
+    const field = record.field && M.FIELDS[record.field] ? M.FIELDS[record.field].label : record.field;
+    let what;
+    if (record.list === 'head') what = 'the model\'s ' + (record.field || 'head');
+    else if (record.list === 'layout') what = 'the place of ' + (M.labelFor(S.model, record.id) || record.id) + ' in ' + (M.labelFor(S.model, record.view) || 'view ' + record.view);
+    else what = M.labelFor(S.model, record.id) || record.list + ' ' + record.id;
+    const fix = record.list === 'head' ? 'Shorten it' : field ? (record.why === 'depth' ? 'Simplify its ' : 'Shorten its ') + field : 'Shorten it';
+    const message = 'Changes aren\'t saved: ' + what + (record.why === 'depth'
+      ? ' nests ' + record.depth + ' levels deep, more than the shared store keeps (' + record.limit + ').'
+      : ' is ' + kib(record.bytes) + ' KiB, more than the shared store keeps in one ' + (record.list === 'head' ? 'document' : 'piece') + ' (' + kib(record.limit) + ' KiB).') +
+      ' ' + fix + ', and the model saves again.';
+    unsavedSaid = message;
+    say(message);
+  }
+
   // What the store keeps of a note; a free note (target null) carries its place, x and y, too.
   function noteBody(n) {
     const body = { no: n.no, target: n.target, targetLabel: n.targetLabel, text: n.text, by: n.by, created: n.created, updated: n.updated, response: n.response, resolved: n.resolved };
@@ -6758,17 +8251,43 @@ textarea.text[readonly] { resize: none; background: transparent; }
     dirty.delete(id);
     enqueue(id, () => attempt(() => S.db.collection(NOTES).doc(id).delete()).catch((error) => refused(error, 'The note wasn\'t deleted in the shared store.')));
   }
+  // One call to the store, tried again when the store says to: once after a short random pause when it is
+  // unavailable, and twice, after longer pauses, when it is busy (resource_exhausted), as it is when calls come too
+  // fast. Anything else, or the same again, is the caller's to say.
   function attempt(fn) {
-    return Promise.resolve().then(fn).catch((error) => {
-      if (!error || error.code !== 'unavailable') throw error;
-      return new Promise((resolve) => setTimeout(resolve, 400 + Math.random() * 800)).then(fn);
+    let unavailable = 0;
+    let crowded = 0;
+    const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const run = () => Promise.resolve().then(fn).catch((error) => {
+      const code = error && error.code;
+      if (code === 'unavailable' && unavailable < 1) { unavailable += 1; return pause(400 + Math.random() * 800).then(run); }
+      if (code === 'resource_exhausted' && crowded < 2) { crowded += 1; return pause(500 * crowded * (1 + Math.random())).then(run); }
+      throw error;
     });
+    return run();
   }
-  function refused(error, fallback) {
+  // What the page says when the store didn't take a write: what happened and what to do, by the store's code, with the
+  // store's own words where they help. The page turns read-only only when the store says this viewer may not write:
+  // revoked or not_granted, or a well-formed write refused with invalid_argument (or transform_error, which is the
+  // same) while the platform hasn't said whether this viewer may write (can('data.write') null), as db.d.ts advises.
+  // Anything else leaves the page as it is. retryIn, when the page tries the write again by itself: how soon, in ms.
+  function refused(error, fallback, retryIn) {
     const code = error && error.code;
-    if (code === 'invalid_argument' || code === 'revoked' || code === 'not_granted') setMode('read', 'You can look at this model here but not change it.');
-    else if (code === 'quota_exceeded') say('The shared store is full. Delete some notes, then try again.');
-    else say(fallback + ' Check your connection, then try again.');
+    const told = error && typeof error.message === 'string' && error.message.trim() ? ' (' + error.message.trim().replace(/[.\s]+$/, '') + ')' : '';
+    const invalid = code === 'invalid_argument' || code === 'transform_error';
+    if (code === 'revoked' || code === 'not_granted' || (invalid && mayWrite === null)) {
+      setMode('read', 'The shared store didn\'t take this viewer\'s change, so you can look at this model here but not change it.');
+    } else if (code === 'quota_exceeded') {
+      say(fallback + ' The shared store is full' + told + '. Delete some notes or archived notes, then try again.');
+    } else if (code === 'resource_exhausted') {
+      say(fallback + ' The shared store is busy' + told + (retryIn ? '; the page tries again in ' + Math.max(1, Math.round(retryIn / 1000)) + ' s.' : '. Wait a minute, then try again.'));
+    } else if (invalid) {
+      say(fallback + ' The shared store refused it' + told + '.');
+    } else if (code === 'capability_disabled' || code === 'capability_removed') {
+      say(fallback + ' The shared store can\'t be used in this view. Reload the page to try again.');
+    } else {
+      say(fallback + ' Check your connection, then try again.');
+    }
   }
 
   Object.assign(C, {
@@ -6847,6 +8366,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ---- The export: the model as textual SysML v2.
 
   function openExport() {
+    C.checkNow(); // the export says what keeps it from being correct now, when checks wait for the pause
     while (exportProblems.firstChild) exportProblems.removeChild(exportProblems.firstChild);
     S.problems.forEach((p) => {
       const li = document.createElement('li');
@@ -6941,6 +8461,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   svg.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button > 1) return;
     event.preventDefault();
+    C.stageChanged(); // where the stage is, read afresh as a gesture starts, while the page is laid out
     canvas.focus({ preventScroll: true });
     pointers[event.pointerId] = { x: event.clientX, y: event.clientY, button: event.button };
     try { svg.setPointerCapture(event.pointerId); } catch (error) { /* not capturable */ }
@@ -7024,12 +8545,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!view || !el || !view.layout[el.id]) return;
     edit(() => {
       rendererFor(view).drag(view, el, d, p);
-      return 'Moved ' + M.describe(S.model, el);
+      return 'Moved ' + M.describe(S.model, el, S.layout.ids);
     }, 'move:' + el.id);
-    if (S.drag.over) {
-      const g = svg.querySelector('.frame[data-view="' + view.id + '"] [data-el="' + S.drag.over + '"]');
-      if (g) g.classList.add('is-drop');
-    }
+    // The box it would drop into is marked, and only that one: a drawing that moved things kept the other groups.
+    const over = S.drag.over ? svg.querySelector('.frame[data-view="' + view.id + '"] [data-el="' + S.drag.over + '"]') : null;
+    svg.querySelectorAll('[data-el].is-drop').forEach((g) => { if (g !== over) g.classList.remove('is-drop'); });
+    if (over) over.classList.add('is-drop');
   }
   // Ends a drag: a pin's, a view's, or an element's through its renderer's drop, the last change of the drag's run,
   // which ends with it. The record comes off drag first, so the render that follows no longer makes way for what was
@@ -7039,6 +8560,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const d = S.drag;
     S.drag = null;
     if (d.kind === 'pin') { C.dropPin(d, event); return; }
+    svg.querySelectorAll('[data-el].is-drop').forEach((g) => g.classList.remove('is-drop'));
     let said = '';
     if (d.kind === 'view') {
       const view = viewById(d.id);
@@ -7180,8 +8702,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   svg.addEventListener('pointerleave', () => { setHover(null); hint.textContent = baseHint(); });
 
-  if (window.ResizeObserver) new ResizeObserver(() => { if (S.camera && S.layout) applyCamera(); }).observe(canvas);
-  else window.addEventListener('resize', () => { if (S.camera && S.layout) applyCamera(); });
+  const resized = () => { C.stageChanged(); if (S.camera && S.layout) applyCamera(); };
+  if (window.ResizeObserver) new ResizeObserver(resized).observe(canvas);
+  else window.addEventListener('resize', resized);
 
   // A change still waiting for its pause is saved when the page is left or put away.
   const flush = () => { if (S.saveTimer) { clearTimeout(S.saveTimer); persist(); } Object.keys(noteTimers).forEach((id) => { clearTimeout(noteTimers[id]); const n = noteById(id); if (n) writeShared(n, ['text', 'updated']); delete noteTimers[id]; }); };
@@ -7228,6 +8751,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       g.appendChild(text(cx, r.y + 32, nameLine(el), 'uname', 'middle'));
     },
     compartments: true,
+    radius: 10,
     cls: 'item'
   };
   // A directed feature placed on a port def starts out going out, since there it has to go some way.
@@ -7310,7 +8834,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (el.actionKind === 'send') g.appendChild(node('path', { d: 'M' + f(r.x + 8) + ',' + f(r.y + 8) + ' h10 l5,5 l-5,5 h-10 Z' }, 'action-glyph'));
       else if (el.actionKind === 'accept') g.appendChild(node('path', { d: 'M' + f(r.x + 8) + ',' + f(r.y + 8) + ' h15 v10 h-15 l5,-5 Z' }, 'action-glyph'));
     },
-    compartments: true, cls: 'action'
+    compartments: true, cls: 'action', radius: 10
   };
   // A state def (square corners) or a state (rounder than a part), with «parallel» beside the keyword when it is.
   SHAPES.state = {
@@ -7319,7 +8843,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: kind.definition ? 0 : 16 }, 'outline'));
       behaviorHeader(el, r, g, '«' + (el.abstract ? 'abstract ' : '') + kind.keyword + '»' + (el.parallel ? ' «parallel»' : ''));
     },
-    compartments: true, cls: 'state'
+    compartments: true, cls: 'state', radius: function (el) { return M.KINDS[el.kind].definition ? 0 : 16; }
   };
   // The control nodes: a bar for a fork or a join, a diamond for a decision or a merge, each with its name hanging at
   // its lower right, where no succession comes or goes: the lines leave the middle of a bar's sides and a diamond's
@@ -7401,7 +8925,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const owner = el.owner !== undefined ? S.layout.ids.get(el.owner) : null;
     const fits = !!owner && (home === 'action' ? M.isActionOwner(owner.kind) : home === 'state' ? M.isStateOwner(owner.kind) : M.isActionOwner(owner.kind) || M.isStateOwner(owner.kind));
     if (!fits) {
-      S.model.elements.splice(S.model.elements.indexOf(el), 1);
+      S.model.elements.splice(S.model.elements.findIndex((e) => e.id === el.id), 1);
       delete view.layout[el.id];
       say('Click inside ' + (home === 'action' ? 'an action def or an action' : home === 'state' ? 'a state def or a state' : 'an action def, an action, a state def or a state') + ' to put the ' + M.KINDS[kind].label + ' there.');
       return null;
@@ -7976,7 +9500,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, byNumber, viewById, frameAround, node, text, RENDERERS,
-    marksFor, edit, renderInspector, selectedView
+    onScreen, marksFor, edit, renderInspector, selectedView
   } = C;
 
   // ---- The grid view: a table with a row per shown element, or a matrix of the shown elements against each other
@@ -8022,7 +9546,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (col === 'owner') { const o = el.owner !== undefined ? ids.get(el.owner) : null; return o ? gridPath(o, ids) : ''; }
     if (col === 'doc') return el.doc.replace(/\s+/g, ' ').trim();
     if (col === 'specializes') {
-      return S.model.relationships.filter((r) => r.kind === 'Specialization' && r.from === el.id && ids.has(r.to))
+      return M.linesFrom(S.model, el.id, 'Specialization').filter((r) => ids.has(r.to))
         .map((r) => gridName(ids.get(r.to))).join(', ');
     }
     if (col === 'notes') return S.notes.filter((n) => n.target === el.id).sort(byNumber).map((n) => String(n.no)).join(', ');
@@ -8118,8 +9642,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     cell.appendChild(text(x + GRID_PAD, G.y + G.headH - 10, gridClip(title + mark, w), 'grid-head grid-col-title'));
     return cell;
   }
-  function gridDraw(view, g, L) {
+  // Draws the sheet, and of its rows (and a matrix's columns) those on screen.
+  function gridDraw(view, g, L, region) {
     const G = L.grid;
+    const rowOn = (r) => onScreen({ x: G.x, y: r.y, w: G.w, h: GRID_ROW_H }, region);
+    const colOn = (c) => onScreen({ x: c.x, y: G.y, w: GRID_MATRIX_COL, h: G.h }, region);
     const ids = S.layout.ids;
     const sheet = node('g', {}, 'grid');
     g.appendChild(sheet);
@@ -8131,6 +9658,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       sheet.appendChild(gridHeadCell(G, G.x, GRID_MATRIX_HEAD, 'name', 'from \\ to', 'Click to sort the rows and the columns by name; again for descending; again for the model\'s order.'));
       sheet.appendChild(node('rect', { x: f(left), y: f(G.y), width: f(G.w - GRID_MATRIX_HEAD), height: f(G.headH) }, 'grid-head-cell'));
       G.rows.forEach((c) => {
+        if (!colOn(c)) return;
         const cx = c.x + GRID_MATRIX_COL / 2 + 4;
         const cy = top - 8;
         const t = text(cx, cy, c.label, 'grid-head', 'start');
@@ -8138,11 +9666,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
         sheet.appendChild(t);
       });
       G.rows.forEach((r, i) => {
+        if (!rowOn(r)) return;
         const row = gridRowGroup(view, r, i, G);
         row.appendChild(text(G.x + GRID_PAD, r.y + 16, gridClip(r.path, GRID_MATRIX_HEAD), 'grid-cell grid-name'));
         G.rows.forEach((c) => {
+          if (!colOn(c)) return;
           if (c.el.id === r.el.id) { row.appendChild(node('rect', { x: f(c.x), y: f(r.y), width: f(GRID_MATRIX_COL), height: f(GRID_ROW_H) }, 'grid-self')); return; }
-          const rels = S.model.relationships.filter((x) => x.from === r.el.id && x.to === c.el.id);
+          const rels = M.linesFrom(S.model, r.el.id).filter((x) => x.to === c.el.id);
           if (!rels.length) return;
           // The cell: a group named for the column's element, its tooltip saying the relationships in words.
           const cell = node('g', { 'data-col': c.el.id }, 'grid-matrix-cell');
@@ -8154,10 +9684,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
         });
         sheet.appendChild(row);
       });
-      G.rows.forEach((c) => sheet.appendChild(node('line', { x1: f(c.x), y1: f(G.y), x2: f(c.x), y2: f(G.y + G.h) }, 'grid-rule')));
+      G.rows.forEach((c) => { if (colOn(c)) sheet.appendChild(node('line', { x1: f(c.x), y1: f(G.y), x2: f(c.x), y2: f(G.y + G.h) }, 'grid-rule')); });
     } else {
       G.cols.forEach((c) => sheet.appendChild(gridHeadCell(G, c.x, c.w, c.key, c.key, 'Click to sort the rows by ' + c.key + '; again for descending; again for the model\'s order.')));
       G.rows.forEach((r, i) => {
+        if (!rowOn(r)) return;
         const row = gridRowGroup(view, r, i, G);
         G.cols.forEach((c) => {
           const value = gridCell(r.el, c.key, ids);
@@ -8172,6 +9703,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   RENDERERS.grid = {
     layout: gridLayout,
     draw: gridDraw,
+    problems: true, // its problems column shows what the checks found, so the view is drawn again when that changes
     place: function (view, kind) {
       say('A grid draws nothing by hand: its rows come from its Show list and from Show all in the panel. Select ' + M.describeView(S.model, view) + ' to add rows.');
       return null;
@@ -8300,7 +9832,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const S = C.state;
   const {
-    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, edit,
+    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, onScreen, edit,
     renderInspector, selectedView
   } = C;
 
@@ -8384,7 +9916,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const box = rows.length ? { x: view.x, y: view.y, x2: view.x + width, y2: view.y + rows.length * BROWSER_ROW } : null;
       return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: new Map(), frameRect: frameAround(view, box), rows: rows, treeWidth: width };
     },
-    draw: function (view, g, L) {
+    // Only the rows on screen are drawn, each in its place.
+    draw: function (view, g, L, region) {
       const rows = node('g', {}, 'browser-rows');
       g.appendChild(rows);
       if (!L.rows.length) {
@@ -8395,6 +9928,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       }
       L.rows.forEach((row, i) => {
         const top = view.y + i * BROWSER_ROW;
+        if (!onScreen({ x: view.x, y: top, w: L.treeWidth, h: BROWSER_ROW }, region)) return;
         const x0 = view.x + row.depth * BROWSER_INDENT;
         const isEl = row.type === 'el';
         const attrs = { 'data-kind': row.item.kind, 'data-view': view.id };
@@ -8804,7 +10338,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // -- Code links: the files of the code behind an element, each a path, a language and a text. They are edited in the
   // panel's code section, listed in the box's code compartment, and exported as textual representations in the body.
   COMPARTMENTS.push({
-    applies: function (el) { return Array.isArray(el.code) && el.code.length > 0; }, head: 'code', cls: 'mono',
+    applies: function (el) { return Array.isArray(el.code) && el.code.length > 0; }, head: 'code', cls: 'mono', own: true,
     lines: function (el, width) { return el.code.map((c) => fitPath(c.path.trim() || '(no path)', Math.max(8, Math.floor((width - 24) / 6.6)))); }
   });
   // A path that fits a compartment line: its end, where the file is named, with an ellipsis in front.

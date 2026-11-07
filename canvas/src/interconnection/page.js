@@ -35,6 +35,7 @@
       g.appendChild(text(cx, r.y + 32, nameLine(el), 'uname', 'middle'));
     },
     compartments: true,
+    radius: 10,
     cls: 'item'
   };
   // A directed feature placed on a port def starts out going out, since there it has to go some way.

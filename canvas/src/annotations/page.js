@@ -313,7 +313,7 @@
   // -- Code links: the files of the code behind an element, each a path, a language and a text. They are edited in the
   // panel's code section, listed in the box's code compartment, and exported as textual representations in the body.
   COMPARTMENTS.push({
-    applies: function (el) { return Array.isArray(el.code) && el.code.length > 0; }, head: 'code', cls: 'mono',
+    applies: function (el) { return Array.isArray(el.code) && el.code.length > 0; }, head: 'code', cls: 'mono', own: true,
     lines: function (el, width) { return el.code.map((c) => fitPath(c.path.trim() || '(no path)', Math.max(8, Math.floor((width - 24) / 6.6)))); }
   });
   // A path that fits a compartment line: its end, where the file is named, with an ellipsis in front.

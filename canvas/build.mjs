@@ -40,7 +40,8 @@ export const STYLES = [
 
 // The model library, <script id="model-lib" data-lib>: pure logic, which export.mjs and save-state.mjs run in Node.
 // The metamodel's classifiers, which canvas/metamodel/generate.mjs writes from SysML.ecore; the core's tables and
-// helpers, whose kinds stand on them; each feature's rows and functions; then the checks, the export, and SysMLModel.
+// helpers, whose kinds stand on them; each feature's rows and functions; then the checks, the export, how the page's
+// store keeps the model, and SysMLModel.
 export const LIBRARY = [
   'core/lib/metamodel.js',
   'core/lib/model.js',
@@ -53,6 +54,7 @@ export const LIBRARY = [
   'annotations/lib.js',
   'core/lib/validate.js',
   'core/lib/sysml.js',
+  'core/lib/stored.js',
   'core/lib/api.js',
 ];
 

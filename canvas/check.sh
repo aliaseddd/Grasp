@@ -3,7 +3,7 @@
 # validator, through docs/sysml/check.sh.
 #
 #   canvas/check.sh                     # the model and the notes saved in canvas/index.html
-#   canvas/check.sh canvas-state.json   # a state file (see export.mjs)
+#   canvas/check.sh canvas-state.json   # a state file, or a dump of the page's store (see export.mjs)
 #
 # Exits 1 if the export has problems or the validator reports an error. The exported text is left in a temporary
 # folder whose path is printed, so an error can be read against its line numbers.

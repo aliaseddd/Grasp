@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { clickElement, exportText, finish, launch, openCanvas, placeElement, rename, until } from './helpers.mjs';
+import { checked, clickElement, exportText, finish, launch, openCanvas, placeElement, rename, until } from './helpers.mjs';
 
 const FIXTURE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'interconnection.json');
 const SAVED = 'v-proof'; // the view the embedded model saves
@@ -123,6 +123,7 @@ describe('interconnection view', () => {
     const flow = await drawBetween(page, 'FlowConnectionUsage', 'System.pump.fuelIn', 'System.tank.fuelOut');
     assert.equal(await page.getAttribute(`g[data-rel="${flow}"]`, 'data-kind'), 'FlowConnectionUsage');
     assert.ok(await page.locator('#f-item').isVisible(), 'the panel offers the item that flows');
+    await checked(page);
     assert.match((await page.locator('#problems-list li').allTextContents()).join(' '), /needs an item/, 'until the item is picked, the flow has a problem');
     await page.selectOption('#f-item', 'Fuel');
     await until(page, () => document.querySelectorAll('#problems-list li').length === 0, null, 'the problem goes once the item is picked');
@@ -159,6 +160,7 @@ describe('interconnection view', () => {
     await page.fill('#f-name', 'same');
     const iface = await drawBetween(page, 'InterfaceUsage', 'System.controller.ctrl', 'System.pump.ctrl');
     assert.ok(await page.locator('#f-interfaceDef').isVisible(), 'the panel offers the interface def');
+    await checked(page);
     assert.equal(await page.locator('#problems-list li').count(), 0, 'an untyped interface is fine');
     await page.selectOption('#f-interfaceDef', 'FuelLine');
     await until(page, () => /matches no end of interface def FuelLine/.test(document.querySelector('#problems-list')?.textContent || ''), null, 'the wrong interface def is a problem that names the end');
@@ -203,10 +205,12 @@ describe('interconnection view', () => {
     await deleteSavedView(page);
     const idef = await placeElement(page, 'InterfaceDefinition');
     await rename(page, idef, 'Link');
+    await checked(page);
     assert.match((await page.locator('#problems-list li').allTextContents()).join(' '), /needs two ports/, 'an interface def without ports is a problem');
     let box = await page.locator(`g[data-el="${idef}"]`).boundingBox();
     const a = await placeElement(page, 'PortUsage', { x: box.x + 12, y: box.y + box.height / 2 });
     assert.equal(await page.locator(`g[data-el="${idef}"] g[data-el="${a}"][data-kind="PortUsage"]`).count(), 1, 'the port sits on the interface def');
+    await checked(page);
     assert.ok(await page.locator(`g[data-el="${idef}"].is-problem`).count() >= 1, 'one port is still a problem');
     box = await page.locator(`g[data-el="${idef}"] > .outline`).boundingBox();
     await placeElement(page, 'PortUsage', { x: box.x + box.width - 12, y: box.y + box.height / 2 });
@@ -217,6 +221,7 @@ describe('interconnection view', () => {
     const item = await placeElement(page, 'ItemUsage', { x: box.x + box.width / 2, y: box.y + box.height - 10 });
     assert.equal(await page.locator(`g[data-el="${pdef}"] g[data-el="${item}"]`).count(), 1, 'the item is drawn inside the port def');
     assert.equal(await page.inputValue('#f-direction'), 'out', 'an item placed on a port def starts out going out');
+    await checked(page);
     assert.equal(await page.locator('#problems-list li').count(), 0, 'so it has no problem');
     await page.selectOption('#f-direction', { value: '' });
     await until(page, () => /needs a direction/.test(document.querySelector('#problems-list')?.textContent || ''), null, 'an undirected item on a port def is a problem');
