@@ -48,7 +48,7 @@
       // another named line declared there. The payload, when there is one, is an item def.
       check: function (model, rel, ids, add) {
         const mname = rel.name.trim();
-        if (mname && nameTakenBeside(model, rel, ids, model.relationships)) add(rel.id, 'The message ' + mname + ' is named like something else beside it. Rename one.');
+        if (mname && nameTakenBeside(model, rel, ids, {})) add(rel.id, 'The message ' + mname + ' is named like something else beside it. Rename one.');
         if (rel.item && ids.has(rel.item) && ids.get(rel.item).kind !== 'ItemDefinition') {
           add(rel.id, 'The ' + describeRel(model, rel, ids) + ' carries ' + describe(model, ids.get(rel.item), ids) + ', which is not an item def.');
         }

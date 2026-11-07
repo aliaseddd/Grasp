@@ -346,8 +346,7 @@
     const name = str(rel.name).trim();
     if (!name) return;
     const o = RELATIONSHIPS[rel.kind].owner(model, rel, ids);
-    const before = model.relationships.slice(0, model.relationships.indexOf(rel));
-    if (nameTakenBeside(model, rel, ids, before)) add(rel.id, 'The ' + describeRel(model, rel, ids) + ' is named like something else beside it. Rename one.');
+    if (nameTakenBeside(model, rel, ids, { before: true })) add(rel.id, 'The ' + describeRel(model, rel, ids) + ' is named like something else beside it. Rename one.');
     if (o !== null && INHERITED_BEHAVIOR_NAMES.has(name)) add(rel.id, 'The name ' + name + ' is one every action and state already has inside it. Rename the ' + describeRel(model, rel, ids) + '.');
   }
   // Both ends of a succession or transition are written in one body: the innermost element holding both, or the

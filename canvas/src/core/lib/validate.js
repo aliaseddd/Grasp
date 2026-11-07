@@ -3,15 +3,18 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, index, childrenOf, shown, an, describe, inheritedFeatures,
-    boundsOk, RESERVED_NAMES
+    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, reading, idsOf, childrenOf, shown, an, describe,
+    inheritedFeature, boundsOk, RESERVED_NAMES
   } = lib;
 
   // What keeps the model from being correct SysML. Each problem names the element, relationship, or view it is about
-  // (null: the package).
+  // (null: the package). The checks run in a reading of the model, so the helpers they ask answer from its lookups.
   function validate(model) {
+    return reading(model, () => problemsOf(model));
+  }
+  function problemsOf(model) {
     const problems = [];
-    const ids = index(model);
+    const ids = idsOf(model);
     const add = (id, message) => problems.push({ id, message });
     const siblings = new Map();
     const definitionNames = new Set(model.elements.filter((e) => KINDS[e.kind].definition).map(textName).filter(Boolean));
@@ -45,7 +48,7 @@
         if (kind.usage && definitionNames.has(name)) add(el.id, describe(model, el, ids) + ' is named like a definition, so the text would mix them up. Rename one.');
         if (name === pkgName) add(el.id, describe(model, el, ids) + ' is named like the package, so the text would mix them up. Rename one.');
         if (RESERVED_NAMES.has(name)) add(el.id, 'The name ' + name + ' belongs to the standard library. Rename ' + describe(model, el, ids) + '.');
-        const inherited = owner ? inheritedFeatures(model, owner, ids).get(name) : null;
+        const inherited = owner ? inheritedFeature(model, owner, name, ids) : null;
         if (inherited && inherited.kind !== el.kind) {
           add(el.id, describe(model, el, ids) + ' is named like the ' + KINDS[inherited.kind].label + ' ' + name + ' that ' + shown(textName(owner)) + ' inherits. Rename it.');
         }

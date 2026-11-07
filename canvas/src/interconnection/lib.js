@@ -222,7 +222,7 @@
   // checks an interface, a flow or a binding against everything beside it.
   function connectorNameClash(model, rel, ids, add) {
     const cname = rel.name.trim();
-    if (cname && nameTakenBeside(model, rel, ids, model.relationships)) add(rel.id, 'The ' + RELATIONSHIPS[rel.kind].label + ' ' + cname + ' is named like something else beside it. Rename one.');
+    if (cname && nameTakenBeside(model, rel, ids, {})) add(rel.id, 'The ' + RELATIONSHIPS[rel.kind].label + ' ' + cname + ' is named like something else beside it. Rename one.');
   }
   // The end of a flow as the text names it (which is 'from' or 'to'): for a port, the directed item of its port def
   // that is of the flow's item and goes out of the source or into the target, through the port's conjugation; for
