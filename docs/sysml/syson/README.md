@@ -11,6 +11,7 @@ A map of [eclipse-syson/syson][repo], Eclipse SysON: a web-based SysML v2 modeli
 | [`REPO_MAP.md`](REPO_MAP.md) | aider's map of the whole repository: the 107 files it ranks highest, 39 of them from the metamodel, 13 from the application's configuration, and 12 from the frontend's components. |
 | [`projects/`](projects) | A map of each module with code aider can read, 33 in all, at the module's path in the repository. aider ranks each module's files among themselves, so every module gets its own view. [What the maps cover](#what-the-maps-cover) lists them. |
 | [`draw-maps.sh`](draw-maps.sh), [`syson.aiderignore`](syson.aiderignore) | Draw all the maps again from a clone. |
+| [`features/`](features) | An inventory of everything SysON offers at this release, including what it gets from Sirius Web: 3,294 features in seven parts, each with what it does, where it is in the UI, and the files it was read from. Its [README](features/README.md) says how it was made. |
 
 ## How the code fits together
 
