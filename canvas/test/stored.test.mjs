@@ -1,10 +1,10 @@
 // How the page's store keeps the model, outside a browser: layout 2, the model library's stored.js. A model is split
 // into a head (model/current) and parts (model/current/parts/<id>), each within the store's limits, and assembled
-// again, JSON for JSON: every fixture, the saved model, and the scale models. A part keeps its id while what it holds
-// doesn't change, so a change to one element rewrites one part, and an insertion or a removal at most two; a record
-// too large for a part is refused, saying which it is. readStore reads the model from a dump of the store's documents
-// the way the page takes it. The library is the one the page holds, run in a vm context, so the checks compare
-// strings and JSON, never deepEqual.
+// again, JSON for JSON: every fixture, the saved model, the Stronghold example, and the scale models. A part keeps its
+// id while what it holds doesn't change, so a change to one element rewrites one part, and an insertion or a removal at
+// most two; a record too large for a part is refused, saying which it is. readStore reads the model from a dump of the
+// store's documents the way the page takes it. The library is the one the page holds, run in a vm context, so the
+// checks compare strings and JSON, never deepEqual.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -12,7 +12,7 @@ import path from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
-import { modelLibSource, pageSource } from './helpers.mjs';
+import { EXAMPLE, modelLibSource, pageSource } from './helpers.mjs';
 import { scaleModel } from './scale-model.mjs';
 
 const CANVAS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -56,9 +56,10 @@ function refused(run, what) {
 }
 
 describe('the store\'s layout 2', () => {
-  test('a model split into a head and parts and assembled again is the model, JSON for JSON: every fixture, the saved model, the scale models', () => {
+  test('a model split into a head and parts and assembled again is the model, JSON for JSON: every fixture, the saved model, the Stronghold example, the scale models', () => {
     const models = fixtures().map((name) => [name, readModel(path.join(FIXTURES, name))]);
     models.push(['state.json', readModel(path.join(CANVAS, 'state.json'))]);
+    models.push(['the Stronghold example', readModel(EXAMPLE)]);
     for (const count of [31, 1000, 10000]) models.push([`the scale model of ${count}`, scaleModel(count)]);
     for (const [name, raw] of models) {
       const model = held(raw);

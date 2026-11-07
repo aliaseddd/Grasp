@@ -14,6 +14,7 @@ import { loadLib } from '../export.mjs';
 
 const CANVAS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURES = path.join(CANVAS, 'test', 'fixtures');
+const EXAMPLE = path.join(CANVAS, 'examples', 'stronghold-proof.json');
 const lib = loadLib();
 const folders = [];
 const folder = (prefix) => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix)); folders.push(dir); return dir; };
@@ -80,8 +81,10 @@ describe('a dump of the store, read by export.mjs and save-state.mjs', () => {
   });
 
   test('save-state.mjs saves the same state.json and index.html from a dump of the store as from a state file', () => {
+    // The dump is based on the saved model's revision; what it holds is the Stronghold example, with elements to pin
+    // notes on, changed as if on the published page.
     const saved = readJSON(path.join(CANVAS, 'state.json'));
-    const state = plain(saved);
+    const state = plain(readJSON(EXAMPLE));
     state.model.package.doc = 'Changed on the published page.';
     state.notes = [
       { id: 'n1', no: 1, target: state.model.elements[0].id, targetLabel: '', text: 'Is this right?', by: 'user', created: '2026-11-07T09:00:00.000Z', updated: '2026-11-07T09:00:00.000Z', response: 'Yes.', resolved: true },
