@@ -7,8 +7,8 @@
 
   const M = window.SysMLModel;
   const NS = 'http://www.w3.org/2000/svg';
-  const STATE_KEY = 'stronghold-canvas:';          // + the revision of the saved model, when the page is opened as a file
-  const CAMERA_KEY = 'stronghold-canvas-camera:v1';
+  const STATE_KEY = 'grasp:';                      // + the revision of the saved model, when the page is opened as a file
+  const CAMERA_KEY = 'grasp-camera:v1';
   // The shared store's documents for the model, in its layout 2 (the library's stored.js says what each holds): the
   // head, the collection of the parts it names, and a whole model handed over from elsewhere, which the page takes,
   // saves in layout 2 and deletes.

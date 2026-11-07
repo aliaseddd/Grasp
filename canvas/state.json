@@ -1,6 +1,6 @@
 {
   "model": {
-    "format": "stronghold-canvas/2",
+    "format": "grasp/2",
     "revision": "2026-11-07T16:43:21.719Z",
     "package": {
       "name": "Package1",

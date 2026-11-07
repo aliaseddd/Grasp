@@ -1,6 +1,6 @@
-# Playground
+# Grasp
 
-The design canvas: a SysML v2 modeling tool that runs in a web browser, with nothing to install. You draw a model in the eight standard view kinds on one endless plane, the page checks the model as you draw, and it exports textual SysML v2 that the SysML v2 Pilot Implementation's own validator accepts. You pin notes to the drawing, and Claude reads them and changes the model, in a loop. Its layout and behavior follow the design of Eclipse SysON, a SysML v2 modeling tool, as far as possible.
+Grasp is a design canvas: a SysML v2 modeling tool that runs in a web browser, with nothing to install. You draw a model in the eight standard view kinds on one endless plane, the page checks the model as you draw, and it exports textual SysML v2 that the SysML v2 Pilot Implementation's own validator accepts. You pin notes to the drawing, and Claude reads them and changes the model, in a loop. Its layout and behavior follow the design of Eclipse SysON, a SysML v2 modeling tool, as far as possible.
 
 The canvas was first built here to draw the design of [Stronghold](https://github.com/aliaseddd/Stronghold), beside that project's first code. On November 7, 2026, this repository was split: the Stronghold proof's code (`app/`, `hosts/`) and its README moved to the Stronghold repository, where the README is now `docs/PROOF.md`, and the canvas and the SysML files stayed here as a project of their own. Stronghold's models stay here as examples. Stronghold's code, design and decisions are in the Stronghold repository.
 
@@ -52,6 +52,7 @@ These decisions were made for Stronghold's design artifact, so the Stronghold re
 ## Decided on November 7, 2026
 
 - The canvas is a tool of its own, for anyone's SysML v2 models, and it will outlive the Stronghold work it started with. It starts from a blank model, as SysON's empty SysML v2 project does: the package `Package1`, holding one general view, `view1`. Stronghold's models are examples, in `canvas/examples/` and `docs/sysml/`.
+- The tool and this repository are named Grasp; the repository was named Playground. The page's title says Grasp, and the saved format is named after it, `grasp/2`. Files saved under the format's earlier name, `stronghold-canvas/1` or `stronghold-canvas/2`, still open, and always will.
 - The page is published as one file built from several. The sources are in `canvas/src/`, one folder per feature, as plain scripts that need no bundler; `canvas/build.mjs` stitches them, in a fixed order, with the saved state into `canvas/index.html`. That is still the one self-contained HTML file, published on claude.ai and opened as a local file. Change the sources and build, rather than editing `index.html`; `node canvas/build.mjs --check` fails when it isn't what the sources build.
 - The saved state lives in `canvas/state.json`: the model, the notes and the archive, as `{ model, notes, archive }`. `canvas/save-state.mjs` writes it and builds the page from it, and it is committed only on request.
 

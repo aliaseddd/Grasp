@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Design Canvas</title>
+<title>Grasp</title>
 <!-- A SysML v2 model drawn as views on an endless plane, each view a frame with its own layout of the model's
      elements, with notes on its elements and lines, checks while drawing, undo, and an export to textual SysML v2. Open
      this file in a browser; it needs no server. canvas/build.mjs makes it from the sources in canvas/src/ and the saved
@@ -398,7 +398,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   <header class="top">
     <div class="title">
       <p class="eyebrow">SysML v2 · general view</p>
-      <h1>Design Canvas</h1>
+      <h1>Grasp</h1>
     </div>
     <!-- The palette's buttons are made by the page from the active view's kind: button[data-tool] per tool, span.sep
          between groups. -->
@@ -585,7 +585,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 <!-- model:start -->
 <script type="application/json" id="model">
 {
-  "format": "stronghold-canvas/2",
+  "format": "grasp/2",
   "revision": "2026-11-07T16:43:21.719Z",
   "package": {
     "name": "Package1",
@@ -1827,11 +1827,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return Object.assign({ attribute: attribute, type: plain || 'enum' }, literals ? { values: (optional ? [''] : []).concat(literals) } : {}, row);
   }
 
-  // The saved format. A model names the version of the format it was saved in, format: 'stronghold-canvas/2' for
-  // version 2. VERSION is the version this library reads and writes; a model saved in an older one is upgraded as it
-  // is read (UPGRADES, by normalize).
+  // The saved format. A model names the version of the format it was saved in, format: 'grasp/2' for version 2.
+  // Files saved before the canvas was named Grasp name it 'stronghold-canvas/1' or 'stronghold-canvas/2', which read
+  // the same way (versionOf). VERSION is the version this library reads and writes; a model saved in an older one is
+  // upgraded as it is read (UPGRADES, by normalize).
   const VERSION = 2;
-  const FORMAT = 'stronghold-canvas/' + VERSION;
+  const FORMAT = 'grasp/' + VERSION;
   const VIEW_DEF = 'StandardViewDefinitions::GeneralView';
 
   // Element kinds. Each stands on a class of the metamodel, METAMODEL: metaclass names it, the kind's own name unless
@@ -2135,7 +2136,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
           return pick(e, (key) => !place(key));
         });
       }
-      model.format = 'stronghold-canvas/2';
+      model.format = 'grasp/2';
       model.views = [{ kind: 'GeneralView', name: isObject(raw.view) ? raw.view.name : '', layout: Object.fromEntries(places) }];
       return model;
     },
@@ -2144,10 +2145,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function pick(o, keep) {
     return Object.fromEntries(Object.entries(o).filter((entry) => keep(entry[0])));
   }
-  // The version of the format a model was saved in: the number its format names, or, for a model that names none (one
-  // written by hand), the version this library reads and writes.
+  // The version of the format a model was saved in: the number its format names, under the format's name or the one
+  // it had before the canvas was named Grasp, or, for a model that names none (one written by hand), the version this
+  // library reads and writes.
   function versionOf(raw) {
-    const match = isObject(raw) ? /^stronghold-canvas\/([1-9][0-9]*)$/.exec(str(raw.format)) : null;
+    const match = isObject(raw) ? /^(?:grasp|stronghold-canvas)\/([1-9][0-9]*)$/.exec(str(raw.format)) : null;
     return match ? Number(match[1]) : VERSION;
   }
   // A model saved in any version, in the current version: the upgrade of each version from the one it was saved in.
@@ -4765,8 +4767,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   const M = window.SysMLModel;
   const NS = 'http://www.w3.org/2000/svg';
-  const STATE_KEY = 'stronghold-canvas:';          // + the revision of the saved model, when the page is opened as a file
-  const CAMERA_KEY = 'stronghold-canvas-camera:v1';
+  const STATE_KEY = 'grasp:';                      // + the revision of the saved model, when the page is opened as a file
+  const CAMERA_KEY = 'grasp-camera:v1';
   // The shared store's documents for the model, in its layout 2 (the library's stored.js says what each holds): the
   // head, the collection of the parts it names, and a whole model handed over from elsewhere, which the page takes,
   // saves in layout 2 and deletes.

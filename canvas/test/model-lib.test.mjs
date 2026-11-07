@@ -59,7 +59,7 @@ describe('model-lib', () => {
     const state = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'format1.json'), 'utf8'));
     assert.equal(state.model.format, 'stronghold-canvas/1');
     const model = lib.normalize(state.model);
-    assert.equal(model.format, 'stronghold-canvas/2');
+    assert.equal(model.format, 'grasp/2');
     assert.equal(model.views.length, 1, 'one view');
     const view = model.views[0];
     assert.equal(view.kind, 'GeneralView');

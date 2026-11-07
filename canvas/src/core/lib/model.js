@@ -68,11 +68,12 @@
     return Object.assign({ attribute: attribute, type: plain || 'enum' }, literals ? { values: (optional ? [''] : []).concat(literals) } : {}, row);
   }
 
-  // The saved format. A model names the version of the format it was saved in, format: 'stronghold-canvas/2' for
-  // version 2. VERSION is the version this library reads and writes; a model saved in an older one is upgraded as it
-  // is read (UPGRADES, by normalize).
+  // The saved format. A model names the version of the format it was saved in, format: 'grasp/2' for version 2.
+  // Files saved before the canvas was named Grasp name it 'stronghold-canvas/1' or 'stronghold-canvas/2', which read
+  // the same way (versionOf). VERSION is the version this library reads and writes; a model saved in an older one is
+  // upgraded as it is read (UPGRADES, by normalize).
   const VERSION = 2;
-  const FORMAT = 'stronghold-canvas/' + VERSION;
+  const FORMAT = 'grasp/' + VERSION;
   const VIEW_DEF = 'StandardViewDefinitions::GeneralView';
 
   // Element kinds. Each stands on a class of the metamodel, METAMODEL: metaclass names it, the kind's own name unless
@@ -376,7 +377,7 @@
           return pick(e, (key) => !place(key));
         });
       }
-      model.format = 'stronghold-canvas/2';
+      model.format = 'grasp/2';
       model.views = [{ kind: 'GeneralView', name: isObject(raw.view) ? raw.view.name : '', layout: Object.fromEntries(places) }];
       return model;
     },
@@ -385,10 +386,11 @@
   function pick(o, keep) {
     return Object.fromEntries(Object.entries(o).filter((entry) => keep(entry[0])));
   }
-  // The version of the format a model was saved in: the number its format names, or, for a model that names none (one
-  // written by hand), the version this library reads and writes.
+  // The version of the format a model was saved in: the number its format names, under the format's name or the one
+  // it had before the canvas was named Grasp, or, for a model that names none (one written by hand), the version this
+  // library reads and writes.
   function versionOf(raw) {
-    const match = isObject(raw) ? /^stronghold-canvas\/([1-9][0-9]*)$/.exec(str(raw.format)) : null;
+    const match = isObject(raw) ? /^(?:grasp|stronghold-canvas)\/([1-9][0-9]*)$/.exec(str(raw.format)) : null;
     return match ? Number(match[1]) : VERSION;
   }
   // A model saved in any version, in the current version: the upgrade of each version from the one it was saved in.

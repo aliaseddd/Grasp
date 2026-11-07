@@ -116,7 +116,7 @@ Whether an element has a name in the text is decided in one place, `textName(el)
 
 ## The saved format
 
-A model names the version of the format it was saved in: `format: 'stronghold-canvas/2'` is version 2. `VERSION` in `core/lib/model.js` is the version the library reads and writes, and `UPGRADES` beside `normalize` holds one function per older version, which takes a model saved in that version to the next. `normalize` runs them first (`upgrade`), so everything after it reads the current version only, and whatever an older version did differently is written once, in its upgrade. `SysMLModel` has `VERSION`, `versionOf(model)` and `upgrade(model)` for the scripts and the tests.
+A model names the version of the format it was saved in: `format: 'grasp/2'` is version 2. Files saved before the canvas was named Grasp name it `'stronghold-canvas/1'` or `'stronghold-canvas/2'`, and `versionOf` reads both names, so they keep opening; a new version is written under Grasp's name only. `VERSION` in `core/lib/model.js` is the version the library reads and writes, and `UPGRADES` beside `normalize` holds one function per older version, which takes a model saved in that version to the next. `normalize` runs them first (`upgrade`), so everything after it reads the current version only, and whatever an older version did differently is written once, in its upgrade. `SysMLModel` has `VERSION`, `versionOf(model)` and `upgrade(model)` for the scripts and the tests.
 
 To change what a saved model holds, or how it holds it:
 

@@ -62,8 +62,8 @@ describe('the canvas\'s start', () => {
     const ctx = await openCanvas(browser, { file: INDEX });
     const { page } = ctx;
     const view = embeddedModel(pageSource(INDEX)).views[0];
-    assert.equal(await page.title(), 'Design Canvas');
-    assert.equal((await page.textContent('h1')).trim(), 'Design Canvas');
+    assert.equal(await page.title(), 'Grasp');
+    assert.equal((await page.textContent('h1')).trim(), 'Grasp');
     assert.doesNotMatch(await page.evaluate(() => document.title + '\n' + document.body.innerText), /stronghold/i,
       'nothing the page shows names Stronghold');
     assert.equal(await page.locator('#drawing g.frame[data-view]').count(), 1, 'one frame');
