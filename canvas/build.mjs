@@ -39,8 +39,19 @@ export const STYLES = [
 ];
 
 // The model library, <script id="model-lib" data-lib>: pure logic, which export.mjs and save-state.mjs run in Node.
+// The core's tables and helpers, each feature's rows and functions, then the checks, the export, and SysMLModel.
 export const LIBRARY = [
-  'core/library.js',
+  'core/lib/model.js',
+  'interconnection/lib.js',
+  'behavior/lib.js',
+  'sequence/lib.js',
+  'geometry/lib.js',
+  'grid/lib.js',
+  'browser/lib.js',
+  'annotations/lib.js',
+  'core/lib/validate.js',
+  'core/lib/sysml.js',
+  'core/lib/api.js',
 ];
 
 // The page's script, after the library.

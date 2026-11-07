@@ -857,14 +857,18 @@ textarea.text[readonly] { resize: none; background: transparent; }
 <!-- notes:end -->
 
 <script id="model-lib" data-lib>
-// ==== src/core/library.js
-// The model: what the drawing holds, what is wrong with it, and how it reads as textual SysML v2. Pure functions,
-// shared with export.mjs and save-state.mjs, which run this script in Node. The four tables at the top say what the
-// canvas knows: the element kinds, the relationship kinds, the view kinds, and the fields. Each slice adds its rows
-// in its own region of each table, reaches into other rows in the extensions region after the tables, and adds the
-// functions it needs in the helpers region before validate.
+// ==== src/core/lib/model.js
+// The model library: what the drawing holds, what is wrong with it, and how it reads as textual SysML v2. Pure
+// functions, shared with export.mjs and save-state.mjs, which run the library's scripts in Node. This first script
+// holds the four tables that say what the canvas knows, with the core's rows (the element kinds, the relationship
+// kinds, the view kinds, and the fields), and the helpers every feature uses: the names the text reserves and how
+// a name is quoted, how normalize reads what a file carries, and what owns what in a model and what an element is
+// called in a sentence. Each feature's lib.js adds its rows to the tables, reaches into rows before its own (a
+// hook to wrap, a list to push onto), and adds the functions it needs; validate.js and sysml.js read it all, and
+// api.js makes SysMLModel of it.
 (function (root) {
   'use strict';
+  const lib = root.SysMLModelLib = {};   // what the scripts register for the ones after them; api.js removes it
 
   const FORMAT = 'stronghold-canvas/2';
   const VIEW_DEF = 'StandardViewDefinitions::GeneralView';
@@ -888,65 +892,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
     PortDefinition: { keyword: 'port def', label: 'port def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
     PartUsage: { keyword: 'part', label: 'part', definition: false, usage: true, contains: ['PartUsage', 'PortUsage'], onBorder: false, definedBy: 'PartDefinition', size: [180, 60], shape: 'rounded', fields: ['name', 'type', 'multiplicity', 'doc'], traits: ['connectable'] },
     PortUsage: { keyword: 'port', label: 'port', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16], shape: 'port', fields: ['name', 'type', 'multiplicity', 'conjugated', 'doc'], traits: ['connectable'] },
-    // Interconnection: items (what flows, and what a part holds) and interface definitions, whose ports are their ends.
-    ItemDefinition: { keyword: 'item def', label: 'item def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
-    // An item's head carries its direction (in item x : T). On a port def it must have one: a port def may own only
-    // ports and referential usages, as the validator says. Its shape, item, is the page's rounded box with the
-    // direction inside the guillemets, «out item».
-    ItemUsage: { keyword: 'item', label: 'item', definition: false, usage: true, contains: false, onBorder: false, definedBy: 'ItemDefinition', size: [160, 52], shape: 'item', fields: ['name', 'type', 'direction', 'multiplicity', 'doc'], traits: ['flowEnd', 'bindable', 'connectable'],
-      head: function (model, el, h) { return (el.direction ? el.direction + ' ' : '') + h.headOf(el); },
-      check: function (model, el, ids, add) {
-        const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-        if (owner && owner.kind === 'PortDefinition' && !el.direction) add(el.id, describe(model, el, ids) + ' needs a direction: in, out, or inout. An item on a port def says which way it goes.');
-      } },
-    // An interface def's ports are its ends (end port a : P;), and it needs two of them.
-    InterfaceDefinition: { keyword: 'interface def', label: 'interface def', definition: true, usage: false, contains: ['PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [],
-      check: function (model, el, ids, add) {
-        const ends = childrenOf(model, el.id).filter((c) => KINDS[c.kind].onBorder);
-        if (ends.length < 2) add(el.id, describe(model, el, ids) + ' needs two ports on its border, its ends; it has ' + (ends.length ? 'one' : 'none') + '.');
-      } },
-    // Behavior: the action flow view's kinds (an action def, actions with their parameters on the border, the four
-    // control nodes, and start and done) and the state view's (a state def, states, the initial node). Start, done
-    // and the initial node have no name field: they stand for the start and done every action and state inherits,
-    // and for a state's entry, so their heads are null and the text never declares them; a succession or transition
-    // ending on one writes start or done, and a state's body writes the entry idiom for its initial node. The hooks
-    // are the functions of the behavior helpers region, which hoist.
-    ActionDefinition: { keyword: 'action def', label: 'action def', definition: true, usage: false, contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
-    ActionUsage: { keyword: 'action', label: 'action', definition: false, usage: true, contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false,
-      definedBy: 'ActionDefinition', size: [180, 60], shape: 'action', fields: ['name', 'type', 'multiplicity', 'actionKind', 'payload', 'target', 'role', 'doc'], traits: ['successionEnd', 'transitionEnd'],
-      head: actionHead, body: actionBody, check: checkAction },
-    ParameterUsage: { keyword: 'item', label: 'parameter', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'ItemDefinition', size: [16, 16], shape: 'param',
-      fields: ['name', 'direction', 'type', 'multiplicity', 'doc'], traits: ['flowEnd', 'bindable'],
-      head: parameterHead, check: checkParameter, glyph: function (model, el) { return el.direction || null; } },
-    ForkNode: { keyword: 'fork', label: 'fork', definition: false, usage: true, contains: false, onBorder: false, size: [60, 8], shape: 'bar', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
-    JoinNode: { keyword: 'join', label: 'join', definition: false, usage: true, contains: false, onBorder: false, size: [60, 8], shape: 'bar', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
-    DecisionNode: { keyword: 'decide', label: 'decision', definition: false, usage: true, contains: false, onBorder: false, size: [40, 40], shape: 'diamond', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode, after: decisionBranches },
-    MergeNode: { keyword: 'merge', label: 'merge', definition: false, usage: true, contains: false, onBorder: false, size: [40, 40], shape: 'diamond', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
-    StartNode: { keyword: 'start', label: 'start', definition: false, usage: true, contains: false, onBorder: false, size: [16, 16], shape: 'dot', fields: [], traits: ['successionEnd', 'transitionEnd'], head: noHead, check: checkPseudoNode },
-    DoneNode: { keyword: 'done', label: 'done', definition: false, usage: true, contains: false, onBorder: false, size: [22, 22], shape: 'bullseye', fields: [], traits: ['successionEnd', 'transitionEnd'], head: noHead, check: checkPseudoNode },
-    StateDefinition: { keyword: 'state def', label: 'state def', definition: true, usage: false, contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'state', fields: ['name', 'abstract', 'parallel', 'doc'], traits: [],
-      head: stateHead, body: stateBody, check: checkState },
-    StateUsage: { keyword: 'state', label: 'state', definition: false, usage: true, contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, definedBy: 'StateDefinition', size: [180, 60], shape: 'state',
-      fields: ['name', 'type', 'multiplicity', 'parallel', 'doc'], traits: ['transitionEnd'], head: stateHead, body: stateBody, check: checkState },
-    InitialNode: { keyword: 'entry', label: 'initial node', definition: false, usage: true, contains: false, onBorder: false, size: [28, 16], shape: 'entry', fields: [], traits: ['transitionEnd'], head: noHead, check: checkPseudoNode },
-    // Sequence: an event occurrence on a lifeline, the dot a message starts or ends on. A lifeline writes its events
-    // itself, as one then chain in time order (the BODY writer in the helpers region), so an event owned by a
-    // lifeline has no head of its own; one owned by nothing (a general view may put it in the package) is written
-    // plainly, since then is only legal inside a body.
-    EventOccurrenceUsage: { keyword: 'event occurrence', label: 'event', definition: false, usage: true, contains: false, onBorder: false,
-      size: [16, 16], shape: 'event', fields: ['name', 'doc'], traits: ['occurrence', 'successionEnd'],
-      head: function (model, el, h) {
-        const owner = el.owner !== undefined ? h.ids.get(el.owner) : null;
-        return owner && hasTrait(owner.kind, 'lifeline') ? null : h.headOf(el);
-      },
-      // The core says so once something refers to it; an event nothing refers to yet still needs its name, since a
-      // message can only start or end on it by name.
-      check: function (model, el, ids, add) {
-        if (!el.name.trim() && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) {
-          const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-          add(el.id, 'An event' + (owner ? ' in ' + shown(owner.name) : '') + ' has no name. Name it, so a message can start or end on it.');
-        }
-      } },
   };
 
   // Relationship kinds. fields are the panel's fields that apply (rows of FIELDS), which normalize keeps by their
@@ -1041,160 +986,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
         h.line(depth, '}');
       },
     },
-    // Interconnection: an interface between two ports, typed by an interface def whose ends they match; a flow of an
-    // item from one port or item to another; a binding of two ports or items that are one thing. Each is declared in
-    // the innermost element that holds both ends, as a connection is, and may carry a doc. The rules on the ends and
-    // the written ends are the helpers in the interconnection region below (definitionOf, flowEnd, portItems…).
-    InterfaceUsage: {
-      label: 'interface', fields: ['name', 'interfaceDef', 'doc'], hideable: false,
-      first: function (model, a, ids) {
-        return hasTrait(a.kind, 'interfaceEnd') ? null : 'An interface joins two ports; ' + describe(model, a, ids) + ' is ' + an(KINDS[a.kind].label) + '.';
-      },
-      ends: function (model, a, b, ids) {
-        if (!hasTrait(a.kind, 'interfaceEnd') || !hasTrait(b.kind, 'interfaceEnd')) return 'An interface joins two ports.';
-        const o = commonOwner(model, a, b, ids);
-        if (o !== null && ids.get(o).kind === 'InterfaceDefinition') return 'An interface joins the ports of parts; ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' are the ends of an interface def.';
-        return acrossDefinitions(model, 'An interface', a, b, ids);
-      },
-      // The def an interface is typed by must be an interface def (the panel offers only those; a model written by
-      // hand may say otherwise, and the validator refuses it), and its ends must be the ports'.
-      check: function (model, rel, ids, add) {
-        connectorNameClash(model, rel, ids, add);
-        const def = rel.interfaceDef ? ids.get(rel.interfaceDef) : null;
-        if (def && def.kind !== 'InterfaceDefinition') add(rel.id, 'The ' + describeRel(model, rel, ids) + ' is typed by ' + describe(model, def, ids) + ', which isn\'t an interface def.');
-        const problem = interfaceEndsProblem(model, rel, ids);
-        if (problem) add(rel.id, problem);
-      },
-      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
-      line: { route: 'straight', marker: null, cls: 'interface',
-        label: function (rel, model, ids) {
-          const def = model && ids && rel.interfaceDef ? ids.get(rel.interfaceDef) : null;
-          return '«interface»' + (rel.name.trim() ? ' ' + rel.name.trim() : '') + (def ? ' : ' + shown(def.name) : '');
-        } },
-      toSysML: function (model, rel, ownerId, depth, out, h) {
-        const def = rel.interfaceDef ? h.ids.get(rel.interfaceDef) : null;
-        const head = 'interface ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (def ? ': ' + quote(def.name) + ' ' : '') +
-          'connect ' + featurePath(model, ownerId, h.ids.get(rel.from), h.ids) + ' to ' + featurePath(model, ownerId, h.ids.get(rel.to), h.ids);
-        connectorStatement(rel, head, depth, h);
-      },
-    },
-    FlowConnectionUsage: {
-      label: 'flow', fields: ['name', 'item', 'doc'], hideable: false,
-      first: function (model, a, ids) {
-        return hasTrait(a.kind, 'flowEnd') ? null : 'A flow runs from a port or an item; ' + describe(model, a, ids) + ' is ' + an(KINDS[a.kind].label) + '.';
-      },
-      ends: function (model, a, b, ids) {
-        if (!hasTrait(a.kind, 'flowEnd') || !hasTrait(b.kind, 'flowEnd')) return 'A flow joins two ports or items.';
-        const o = commonOwner(model, a, b, ids);
-        if (o !== null && ids.get(o).kind === 'PortDefinition') return 'A flow can\'t run inside ' + describe(model, ids.get(o), ids) + '; it runs between the ports of parts.';
-        return bareFlowEnd(model, a, b, ids) || acrossDefinitions(model, 'A flow', a, b, ids);
-      },
-      // What flows is an item def (the panel offers only those; a model written by hand may say otherwise); with one,
-      // the ends are checked against it.
-      check: function (model, rel, ids, add) {
-        connectorNameClash(model, rel, ids, add);
-        const item = rel.item ? ids.get(rel.item) : null;
-        if (item && item.kind !== 'ItemDefinition') { add(rel.id, 'The ' + describeRel(model, rel, ids) + ' carries ' + describe(model, item, ids) + ', which isn\'t an item def. Pick an item def in the panel.'); return; }
-        flowProblems(model, rel, ids).forEach((p) => add(rel.id, p));
-      },
-      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
-      line: { route: 'straight', marker: 'm-flow', cls: 'flow',
-        label: function (rel, model, ids) {
-          const item = model && ids && rel.item ? ids.get(rel.item) : null;
-          return (rel.name.trim() + (item ? ' of ' + shown(item.name) : '')).trim();
-        } },
-      toSysML: function (model, rel, ownerId, depth, out, h) {
-        const item = rel.item ? h.ids.get(rel.item) : null;
-        const head = 'flow ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (item ? 'of ' + quote(item.name) + ' ' : '') +
-          'from ' + flowEndPath(model, rel, 'from', ownerId, h.ids) + ' to ' + flowEndPath(model, rel, 'to', ownerId, h.ids);
-        connectorStatement(rel, head, depth, h);
-      },
-    },
-    BindingConnectorAsUsage: {
-      label: 'binding', fields: ['name', 'doc'], hideable: false,
-      first: function (model, a, ids) {
-        return hasTrait(a.kind, 'bindable') ? null : 'A binding joins two ports or two items; ' + describe(model, a, ids) + ' is ' + an(KINDS[a.kind].label) + '.';
-      },
-      ends: function (model, a, b, ids) {
-        if (!hasTrait(a.kind, 'bindable') || !hasTrait(b.kind, 'bindable')) return 'A binding joins two ports or two items.';
-        // Bound things are one thing, so they are of one definition (a port def and its conjugate count as one).
-        const ta = definitionOf(model, a, ids);
-        const tb = definitionOf(model, b, ids);
-        if (ta && tb && ta.def.id !== tb.def.id) return 'A binding joins two things of one definition; ' + describe(model, a, ids) + ' is defined by ' + shown(ta.def.name) + ' and ' + describe(model, b, ids) + ' by ' + shown(tb.def.name) + '.';
-        if (!!ta !== !!tb) return 'A binding joins two things of one definition; ' + describe(model, ta ? b : a, ids) + ' is defined by nothing yet.';
-        if (!ta && a.kind !== b.kind) return 'A binding joins two ports or two items, not ' + an(KINDS[a.kind].label) + ' and ' + an(KINDS[b.kind].label) + '.';
-        return acrossDefinitions(model, 'A binding', a, b, ids);
-      },
-      check: function (model, rel, ids, add) { connectorNameClash(model, rel, ids, add); },
-      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
-      line: { route: 'straight', marker: null, cls: 'binding', labelOffset: -5, label: function () { return '='; } },
-      toSysML: function (model, rel, ownerId, depth, out, h) {
-        const head = (rel.name.trim() ? 'binding ' + quote(rel.name) + ' ' : '') +
-          'bind ' + featurePath(model, ownerId, h.ids.get(rel.from), h.ids) + ' = ' + featurePath(model, ownerId, h.ids.get(rel.to), h.ids);
-        connectorStatement(rel, head, depth, h);
-      },
-    },
-    // Behavior: a succession between actions and control nodes (dashed, an open arrowhead, [guard] or else as the
-    // label) and a transition between states (solid, the same head, trigger [guard] / effect as the label). Both are
-    // written in the innermost body that holds their two ends; the rules and the writers are in the behavior helpers.
-    SuccessionAsUsage: {
-      label: 'succession', fields: ['name', 'guard', 'doc'], hideable: false,
-      first: successionFirst, ends: successionEnds, check: checkSuccession,
-      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
-      line: { route: 'elbow', marker: 'm-open', cls: 'succession', label: successionLabel, labelOffset: -8 },
-      toSysML: writeSuccession,
-    },
-    TransitionUsage: {
-      label: 'transition', fields: ['name', 'trigger', 'guard', 'effect', 'doc'], hideable: false,
-      first: transitionFirst, ends: transitionEnds, check: checkTransition,
-      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
-      line: { route: 'straight', marker: 'm-open', cls: 'transition', label: transitionLabel, labelOffset: -8 },
-      toSysML: writeTransition,
-    },
-    // Sequence: a message between two occurrences (an event, or a lifeline itself), declared in the innermost
-    // element that holds both ends, its context: a part def, a part, or the package. It may carry a payload (item, an
-    // item def) and has a place in time (order), the row the sequence renderer draws it at.
-    Message: {
-      label: 'message', fields: ['name', 'item', 'order', 'doc'], hideable: false,
-      first: function (model, a, ids) {
-        return hasTrait(a.kind, 'occurrence') ? null : 'A message starts at an event or a lifeline; ' + describe(model, a, ids) + ' is neither.';
-      },
-      ends: function (model, a, b, ids) {
-        if (!hasTrait(a.kind, 'occurrence') || !hasTrait(b.kind, 'occurrence')) {
-          return 'A message joins events and lifelines; ' + describe(model, hasTrait(a.kind, 'occurrence') ? b : a, ids) + ' is neither.';
-        }
-        return acrossDefinitions(model, 'A message', a, b, ids, 'Put both lifelines under one part def or part, or both in the package.');
-      },
-      // A named message is a feature of its context, so its name can't be that of a feature declared there or of
-      // another named line declared there. The payload, when there is one, is an item def.
-      check: function (model, rel, ids, add) {
-        const mname = rel.name.trim();
-        if (mname && nameTakenBeside(model, rel, ids, model.relationships)) add(rel.id, 'The message ' + mname + ' is named like something else beside it. Rename one.');
-        if (rel.item && ids.has(rel.item) && ids.get(rel.item).kind !== 'ItemDefinition') {
-          add(rel.id, 'The ' + describeRel(model, rel, ids) + ' carries ' + describe(model, ids.get(rel.item), ids) + ', which is not an item def.');
-        }
-      },
-      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
-      line: { route: 'straight', marker: 'm-message', cls: 'message', labelOffset: -8,
-        label: function (rel, model, ids) {
-          const item = rel.item ? ids.get(rel.item) : null;
-          return [rel.name.trim(), item ? 'of ' + shown(item.name) : ''].filter(Boolean).join(' ');
-        } },
-      toSysML: function (model, rel, ownerId, depth, out, h) {
-        const a = h.ids.get(rel.from);
-        const b = h.ids.get(rel.to);
-        const item = rel.item ? h.ids.get(rel.item) : null;
-        const head = 'message ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (item ? 'of ' + quote(item.name) + ' ' : '') +
-          'from ' + featurePath(model, ownerId, a, h.ids) + ' to ' + featurePath(model, ownerId, b, h.ids);
-        // A note on an unnamed message can't be about it by name, so it goes inside the message's body.
-        const inside = rel.name.trim() ? [] : h.notesOn(rel.id);
-        if (!rel.doc.trim() && !inside.length) { h.line(depth, head + ';'); return; }
-        h.line(depth, head + ' {');
-        if (rel.doc.trim()) h.comment(depth + 1, 'doc', rel.doc);
-        inside.forEach((n) => h.note(depth + 1, n, null));
-        h.line(depth, '}');
-      },
-    },
   };
 
   // View kinds. renderer names the page's renderer for the kind; admits the element kinds a view of the kind may
@@ -1202,68 +993,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // the defaults of the view's own options, which normalize keeps the keys of; check(model, view, ids, add), when
   // present, adds the view's own problems; exposes(model, view, h), when present, returns the statements of the
   // view's body in the export (expose …;, render …;) in place of those the core makes from the view's layout
-  // (h.exposesOf(view) gives those, to build on). In this slice only the general view admits and draws anything; the other
-  // rows are here so a view of each kind can sit on the plane, each in the region of the slice that fills it in.
+  // (h.exposesOf(view) gives those, to build on). The core has the general view; each feature's script adds the rows
+  // of the view kinds it draws.
   const VIEW_KINDS = {
     GeneralView: { name: 'GeneralView', label: 'general view', qualified: 'StandardViewDefinitions::GeneralView', renderer: 'graph',
       admits: null, tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', '|', 'Specialization', 'FeatureTyping', 'ConnectionUsage'], options: {} },
-    // The interconnection view: parts and part defs as nodes, their ports and items, the item, port and interface
-    // defs beside them, and the connectors between the ports and items. A port def is admitted too, since the items
-    // that flow are drawn in it.
-    InterconnectionView: { name: 'InterconnectionView', label: 'interconnection view', qualified: 'StandardViewDefinitions::InterconnectionView', renderer: 'graph',
-      admits: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition'],
-      tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition', '|', 'ConnectionUsage', 'InterfaceUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'],
-      options: {} },
-    ActionFlowView: { name: 'ActionFlowView', label: 'action flow view', qualified: 'StandardViewDefinitions::ActionFlowView', renderer: 'graph',
-      admits: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'],
-      tools: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', '|', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode', '|', 'SuccessionAsUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'], options: {} },
-    StateTransitionView: { name: 'StateTransitionView', label: 'state transition view', qualified: 'StandardViewDefinitions::StateTransitionView', renderer: 'graph',
-      admits: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode'],
-      tools: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode', '|', 'TransitionUsage', 'FeatureTyping'], options: {} },
-    SequenceView: { name: 'SequenceView', label: 'sequence view', qualified: 'StandardViewDefinitions::SequenceView', renderer: 'sequence',
-      admits: ['PartUsage', 'EventOccurrenceUsage'], tools: ['PartUsage', 'EventOccurrenceUsage', '|', 'Message', 'SuccessionAsUsage'], options: { spacing: 56 } },
-    // A plan of parts (and items, once that kind is in) drawn to scale: scale is the pixels per unit of the view's unit.
-    GeometryView: { name: 'GeometryView', label: 'geometry view', qualified: 'StandardViewDefinitions::GeometryView', renderer: 'geometry',
-      admits: ['PartUsage', 'ItemUsage'], tools: ['PartUsage', 'ItemUsage'], options: { scale: 40, unit: 'm' } },
-    // Any element may be a row, and nothing is drawn by hand: the rows come from the view's Show list and the panel's
-    // Show all buttons. The options: mode (table, a row per element; matrix, the elements against each other), the
-    // table's columns (keys of GRID_COLUMNS, in its order), and sort (a column, with a leading - for descending; null
-    // for the model's order). The layout's keys are the rows, so there is no rows option.
-    GridView: { name: 'GridView', label: 'grid view', qualified: 'StandardViewDefinitions::GridView', renderer: 'grid',
-      admits: null, tools: [], options: { mode: 'table', columns: ['kind', 'name', 'type', 'multiplicity', 'owner', 'doc'], sort: null },
-      // The view's body in the text: the core's expose lines, then, for a table, the library's tabular rendering (one
-      // row per exposed element). A matrix has no library rendering, so it exposes and says nothing more. Validated
-      // in every form a grid can take (a view with exposes and the render clause, with the render clause alone, with a
-      // doc, as a matrix with exposes alone, and empty) in scratchpad/slices/grid/grid-01-forms.sysml.
-      exposes: function (model, view, h) {
-        const lines = h.exposesOf(view);
-        if (gridOptions(view).mode === 'table') lines.push('render Views::asElementTable;');
-        return lines;
-      } },
-    // A browser view shows the whole model as a tree, so it admits every kind and places nothing by hand: roots is null
-    // for the whole package (every element at the top) or the ids of the elements whose subtrees the tree shows, and
-    // collapsed the ids whose insides are folded away.
-    BrowserView: { name: 'BrowserView', label: 'browser view', qualified: 'StandardViewDefinitions::BrowserView', renderer: 'browser',
-      admits: null, tools: [], options: { roots: null, collapsed: [] },
-      // A root is exposed by its qualified name, so one without a full name can't be, and the text leaves it out.
-      check: function (model, view, ids, add) {
-        (browserRoots(model, view, ids) || []).forEach((root) => {
-          if (!nameable(model, root, ids)) {
-            add(view.id, 'The ' + describeView(model, view) + ' can\'t expose its root ' + describe(model, root, ids) + ' by name: ' + (hasName(root.kind) ? 'it, or what it is in, has no name. Name it.' : 'the text has no name for it.'));
-          }
-        });
-      },
-      // The view's body in the text: the whole package, recursively, or each root with everything inside it, then the
-      // tree rendering. Validated in understand/views/02-expose-forms.sysml and 04-render-clauses.sysml, and in
-      // slices/browser/b01-forms.sysml (quoted, nested and leaf roots; no root at all).
-      exposes: function (model, view, h) {
-        const roots = browserRoots(model, view, h.ids);
-        const lines = roots === null
-          ? ['expose ' + quote(model.package.name) + '::*::**;']
-          : roots.filter((e) => nameable(model, e, h.ids)).map((e) => 'expose ' + qualified(model, e, h.ids) + '::**;');
-        lines.push('render Views::asTreeDiagram;');
-        return lines;
-      } },
   };
 
   // The fields the panel can show and normalize keeps, by name, for elements (KINDS[kind].fields) and relationships
@@ -1288,86 +1022,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // brings it). No core kind lists them, so the panel shows neither until a slice's kind does.
     direction: { type: 'enum', label: 'direction', values: ['', 'in', 'out', 'inout'] },
     item: { type: 'ref', label: 'item', options: function (model) { return model.elements.filter((e) => e.kind === 'ItemDefinition'); } },
-    // The interface def an interface is typed by.
-    interfaceDef: { type: 'ref', label: 'interface def', options: function (model) { return model.elements.filter((e) => e.kind === 'InterfaceDefinition'); } },
-    // Behavior: what an action does (plain, send, accept) with its payload and its target, its role under a state
-    // (entry, do, exit), a succession's guard (the text of a Boolean expression, or else), a transition's trigger,
-    // guard and effect (the texts after accept, if and do), and whether a state runs its regions in parallel.
-    actionKind: { type: 'enum', label: 'kind', values: ['plain', 'send', 'accept'] },
-    payload: { type: 'string', label: 'payload', trim: true },
-    target: { type: 'string', label: 'target', trim: true },
-    role: { type: 'enum', label: 'role', values: ['', 'entry', 'do', 'exit'] },
-    guard: { type: 'string', label: 'guard', trim: true },
-    trigger: { type: 'string', label: 'trigger', trim: true },
-    effect: { type: 'string', label: 'effect', trim: true },
-    parallel: { type: 'bool', label: 'parallel' },
-    // Sequence: a message's place in time, a number; the messages with one come first, the lowest at the top.
-    order: { type: 'number', label: 'order' },
-    // The spatial fields of a part or item drawn to scale in a geometry view: its shape (a ShapeItems kind whose
-    // dimensions are plain attributes; Box is RectangularCuboid), the dimensions that shape has, the position of the
-    // shape's origin in its owner's frame, all numbers in the element's own unit. The panel shows them only while the
-    // selection is drawn in a geometry view.
-    shape: { type: 'enum', label: 'shape', values: ['', 'Box', 'Rectangle', 'CircularCylinder', 'Sphere', 'CircularCone'], views: ['GeometryView'] },
-    length: { type: 'number', label: 'length', views: ['GeometryView'] },
-    width: { type: 'number', label: 'width', views: ['GeometryView'] },
-    height: { type: 'number', label: 'height', views: ['GeometryView'] },
-    radius: { type: 'number', label: 'radius', views: ['GeometryView'] },
-    posX: { type: 'number', label: 'x position', views: ['GeometryView'] },
-    posY: { type: 'number', label: 'y position', views: ['GeometryView'] },
-    posZ: { type: 'number', label: 'z position', views: ['GeometryView'] },
-    unit: { type: 'enum', label: 'unit', values: ['m', 'mm', 'cm', 'km', 'ft', 'in'], views: ['GeometryView'] },
-    // The code links an element carries: a list of { path, language, text }, read by tidyCode. The annotations slice's
-    // own section of the panel edits them (there is no #f-code input, so renderExtraFields leaves the field alone).
-    code: { type: 'list', label: 'code links', read: tidyCode, fresh: function () { return []; } },
   };
-
-  // Extensions: what a slice adds to another slice's rows, now that every table is built (KINDS.PartUsage.contains
-  // .push('ItemUsage'), KINDS.PartUsage.fields.push('shape'), KINDS.ParameterUsage.traits.push('flowEnd')…).
-  // Interconnection: items live in part defs, parts and port defs; a port is an interface's, a flow's and a binding's
-  // end; a port on an interface def is written as its end; a port's glyph follows the directed items of its port def;
-  // and a connection can't be declared inside a port def, whose owned usages must be referential. Each hook on a core
-  // row wraps what is there.
-  KINDS.PartDefinition.contains.push('ItemUsage');
-  KINDS.PartUsage.contains.push('ItemUsage');
-  (KINDS.PortDefinition.contains || (KINDS.PortDefinition.contains = [])).push('ItemUsage');
-  KINDS.PortUsage.traits.push('interfaceEnd', 'flowEnd', 'bindable');
-  (function () {
-    const prevHead = KINDS.PortUsage.head;
-    KINDS.PortUsage.head = function (model, el, h) {
-      const base = prevHead ? prevHead(model, el, h) : h.headOf(el);
-      if (base === null) return null;
-      const owner = el.owner !== undefined ? h.ids.get(el.owner) : null;
-      return owner && owner.kind === 'InterfaceDefinition' ? 'end ' + base : base;
-    };
-    const prevGlyph = KINDS.PortUsage.glyph;
-    KINDS.PortUsage.glyph = function (model, el) {
-      const way = portWay(model, el);
-      return way !== null || !prevGlyph ? way : prevGlyph(model, el);
-    };
-    const prevEnds = RELATIONSHIPS.ConnectionUsage.ends;
-    RELATIONSHIPS.ConnectionUsage.ends = function (model, a, b, ids) {
-      const problem = prevEnds(model, a, b, ids);
-      if (problem) return problem;
-      const o = commonOwner(model, a, b, ids);
-      return o !== null && ids.get(o).kind === 'PortDefinition' ? 'A connection can\'t be declared inside ' + describe(model, ids.get(o), ids) + '; connect the ports of parts instead.' : null;
-    };
-  })();
-  // Behavior: a part def and a part hold actions and states too (actions in parts: afv10, b06; states: stv-12).
-  KINDS.PartDefinition.contains.push('ActionUsage', 'StateUsage');
-  KINDS.PartUsage.contains.push('ActionUsage', 'StateUsage');
-  // Sequence: a part is a lifeline, an occurrence a message may start or end on, and it may own event occurrences.
-  KINDS.PartUsage.contains.push('EventOccurrenceUsage');
-  KINDS.PartUsage.traits.push('lifeline', 'occurrence');
-  // A part, and an item once that kind is in, can be drawn to scale: the spatial trait and the spatial fields.
-  ['PartUsage', 'ItemUsage'].forEach((k) => {
-    if (!KINDS[k]) return;
-    KINDS[k].traits.push('spatial');
-    KINDS[k].fields.push('shape', 'length', 'width', 'height', 'radius', 'posX', 'posY', 'posZ', 'unit');
-  });
-  // Every kind the text declares may carry code links, so the panel's code section and the export's textual
-  // representations apply to every such element. A start, done or initial node has no name and no line of its own in
-  // the text, so a rep inside it would have nowhere to go: those kinds don't carry the field.
-  Object.keys(KINDS).filter(hasName).forEach((k) => KINDS[k].fields.push('code'));
 
   const SIDES = ['top', 'right', 'bottom', 'left'];
   const ID = /^[A-Za-z0-9_.:-]{1,64}$/;
@@ -1755,9 +1410,206 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // What the slices add to the library: EXTRA the functions they export on SysMLModel (EXTRA.successionsOf =
   // successionsOf), BODY the writers run for every element's body in the export (function (model, el, depth, h),
   // after the doc and before the kind's own body hook: the code links' textual representations, say). The functions
-  // themselves live in the regions below.
+  // themselves live in the features' scripts.
   const EXTRA = {};
   const BODY = [];
+
+  // Breaks a paragraph into lines of at most width characters, at spaces.
+  function wrapText(text, width) {
+    const out = [];
+    for (const para of text.split('\n')) {
+      let line = '';
+      for (const word of para.split(/\s+/).filter(Boolean)) {
+        if (line && (line + ' ' + word).length > width) { out.push(line); line = word; }
+        else line = line ? line + ' ' + word : word;
+      }
+      out.push(line);
+    }
+    return out;
+  }
+  function commentLines(depth, head, text) {
+    const body = String(text == null ? '' : text).replace(/\r\n?/g, '\n').replace(/\*\//g, '* /').trim();
+    const ind = '    '.repeat(depth);
+    if (!body.includes('\n') && (ind + head + body).length <= 96) return [ind + head + ' /* ' + body + ' */'];
+    return [ind + head, ind + '/*'].concat(wrapText(body, 92 - ind.length).map((l) => ind + ' * ' + l)).concat([ind + ' */']);
+  }
+
+  Object.assign(lib, {
+    FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, NAME, MULTIPLICITY, str, isObject, canContain,
+    admits, hasTrait, hasName, blank, placement, normalize, index, relIndex, viewIndex, shownIn, chain, childrenOf,
+    descendants, typingOf, inUsage, specializes, commonOwner, acrossDefinitions, nameTakenBeside, isName, quote, shown,
+    qualified, featurePath, nameable, an, definable, describe, describeRel, describeView, labelFor, inheritedFeatures,
+    boundsOk, RESERVED_NAMES, EXTRA, BODY, commentLines
+  });
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/interconnection/lib.js
+// Interconnection in the model library: item defs and items, interface defs, interfaces, flows and bindings, the
+// interconnection view, and what a port carries, where a connector is declared and how it is written.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const {
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, index, childrenOf, typingOf, specializes, commonOwner,
+    acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel, inheritedFeatures, EXTRA
+  } = lib;
+
+  Object.assign(KINDS, {
+    // Interconnection: items (what flows, and what a part holds) and interface definitions, whose ports are their ends.
+    ItemDefinition: { keyword: 'item def', label: 'item def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
+    // An item's head carries its direction (in item x : T). On a port def it must have one: a port def may own only
+    // ports and referential usages, as the validator says. Its shape, item, is the page's rounded box with the
+    // direction inside the guillemets, «out item».
+    ItemUsage: { keyword: 'item', label: 'item', definition: false, usage: true, contains: false, onBorder: false, definedBy: 'ItemDefinition', size: [160, 52], shape: 'item', fields: ['name', 'type', 'direction', 'multiplicity', 'doc'], traits: ['flowEnd', 'bindable', 'connectable'],
+      head: function (model, el, h) { return (el.direction ? el.direction + ' ' : '') + h.headOf(el); },
+      check: function (model, el, ids, add) {
+        const owner = el.owner !== undefined ? ids.get(el.owner) : null;
+        if (owner && owner.kind === 'PortDefinition' && !el.direction) add(el.id, describe(model, el, ids) + ' needs a direction: in, out, or inout. An item on a port def says which way it goes.');
+      } },
+    // An interface def's ports are its ends (end port a : P;), and it needs two of them.
+    InterfaceDefinition: { keyword: 'interface def', label: 'interface def', definition: true, usage: false, contains: ['PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [],
+      check: function (model, el, ids, add) {
+        const ends = childrenOf(model, el.id).filter((c) => KINDS[c.kind].onBorder);
+        if (ends.length < 2) add(el.id, describe(model, el, ids) + ' needs two ports on its border, its ends; it has ' + (ends.length ? 'one' : 'none') + '.');
+      } },
+  });
+  Object.assign(RELATIONSHIPS, {
+    // Interconnection: an interface between two ports, typed by an interface def whose ends they match; a flow of an
+    // item from one port or item to another; a binding of two ports or items that are one thing. Each is declared in
+    // the innermost element that holds both ends, as a connection is, and may carry a doc. The rules on the ends and
+    // the written ends are the helpers below (definitionOf, flowEnd, portItems…).
+    InterfaceUsage: {
+      label: 'interface', fields: ['name', 'interfaceDef', 'doc'], hideable: false,
+      first: function (model, a, ids) {
+        return hasTrait(a.kind, 'interfaceEnd') ? null : 'An interface joins two ports; ' + describe(model, a, ids) + ' is ' + an(KINDS[a.kind].label) + '.';
+      },
+      ends: function (model, a, b, ids) {
+        if (!hasTrait(a.kind, 'interfaceEnd') || !hasTrait(b.kind, 'interfaceEnd')) return 'An interface joins two ports.';
+        const o = commonOwner(model, a, b, ids);
+        if (o !== null && ids.get(o).kind === 'InterfaceDefinition') return 'An interface joins the ports of parts; ' + describe(model, a, ids) + ' and ' + describe(model, b, ids) + ' are the ends of an interface def.';
+        return acrossDefinitions(model, 'An interface', a, b, ids);
+      },
+      // The def an interface is typed by must be an interface def (the panel offers only those; a model written by
+      // hand may say otherwise, and the validator refuses it), and its ends must be the ports'.
+      check: function (model, rel, ids, add) {
+        connectorNameClash(model, rel, ids, add);
+        const def = rel.interfaceDef ? ids.get(rel.interfaceDef) : null;
+        if (def && def.kind !== 'InterfaceDefinition') add(rel.id, 'The ' + describeRel(model, rel, ids) + ' is typed by ' + describe(model, def, ids) + ', which isn\'t an interface def.');
+        const problem = interfaceEndsProblem(model, rel, ids);
+        if (problem) add(rel.id, problem);
+      },
+      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
+      line: { route: 'straight', marker: null, cls: 'interface',
+        label: function (rel, model, ids) {
+          const def = model && ids && rel.interfaceDef ? ids.get(rel.interfaceDef) : null;
+          return '«interface»' + (rel.name.trim() ? ' ' + rel.name.trim() : '') + (def ? ' : ' + shown(def.name) : '');
+        } },
+      toSysML: function (model, rel, ownerId, depth, out, h) {
+        const def = rel.interfaceDef ? h.ids.get(rel.interfaceDef) : null;
+        const head = 'interface ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (def ? ': ' + quote(def.name) + ' ' : '') +
+          'connect ' + featurePath(model, ownerId, h.ids.get(rel.from), h.ids) + ' to ' + featurePath(model, ownerId, h.ids.get(rel.to), h.ids);
+        connectorStatement(rel, head, depth, h);
+      },
+    },
+    FlowConnectionUsage: {
+      label: 'flow', fields: ['name', 'item', 'doc'], hideable: false,
+      first: function (model, a, ids) {
+        return hasTrait(a.kind, 'flowEnd') ? null : 'A flow runs from a port or an item; ' + describe(model, a, ids) + ' is ' + an(KINDS[a.kind].label) + '.';
+      },
+      ends: function (model, a, b, ids) {
+        if (!hasTrait(a.kind, 'flowEnd') || !hasTrait(b.kind, 'flowEnd')) return 'A flow joins two ports or items.';
+        const o = commonOwner(model, a, b, ids);
+        if (o !== null && ids.get(o).kind === 'PortDefinition') return 'A flow can\'t run inside ' + describe(model, ids.get(o), ids) + '; it runs between the ports of parts.';
+        return bareFlowEnd(model, a, b, ids) || acrossDefinitions(model, 'A flow', a, b, ids);
+      },
+      // What flows is an item def (the panel offers only those; a model written by hand may say otherwise); with one,
+      // the ends are checked against it.
+      check: function (model, rel, ids, add) {
+        connectorNameClash(model, rel, ids, add);
+        const item = rel.item ? ids.get(rel.item) : null;
+        if (item && item.kind !== 'ItemDefinition') { add(rel.id, 'The ' + describeRel(model, rel, ids) + ' carries ' + describe(model, item, ids) + ', which isn\'t an item def. Pick an item def in the panel.'); return; }
+        flowProblems(model, rel, ids).forEach((p) => add(rel.id, p));
+      },
+      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
+      line: { route: 'straight', marker: 'm-flow', cls: 'flow',
+        label: function (rel, model, ids) {
+          const item = model && ids && rel.item ? ids.get(rel.item) : null;
+          return (rel.name.trim() + (item ? ' of ' + shown(item.name) : '')).trim();
+        } },
+      toSysML: function (model, rel, ownerId, depth, out, h) {
+        const item = rel.item ? h.ids.get(rel.item) : null;
+        const head = 'flow ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (item ? 'of ' + quote(item.name) + ' ' : '') +
+          'from ' + flowEndPath(model, rel, 'from', ownerId, h.ids) + ' to ' + flowEndPath(model, rel, 'to', ownerId, h.ids);
+        connectorStatement(rel, head, depth, h);
+      },
+    },
+    BindingConnectorAsUsage: {
+      label: 'binding', fields: ['name', 'doc'], hideable: false,
+      first: function (model, a, ids) {
+        return hasTrait(a.kind, 'bindable') ? null : 'A binding joins two ports or two items; ' + describe(model, a, ids) + ' is ' + an(KINDS[a.kind].label) + '.';
+      },
+      ends: function (model, a, b, ids) {
+        if (!hasTrait(a.kind, 'bindable') || !hasTrait(b.kind, 'bindable')) return 'A binding joins two ports or two items.';
+        // Bound things are one thing, so they are of one definition (a port def and its conjugate count as one).
+        const ta = definitionOf(model, a, ids);
+        const tb = definitionOf(model, b, ids);
+        if (ta && tb && ta.def.id !== tb.def.id) return 'A binding joins two things of one definition; ' + describe(model, a, ids) + ' is defined by ' + shown(ta.def.name) + ' and ' + describe(model, b, ids) + ' by ' + shown(tb.def.name) + '.';
+        if (!!ta !== !!tb) return 'A binding joins two things of one definition; ' + describe(model, ta ? b : a, ids) + ' is defined by nothing yet.';
+        if (!ta && a.kind !== b.kind) return 'A binding joins two ports or two items, not ' + an(KINDS[a.kind].label) + ' and ' + an(KINDS[b.kind].label) + '.';
+        return acrossDefinitions(model, 'A binding', a, b, ids);
+      },
+      check: function (model, rel, ids, add) { connectorNameClash(model, rel, ids, add); },
+      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
+      line: { route: 'straight', marker: null, cls: 'binding', labelOffset: -5, label: function () { return '='; } },
+      toSysML: function (model, rel, ownerId, depth, out, h) {
+        const head = (rel.name.trim() ? 'binding ' + quote(rel.name) + ' ' : '') +
+          'bind ' + featurePath(model, ownerId, h.ids.get(rel.from), h.ids) + ' = ' + featurePath(model, ownerId, h.ids.get(rel.to), h.ids);
+        connectorStatement(rel, head, depth, h);
+      },
+    },
+  });
+  Object.assign(VIEW_KINDS, {
+    // The interconnection view: parts and part defs as nodes, their ports and items, the item, port and interface
+    // defs beside them, and the connectors between the ports and items. A port def is admitted too, since the items
+    // that flow are drawn in it.
+    InterconnectionView: { name: 'InterconnectionView', label: 'interconnection view', qualified: 'StandardViewDefinitions::InterconnectionView', renderer: 'graph',
+      admits: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition'],
+      tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition', '|', 'ConnectionUsage', 'InterfaceUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'],
+      options: {} },
+  });
+  Object.assign(FIELDS, {
+    // The interface def an interface is typed by.
+    interfaceDef: { type: 'ref', label: 'interface def', options: function (model) { return model.elements.filter((e) => e.kind === 'InterfaceDefinition'); } },
+  });
+
+  // Interconnection: items live in part defs, parts and port defs; a port is an interface's, a flow's and a binding's
+  // end; a port on an interface def is written as its end; a port's glyph follows the directed items of its port def;
+  // and a connection can't be declared inside a port def, whose owned usages must be referential. Each hook on a core
+  // row wraps what is there.
+  KINDS.PartDefinition.contains.push('ItemUsage');
+  KINDS.PartUsage.contains.push('ItemUsage');
+  (KINDS.PortDefinition.contains || (KINDS.PortDefinition.contains = [])).push('ItemUsage');
+  KINDS.PortUsage.traits.push('interfaceEnd', 'flowEnd', 'bindable');
+  (function () {
+    const prevHead = KINDS.PortUsage.head;
+    KINDS.PortUsage.head = function (model, el, h) {
+      const base = prevHead ? prevHead(model, el, h) : h.headOf(el);
+      if (base === null) return null;
+      const owner = el.owner !== undefined ? h.ids.get(el.owner) : null;
+      return owner && owner.kind === 'InterfaceDefinition' ? 'end ' + base : base;
+    };
+    const prevGlyph = KINDS.PortUsage.glyph;
+    KINDS.PortUsage.glyph = function (model, el) {
+      const way = portWay(model, el);
+      return way !== null || !prevGlyph ? way : prevGlyph(model, el);
+    };
+    const prevEnds = RELATIONSHIPS.ConnectionUsage.ends;
+    RELATIONSHIPS.ConnectionUsage.ends = function (model, a, b, ids) {
+      const problem = prevEnds(model, a, b, ids);
+      if (problem) return problem;
+      const o = commonOwner(model, a, b, ids);
+      return o !== null && ids.get(o).kind === 'PortDefinition' ? 'A connection can\'t be declared inside ' + describe(model, ids.get(o), ids) + '; connect the ports of parts instead.' : null;
+    };
+  })();
   // ---- Interconnection: what a port or item is defined by, the directed items a port carries, the ends of flows
   // and interfaces, and the statement a connector is written as.
 
@@ -1916,6 +1768,90 @@ textarea.text[readonly] { resize: none; background: transparent; }
   EXTRA.portItems = portItems;
   EXTRA.portWay = portWay;
   EXTRA.flowEnd = flowEnd;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/behavior/lib.js
+// Behavior in the model library: the action flow view (action defs, actions and their parameters, the control
+// nodes, start and done, successions) and the state transition view (state defs, states, the initial node,
+// transitions), with their rules and their text.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const {
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, NAME, MULTIPLICITY, str, hasTrait, chain, childrenOf, typingOf,
+    commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, an, describe, describeRel, EXTRA, BODY,
+    commentLines
+  } = lib;
+
+  Object.assign(KINDS, {
+    // Behavior: the action flow view's kinds (an action def, actions with their parameters on the border, the four
+    // control nodes, and start and done) and the state view's (a state def, states, the initial node). Start, done
+    // and the initial node have no name field: they stand for the start and done every action and state inherits,
+    // and for a state's entry, so their heads are null and the text never declares them; a succession or transition
+    // ending on one writes start or done, and a state's body writes the entry idiom for its initial node. The hooks
+    // are functions further down this script, which hoist.
+    ActionDefinition: { keyword: 'action def', label: 'action def', definition: true, usage: false, contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
+    ActionUsage: { keyword: 'action', label: 'action', definition: false, usage: true, contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false,
+      definedBy: 'ActionDefinition', size: [180, 60], shape: 'action', fields: ['name', 'type', 'multiplicity', 'actionKind', 'payload', 'target', 'role', 'doc'], traits: ['successionEnd', 'transitionEnd'],
+      head: actionHead, body: actionBody, check: checkAction },
+    ParameterUsage: { keyword: 'item', label: 'parameter', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'ItemDefinition', size: [16, 16], shape: 'param',
+      fields: ['name', 'direction', 'type', 'multiplicity', 'doc'], traits: ['flowEnd', 'bindable'],
+      head: parameterHead, check: checkParameter, glyph: function (model, el) { return el.direction || null; } },
+    ForkNode: { keyword: 'fork', label: 'fork', definition: false, usage: true, contains: false, onBorder: false, size: [60, 8], shape: 'bar', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
+    JoinNode: { keyword: 'join', label: 'join', definition: false, usage: true, contains: false, onBorder: false, size: [60, 8], shape: 'bar', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
+    DecisionNode: { keyword: 'decide', label: 'decision', definition: false, usage: true, contains: false, onBorder: false, size: [40, 40], shape: 'diamond', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode, after: decisionBranches },
+    MergeNode: { keyword: 'merge', label: 'merge', definition: false, usage: true, contains: false, onBorder: false, size: [40, 40], shape: 'diamond', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
+    StartNode: { keyword: 'start', label: 'start', definition: false, usage: true, contains: false, onBorder: false, size: [16, 16], shape: 'dot', fields: [], traits: ['successionEnd', 'transitionEnd'], head: noHead, check: checkPseudoNode },
+    DoneNode: { keyword: 'done', label: 'done', definition: false, usage: true, contains: false, onBorder: false, size: [22, 22], shape: 'bullseye', fields: [], traits: ['successionEnd', 'transitionEnd'], head: noHead, check: checkPseudoNode },
+    StateDefinition: { keyword: 'state def', label: 'state def', definition: true, usage: false, contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'state', fields: ['name', 'abstract', 'parallel', 'doc'], traits: [],
+      head: stateHead, body: stateBody, check: checkState },
+    StateUsage: { keyword: 'state', label: 'state', definition: false, usage: true, contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, definedBy: 'StateDefinition', size: [180, 60], shape: 'state',
+      fields: ['name', 'type', 'multiplicity', 'parallel', 'doc'], traits: ['transitionEnd'], head: stateHead, body: stateBody, check: checkState },
+    InitialNode: { keyword: 'entry', label: 'initial node', definition: false, usage: true, contains: false, onBorder: false, size: [28, 16], shape: 'entry', fields: [], traits: ['transitionEnd'], head: noHead, check: checkPseudoNode },
+  });
+  Object.assign(RELATIONSHIPS, {
+    // Behavior: a succession between actions and control nodes (dashed, an open arrowhead, [guard] or else as the
+    // label) and a transition between states (solid, the same head, trigger [guard] / effect as the label). Both are
+    // written in the innermost body that holds their two ends; the rules and the writers are in the behavior helpers.
+    SuccessionAsUsage: {
+      label: 'succession', fields: ['name', 'guard', 'doc'], hideable: false,
+      first: successionFirst, ends: successionEnds, check: checkSuccession,
+      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
+      line: { route: 'elbow', marker: 'm-open', cls: 'succession', label: successionLabel, labelOffset: -8 },
+      toSysML: writeSuccession,
+    },
+    TransitionUsage: {
+      label: 'transition', fields: ['name', 'trigger', 'guard', 'effect', 'doc'], hideable: false,
+      first: transitionFirst, ends: transitionEnds, check: checkTransition,
+      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
+      line: { route: 'straight', marker: 'm-open', cls: 'transition', label: transitionLabel, labelOffset: -8 },
+      toSysML: writeTransition,
+    },
+  });
+  Object.assign(VIEW_KINDS, {
+    ActionFlowView: { name: 'ActionFlowView', label: 'action flow view', qualified: 'StandardViewDefinitions::ActionFlowView', renderer: 'graph',
+      admits: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'],
+      tools: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', '|', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode', '|', 'SuccessionAsUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'], options: {} },
+    StateTransitionView: { name: 'StateTransitionView', label: 'state transition view', qualified: 'StandardViewDefinitions::StateTransitionView', renderer: 'graph',
+      admits: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode'],
+      tools: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode', '|', 'TransitionUsage', 'FeatureTyping'], options: {} },
+  });
+  Object.assign(FIELDS, {
+    // Behavior: what an action does (plain, send, accept) with its payload and its target, its role under a state
+    // (entry, do, exit), a succession's guard (the text of a Boolean expression, or else), a transition's trigger,
+    // guard and effect (the texts after accept, if and do), and whether a state runs its regions in parallel.
+    actionKind: { type: 'enum', label: 'kind', values: ['plain', 'send', 'accept'] },
+    payload: { type: 'string', label: 'payload', trim: true },
+    target: { type: 'string', label: 'target', trim: true },
+    role: { type: 'enum', label: 'role', values: ['', 'entry', 'do', 'exit'] },
+    guard: { type: 'string', label: 'guard', trim: true },
+    trigger: { type: 'string', label: 'trigger', trim: true },
+    effect: { type: 'string', label: 'effect', trim: true },
+    parallel: { type: 'bool', label: 'parallel' },
+  });
+
+  // Behavior: a part def and a part hold actions and states too (actions in parts: afv10, b06; states: stv-12).
+  KINDS.PartDefinition.contains.push('ActionUsage', 'StateUsage');
+  KINDS.PartUsage.contains.push('ActionUsage', 'StateUsage');
   // Behavior: the action flow and the state transition views. The head of a start, done or initial node is null: the
   // text has them already, as the start and done every action and state inherits and as a state's entry.
   function noHead() { return null; }
@@ -2323,6 +2259,98 @@ textarea.text[readonly] { resize: none; background: transparent; }
   EXTRA.sendWord = function (model, target) { return namesAPort(model, target) ? 'via' : 'to'; };
   EXTRA.isActionOwner = isActionOwner;
   EXTRA.isStateOwner = isStateOwner;
+
+  Object.assign(lib, { declare });
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/sequence/lib.js
+// The sequence view in the model library: event occurrences on lifelines, messages between them in time order,
+// and a lifeline's events written as one then chain.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const {
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown,
+    featurePath, describe, describeRel, EXTRA, BODY, declare
+  } = lib;
+
+  Object.assign(KINDS, {
+    // Sequence: an event occurrence on a lifeline, the dot a message starts or ends on. A lifeline writes its events
+    // itself, as one then chain in time order (the BODY writer below), so an event owned by a
+    // lifeline has no head of its own; one owned by nothing (a general view may put it in the package) is written
+    // plainly, since then is only legal inside a body.
+    EventOccurrenceUsage: { keyword: 'event occurrence', label: 'event', definition: false, usage: true, contains: false, onBorder: false,
+      size: [16, 16], shape: 'event', fields: ['name', 'doc'], traits: ['occurrence', 'successionEnd'],
+      head: function (model, el, h) {
+        const owner = el.owner !== undefined ? h.ids.get(el.owner) : null;
+        return owner && hasTrait(owner.kind, 'lifeline') ? null : h.headOf(el);
+      },
+      // The core says so once something refers to it; an event nothing refers to yet still needs its name, since a
+      // message can only start or end on it by name.
+      check: function (model, el, ids, add) {
+        if (!el.name.trim() && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) {
+          const owner = el.owner !== undefined ? ids.get(el.owner) : null;
+          add(el.id, 'An event' + (owner ? ' in ' + shown(owner.name) : '') + ' has no name. Name it, so a message can start or end on it.');
+        }
+      } },
+  });
+  Object.assign(RELATIONSHIPS, {
+    // Sequence: a message between two occurrences (an event, or a lifeline itself), declared in the innermost
+    // element that holds both ends, its context: a part def, a part, or the package. It may carry a payload (item, an
+    // item def) and has a place in time (order), the row the sequence renderer draws it at.
+    Message: {
+      label: 'message', fields: ['name', 'item', 'order', 'doc'], hideable: false,
+      first: function (model, a, ids) {
+        return hasTrait(a.kind, 'occurrence') ? null : 'A message starts at an event or a lifeline; ' + describe(model, a, ids) + ' is neither.';
+      },
+      ends: function (model, a, b, ids) {
+        if (!hasTrait(a.kind, 'occurrence') || !hasTrait(b.kind, 'occurrence')) {
+          return 'A message joins events and lifelines; ' + describe(model, hasTrait(a.kind, 'occurrence') ? b : a, ids) + ' is neither.';
+        }
+        return acrossDefinitions(model, 'A message', a, b, ids, 'Put both lifelines under one part def or part, or both in the package.');
+      },
+      // A named message is a feature of its context, so its name can't be that of a feature declared there or of
+      // another named line declared there. The payload, when there is one, is an item def.
+      check: function (model, rel, ids, add) {
+        const mname = rel.name.trim();
+        if (mname && nameTakenBeside(model, rel, ids, model.relationships)) add(rel.id, 'The message ' + mname + ' is named like something else beside it. Rename one.');
+        if (rel.item && ids.has(rel.item) && ids.get(rel.item).kind !== 'ItemDefinition') {
+          add(rel.id, 'The ' + describeRel(model, rel, ids) + ' carries ' + describe(model, ids.get(rel.item), ids) + ', which is not an item def.');
+        }
+      },
+      owner: function (model, rel, ids) { return commonOwner(model, ids.get(rel.from), ids.get(rel.to), ids); },
+      line: { route: 'straight', marker: 'm-message', cls: 'message', labelOffset: -8,
+        label: function (rel, model, ids) {
+          const item = rel.item ? ids.get(rel.item) : null;
+          return [rel.name.trim(), item ? 'of ' + shown(item.name) : ''].filter(Boolean).join(' ');
+        } },
+      toSysML: function (model, rel, ownerId, depth, out, h) {
+        const a = h.ids.get(rel.from);
+        const b = h.ids.get(rel.to);
+        const item = rel.item ? h.ids.get(rel.item) : null;
+        const head = 'message ' + (rel.name.trim() ? quote(rel.name) + ' ' : '') + (item ? 'of ' + quote(item.name) + ' ' : '') +
+          'from ' + featurePath(model, ownerId, a, h.ids) + ' to ' + featurePath(model, ownerId, b, h.ids);
+        // A note on an unnamed message can't be about it by name, so it goes inside the message's body.
+        const inside = rel.name.trim() ? [] : h.notesOn(rel.id);
+        if (!rel.doc.trim() && !inside.length) { h.line(depth, head + ';'); return; }
+        h.line(depth, head + ' {');
+        if (rel.doc.trim()) h.comment(depth + 1, 'doc', rel.doc);
+        inside.forEach((n) => h.note(depth + 1, n, null));
+        h.line(depth, '}');
+      },
+    },
+  });
+  Object.assign(VIEW_KINDS, {
+    SequenceView: { name: 'SequenceView', label: 'sequence view', qualified: 'StandardViewDefinitions::SequenceView', renderer: 'sequence',
+      admits: ['PartUsage', 'EventOccurrenceUsage'], tools: ['PartUsage', 'EventOccurrenceUsage', '|', 'Message', 'SuccessionAsUsage'], options: { spacing: 56 } },
+  });
+  Object.assign(FIELDS, {
+    // Sequence: a message's place in time, a number; the messages with one come first, the lowest at the top.
+    order: { type: 'number', label: 'order' },
+  });
+
+  // Sequence: a part is a lifeline, an occurrence a message may start or end on, and it may own event occurrences.
+  KINDS.PartUsage.contains.push('EventOccurrenceUsage');
+  KINDS.PartUsage.traits.push('lifeline', 'occurrence');
   // Sequence: the time order. The messages in order: those with a numeric order first, by it, then the rest as the
   // model has them, so a new message, with no order yet, lands last.
   function messagesInOrder(model) {
@@ -2353,6 +2381,44 @@ textarea.text[readonly] { resize: none; background: transparent; }
   BODY.push(function (model, el, depth, h) {
     if (!hasTrait(el.kind, 'lifeline')) return;
     eventOrder(model, el.id).forEach((ev, i) => declare(model, ev, (i ? 'then ' : '') + h.headOf(ev), depth, h));
+  });
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/geometry/lib.js
+// The geometry view in the model library: the spatial fields of a part or item drawn to scale (its shape, its
+// dimensions, its position and unit), their checks, and their text in the Geometry and units libraries' terms.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const {
+    KINDS, VIEW_KINDS, FIELDS, hasTrait, hasName, chain, quote, describe, inheritedFeatures, EXTRA, BODY
+  } = lib;
+
+  Object.assign(VIEW_KINDS, {
+    // A plan of parts (and items, once that kind is in) drawn to scale: scale is the pixels per unit of the view's unit.
+    GeometryView: { name: 'GeometryView', label: 'geometry view', qualified: 'StandardViewDefinitions::GeometryView', renderer: 'geometry',
+      admits: ['PartUsage', 'ItemUsage'], tools: ['PartUsage', 'ItemUsage'], options: { scale: 40, unit: 'm' } },
+  });
+  Object.assign(FIELDS, {
+    // The spatial fields of a part or item drawn to scale in a geometry view: its shape (a ShapeItems kind whose
+    // dimensions are plain attributes; Box is RectangularCuboid), the dimensions that shape has, the position of the
+    // shape's origin in its owner's frame, all numbers in the element's own unit. The panel shows them only while the
+    // selection is drawn in a geometry view.
+    shape: { type: 'enum', label: 'shape', values: ['', 'Box', 'Rectangle', 'CircularCylinder', 'Sphere', 'CircularCone'], views: ['GeometryView'] },
+    length: { type: 'number', label: 'length', views: ['GeometryView'] },
+    width: { type: 'number', label: 'width', views: ['GeometryView'] },
+    height: { type: 'number', label: 'height', views: ['GeometryView'] },
+    radius: { type: 'number', label: 'radius', views: ['GeometryView'] },
+    posX: { type: 'number', label: 'x position', views: ['GeometryView'] },
+    posY: { type: 'number', label: 'y position', views: ['GeometryView'] },
+    posZ: { type: 'number', label: 'z position', views: ['GeometryView'] },
+    unit: { type: 'enum', label: 'unit', values: ['m', 'mm', 'cm', 'km', 'ft', 'in'], views: ['GeometryView'] },
+  });
+
+  // A part, and an item once that kind is in, can be drawn to scale: the spatial trait and the spatial fields.
+  ['PartUsage', 'ItemUsage'].forEach((k) => {
+    if (!KINDS[k]) return;
+    KINDS[k].traits.push('spatial');
+    KINDS[k].fields.push('shape', 'length', 'width', 'height', 'radius', 'posX', 'posY', 'posZ', 'unit');
   });
   // Geometry. A part or item with the spatial trait may carry a shape with its dimensions and a position, numbers in
   // its own unit; a number that isn't set is '' and is neither drawn to scale nor written. The dimensions a shape has
@@ -2488,6 +2554,32 @@ textarea.text[readonly] { resize: none; background: transparent; }
   EXTRA.geoConvert = geoConvert;
   EXTRA.geoPlaced = geoPlaced;
   EXTRA.geoNumber = geoNumber;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/grid/lib.js
+// The grid view in the model library: its row, its columns, and its options read safely.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const { VIEW_KINDS, isObject, EXTRA } = lib;
+
+  Object.assign(VIEW_KINDS, {
+    // Any element may be a row, and nothing is drawn by hand: the rows come from the view's Show list and the panel's
+    // Show all buttons. The options: mode (table, a row per element; matrix, the elements against each other), the
+    // table's columns (keys of GRID_COLUMNS, in its order), and sort (a column, with a leading - for descending; null
+    // for the model's order). The layout's keys are the rows, so there is no rows option.
+    GridView: { name: 'GridView', label: 'grid view', qualified: 'StandardViewDefinitions::GridView', renderer: 'grid',
+      admits: null, tools: [], options: { mode: 'table', columns: ['kind', 'name', 'type', 'multiplicity', 'owner', 'doc'], sort: null },
+      // The view's body in the text: the core's expose lines, then, for a table, the library's tabular rendering (one
+      // row per exposed element). A matrix has no library rendering, so it exposes and says nothing more. Validated
+      // in every form a grid can take (a view with exposes and the render clause, with the render clause alone, with a
+      // doc, as a matrix with exposes alone, and empty) in scratchpad/slices/grid/grid-01-forms.sysml.
+      exposes: function (model, view, h) {
+        const lines = h.exposesOf(view);
+        if (gridOptions(view).mode === 'table') lines.push('render Views::asElementTable;');
+        return lines;
+      } },
+  });
+
   // The grid view's columns, in the order a table shows them, and a view's grid options read safely, whatever a file
   // carries: mode is table unless it says matrix, columns are the known ones in this order (the defaults when none is
   // known), and sort is a column name, with a leading - for descending, or null for the model's order. The page draws
@@ -2503,6 +2595,44 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   EXTRA.GRID_COLUMNS = GRID_COLUMNS;
   EXTRA.gridOptions = gridOptions;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/browser/lib.js
+// The browser view in the model library: its row, and the tree's roots and rows.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const {
+    RELATIONSHIPS, VIEW_KINDS, hasName, index, chain, childrenOf, quote, qualified, nameable, describe, describeView,
+    EXTRA
+  } = lib;
+
+  Object.assign(VIEW_KINDS, {
+    // A browser view shows the whole model as a tree, so it admits every kind and places nothing by hand: roots is null
+    // for the whole package (every element at the top) or the ids of the elements whose subtrees the tree shows, and
+    // collapsed the ids whose insides are folded away.
+    BrowserView: { name: 'BrowserView', label: 'browser view', qualified: 'StandardViewDefinitions::BrowserView', renderer: 'browser',
+      admits: null, tools: [], options: { roots: null, collapsed: [] },
+      // A root is exposed by its qualified name, so one without a full name can't be, and the text leaves it out.
+      check: function (model, view, ids, add) {
+        (browserRoots(model, view, ids) || []).forEach((root) => {
+          if (!nameable(model, root, ids)) {
+            add(view.id, 'The ' + describeView(model, view) + ' can\'t expose its root ' + describe(model, root, ids) + ' by name: ' + (hasName(root.kind) ? 'it, or what it is in, has no name. Name it.' : 'the text has no name for it.'));
+          }
+        });
+      },
+      // The view's body in the text: the whole package, recursively, or each root with everything inside it, then the
+      // tree rendering. Validated in understand/views/02-expose-forms.sysml and 04-render-clauses.sysml, and in
+      // slices/browser/b01-forms.sysml (quoted, nested and leaf roots; no root at all).
+      exposes: function (model, view, h) {
+        const roots = browserRoots(model, view, h.ids);
+        const lines = roots === null
+          ? ['expose ' + quote(model.package.name) + '::*::**;']
+          : roots.filter((e) => nameable(model, e, h.ids)).map((e) => 'expose ' + qualified(model, e, h.ids) + '::**;');
+        lines.push('render Views::asTreeDiagram;');
+        return lines;
+      } },
+  });
+
   // ---- The browser view: the model as a tree.
   // The elements a browser view's tree starts from: null for the whole package (every element at the top), else the
   // elements its roots option names that are in the model, in model order, leaving out one that sits inside another
@@ -2548,6 +2678,26 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   EXTRA.browserRoots = browserRoots;
   EXTRA.browserRows = browserRows;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/annotations/lib.js
+// Annotations in the model library: the code links an element carries, written as textual representations, and
+// the notes, open and archived, written as metadata in the standard library's forms.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const { KINDS, FIELDS, str, hasName, quote, nameable, RESERVED_NAMES, EXTRA, BODY } = lib;
+
+  Object.assign(FIELDS, {
+    // The code links an element carries: a list of { path, language, text }, read by tidyCode. The annotations slice's
+    // own section of the panel edits them (there is no #f-code input, so renderExtraFields leaves the field alone).
+    code: { type: 'list', label: 'code links', read: tidyCode, fresh: function () { return []; } },
+  });
+
+  // Every kind the text declares may carry code links, so the panel's code section and the export's textual
+  // representations apply to every such element. A start, done or initial node has no name and no line of its own in
+  // the text, so a rep inside it would have nowhere to go: those kinds don't carry the field.
+  Object.keys(KINDS).filter(hasName).forEach((k) => KINDS[k].fields.push('code'));
+
   // The names the notes' forms take from the standard library (private import ModelingMetadata::*): a model element
   // named like one of them would shadow the import, and the validator then can't type the metadata.
   ['Issue', 'Rationale', 'StatusInfo', 'StatusKind', 'ModelingMetadata'].forEach((n) => RESERVED_NAMES.add(n));
@@ -2631,6 +2781,18 @@ textarea.text[readonly] { resize: none; background: transparent; }
   EXTRA.noteRecords = noteRecords;
   EXTRA.noteStatements = noteStatements;
 
+  Object.assign(lib, { noteRecords, noteStatements });
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/core/lib/validate.js
+// The model library's checks: everything validate finds wrong, from the tables' rules and the features' hooks.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const {
+    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, hasName, index, childrenOf, shown, an, describe, inheritedFeatures,
+    boundsOk, RESERVED_NAMES
+  } = lib;
+
   // What keeps the model from being correct SysML. Each problem names the element, relationship, or view it is about
   // (null: the package).
   function validate(model) {
@@ -2701,27 +2863,18 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return problems;
   }
 
-  // ---- Textual SysML v2.
-
-  // Breaks a paragraph into lines of at most width characters, at spaces.
-  function wrapText(text, width) {
-    const out = [];
-    for (const para of text.split('\n')) {
-      let line = '';
-      for (const word of para.split(/\s+/).filter(Boolean)) {
-        if (line && (line + ' ' + word).length > width) { out.push(line); line = word; }
-        else line = line ? line + ' ' + word : word;
-      }
-      out.push(line);
-    }
-    return out;
-  }
-  function commentLines(depth, head, text) {
-    const body = String(text == null ? '' : text).replace(/\r\n?/g, '\n').replace(/\*\//g, '* /').trim();
-    const ind = '    '.repeat(depth);
-    if (!body.includes('\n') && (ind + head + body).length <= 96) return [ind + head + ' /* ' + body + ' */'];
-    return [ind + head, ind + '/*'].concat(wrapText(body, 92 - ind.length).map((l) => ind + ' * ' + l)).concat([ind + ' */']);
-  }
+  Object.assign(lib, { validate });
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/core/lib/sysml.js
+// The model library's export: the model as textual SysML v2, from the tables' writers and the features' hooks.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const {
+    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, normalize, index, relIndex, childrenOf, typingOf, commonOwner,
+    quote, shown, qualified, featurePath, nameable, describe, describeRel, inheritedFeatures, BODY, noteRecords,
+    noteStatements, commentLines
+  } = lib;
 
   // The notes and the archived notes are written together, at the end of the package (noteRecords, noteStatements).
   function toSysML(model, notes, archive) {
@@ -2889,6 +3042,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return out.join('\n') + '\n';
   }
 
+  Object.assign(lib, { toSysML });
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/core/lib/api.js
+// The model library's last script: SysMLModel, what the page, export.mjs and save-state.mjs use, made of what the
+// scripts before it registered, the same names as ever. SysMLModelLib is removed, so SysMLModel is all that stays.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const {
+    FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, canContain, admits, hasTrait,
+    hasName, blank, placement, normalize, index, relIndex, viewIndex, shownIn, chain, childrenOf, descendants,
+    typingOf, inUsage, specializes, commonOwner, isName, quote, qualified, featurePath, an, definable, describe,
+    describeRel, describeView, labelFor, inheritedFeatures, EXTRA, validate, toSysML
+  } = lib;
+
   // The library, with what the slices put in EXTRA beside it.
   root.SysMLModel = Object.freeze(Object.assign({
     FORMAT, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, MULTIPLICITY, VIEW_DEF,
@@ -2896,6 +3064,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     descendants, typingOf, inUsage, specializes, commonOwner, featurePath, quote, qualified, describe, describeRel, describeView,
     labelFor, isName, inheritedFeatures, an, definable,
   }, EXTRA));
+  delete root.SysMLModelLib;
 })(typeof globalThis !== 'undefined' ? globalThis : window);
 </script>
 
