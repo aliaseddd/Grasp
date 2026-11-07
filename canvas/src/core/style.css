@@ -1,5 +1,6 @@
 /* Layout: a bar with the palette along the top, the plane under it, and panels floating on the plane.
-   Stronghold's design tokens (app/src/design/tokens.css), with a dark set made from the same ink and teal. */
+   The canvas's colors and type, first taken from the Stronghold project's design tokens (app/src/design/tokens.css in
+   the Stronghold repository), with a dark set made from the same ink and teal. */
 :root {
   --bg: #EEF2F4;
   --card: #FFFFFF;
