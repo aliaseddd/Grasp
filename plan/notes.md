@@ -316,3 +316,81 @@ before and still are.
 - Relationship names are still read as `rel.name` in each relationship kind's own code. They have no kept-name problem,
   since `normalize` gives a relationship a name only when its kind has the field, so step 3 left them.
 - `docs/REPO_MAP.md` still shows the old single file.
+
+## Session 5, November 7, 2026: step 4, Version the file format
+
+Step 4 is done. The library reads the version a saved model names and upgrades an older one, one version at a time,
+before it reads anything else. Three commits, each with every test passing: the text every fixture exports pinned
+beside it, before any code changed; then the version number and the upgrades, with their tests and the rule in
+`src/README.md`; then these notes.
+
+### Where things are now
+
+- The version is on the model, where it always was: `format: 'stronghold-canvas/2'`. `VERSION` (2) in
+  `core/lib/model.js` is the version the library reads and writes, and `FORMAT` is made from it. `versionOf(model)`
+  reads the number a model's format names; a model that names none (written by hand) counts as the current version.
+  `SysMLModel` has `VERSION`, `versionOf` and `upgrade`.
+- `UPGRADES`, just above `normalize`, holds one function per older version. `UPGRADES[n]` takes a model saved in
+  version n, as raw JSON, to version n + 1, saying the same thing, and leaves the model it was given untouched.
+  `upgrade(model)` runs them in turn from the model's version; a model already in the current version, or in one newer
+  than the library knows, comes back as it is. `normalize` runs `upgrade` first, so everything after it reads the
+  current version only. Every way a model comes in goes through `normalize`: the model saved in the page, this
+  browser's copy, the store's `model/working`, Import state, Undo, `export.mjs`, `save-state.mjs`, and `toSysML`.
+- `UPGRADES[1]` is what `normalize` used to do for format 1 by itself: the one view, named by `view.name`, becomes the
+  model's view, with each element's place (`x`, `y`, `w`, `h`, or `side`, `at`) in its layout, and the elements keep the
+  rest. `normalize` no longer reads `view.name`. Its two conveniences for models written by hand stay, as version-2
+  rules: an element carrying a place of its own is placed into the view its `view` field names, else the first; and a
+  model with no views gets one general view showing every element.
+- The text each fixture exports is pinned beside it, in `canvas/test/fixtures/<name>.sysml`, written by `export.mjs`
+  before the code changed. The nine texts have the SHA-256 session 1 recorded (commit 3a94193's message says ten: it
+  is nine, one per fixture). `format1.json` is the one fixture saved in version 1; the other eight are version 2.
+- `src/README.md`, under "The saved format", says how to change the format: add 1 to `VERSION`, add the upgrade from
+  the version before it, keep the old fixtures as they were saved, and add one saved in the new version with its
+  export pinned. A change under which older models still read right (a new kind, a new field whose default is what
+  older models meant) needs no new version.
+
+What a user can notice: nothing, for any file the canvas wrote. Three hand-made cases read differently: an element in a
+version-1 file that carried no place now goes where version 1 itself put it, at its owner's top left (or the middle of
+its owner's right side, for a port), instead of into a grid, and the elements shown and the export are the same; and a
+model that holds version 1's `view.name` while naming no format, or naming format 2, no longer gives its one general
+view that name, so the export leaves that view out, as it leaves out any unnamed view. The version-1 page always
+wrote the format and every element's place, so no file it saved is any of these.
+
+### How it was checked
+
+- Tests: 121 of 121 pass: the 114 from session 4 and 7 in the new `test/format.test.mjs`. They cover `versionOf` (a
+  version named, the current one, a newer one, and ten values that name none); an upgrade from every older version to
+  the current one, which takes even a bare model of its version and writes nothing to the model it was given (it is
+  frozen, and the library runs in strict mode); a fixture saved in every version from 1 to the current one; a pinned
+  export beside every fixture and a fixture behind every pinned export; every fixture, upgraded, in the current
+  version, untouched, normalizing to the same model as without the explicit upgrade, and exporting its pinned text
+  (the step's "done when"); version 1's upgrade piece by piece, with elements that carried no place, a size only, a
+  port's side, and an id given twice; and the page opening `format1.json` through Import state: the current version, one
+  view, every element drawn, and the pinned text in the export panel.
+- Before the code changed, `normalize`'s output was recorded for every fixture, the saved model and 14 edge inputs
+  (junk, a version-1 file without a format, without places, with an id twice, without a view, with junk elements, a
+  version-2 file with carried places or no views, a version-99 file). After it, every fixture and the saved model came
+  out byte for byte the same, and only the three cases above differed, as intended.
+- Mutations, each applied to the source, built, tested and taken back: an upgrade that forgets to name the new
+  version, keeps the places on the elements, drops the view's name, or writes to its input; `normalize` without
+  `upgrade`; `versionOf` ignoring the format; no upgrade from version 1; places left out for elements that carried
+  none. Each made between 1 and 7 tests fail, and the ones meant to catch it among them.
+- Exports: every fixture and the saved model still print the same bytes; `export.mjs` on `format1.json` prints the
+  saved model's text; `save-state.mjs` on `format1.json`, run in a scratch copy of `canvas/`, saved it in version 2
+  with one view named `proofStructure` holding 13 places and nothing left on the elements. `canvas/check.sh` accepts
+  the saved model and every fixture, with the same three validator warnings session 1 recorded.
+
+### For the next session
+
+- Step 5: generate the kind lists. First fetch `SysML.ecore` from the pilot implementation's repository and read its
+  license there (session 1's note). If the generated lists rename a kind or a field that models save, that is a new
+  version: `VERSION` 3 and `UPGRADES[2]`, as `src/README.md` says, with the eight version-2 fixtures kept as they are.
+  If they only add, no new version is needed.
+- Step 8 can upgrade stores through the same functions: the store's `model/working` holds a model that names its
+  version, so an old store reads as `M.upgrade(data.model)` before it is written in the new layout. Two things to weigh
+  then: a page reads a model from a newer version as well as it can and writes it back in its own version, dropping
+  what it doesn't know, which matters if a tab with an older page stays open while a newer one is published; and the
+  notes and the archive carry no version of their own (their readers, `tidyNote` and `tidyArchived`, take any shape).
+- The format's name has Stronghold in it. If step 9 renames it, `versionOf` must still read `stronghold-canvas/1` and
+  `stronghold-canvas/2`, and the format tests will say so.
+- `docs/REPO_MAP.md` still shows the old single file.

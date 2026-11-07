@@ -70,3 +70,15 @@ Whether an element has a name in the text is decided in one place, `textName(el)
 - Read an element's name through `textName`, never as `el.name`, and never decide it by testing the element's kind or its kind's fields. The two exceptions store the name rather than read it: `normalize`, which keeps what a file carries, and the panel's Name box, which edits it.
 - To ask it of a kind, ask it of an element of the kind with no name yet: `textName({ kind })` is `null` for a kind whose elements have no name in the text, `''` otherwise.
 - A path in the text (`qualified`, `featurePath`) reaches an element with no name in the text by its kind's keyword, the word the text has for what it stands for: `first start then a1;`. A relationship's name is still read from the relationship.
+
+## The saved format
+
+A model names the version of the format it was saved in: `format: 'stronghold-canvas/2'` is version 2. `VERSION` in `core/lib/model.js` is the version the library reads and writes, and `UPGRADES` beside `normalize` holds one function per older version, which takes a model saved in that version to the next. `normalize` runs them first (`upgrade`), so everything after it reads the current version only, and whatever an older version did differently is written once, in its upgrade. `SysMLModel` has `VERSION`, `versionOf(model)` and `upgrade(model)` for the scripts and the tests.
+
+To change what a saved model holds, or how it holds it:
+
+1. Add 1 to `VERSION`.
+2. Add the upgrade from the version before it to `UPGRADES`. It takes any JSON that names that version, since a file may have been written by hand, returns a new model that names the next version and says the same thing, and changes nothing in the model it was given.
+3. Keep the fixtures in `canvas/test/fixtures/` as they were saved, and add one saved in the new version, with its export pinned beside it: `node canvas/export.mjs canvas/test/fixtures/X.json > canvas/test/fixtures/X.sysml`. `test/format.test.mjs` checks that there is a fixture of every version and that each, upgraded, still exports its pinned text.
+
+A change under which older models still read right as they are needs no new version: a new kind, say, or a new field whose default is what older models meant, since `normalize` gives a field that a model doesn't carry its default.

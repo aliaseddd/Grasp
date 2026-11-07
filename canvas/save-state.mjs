@@ -6,8 +6,9 @@
 //
 // canvas-state.json is { "model": {...}, "notes": [...], "archive": [...] }: what the page's Download state saves, or
 // what Claude read from the published page's store (the document model/working and the collections notes and
-// archive). Everything the page can't draw is dropped, the same way the page drops it. The revision is the time of
-// saving, so a working copy in the store made against an older revision is left alone by the page.
+// archive). A model saved in an older version of the format is upgraded and saved in the current one, and everything
+// the page can't draw is dropped, the same way the page drops it. The revision is the time of saving, so a working
+// copy in the store made against an older revision is left alone by the page.
 
 import fs from 'node:fs';
 import path from 'node:path';

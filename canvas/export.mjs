@@ -5,6 +5,7 @@
 //   node canvas/export.mjs canvas-state.json   # a state file: what Download state saves, or what Claude read
 //                                              # from the published page's store, shaped { model, notes, archive }
 //
+// A model saved in an older version of the format is upgraded first, as the page upgrades it.
 // Problems that keep the text from being correct SysML go to stderr, and the exit code is 1 when there are any.
 // Check the text with the pilot implementation's validator: canvas/check.sh does both.
 
