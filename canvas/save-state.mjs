@@ -2,27 +2,51 @@
 // state.json, and index.html built again from it (build.mjs), so the files in git carry them and the page starts
 // from them.
 //
-//   node canvas/save-state.mjs canvas-state.json
+//   node canvas/save-state.mjs canvas-state.json   # a state file
+//   node canvas/save-state.mjs store.json          # a dump of the published page's store
 //
-// canvas-state.json is { "model": {...}, "notes": [...], "archive": [...] }: what the page's Download state saves, or
-// what Claude read from the published page's store (the document model/working and the collections notes and
-// archive). A model saved in an older version of the format is upgraded and saved in the current one, and everything
-// the page can't draw is dropped, the same way the page drops it. The revision is the time of saving, so a working
-// copy in the store made against an older revision is left alone by the page.
+// canvas-state.json is { "model": {...}, "notes": [...], "archive": [...] }: what the page's Download state saves. A
+// dump of the store is its documents' bodies by path, as Claude reads them from the published page: the model's head
+// model/current and the parts it names (model/current/parts/<id>), or a whole model in model/working, and the
+// collections notes and archive, one document per note (export.mjs says more). From a dump the model is put together
+// as the page does (SysMLModel.readStore), and it must be based on state.json's revision: one based on another the
+// page doesn't show, so it isn't saved. A model saved in an older version of the format is upgraded and saved in the
+// current one, and everything the page can't draw is dropped, the same way the page drops it. The revision is the
+// time of saving, so a model in the store based on an older revision is left alone by the page.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { PAGE, STATE, build } from './build.mjs';
-import { loadLib } from './export.mjs';
+import { isStoreDump, loadLib, savedRevision } from './export.mjs';
 
 const file = process.argv[2];
 if (!file) {
-  console.error('Usage: node canvas/save-state.mjs canvas-state.json');
+  console.error('Usage: node canvas/save-state.mjs canvas-state.json (or a dump of the store)');
   process.exit(1);
 }
 
 const lib = loadLib();
-const input = JSON.parse(fs.readFileSync(file, 'utf8'));
+let input = JSON.parse(fs.readFileSync(file, 'utf8'));
+if (isStoreDump(input)) {
+  const revision = savedRevision();
+  let store;
+  try {
+    store = lib.readStore(input, revision);
+  } catch (error) {
+    console.error(`${file}: ${error.message} Nothing was written.`);
+    process.exit(1);
+  }
+  if (!store.model) {
+    console.error(`${file} is a dump of the store that holds no model, so nothing was written.`);
+    process.exit(1);
+  }
+  if (store.baseRevision !== revision) {
+    console.error(`${file}: the store's model, from ${store.from}, is based on revision ${store.baseRevision}, not state.json's ${revision}, ` +
+      'so the page published from state.json doesn\'t show it. Nothing was written.');
+    process.exit(1);
+  }
+  input = { model: store.model, notes: store.notes, archive: store.archive };
+}
 if (!input || typeof input !== 'object' || !input.model) {
   console.error(`${file} has no model, so nothing was written.`);
   process.exit(1);

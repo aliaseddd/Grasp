@@ -8,7 +8,8 @@
     hasTrait, textName, blank, placement, versionOf, upgrade, normalize, index, relIndex, viewIndex, lookups, reading,
     idsOf, elementsOfKind, linesOfKind, linesFrom, linesTo, linesAt, shownIn, chain, childrenOf, descendants, typingOf,
     inUsage, specializes, commonOwner, isName, quote, qualified, featurePath, an, definable, describe, describeRel,
-    describeView, labelFor, inheritedFeatures, inheritedFeature, EXTRA, validate, toSysML
+    describeView, labelFor, inheritedFeatures, inheritedFeature, EXTRA, validate, toSysML,
+    STORE, measureBody, splitModel, storeHead, storedKey, assembleModel, readStore
   } = lib;
 
   // The library, with what the slices put in EXTRA beside it.
@@ -18,6 +19,7 @@
     lookups, reading, idsOf, elementsOfKind, linesOfKind, linesFrom, linesTo, linesAt, shownIn, chain, childrenOf,
     descendants, typingOf, inUsage, specializes, commonOwner, featurePath, quote, qualified, describe, describeRel, describeView,
     labelFor, isName, inheritedFeatures, inheritedFeature, an, definable,
+    STORE, measureBody, splitModel, storeHead, storedKey, assembleModel, readStore,
   }, EXTRA));
   delete root.SysMLModelLib;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

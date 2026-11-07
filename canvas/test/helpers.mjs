@@ -60,21 +60,24 @@ export function modelElementIds(model) {
 
 /**
  * Opens the page on a fresh browser context (so a fresh localStorage), 1400 x 900. With `shared`, the fake window.claude
- * is installed first, its store holding `seed` (documents by path), and the call returns once the page has read
- * model/working from the store. Dialogs are accepted. Uncaught errors in the page are collected for finish().
+ * is installed first, its store holding `seed` (documents by path), and the call returns once the page has read the
+ * model from the store: the head of its layout 2, model/current, or a whole model in model/working. `init`, when given,
+ * is a function run in the page after the fake is installed and before the page's scripts (to change what the fake
+ * says). Dialogs are accepted. Uncaught errors in the page are collected for finish().
  */
-export async function openCanvas(browser, { shared = false, seed = {} } = {}) {
+export async function openCanvas(browser, { shared = false, seed = {}, init = null } = {}) {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('dialog', (dialog) => dialog.accept());
   if (shared) await page.addInitScript(installFakeClaude, seed);
+  if (shared && init) await page.addInitScript(init);
   await page.goto(PAGE_URL);
   await page.waitForSelector('#canvas svg#drawing', { state: 'attached', timeout: WAIT });
   if (shared) {
     await until(page, () => window.__store.log.some((entry) =>
-      (entry.op === 'get' || entry.op === 'onSnapshot') && (entry.path === 'model/working' || entry.path === 'model')),
-    null, 'the page reads model/working from the store (shared mode)');
+      (entry.op === 'get' || entry.op === 'onSnapshot') && (entry.path === 'model/current' || entry.path === 'model/working')),
+    null, 'the page reads the model from the store, model/current or model/working (shared mode)');
   }
   return { page, errors };
 }
@@ -275,6 +278,29 @@ export async function addNote(page) {
 
 export const storeDoc = (page, docPath) => page.evaluate((p) => window.__store.get(p), docPath);
 export const storeDump = (page) => page.evaluate(() => window.__store.dump());
+
+/**
+ * The model the fake store holds, assembled from its documents in the page with the page's own library
+ * (SysMLModel.readStore): the head model/current and the parts it names, or a whole model in model/working, which the
+ * page takes first. null while the store holds none, or a head whose parts aren't all there.
+ */
+export const storedModel = (page) => page.evaluate(() => {
+  try { return window.SysMLModel.readStore(window.__store.dump()).model; } catch (error) { return null; }
+});
+
+/** Waits until the model the store holds (storedModel) passes `check`, run here in Node, and returns it. */
+export async function untilStored(page, check, what, timeout = WAIT) {
+  const end = Date.now() + timeout;
+  for (;;) {
+    const model = await storedModel(page);
+    if (model && check(model)) return model;
+    if (Date.now() > end) {
+      const status = await page.textContent('#status').catch(() => '(no #status)');
+      assert.fail(`Waited ${timeout} ms for: ${what}.\n#status: ${status}\nthe store's model: ${JSON.stringify(model)?.slice(0, 20000)}`);
+    }
+    await page.waitForTimeout(50);
+  }
+}
 
 // Helpers a slice's tests share with no other, one region per slice.
 

@@ -9,7 +9,12 @@
   const NS = 'http://www.w3.org/2000/svg';
   const STATE_KEY = 'stronghold-canvas:';          // + the revision of the saved model, when the page is opened as a file
   const CAMERA_KEY = 'stronghold-canvas-camera:v1';
-  const WORKING = 'model/working';                   // the shared store's document for the working model
+  // The shared store's documents for the model, in its layout 2 (the library's stored.js says what each holds): the
+  // head, the collection of the parts it names, and a whole model handed over from elsewhere, which the page takes,
+  // saves in layout 2 and deletes.
+  const CURRENT = M.STORE.head;                      // model/current
+  const PARTS = M.STORE.parts;                       // model/current/parts
+  const WORKING = M.STORE.working;                   // model/working
   const NOTES = 'notes';                             // the shared store's collection of notes
   const PAUSE = 800;                                 // how long a change waits before it is saved, in ms
   const MIN_ZOOM = 0.1;
@@ -118,7 +123,7 @@
   const str = (v, d) => (typeof v === 'string' ? v : (d === undefined ? '' : d));
 
   Object.assign(C, {
-    M, NS, STATE_KEY, CAMERA_KEY, WORKING, NOTES, PAUSE, MIN_ZOOM, MAX_ZOOM, HEADER, HEAD_H, LEAD, PAD, CHILD_TOP,
+    M, NS, STATE_KEY, CAMERA_KEY, CURRENT, PARTS, WORKING, NOTES, PAUSE, MIN_ZOOM, MAX_ZOOM, HEADER, HEAD_H, LEAD, PAD, CHILD_TOP,
     PORT, MARGIN, MIN_FRAME, VIEW_GAP, HISTORY, NARROW, WHERE, TOOL_TITLE, TOOL_HINT, BASE_NAME, TOOLS, ACTIONS,
     VIEW_PANELS, FIELD_HOOKS, $, canvas, svg, hint, status, zoomLevel, hud, eyebrow, palette, panel, showPanel,
     inspectorEmpty, fields, fKind, fName, fPath, fViews, addNoteButton, removeFromViewButton, deleteButton, viewFields,
