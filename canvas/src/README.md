@@ -103,3 +103,11 @@ To change what a saved model holds, or how it holds it:
 3. Keep the fixtures in `canvas/test/fixtures/` as they were saved, and add one saved in the new version, with its export pinned beside it: `node canvas/export.mjs canvas/test/fixtures/X.json > canvas/test/fixtures/X.sysml`. `test/format.test.mjs` checks that there is a fixture of every version and that each, upgraded, still exports its pinned text.
 
 A change under which older models still read right as they are needs no new version: a new kind, say, or a new field whose default is what older models meant, since `normalize` gives a field that a model doesn't carry its default.
+
+## The store
+
+On the published page the model is kept in the page's store in layout 2, which `core/lib/stored.js` defines and `canvas/README.md` describes for Claude: a head, `model/current`, and parts, `model/current/parts/<id>`, each a run of the model's records within the store's limits (a document of at most 256 KiB and 32 levels deep), named by a hash of what it holds. The library makes the documents (`splitModel`, `storeHead`) and reads them back (`assembleModel`, and `readStore` for a dump of the store's documents), so the page, `export.mjs` and `save-state.mjs` read the store the one way; `core/page/store.js` writes them, the parts before the head and old parts only once the new head is in, and listens for them.
+
+- What a model holds is the saved format's (above), not the store's: the records are the model's elements, lines, views and places, whatever they hold, so a new field needs nothing here.
+- To change the layout itself, add 1 to `STORE.layout`, and have the page read the layout before it the way it reads `model/working`, a whole model handed over: take the model, save it in the new layout, and delete what held it. A page that finds a head in a newer layout than its own turns read-only rather than write over it.
+- A save sends nothing the store would refuse for its size: a record that can't fit in a part is named in the status, with the field to shorten, and the model saves once it fits. When the store refuses a write, `refused()` says why by the store's code, and the page turns read-only only when the store says this viewer may not write.
