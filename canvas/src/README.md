@@ -63,6 +63,18 @@ Every change to the model goes through `C.edit(change, key)`, in `core/page/chan
 - Each change, and Undo, first checks that the model is as the last change left it. A change made anywhere else would be in no undo step and missing from what changes touched, so it is thrown as an error, which the console and the tests see.
 - Outside `edit`, only `changes.js` replaces the whole model: Undo, and `loadModel` for a model from storage. Import state replaces it through `edit`, as one undo step.
 
+## The panel's fields
+
+Every field the panel shows, for an element, a line or a view, goes one way, so a new field, or a new panel of fields, is rows in tables rather than code of its own:
+
+1. A row in `FIELDS` (in `core/lib/model.js`, or in the feature's `lib.js`) says what the value is: its type, its label in sentences, and how `normalize` reads it.
+2. The kind's row lists it: `KINDS[kind].fields`, `RELATIONSHIPS[kind].fields` or `VIEW_KINDS[kind].fields`. Then `normalize` keeps it, a new element, line or view gets its starting value, and the panel shows it for the kind.
+3. Its markup, in `core/page.html`: a `<label id="l-<field>">` holding its input, `id="f-<field>"`, in `#fields`, or `l-v-<field>` and `v-<field>` in `#view-fields` for a view's. A `bool` is a checkbox, an `enum` or a `ref` a select (an enum's options are written in the markup), the rest a text input or a textarea.
+
+The panel (`core/page/panel.js`) shows each field by its row's type, and its one pair of listeners, on `#fields` and on `#view-fields`, makes every change through `edit()`: typing in a string, text or number field is one undo step per field, logged once the field is left, and a checkbox or a select changes at once. No field has listeners of its own. What a row can't say goes in `FIELD_HOOKS` (`core/page/base.js` lists the hooks): the words of a change, a value that isn't the item's own property (the definition is the usage's typing, a relationship), whether the field shows, and what the page does once it changed. `test/fields.test.mjs` changes every field each kind lists through its input, and checks each change is one undo step, logged in its words, saved, and undone.
+
+Two things in the panel aren't fields, and keep controls of their own: a view kind's options (`VIEW_PANELS`: a sequence view's row spacing, a geometry view's scale and unit, a grid view's mode and columns, a browser view's roots), each with its own rules, and the code links, a list of links that the annotations section edits.
+
 ## Names
 
 Whether an element has a name in the text is decided in one place, `textName(el)` in `core/lib/model.js` (`M.textName` on the page). It returns the element's name, trimmed; `''` while it has none (an unnamed part, which the text may still write, as `part : Host;`); or `null` when the text has no name for it at all, whatever its name field holds. That is a start, done or initial node, whose kind has no name field: the page keeps a name such as `start1` in one for itself, and that name is never written, shown or compared with another.

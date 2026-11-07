@@ -459,3 +459,82 @@ decision matters before step 10.
 
 - `docs/sysml/pilot-implementation` and `docs/sysml/syson` hold aider's maps, which quote lines of both projects' EPL 2.0
   code, with no copy of the license beside them. They aren't in the page.
+
+## Session 6, continued: step 6, Panels from field lists
+
+Step 6 is done. Every field the panel shows, for an element, a line or a view, goes one way: its row in `FIELDS`, by
+which the panel shows it, and the panel's one pair of listeners, which make every change through `edit()`. No field
+has listeners of its own. Three commits, each with every test passing: the fields of elements and lines with the new
+tests, then the view's fields, then `src/README.md`'s rule and these notes.
+
+### Where things are now
+
+- `FIELDS` rows have no `core` flag. The box that draws the defined-by line is a field of its own, `typeLine` (a bool,
+  `stored: false`, like `type`), listed after `type` in the six kinds that have a definition: PartUsage, PortUsage,
+  ItemUsage, ActionUsage, ParameterUsage, StateUsage. Its input is `#f-typeLine` (it was `#f-type-line`).
+- Every view kind's row lists `fields: ['name', 'doc']`. `normalize` keeps a view's listed fields by their rows (a no-op
+  for name and doc, which it sets first), and a new view gets the starting value of any listed field `views.js` doesn't
+  set, as `freshElement` does for an element.
+- `core/page/panel.js`: `renderFields` shows the selection's fields by their rows' types; `fieldOf` finds the field an
+  event is about; `changeField` makes the change through `edit()`, with the key `<field>:<id>` for a field that takes
+  typing; one pair of listeners on `#fields` and on `#view-fields`; `renderHead` writes the lines around the fields (an
+  element's kind, path and views; a view's kind and what it shows).
+- `FIELD_HOOKS` in `core/page/base.js` says what a row can't: `shown`, `value`, `none`, `write`, `said`, `done`, each
+  given the field `x`. The core's rows are in `panel.js` (name, abstract, conjugated, doc, type, typeLine); the sequence
+  view's `order` row sorts the messages inside the same change, in place of a listener of its own.
+- Gone from `C`: `extraFieldOf`, `fieldChangeText`, and the refs `fAbstract`, `fType`, `fTypeLine`, `fMult`, `fConj`,
+  `fDoc`, `vDoc`. `fName` and `vName` stay: `tools.js` and `views.js` focus them after placing an element or adding a view.
+- `src/README.md` has the rule, under "The panel's fields": a new field is a row in `FIELDS`, an entry in its kind's
+  `fields`, and a label holding an input in `core/page.html`; anything else goes in `FIELD_HOOKS`.
+- Not fields, and not moved: a view kind's options (`VIEW_PANELS`: row spacing, scale and unit, grid mode and columns,
+  browser roots), each with rules of its own, and the code links, a list the annotations section edits. Both keep their
+  own controls, as the README says.
+
+What a user can notice, all small:
+
+- Picking another definition in "Defined by" moves the end of the usage's typing rather than replacing the typing with
+  a new one. The line keeps its id and its place in the model's list, so the notes on it stay on it (before, they were
+  moved to the new line), and their labels follow the new end. Picking a definition in the panel no longer puts down an
+  armed tool or forgets the first end of a line being drawn, which the palette's code it borrowed did.
+- A field whose row trims (multiplicity, payload, target, guard, trigger, effect) holds its value trimmed as it is
+  typed. The multiplicity did already; the other five kept the spaces until the model was read again.
+- Once a view's name is left, the notes on the view take its new name. Before, they took it at the next element's
+  rename, or when the model was replaced.
+- A keystroke that leaves a field's value as it was (a space at the end of a trimmed field, "1." in a number field) is
+  no change at all, rather than a step that the run's end then dropped. The multiplicity's run key is
+  `multiplicity:<id>` (it was `mult:<id>`), the key its log entries carry to join a run.
+
+### How it was checked
+
+- Tests: 127 of 127 pass: the 121 from session 5 and 6 in the new `test/fields.test.mjs`.
+  - No field's input has listeners of its own, read through Chrome's DevTools protocol for every row's input in both
+    panels; `#fields` and `#view-fields` each have the one pair; every row but `code` has an input.
+  - Every field of every kind, 123 in all (85 of the 20 element kinds, 22 of the 9 line kinds, 16 of the 8 view
+    kinds), changed through its input as a person does it (two keystrokes and Tab, a click, a pick in a select): each
+    change is one undo step, logged once in that step's words, schedules the save, and the save writes it; Undo brings
+    back the value, the model and what the panel shows. The model is the fixtures merged, each fixture's ids prefixed,
+    with a fixture that adds no kind left out, one view of each view kind, every usage typed, and the first element of
+    each kind with a view-restricted field shown in a view of that kind.
+  - The definition: another definition keeps the typing's id and its note, whose label follows, and the save (the real
+    one, after its pause) writes it; the box hides and draws the line; nothing undefines and the box goes; a definition
+    for an undefined part is a new typing shown as text, with the status line's hint; five Undos bring it all back.
+  - The core's own words, nine cases; a view's name (the eyebrow follows each keystroke, the note on the view takes the
+    name once the field is left, the name's and the doc's words); and trimming as typed.
+- Mutations, each built, tested and taken back: changing the field without `edit()`, a listener of its own on a field,
+  no trimming, a new typing in place of moving the old one's end, the generic words for a rename, and the line box
+  always shown. Each failed one to four of the new tests. The view-name test also fails on the page from the commit
+  before the view's fields moved, and only at the notes' label, the one thing that changed there.
+- Exports: every fixture and the saved model print the same bytes; `canvas/check.sh` accepts the saved model and every
+  fixture, with the same validator warnings session 1 recorded.
+- The panel, screenshotted for a part, a port, a part def, a connection and a view, is pixel for pixel what the page
+  showed before this session.
+- Time: the suite takes about 46 s (38 s before). The field walk is 19 s of it, since each change draws the merged model
+  (130 elements, 8 views) again, which takes 30 to 50 ms here.
+
+### For the next session
+
+- Step 5 waits for Damon's decision on the license (above). Step 7 is next: the scale tests.
+- To put a view kind's options or the code links on the field table, their rows would need a value that lives in
+  `view.options` or in a list, and hooks for their rules (a range, a scale that follows the unit, a table that keeps a
+  column). That would be a step of its own.
+- `docs/REPO_MAP.md` still shows the old single file.
