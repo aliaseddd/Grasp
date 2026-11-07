@@ -32,6 +32,7 @@
       <button type="button" id="new-view">New view</button>
       <select id="new-view-kind" aria-label="The kind of the new view"></select>
       <button type="button" id="export">Export SysML</button>
+      <button type="button" id="validation" aria-controls="validation-panel" aria-expanded="false">Validation</button>
       <button type="button" id="download-state" hidden>Download state</button>
       <button type="button" id="import-state" hidden>Import state</button>
       <input type="file" id="import-file" accept="application/json,.json" hidden>
@@ -236,6 +237,16 @@
       </section>
     </aside>
 
+    <!-- The Validation view (validation/page.js): the specification's rules' diagnostics, by kind. -->
+    <div class="float validation-panel" id="validation-panel" hidden aria-labelledby="validation-title">
+      <div class="panel-head">
+        <h2 id="validation-title">Validation</h2>
+        <button type="button" class="hide" id="close-validation">Close</button>
+      </div>
+      <p class="meta" id="validation-about"></p>
+      <div class="validation-kinds" id="validation-kinds"></div>
+      <p class="empty" id="validation-empty">No diagnostic available</p>
+    </div>
     <div class="float export-panel" id="export-panel" hidden aria-labelledby="export-title">
       <div class="panel-head">
         <h2 id="export-title">Textual SysML v2</h2>

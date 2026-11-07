@@ -266,6 +266,7 @@
   function check() {
     clearTimeout(S.checkTimer);
     S.checkTimer = null;
+    C.checkRules();   // the specification's rules, for the Validation view (validation/page.js)
     const found = reading(() => M.validate(S.model));
     if (JSON.stringify(found) === JSON.stringify(S.problems)) return;
     S.problemCursor = -1;
