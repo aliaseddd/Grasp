@@ -5,39 +5,41 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, NAME, MULTIPLICITY, str, hasTrait, textName, childrenOf, typingOf,
-    commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel, EXTRA, BODY,
-    commentLines
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, NAME, MULTIPLICITY, addKinds, addRelationships, attributeField, str,
+    hasTrait, textName, childrenOf, typingOf, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath,
+    an, describe, describeRel, EXTRA, BODY, commentLines
   } = lib;
 
-  Object.assign(KINDS, {
+  addKinds({
     // Behavior: the action flow view's kinds (an action def, actions with their parameters on the border, the four
     // control nodes, and start and done) and the state view's (a state def, states, the initial node). Start, done
     // and the initial node have no name field, so no name in the text (textName): they stand for the start and done
     // every action and state inherits, and for a state's entry, so their heads are null and the text never declares
     // them; a succession or transition ending on one writes the keyword of its kind, start or done (featurePath), and a
-    // state's body writes the entry idiom for its initial node. The hooks are functions further down this script,
-    // which hoist.
-    ActionDefinition: { keyword: 'action def', label: 'action def', definition: true, usage: false, contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
-    ActionUsage: { keyword: 'action', label: 'action', definition: false, usage: true, contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false,
+    // state's body writes the entry idiom for its initial node. A parameter is an ItemUsage (in item x : T;), and start,
+    // done and the initial node are ActionUsages, so those four kinds name the class they stand on: start and done are
+    // the actions Actions::Action declares (action start: Action :>> startShot;), and an initial node is a state's
+    // empty entry action (entry;). The hooks are functions further down this script, which hoist.
+    ActionDefinition: { keyword: 'action def', label: 'action def', contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
+    ActionUsage: { keyword: 'action', label: 'action', contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false,
       definedBy: 'ActionDefinition', size: [180, 60], shape: 'action', fields: ['name', 'type', 'typeLine', 'multiplicity', 'actionKind', 'payload', 'target', 'role', 'doc'], traits: ['successionEnd', 'transitionEnd'],
       head: actionHead, body: actionBody, check: checkAction },
-    ParameterUsage: { keyword: 'item', label: 'parameter', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'ItemDefinition', size: [16, 16], shape: 'param',
+    ParameterUsage: { metaclass: 'ItemUsage', keyword: 'item', label: 'parameter', contains: false, onBorder: true, definedBy: 'ItemDefinition', size: [16, 16], shape: 'param',
       fields: ['name', 'direction', 'type', 'typeLine', 'multiplicity', 'doc'], traits: ['flowEnd', 'bindable'],
       head: parameterHead, check: checkParameter, glyph: function (model, el) { return el.direction || null; } },
-    ForkNode: { keyword: 'fork', label: 'fork', definition: false, usage: true, contains: false, onBorder: false, size: [60, 8], shape: 'bar', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
-    JoinNode: { keyword: 'join', label: 'join', definition: false, usage: true, contains: false, onBorder: false, size: [60, 8], shape: 'bar', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
-    DecisionNode: { keyword: 'decide', label: 'decision', definition: false, usage: true, contains: false, onBorder: false, size: [40, 40], shape: 'diamond', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode, after: decisionBranches },
-    MergeNode: { keyword: 'merge', label: 'merge', definition: false, usage: true, contains: false, onBorder: false, size: [40, 40], shape: 'diamond', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
-    StartNode: { keyword: 'start', label: 'start', definition: false, usage: true, contains: false, onBorder: false, size: [16, 16], shape: 'dot', fields: [], traits: ['successionEnd', 'transitionEnd'], head: noHead, check: checkPseudoNode },
-    DoneNode: { keyword: 'done', label: 'done', definition: false, usage: true, contains: false, onBorder: false, size: [22, 22], shape: 'bullseye', fields: [], traits: ['successionEnd', 'transitionEnd'], head: noHead, check: checkPseudoNode },
-    StateDefinition: { keyword: 'state def', label: 'state def', definition: true, usage: false, contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'state', fields: ['name', 'abstract', 'parallel', 'doc'], traits: [],
+    ForkNode: { keyword: 'fork', label: 'fork', contains: false, onBorder: false, size: [60, 8], shape: 'bar', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
+    JoinNode: { keyword: 'join', label: 'join', contains: false, onBorder: false, size: [60, 8], shape: 'bar', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
+    DecisionNode: { keyword: 'decide', label: 'decision', contains: false, onBorder: false, size: [40, 40], shape: 'diamond', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode, after: decisionBranches },
+    MergeNode: { keyword: 'merge', label: 'merge', contains: false, onBorder: false, size: [40, 40], shape: 'diamond', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
+    StartNode: { metaclass: 'ActionUsage', keyword: 'start', label: 'start', contains: false, onBorder: false, size: [16, 16], shape: 'dot', fields: [], traits: ['successionEnd', 'transitionEnd'], head: noHead, check: checkPseudoNode },
+    DoneNode: { metaclass: 'ActionUsage', keyword: 'done', label: 'done', contains: false, onBorder: false, size: [22, 22], shape: 'bullseye', fields: [], traits: ['successionEnd', 'transitionEnd'], head: noHead, check: checkPseudoNode },
+    StateDefinition: { keyword: 'state def', label: 'state def', contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'state', fields: ['name', 'abstract', 'parallel', 'doc'], traits: [],
       head: stateHead, body: stateBody, check: checkState },
-    StateUsage: { keyword: 'state', label: 'state', definition: false, usage: true, contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, definedBy: 'StateDefinition', size: [180, 60], shape: 'state',
+    StateUsage: { keyword: 'state', label: 'state', contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, definedBy: 'StateDefinition', size: [180, 60], shape: 'state',
       fields: ['name', 'type', 'typeLine', 'multiplicity', 'parallel', 'doc'], traits: ['transitionEnd'], head: stateHead, body: stateBody, check: checkState },
-    InitialNode: { keyword: 'entry', label: 'initial node', definition: false, usage: true, contains: false, onBorder: false, size: [28, 16], shape: 'entry', fields: [], traits: ['transitionEnd'], head: noHead, check: checkPseudoNode },
+    InitialNode: { metaclass: 'ActionUsage', keyword: 'entry', label: 'initial node', contains: false, onBorder: false, size: [28, 16], shape: 'entry', fields: [], traits: ['transitionEnd'], head: noHead, check: checkPseudoNode },
   });
-  Object.assign(RELATIONSHIPS, {
+  addRelationships({
     // Behavior: a succession between actions and control nodes (dashed, an open arrowhead, [guard] or else as the
     // label) and a transition between states (solid, the same head, trigger [guard] / effect as the label). Both are
     // written in the innermost body that holds their two ends; the rules and the writers are in the behavior helpers.
@@ -67,7 +69,8 @@
   Object.assign(FIELDS, {
     // Behavior: what an action does (plain, send, accept) with its payload and its target, its role under a state
     // (entry, do, exit), a succession's guard (the text of a Boolean expression, or else), a transition's trigger,
-    // guard and effect (the texts after accept, if and do), and whether a state runs its regions in parallel.
+    // guard and effect (the texts after accept, if and do), and whether a state runs its regions in parallel (the
+    // attribute isParallel of a state and a state def).
     actionKind: { type: 'enum', label: 'kind', values: ['plain', 'send', 'accept'] },
     payload: { type: 'string', label: 'payload', trim: true },
     target: { type: 'string', label: 'target', trim: true },
@@ -75,7 +78,7 @@
     guard: { type: 'string', label: 'guard', trim: true },
     trigger: { type: 'string', label: 'trigger', trim: true },
     effect: { type: 'string', label: 'effect', trim: true },
-    parallel: { type: 'bool', label: 'parallel' },
+    parallel: attributeField('isParallel', { label: 'parallel' }),
   });
 
   // Behavior: a part def and a part hold actions and states too (actions in parts: afv10, b06; states: stv-12).

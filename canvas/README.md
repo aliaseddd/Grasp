@@ -48,6 +48,8 @@ How Claude responds to a note: it sets `response`, and `resolved` once the note 
 ```sh
 node canvas/build.mjs                      # build index.html from src/ and state.json
 node canvas/build.mjs --check              # fail if index.html isn't what they build
+node canvas/metamodel/generate.mjs         # write the kind lists, src/core/lib/metamodel.js, from SysML.ecore
+node canvas/metamodel/generate.mjs --check # fail if they aren't what SysML.ecore generates
 node canvas/export.mjs                     # the model saved in state.json, as textual SysML v2
 node canvas/export.mjs canvas-state.json   # a state file, the same way
 canvas/check.sh [canvas-state.json]        # export, then check with the pilot implementation's validator
@@ -56,7 +58,7 @@ node --test --test-timeout=120000 canvas/test/*.test.mjs   # the tests, one proc
 ```
 
 `node --test canvas/test/` runs the same files in one process through `test/index.js`; give it no `--test-timeout`, or at least 180000, since the bound then covers the whole suite.
-`src/README.md` says how the sources are laid out and stitched. `export.mjs` runs the model library's scripts from `src/` in Node, stitched the way the build puts them into the page's `<script id="model-lib">`, so the text it prints is the text the Export button shows. `check.sh` hands that text to `docs/sysml/check.sh`, which runs the validator inside the pilot implementation's Jupyter kernel; its first run downloads the kernel. The tests need Playwright 1.63.0 and its Chromium where Node finds them from `canvas/test/`: run `npm install --no-save playwright@1.63.0` at the repository root (it writes only `node_modules/`, which git ignores), then `npx playwright install chromium`, once per machine; `canvas/test/fixtures/` holds a state file per view kind, each of which `canvas/check.sh` accepts, and beside each, in the `.sysml` file of the same name, the text it exports, pinned: `test/format.test.mjs` checks that every fixture still exports its pinned text.
+`src/README.md` says how the sources are laid out and stitched. The canvas's kinds stand on the SysML v2 Pilot Implementation's metamodel, `SysML.ecore` from the release `check.sh` validates with, which `metamodel/` holds with its license and the generator; `metamodel/README.md` says where it comes from and what the lists hold. `export.mjs` runs the model library's scripts from `src/` in Node, stitched the way the build puts them into the page's `<script id="model-lib">`, so the text it prints is the text the Export button shows. `check.sh` hands that text to `docs/sysml/check.sh`, which runs the validator inside the pilot implementation's Jupyter kernel; its first run downloads the kernel. The tests need Playwright 1.63.0 and its Chromium where Node finds them from `canvas/test/`: run `npm install --no-save playwright@1.63.0` at the repository root (it writes only `node_modules/`, which git ignores), then `npx playwright install chromium`, once per machine; `canvas/test/fixtures/` holds a state file per view kind, each of which `canvas/check.sh` accepts, and beside each, in the `.sysml` file of the same name, the text it exports, pinned: `test/format.test.mjs` checks that every fixture still exports its pinned text.
 
 ## How the model is written out
 

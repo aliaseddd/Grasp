@@ -4,30 +4,31 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, textName, index, childrenOf, typingOf, specializes, commonOwner,
-    acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel, inheritedFeatures, EXTRA
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, index, childrenOf, typingOf,
+    specializes, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel,
+    inheritedFeatures, EXTRA
   } = lib;
 
-  Object.assign(KINDS, {
+  addKinds({
     // Interconnection: items (what flows, and what a part holds) and interface definitions, whose ports are their ends.
-    ItemDefinition: { keyword: 'item def', label: 'item def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
+    ItemDefinition: { keyword: 'item def', label: 'item def', contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
     // An item's head carries its direction (in item x : T). On a port def it must have one: a port def may own only
     // ports and referential usages, as the validator says. Its shape, item, is the page's rounded box with the
     // direction inside the guillemets, «out item».
-    ItemUsage: { keyword: 'item', label: 'item', definition: false, usage: true, contains: false, onBorder: false, definedBy: 'ItemDefinition', size: [160, 52], shape: 'item', fields: ['name', 'type', 'typeLine', 'direction', 'multiplicity', 'doc'], traits: ['flowEnd', 'bindable', 'connectable'],
+    ItemUsage: { keyword: 'item', label: 'item', contains: false, onBorder: false, definedBy: 'ItemDefinition', size: [160, 52], shape: 'item', fields: ['name', 'type', 'typeLine', 'direction', 'multiplicity', 'doc'], traits: ['flowEnd', 'bindable', 'connectable'],
       head: function (model, el, h) { return (el.direction ? el.direction + ' ' : '') + h.headOf(el); },
       check: function (model, el, ids, add) {
         const owner = el.owner !== undefined ? ids.get(el.owner) : null;
         if (owner && owner.kind === 'PortDefinition' && !el.direction) add(el.id, describe(model, el, ids) + ' needs a direction: in, out, or inout. An item on a port def says which way it goes.');
       } },
     // An interface def's ports are its ends (end port a : P;), and it needs two of them.
-    InterfaceDefinition: { keyword: 'interface def', label: 'interface def', definition: true, usage: false, contains: ['PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [],
+    InterfaceDefinition: { keyword: 'interface def', label: 'interface def', contains: ['PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [],
       check: function (model, el, ids, add) {
         const ends = childrenOf(model, el.id).filter((c) => KINDS[c.kind].onBorder);
         if (ends.length < 2) add(el.id, describe(model, el, ids) + ' needs two ports on its border, its ends; it has ' + (ends.length ? 'one' : 'none') + '.');
       } },
   });
-  Object.assign(RELATIONSHIPS, {
+  addRelationships({
     // Interconnection: an interface between two ports, typed by an interface def whose ends they match; a flow of an
     // item from one port or item to another; a binding of two ports or items that are one thing. Each is declared in
     // the innermost element that holds both ends, as a connection is, and may carry a doc. The rules on the ends and
@@ -65,8 +66,9 @@
         connectorStatement(rel, head, depth, h);
       },
     },
+    // A flow is a FlowUsage (flow of T from a to b;); the kind keeps the name models are saved with.
     FlowConnectionUsage: {
-      label: 'flow', fields: ['name', 'item', 'doc'], hideable: false,
+      metaclass: 'FlowUsage', label: 'flow', fields: ['name', 'item', 'doc'], hideable: false,
       first: function (model, a, ids) {
         return hasTrait(a.kind, 'flowEnd') ? null : 'A flow runs from a port or an item; ' + describe(model, a, ids) + ' is ' + an(KINDS[a.kind].label) + '.';
       },
