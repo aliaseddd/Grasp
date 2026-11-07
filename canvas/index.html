@@ -5368,7 +5368,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // previous layout, everything is laid out anew.
   function computeLayout(previous, plan) {
     const kept = !!previous && !!plan && (!!plan.views || !plan.structure);
-    const ids = kept ? previous.ids : M.index(S.model);
+    // The element index the library's lookups hold, in a reading (render lays out in one), which the helpers then
+    // answer from at their quickest; a new one outside a reading.
+    const ids = kept ? previous.ids : M.idsOf(S.model);
     const order = kept ? previous.order : new Map(S.model.elements.map((e, i) => [e.id, i]));
     const views = new Map();
     let b = null;
@@ -6140,6 +6142,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return M.reading(S.model, fn, look);
   }
   function forget() { look = null; looked = null; }
+  // A line by its id: from the lookups while they are the model's, as they are between changes; else from the model.
+  function lineById(id) { return look && looked === S.model ? look.rels().get(id) || null : relById(id); }
 
   // ---- What is drawn: the part of the plane the window shows, and a margin round it.
 
@@ -6204,7 +6208,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (r.side === 'left') return { x: r.cx - 16 - step, y: on === 'above' ? r.cy + 14 : r.cy - 14 };
       return { x: on === 'right' ? r.cx - 18 - step : r.cx + 18 + step, y: r.cy };
     }
-    const rel = relById(n.target);
+    const rel = lineById(n.target);
     if (!rel) return null;
     if (rel.hidden) { const from = L.rects.get(rel.from); return from ? { x: (from.port ? from.cx : from.x) + 12 + step, y: (from.port ? from.cy : from.y) - 16 } : null; }
     // Only where the view draws the line: a plan, say, has the ends but no line for a pin to sit on.
@@ -6256,7 +6260,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // line starts from, since the line itself can't be pointed at.
   function marksFor(p) {
     if (p.id === null) return [];
-    const rel = relById(p.id);
+    const rel = lineById(p.id);
     return rel && rel.hidden ? [p.id, rel.from] : [p.id];
   }
   // Where a problem's badge sits in view layout L: at a box's top-right corner, inside a port's corner, above the
@@ -6270,7 +6274,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (r.side === 'left') return { x: r.cx + 16, y: r.cy + 14 };
       return { x: r.cx - 18, y: r.cy };
     }
-    const rel = relById(id);
+    const rel = lineById(id);
     if (!rel || rel.hidden) return null;
     if (!L.drawn.has(rel.id)) return null;
     const e = endpoints(rel, L);
@@ -9542,7 +9546,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (col === 'owner') { const o = el.owner !== undefined ? ids.get(el.owner) : null; return o ? gridPath(o, ids) : ''; }
     if (col === 'doc') return el.doc.replace(/\s+/g, ' ').trim();
     if (col === 'specializes') {
-      return S.model.relationships.filter((r) => r.kind === 'Specialization' && r.from === el.id && ids.has(r.to))
+      return M.linesFrom(S.model, el.id, 'Specialization').filter((r) => ids.has(r.to))
         .map((r) => gridName(ids.get(r.to))).join(', ');
     }
     if (col === 'notes') return S.notes.filter((n) => n.target === el.id).sort(byNumber).map((n) => String(n.no)).join(', ');
@@ -9668,7 +9672,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         G.rows.forEach((c) => {
           if (!colOn(c)) return;
           if (c.el.id === r.el.id) { row.appendChild(node('rect', { x: f(c.x), y: f(r.y), width: f(GRID_MATRIX_COL), height: f(GRID_ROW_H) }, 'grid-self')); return; }
-          const rels = S.model.relationships.filter((x) => x.from === r.el.id && x.to === c.el.id);
+          const rels = M.linesFrom(S.model, r.el.id).filter((x) => x.to === c.el.id);
           if (!rels.length) return;
           // The cell: a group named for the column's element, its tooltip saying the relationships in words.
           const cell = node('g', { 'data-col': c.el.id }, 'grid-matrix-cell');

@@ -21,6 +21,8 @@
     return M.reading(S.model, fn, look);
   }
   function forget() { look = null; looked = null; }
+  // A line by its id: from the lookups while they are the model's, as they are between changes; else from the model.
+  function lineById(id) { return look && looked === S.model ? look.rels().get(id) || null : relById(id); }
 
   // ---- What is drawn: the part of the plane the window shows, and a margin round it.
 
@@ -85,7 +87,7 @@
       if (r.side === 'left') return { x: r.cx - 16 - step, y: on === 'above' ? r.cy + 14 : r.cy - 14 };
       return { x: on === 'right' ? r.cx - 18 - step : r.cx + 18 + step, y: r.cy };
     }
-    const rel = relById(n.target);
+    const rel = lineById(n.target);
     if (!rel) return null;
     if (rel.hidden) { const from = L.rects.get(rel.from); return from ? { x: (from.port ? from.cx : from.x) + 12 + step, y: (from.port ? from.cy : from.y) - 16 } : null; }
     // Only where the view draws the line: a plan, say, has the ends but no line for a pin to sit on.
@@ -137,7 +139,7 @@
   // line starts from, since the line itself can't be pointed at.
   function marksFor(p) {
     if (p.id === null) return [];
-    const rel = relById(p.id);
+    const rel = lineById(p.id);
     return rel && rel.hidden ? [p.id, rel.from] : [p.id];
   }
   // Where a problem's badge sits in view layout L: at a box's top-right corner, inside a port's corner, above the
@@ -151,7 +153,7 @@
       if (r.side === 'left') return { x: r.cx + 16, y: r.cy + 14 };
       return { x: r.cx - 18, y: r.cy };
     }
-    const rel = relById(id);
+    const rel = lineById(id);
     if (!rel || rel.hidden) return null;
     if (!L.drawn.has(rel.id)) return null;
     const e = endpoints(rel, L);

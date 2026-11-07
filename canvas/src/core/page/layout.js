@@ -145,7 +145,9 @@
   // previous layout, everything is laid out anew.
   function computeLayout(previous, plan) {
     const kept = !!previous && !!plan && (!!plan.views || !plan.structure);
-    const ids = kept ? previous.ids : M.index(S.model);
+    // The element index the library's lookups hold, in a reading (render lays out in one), which the helpers then
+    // answer from at their quickest; a new one outside a reading.
+    const ids = kept ? previous.ids : M.idsOf(S.model);
     const order = kept ? previous.order : new Map(S.model.elements.map((e, i) => [e.id, i]));
     const views = new Map();
     let b = null;

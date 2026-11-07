@@ -50,7 +50,7 @@
     if (col === 'owner') { const o = el.owner !== undefined ? ids.get(el.owner) : null; return o ? gridPath(o, ids) : ''; }
     if (col === 'doc') return el.doc.replace(/\s+/g, ' ').trim();
     if (col === 'specializes') {
-      return S.model.relationships.filter((r) => r.kind === 'Specialization' && r.from === el.id && ids.has(r.to))
+      return M.linesFrom(S.model, el.id, 'Specialization').filter((r) => ids.has(r.to))
         .map((r) => gridName(ids.get(r.to))).join(', ');
     }
     if (col === 'notes') return S.notes.filter((n) => n.target === el.id).sort(byNumber).map((n) => String(n.no)).join(', ');
@@ -176,7 +176,7 @@
         G.rows.forEach((c) => {
           if (!colOn(c)) return;
           if (c.el.id === r.el.id) { row.appendChild(node('rect', { x: f(c.x), y: f(r.y), width: f(GRID_MATRIX_COL), height: f(GRID_ROW_H) }, 'grid-self')); return; }
-          const rels = S.model.relationships.filter((x) => x.from === r.el.id && x.to === c.el.id);
+          const rels = M.linesFrom(S.model, r.el.id).filter((x) => x.to === c.el.id);
           if (!rels.length) return;
           // The cell: a group named for the column's element, its tooltip saying the relationships in words.
           const cell = node('g', { 'data-col': c.el.id }, 'grid-matrix-cell');
