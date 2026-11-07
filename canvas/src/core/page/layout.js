@@ -36,9 +36,10 @@
   // The layout of one graph view: rects in plane coordinates for the elements it shows, kids by their parent in
   // the view ('' for the view's own ground), parentOf the other way round, comps the compartments of each box. order,
   // when given, is each element's place in the model's list, which computeLayout makes once for every view; before,
-  // when given, is the view's layout before a change that only moved things, whose compartments still hold for a box
-  // of the same width.
-  function graphLayout(view, ids, order, before) {
+  // when given, is the view's layout before a change, whose compartments still hold for a box of the same width: for
+  // every box after a change that only moved things (touched not given), and else for a box the change didn't touch
+  // whose compartments read nothing but itself (touched, the ids of the elements it touched).
+  function graphLayout(view, ids, order, before, touched) {
     order = order || new Map(S.model.elements.map((e, i) => [e.id, i]));
     const shown = new Set(Object.keys(view.layout).filter((id) => ids.has(id)));
     const kids = new Map();
@@ -62,7 +63,8 @@
     function size(el) {
       const lay = view.layout[el.id];
       const shape = C.SHAPES[M.KINDS[el.kind].shape] || C.SHAPES.rect;
-      const kept = before && before.widths && before.widths.get(el.id) === lay.w ? before.comps.get(el.id) : null;
+      const same = before && before.widths && before.widths.get(el.id) === lay.w && (!touched || (!touched.has(el.id) && C.ownCompartments(el)));
+      const kept = same ? before.comps.get(el.id) : null;
       const blocks = kept || (shape.compartments ? C.compartmentsOf(el, lay.w) : []);
       comps.set(el.id, blocks);
       widths.set(el.id, lay.w);
@@ -114,28 +116,30 @@
   }
   // Every view's layout, plus where: for each element and drawn line, the views it is drawn in (where.get(id), a
   // list of view ids, or undefined for none); and bounds, the box around every frame. Given the layout from before a
-  // change (previous) and the ids of the views the change can have moved (redo, a Set), only those views are laid out
-  // again, and the others keep theirs, with the element index, since such a change adds and removes no element. With
-  // moving, the change only moved things (see render), so a view laid out again draws the same lines as before, and
-  // its renderer may keep what the moves can't have changed. With no previous layout, or no redo, every view is laid
-  // out.
-  function computeLayout(previous, redo, moving) {
-    const again = !previous || !redo;
-    const ids = again ? M.index(S.model) : previous.ids;
-    const order = again ? new Map(S.model.elements.map((e, i) => [e.id, i])) : previous.order;
+  // change (previous) and what the change can have altered (plan, from render), it lays out again only what it must:
+  // plan.views, when given, are the views a change that showed, hid or moved things touched, and the others keep
+  // their layouts and the element index, since such a change adds and removes no element; plan.moving says it only
+  // moved things, so a view laid out again draws the same lines, and its renderer may keep what moves can't change;
+  // with no plan.views every view is laid out again, its renderer told what the change touched (plan.touched, the
+  // ids of the elements), to keep what that can't have changed. With no previous layout, everything is laid out anew.
+  function computeLayout(previous, plan) {
+    const kept = !!previous && !!plan && !!plan.views;
+    const ids = kept ? previous.ids : M.index(S.model);
+    const order = kept ? previous.order : new Map(S.model.elements.map((e, i) => [e.id, i]));
     const views = new Map();
     let b = null;
     for (const view of S.model.views) {
-      const was = again ? null : previous.views.get(view.id);
-      const keep = was && was.view === view;
+      const was = previous ? previous.views.get(view.id) : null;
+      const same = !!was && was.view === view;
       let L;
-      if (keep && !redo.has(view.id)) L = was;
-      else if (keep && moving) {
+      if (kept && same && !plan.views.has(view.id)) L = was;
+      else if (kept && same && plan.moving) {
         L = rendererFor(view).layout(view, ids, order, was);
         L.rels = was.rels;
         L.drawn = was.drawn;
         L.byEnd = was.byEnd;
-      } else L = drawnLines(rendererFor(view).layout(view, ids, order));
+      } else if (plan && same && !plan.views) L = drawnLines(rendererFor(view).layout(view, ids, order, was, plan.touched));
+      else L = drawnLines(rendererFor(view).layout(view, ids, order));
       views.set(view.id, L);
       const fr = L.frameRect;
       b = b ? { x: Math.min(b.x, fr.x), y: Math.min(b.y, fr.y), x2: Math.max(b.x2, fr.x + fr.w), y2: Math.max(b.y2, fr.y + fr.h) }

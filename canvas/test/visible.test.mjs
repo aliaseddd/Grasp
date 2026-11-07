@@ -144,6 +144,63 @@ describe('drawing what the window shows', () => {
     await finish(ctx);
   });
 
+  test('typing a name or a doc draws again just what shows it, and leaves what drawing everything again would draw', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    // A part def, and a part typed by it inside another part def, whose name line shows the definition's name.
+    const model = {
+      format: 'stronghold-canvas/2', package: { name: 'Cars', doc: '' },
+      elements: [
+        { id: 'Engine', kind: 'PartDefinition', name: 'Engine', abstract: false, doc: '' },
+        { id: 'Car', kind: 'PartDefinition', name: 'Car', abstract: false, doc: 'A car.' },
+        { id: 'Car.engine', kind: 'PartUsage', name: 'engine', owner: 'Car', multiplicity: '', doc: '' },
+        { id: 'Car.wheels', kind: 'PartUsage', name: 'wheels', owner: 'Car', multiplicity: '4', doc: '' },
+      ],
+      relationships: [{ id: 't-engine', kind: 'FeatureTyping', from: 'Car.engine', to: 'Engine' }],
+      views: [{ id: 'v1', kind: 'GeneralView', name: 'cars', doc: '', x: 0, y: 0, options: {}, layout: {
+        Engine: { x: 40, y: 40, w: 220, h: 80 }, Car: { x: 400, y: 40, w: 520, h: 220 },
+        'Car.engine': { x: 20, y: 60, w: 220, h: 80 }, 'Car.wheels': { x: 270, y: 60, w: 220, h: 80 },
+      } }],
+    };
+    await importLarge(page, { model, notes: [], archive: [] }, 'cars.json');
+    // Each element's own drawing (its group's children that aren't groups) is marked, to tell what was drawn again.
+    const markOwn = () => page.evaluate(() => document.querySelectorAll('#drawing g[data-el] > :not(g)').forEach((n) => { n.__kept = true; }));
+    const redrawnOwn = () => page.evaluate(() => Array.from(document.querySelectorAll('#drawing g[data-el]'))
+      .filter((g) => Array.from(g.children).some((c) => c.tagName !== 'g' && !c.__kept)).map((g) => g.getAttribute('data-el')).sort());
+    await page.locator('g[data-el="Engine"] > rect.outline').click();
+    await page.click('#f-name');
+    await page.keyboard.press('End');
+    let typed = 'Engine';
+    for (const letter of 'Xy') {
+      await markOwn();
+      await page.keyboard.press(letter);
+      typed += letter;
+      await until(page, (name) => (document.querySelector('g[data-el="Car.engine"]')?.textContent || '').includes(': ' + name), typed, 'the part\'s name line follows the definition\'s name');
+      assert.deepEqual(await redrawnOwn(), ['Car.engine', 'Engine'], 'a keystroke in the definition\'s name draws again the definition and the part typed by it, nothing else');
+      assert.equal(await sameAsRedrawn(page), null, 'and leaves what drawing everything again draws');
+    }
+    // A letter typed and taken back, with nothing drawn in between: what each group was last drawn from must follow
+    // every keystroke, or the name it had again would look like no change to the groups drawn from it.
+    await markOwn();
+    await page.keyboard.press('Z');
+    await until(page, (name) => (document.querySelector('g[data-el="Car.engine"]')?.textContent || '').endsWith(': ' + name + 'Z'), typed, 'the part\'s name line takes the letter');
+    await page.keyboard.press('Backspace');
+    await until(page, (name) => (document.querySelector('g[data-el="Car.engine"]')?.textContent || '').endsWith(': ' + name), typed, 'and gives it back');
+    assert.deepEqual(await redrawnOwn(), ['Car.engine', 'Engine'], 'the two keystrokes draw again the definition and the part typed by it');
+    assert.equal(await sameAsRedrawn(page), null, 'and leave what drawing everything again draws');
+    await page.keyboard.press('Tab');
+    // The doc of the part def that holds them: its compartment, so its box, nothing inside it.
+    await page.locator('g[data-el="Car"] > rect.outline').click({ position: { x: 300, y: 12 } });
+    await page.click('#f-doc');
+    await page.keyboard.press('Control+End');
+    await markOwn();
+    await page.keyboard.type(' It has four wheels and one engine, and this sentence wraps onto a line of its own in the box.');
+    await until(page, () => /onto a line/.test(document.querySelector('g[data-el="Car"]')?.textContent || ''), null, 'the doc compartment follows the typing');
+    assert.deepEqual(await redrawnOwn(), ['Car'], 'typing in a doc draws again the box it is in, nothing inside it');
+    assert.equal(await sameAsRedrawn(page), null, 'and leaves what drawing everything again draws');
+    await finish(ctx);
+  });
+
   test('the checks wait for the changes to pause, and the export runs them at once', async () => {
     const ctx = await openCanvas(browser);
     const { page } = ctx;

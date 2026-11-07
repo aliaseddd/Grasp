@@ -4614,9 +4614,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // The layout of one graph view: rects in plane coordinates for the elements it shows, kids by their parent in
   // the view ('' for the view's own ground), parentOf the other way round, comps the compartments of each box. order,
   // when given, is each element's place in the model's list, which computeLayout makes once for every view; before,
-  // when given, is the view's layout before a change that only moved things, whose compartments still hold for a box
-  // of the same width.
-  function graphLayout(view, ids, order, before) {
+  // when given, is the view's layout before a change, whose compartments still hold for a box of the same width: for
+  // every box after a change that only moved things (touched not given), and else for a box the change didn't touch
+  // whose compartments read nothing but itself (touched, the ids of the elements it touched).
+  function graphLayout(view, ids, order, before, touched) {
     order = order || new Map(S.model.elements.map((e, i) => [e.id, i]));
     const shown = new Set(Object.keys(view.layout).filter((id) => ids.has(id)));
     const kids = new Map();
@@ -4640,7 +4641,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     function size(el) {
       const lay = view.layout[el.id];
       const shape = C.SHAPES[M.KINDS[el.kind].shape] || C.SHAPES.rect;
-      const kept = before && before.widths && before.widths.get(el.id) === lay.w ? before.comps.get(el.id) : null;
+      const same = before && before.widths && before.widths.get(el.id) === lay.w && (!touched || (!touched.has(el.id) && C.ownCompartments(el)));
+      const kept = same ? before.comps.get(el.id) : null;
       const blocks = kept || (shape.compartments ? C.compartmentsOf(el, lay.w) : []);
       comps.set(el.id, blocks);
       widths.set(el.id, lay.w);
@@ -4692,28 +4694,30 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   // Every view's layout, plus where: for each element and drawn line, the views it is drawn in (where.get(id), a
   // list of view ids, or undefined for none); and bounds, the box around every frame. Given the layout from before a
-  // change (previous) and the ids of the views the change can have moved (redo, a Set), only those views are laid out
-  // again, and the others keep theirs, with the element index, since such a change adds and removes no element. With
-  // moving, the change only moved things (see render), so a view laid out again draws the same lines as before, and
-  // its renderer may keep what the moves can't have changed. With no previous layout, or no redo, every view is laid
-  // out.
-  function computeLayout(previous, redo, moving) {
-    const again = !previous || !redo;
-    const ids = again ? M.index(S.model) : previous.ids;
-    const order = again ? new Map(S.model.elements.map((e, i) => [e.id, i])) : previous.order;
+  // change (previous) and what the change can have altered (plan, from render), it lays out again only what it must:
+  // plan.views, when given, are the views a change that showed, hid or moved things touched, and the others keep
+  // their layouts and the element index, since such a change adds and removes no element; plan.moving says it only
+  // moved things, so a view laid out again draws the same lines, and its renderer may keep what moves can't change;
+  // with no plan.views every view is laid out again, its renderer told what the change touched (plan.touched, the
+  // ids of the elements), to keep what that can't have changed. With no previous layout, everything is laid out anew.
+  function computeLayout(previous, plan) {
+    const kept = !!previous && !!plan && !!plan.views;
+    const ids = kept ? previous.ids : M.index(S.model);
+    const order = kept ? previous.order : new Map(S.model.elements.map((e, i) => [e.id, i]));
     const views = new Map();
     let b = null;
     for (const view of S.model.views) {
-      const was = again ? null : previous.views.get(view.id);
-      const keep = was && was.view === view;
+      const was = previous ? previous.views.get(view.id) : null;
+      const same = !!was && was.view === view;
       let L;
-      if (keep && !redo.has(view.id)) L = was;
-      else if (keep && moving) {
+      if (kept && same && !plan.views.has(view.id)) L = was;
+      else if (kept && same && plan.moving) {
         L = rendererFor(view).layout(view, ids, order, was);
         L.rels = was.rels;
         L.drawn = was.drawn;
         L.byEnd = was.byEnd;
-      } else L = drawnLines(rendererFor(view).layout(view, ids, order));
+      } else if (plan && same && !plan.views) L = drawnLines(rendererFor(view).layout(view, ids, order, was, plan.touched));
+      else L = drawnLines(rendererFor(view).layout(view, ids, order));
       views.set(view.id, L);
       const fr = L.frameRect;
       b = b ? { x: Math.min(b.x, fr.x), y: Math.min(b.y, fr.y), x2: Math.max(b.x2, fr.x + fr.w), y2: Math.max(b.y2, fr.y + fr.h) }
@@ -4993,10 +4997,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // The compartments a box may show under its header, in this order: applies(el) says whether the element has one,
   // head is its title (a string, or a function of the element), lines(el, width) its text as lines wrapped for a box
   // width px wide (none: no compartment), and cls, when present, the class of its lines (doc, the 11px sans, unless
-  // said otherwise; mono is the code font). Each takes HEAD_H + LEAD per line + 6 of the box's height. The doc is the
-  // first; the slices push the code links, a state's actions and the rest.
+  // said otherwise; mono is the code font); own: true says the compartment reads nothing but the element itself, so a
+  // change to other elements leaves it as it was. Each takes HEAD_H + LEAD per line + 6 of the box's height. The doc
+  // is the first; the slices push the code links, a state's actions and the rest.
   const COMPARTMENTS = [
-    { applies: function (el) { return M.KINDS[el.kind].fields.indexOf('doc') >= 0 && el.doc.trim() !== ''; }, head: 'doc', cls: 'doc',
+    { applies: function (el) { return M.KINDS[el.kind].fields.indexOf('doc') >= 0 && el.doc.trim() !== ''; }, head: 'doc', cls: 'doc', own: true,
       lines: function (el, width) { return wrap(el.doc, Math.max(12, Math.floor((width - 24) / 6.1))); } }
   ];
   // The compartments an element shows in a box width px wide: those that apply and have lines, as { head, lines, cls }.
@@ -5009,6 +5014,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
     });
     return out;
   }
+  // Whether every compartment an element shows reads nothing but the element (each row that applies says own).
+  function ownCompartments(el) { return COMPARTMENTS.every((c) => c.own || !c.applies(el)); }
   // ---- What is drawn of a view's content: what the window shows, with a margin round it (the region render() drew
   // for, { x, y, x2, y2, far }), and less of each thing when the camera is far out (region.far): a box's outline
   // without its words, a border item's square, a line without its label. A null region draws everything in full.
@@ -5026,18 +5033,36 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   // A box: its own drawing, then the boxes inside it that are on screen, then the border items on it.
   function drawBox(el, parent, L, region) {
-    const kind = M.KINDS[el.kind];
-    const shape = SHAPES[kind.shape] || SHAPES.rect;
-    const g = node('g', { 'data-el': el.id, 'data-kind': el.kind, 'data-view': L.view.id }, 'el ' + (kind.definition ? 'def' : 'usage') + (el.abstract ? ' is-abstract' : '') + (shape.cls ? ' ' + shape.cls : ''));
+    const g = node('g', { 'data-el': el.id, 'data-kind': el.kind, 'data-view': L.view.id }, elClass(el));
     drawOwn(el, g, L, region);
     const kids = L.kids.get(el.id) || [];
     kids.forEach((k) => { if (!M.KINDS[k.kind].onBorder && onScreen(L.rects.get(k.id), region)) drawBox(k, g, L, region); });
     kids.forEach((k) => { if (M.KINDS[k.kind].onBorder) drawPort(k, g, L, region); });
     parent.appendChild(g);
   }
+  // What an element's own drawing is made from, as a string kept on its group (g.sign), so a change can tell what it
+  // must draw again by comparing (patch): the element's fields, its rect, its compartments, its name line, and, for a
+  // border item, its glyph and where its name goes. A graph shape draws from these alone; one that read anything else
+  // (another element's field, say) would have to bring it in here.
+  function signOwn(el, L, region) {
+    const kind = M.KINDS[el.kind];
+    const r = L.rects.get(el.id);
+    const far = !!region && region.far;
+    const parts = [far ? 'far' : '', JSON.stringify(el), r.x, r.y, r.w, r.h, r.side || '', JSON.stringify(L.comps.get(el.id) || null), far ? '' : nameLine(el)];
+    if (kind.onBorder && !far) parts.push(kind.glyph ? kind.glyph(S.model, el) : '', JSON.stringify(portName(el, r, L)));
+    return parts.join('|');
+  }
+  // The classes of an element's group: what it is, and the shape's own.
+  function elClass(el) {
+    const kind = M.KINDS[el.kind];
+    if (kind.onBorder) { const shape = SHAPES[kind.shape] || SHAPES.port; return 'el port' + (shape.cls ? ' ' + shape.cls : ''); }
+    const shape = SHAPES[kind.shape] || SHAPES.rect;
+    return 'el ' + (kind.definition ? 'def' : 'usage') + (el.abstract ? ' is-abstract' : '') + (shape.cls ? ' ' + shape.cls : '');
+  }
   // What an element's group draws of the element itself, ahead of the groups of what it holds: its shape, and its
   // compartments when the shape has them. Far out, a box is its outline alone and a border item its square.
   function drawOwn(el, g, L, region) {
+    g.sign = signOwn(el, L, region);
     const kind = M.KINDS[el.kind];
     const r = L.rects.get(el.id);
     const far = !!region && region.far;
@@ -5055,11 +5080,18 @@ textarea.text[readonly] { resize: none; background: transparent; }
     shape.draw(el, r, g, L);
     if (shape.compartments) drawCompartments(el, r, g, L);
   }
-  // Draws an element's own part of its group again, as it is now, leaving the groups of what it holds in place.
+  // The marks the page puts on a group (the selection, a problem, the pointer), which a drawing again keeps.
+  const MARKS = ['is-selected', 'is-source', 'is-problem', 'is-hover', 'is-drop'];
+  // Draws an element's own part of its group again, as it is now, leaving the groups of what it holds in place; its
+  // classes follow what it is, and its marks stay.
   function redrawOwn(el, g, L, region) {
+    const marks = MARKS.filter((m) => g.classList.contains(m));
+    g.setAttribute('class', [elClass(el)].concat(marks).join(' '));
+    g.setAttribute('data-kind', el.kind);
     Array.from(g.childNodes).forEach((c) => { if (c.nodeType !== 1 || !c.hasAttribute('data-el')) g.removeChild(c); });
     const fresh = node('g');
     drawOwn(el, fresh, L, region);
+    g.sign = fresh.sign;
     const first = g.firstChild;
     while (fresh.firstChild) g.insertBefore(fresh.firstChild, first);
   }
@@ -5076,8 +5108,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
   // A border item, by its kind's shape (a port unless the shape is known).
   function drawPort(p, parent, L, region) {
-    const shape = SHAPES[M.KINDS[p.kind].shape] || SHAPES.port;
-    const g = node('g', { 'data-el': p.id, 'data-kind': p.kind, 'data-view': L.view.id }, 'el port' + (shape.cls ? ' ' + shape.cls : ''));
+    const g = node('g', { 'data-el': p.id, 'data-kind': p.kind, 'data-view': L.view.id }, elClass(p));
     drawOwn(p, g, L, region);
     parent.appendChild(g);
   }
@@ -5087,10 +5118,17 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!e || !pointsOnScreen(e.pts, region)) return;
     parent.appendChild(relGroup(rel, e, L, region));
   }
+  // What a line's drawing is made from, kept on its group as signOwn's is: its fields, its points, and its label.
+  function signRel(rel, e, region) {
+    const how = M.RELATIONSHIPS[rel.kind].line;
+    const label = how.label && !(region && region.far) ? how.label(rel, S.model, S.layout.ids) : '';
+    return [region && region.far ? 'far' : '', JSON.stringify(rel), JSON.stringify(e.pts), label].join('|');
+  }
   // A line's group: the wide stroke that takes the pointer, the line with its markers, and its label (not far out).
   function relGroup(rel, e, L, region) {
     const how = M.RELATIONSHIPS[rel.kind].line;
     const g = node('g', { 'data-rel': rel.id, 'data-kind': rel.kind, 'data-view': L.view.id }, 'rel ' + how.cls);
+    g.sign = signRel(rel, e, region);
     const d = e.pts.map((p, i) => (i ? ' L' : 'M') + f(p.x) + ',' + f(p.y)).join('');
     g.appendChild(node('path', { d: d }, 'hit'));
     const line = node('path', { d: d }, 'line');
@@ -5110,9 +5148,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (onScreen(L.frameRect, region)) rendererFor(view).draw(view, g, L, region);
     return g;
   }
+  // What a frame's own pieces are made from, kept on its group as signOwn's is.
+  function signChrome(view, L) { return [view.name, view.kind, JSON.stringify(L.frameRect), M.describeView(S.model, view)].join('|'); }
   // The frame's own pieces, each marked data-chrome so a patch can draw them again: put at the front of g, before
   // the content.
   function drawChrome(view, L, g) {
+    g.sign = signChrome(view, L);
     Array.from(g.children).forEach((c) => { if (c.hasAttribute('data-chrome')) g.removeChild(c); });
     const fr = L.frameRect;
     const first = g.firstChild;
@@ -5140,6 +5181,91 @@ textarea.text[readonly] { resize: none; background: transparent; }
     add(tab);
   }
 
+  // ---- Drawing again just what a change altered, in a graph view's groups (its renderer's patch).
+
+  // The element groups drawn in a graph view's content, by id.
+  function drawnElements(els) {
+    const drawn = new Map();
+    els.querySelectorAll('g[data-el]').forEach((n) => drawn.set(n.getAttribute('data-el'), n));
+    return drawn;
+  }
+  // Whether element id, laid out at r, is drawn in view layout L, given what else is, as drawBox draws: a border item
+  // when its owner's box is, a box when it comes on screen and its parent in the view is drawn, or it sits on the
+  // view's ground.
+  function belongsDrawn(id, r, L, drawn, region) {
+    const parent = L.parentOf.get(id);
+    if (r.port) return !!parent && drawn.has(parent);
+    return (!parent || drawn.has(parent)) && onScreen(r, region);
+  }
+  // A change that only moved things: each drawn box or border item whose rect changed draws its own part again, each
+  // drawn line with an end that moved is drawn again, and so are the border items at the ends of those lines, whose
+  // names keep clear of them; the frame's pieces follow the frame. Something coming on screen or going off it is the
+  // whole view's to draw again (false).
+  function patchMoves(view, g, els, rels, before, L, region) {
+    if (before.shown.size !== L.shown.size) return false;
+    const drawn = drawnElements(els);
+    const changed = new Set();
+    for (const [id, r] of L.rects) {
+      const o = before.rects.get(id);
+      if (!o) return false;
+      if (o.x === r.x && o.y === r.y && o.w === r.w && o.h === r.h && o.side === r.side) continue;
+      changed.add(id);
+      if (belongsDrawn(id, r, L, drawn, region) !== drawn.has(id)) return false;
+    }
+    const ids = S.layout.ids;
+    changed.forEach((id) => { if (drawn.has(id)) redrawOwn(ids.get(id), drawn.get(id), L, region); });
+    const lines = new Map();
+    rels.querySelectorAll(':scope > g[data-rel]').forEach((n) => lines.set(n.getAttribute('data-rel'), n));
+    const ends = new Set();
+    for (const rel of L.rels) {
+      if (!changed.has(rel.from) && !changed.has(rel.to)) continue;
+      const e = endpoints(rel, L);
+      const n = lines.get(rel.id);
+      if (!n) { if (e && pointsOnScreen(e.pts, region)) return false; continue; }
+      rels.replaceChild(relGroup(rel, e, L, region), n);
+      ends.add(rel.from);
+      ends.add(rel.to);
+    }
+    ends.forEach((id) => { const n = drawn.get(id); if (n && !changed.has(id) && L.rects.get(id).port) redrawOwn(ids.get(id), n, L, region); });
+    if (g.sign !== signChrome(view, L)) drawChrome(view, L, g);
+    return true;
+  }
+  // Any other change (a name, a field, a definition, a line drawn or deleted): each drawn group whose drawing is made
+  // from something else now (its sign, see signOwn and signRel) draws its own part again, and so does the frame. When
+  // what is drawn would differ (something to draw that isn't drawn, or drawn that isn't there now, or in another
+  // order, or in another box), the whole view is drawn again (false).
+  function patchContent(view, g, els, rels, L, region) {
+    const ids = S.layout.ids;
+    const drawn = drawnElements(els);
+    for (const [id, n] of drawn) {
+      const parent = L.parentOf.get(id);
+      const host = n.parentNode && n.parentNode.getAttribute ? n.parentNode.getAttribute('data-el') : null;
+      if (!ids.has(id) || !L.rects.has(id) || (parent || null) !== (host || null)) return false;
+    }
+    for (const [id, r] of L.rects) if (!drawn.has(id) && belongsDrawn(id, r, L, drawn, region)) return false;
+    // The order the groups are drawn in, which drawBox follows: the boxes, then the border items, each in the view's
+    // order of its parent's kids.
+    const order = (key, box) => (L.kids.get(key) || []).filter((k) => drawn.has(k.id) && !M.KINDS[k.kind].onBorder === box).map((k) => k.id);
+    const inOrder = (key, container) => {
+      const want = order(key, true).concat(order(key, false));
+      const have = Array.from(container.children).filter((c) => c.hasAttribute('data-el')).map((c) => c.getAttribute('data-el'));
+      return want.length === have.length && want.every((id, i) => id === have[i]);
+    };
+    if (!inOrder('', els)) return false;
+    for (const [id, n] of drawn) if (!inOrder(id, n)) return false;
+    drawn.forEach((n, id) => { if (n.sign !== signOwn(ids.get(id), L, region)) redrawOwn(ids.get(id), n, L, region); });
+    const lines = Array.from(rels.children).filter((c) => c.hasAttribute('data-rel'));
+    const shown = [];
+    for (const rel of L.rels) {
+      const e = endpoints(rel, L);
+      if (e && pointsOnScreen(e.pts, region)) shown.push({ rel: rel, e: e });
+    }
+    if (shown.length !== lines.length || shown.some((x, i) => x.rel.id !== lines[i].getAttribute('data-rel'))) return false;
+    shown.forEach((x, i) => { if (lines[i].sign !== signRel(x.rel, x.e, region)) rels.replaceChild(relGroup(x.rel, x.e, L, region), lines[i]); });
+    if (g.sign !== signChrome(view, L)) drawChrome(view, L, g);
+    return true;
+  }
+
   // The renderers, by the name a view kind gives in VIEW_KINDS. Each lays a view out: layout(view, ids) returns
   // { view, shown (a Set of the ids of the elements drawn), kids (a parent's id, or '' for the view's ground → the
   // elements in it), parentOf (the other way round), rects (element id → its rect in plane coordinates; a border
@@ -5149,9 +5275,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // Pins, badges, lines, the Show list and the panel read shown, rects, comps and endpoints(), so a renderer that
   // fills them gets all of that for free. It draws its content into the frame's group (draw(view, g, L, region): the
   // region is the part of the plane being drawn, which a renderer may keep to, see onScreen; null is all of it). A
-  // renderer may also patch(view, g, before, L, region) the content it drew when a change only moved things: draw
-  // again just what moved, from the view's layout before the change to the one now, and return true; or return false,
-  // and the view's content is drawn again whole. When the view's elements can be placed and moved by hand, it
+  // renderer may also patch(view, g, before, L, region, moving) the content it drew after a change: draw again just
+  // what the change altered, from the view's layout before it (before) to the one now (L), and return true; or return
+  // false, and the view's content is drawn again whole. moving says the change only moved things. When the view's
+  // elements can be placed and moved by hand, it
   // the view's elements can be placed and moved by hand, places one (place(view, kind, p, hit) adds the element to
   // the model and the view's layout, or says why not and returns null), starts a drag of one (dragStart(view, el, p)
   // returns the drag record or null), moves it (drag(view, el, d, p)), and finishes (drop(view, el, d, p, event)
@@ -5172,45 +5299,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
         (L.kids.get('') || []).forEach((el) => { if (!M.KINDS[el.kind].onBorder && onScreen(L.rects.get(el.id), region)) drawBox(el, els, L, region); });
         L.rels.forEach((rel) => drawRel(rel, rels, L, region));
       },
-      // A change that only moved things: each drawn box or border item whose rect changed draws its own part again,
-      // each drawn line with an end that moved is drawn again, and so are the border items at the ends of those lines,
-      // whose names keep clear of them; the frame's pieces follow the frame. Something coming on screen or going off
-      // it, or a view that now shows other things, is the whole view's to draw again.
-      patch: function (view, g, before, L, region) {
+      // Draws again what a change altered, in the groups already drawn (see patchMoves and patchContent).
+      patch: function (view, g, before, L, region, moving) {
         const els = g.querySelector(':scope > g.els');
         const rels = g.querySelector(':scope > g.rels');
-        if (!before || !els || !rels || before.shown.size !== L.shown.size || !onScreen(L.frameRect, region)) return false;
-        const drawn = new Map();
-        els.querySelectorAll('g[data-el]').forEach((n) => drawn.set(n.getAttribute('data-el'), n));
-        const changed = new Set();
-        for (const [id, r] of L.rects) {
-          const o = before.rects.get(id);
-          if (!o) return false;
-          if (o.x === r.x && o.y === r.y && o.w === r.w && o.h === r.h && o.side === r.side) continue;
-          changed.add(id);
-          const parent = L.parentOf.get(id);
-          const on = (!parent || drawn.has(parent)) && (r.port || onScreen(r, region));
-          if (on !== drawn.has(id)) return false;
-        }
-        const ids = S.layout.ids;
-        changed.forEach((id) => { if (drawn.has(id)) redrawOwn(ids.get(id), drawn.get(id), L, region); });
-        const lines = new Map();
-        rels.querySelectorAll(':scope > g[data-rel]').forEach((n) => lines.set(n.getAttribute('data-rel'), n));
-        const ends = new Set();
-        for (const rel of L.rels) {
-          if (!changed.has(rel.from) && !changed.has(rel.to)) continue;
-          const e = endpoints(rel, L);
-          const n = lines.get(rel.id);
-          if (!n) { if (e && pointsOnScreen(e.pts, region)) return false; continue; }
-          rels.replaceChild(relGroup(rel, e, L, region), n);
-          ends.add(rel.from);
-          ends.add(rel.to);
-        }
-        ends.forEach((id) => { const n = drawn.get(id); if (n && !changed.has(id) && L.rects.get(id).port) redrawOwn(ids.get(id), n, L, region); });
-        const a = before.frameRect;
-        const b = L.frameRect;
-        if (a.x !== b.x || a.y !== b.y || a.w !== b.w || a.h !== b.h) drawChrome(view, L, g);
-        return true;
+        if (!before || !els || !rels || !onScreen(L.frameRect, region)) return false;
+        return moving ? patchMoves(view, g, els, rels, before, L, region) : patchContent(view, g, els, rels, L, region);
       },
       place: function (view, kind, p, hit) {
         const k = M.KINDS[kind];
@@ -5338,8 +5432,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   Object.assign(C, {
-    node, text, MARKERS, defs, nameLine, portName, SHAPES, COMPARTMENTS, compartmentsOf, onScreen, pointsOnScreen,
-    drawBox, drawRel, drawFrame, RENDERERS, freshElement, blankField
+    node, text, MARKERS, defs, nameLine, portName, SHAPES, COMPARTMENTS, compartmentsOf, ownCompartments, onScreen,
+    pointsOnScreen, drawBox, drawRel, drawFrame, RENDERERS, freshElement, blankField
   });
 })(window.SysMLCanvas);
 // ==== src/core/page/render.js
@@ -5557,23 +5651,27 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   // Brings the drawing up to date with the model. After a change, edit() says what it touched (touched, the ids of
   // the elements, lines and views) and what the drawing must do about it (how): how.views, the views to lay out again,
-  // when the change can't have moved anything outside them (null: every view), and how.patch, when it only moved
-  // things, so a view's renderer may draw again just what moved. With no touched, the model is a new one (the page
-  // starting, a model from elsewhere, an Undo, an import), everything is drawn again, and the checks run at once.
+  // when the change can't have moved anything outside them, and how.patch, when it only moved things; with no how, the
+  // change may have altered anything, and every view is laid out again. Either way each view's renderer may then patch
+  // what it drew, drawing again just what changed, else the view is drawn again; a change that showed or hid things
+  // draws its views again. With no touched, the model is a new one (the page starting, a model from elsewhere, an
+  // Undo, an import): everything is drawn anew, and the checks run at once.
   function render(touched, how) {
     forget();
-    const views = touched && how && how.views ? how.views : null;
     const before = S.layout;
-    reading(() => { S.layout = computeLayout(views ? before : null, views, !!(how && how.patch)); });
+    const plan = touched && before ? { views: how && how.views ? how.views : null, moving: !!(how && how.patch), touched: new Set(touched.elements) } : null;
+    reading(() => { S.layout = computeLayout(plan ? before : null, plan); });
+    const frames = Array.from(svg.querySelectorAll(':scope > .frame')).map((g) => g.getAttribute('data-view')).join(' ');
     if (!S.camera) C.fit();
-    else if (!views || !covered()) drawAll();
+    else if (!plan || !covered() || frames !== S.model.views.map((v) => v.id).join(' ')) drawAll();
     else {
-      reading(() => views.forEach((id) => {
+      reading(() => (plan.views ? Array.from(plan.views) : S.model.views.map((v) => v.id)).forEach((id) => {
         const view = viewById(id);
         if (!view) return;
         const r = rendererFor(view);
         const g = svg.querySelector(':scope > .frame[data-view="' + id + '"]');
-        if (!(how.patch && r.patch && g && r.patch(view, g, before.views.get(id), S.layout.views.get(id), S.region))) redrawView(view);
+        const showing = !!plan.views && !plan.moving;
+        if (showing || !r.patch || !g || !r.patch(view, g, before.views.get(id), S.layout.views.get(id), S.region, plan.moving)) redrawView(view);
       }));
       decorate();
     }
@@ -9268,7 +9366,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // -- Code links: the files of the code behind an element, each a path, a language and a text. They are edited in the
   // panel's code section, listed in the box's code compartment, and exported as textual representations in the body.
   COMPARTMENTS.push({
-    applies: function (el) { return Array.isArray(el.code) && el.code.length > 0; }, head: 'code', cls: 'mono',
+    applies: function (el) { return Array.isArray(el.code) && el.code.length > 0; }, head: 'code', cls: 'mono', own: true,
     lines: function (el, width) { return el.code.map((c) => fitPath(c.path.trim() || '(no path)', Math.max(8, Math.floor((width - 24) / 6.6)))); }
   });
   // A path that fits a compartment line: its end, where the file is named, with an ellipsis in front.

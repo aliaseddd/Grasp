@@ -212,23 +212,27 @@
 
   // Brings the drawing up to date with the model. After a change, edit() says what it touched (touched, the ids of
   // the elements, lines and views) and what the drawing must do about it (how): how.views, the views to lay out again,
-  // when the change can't have moved anything outside them (null: every view), and how.patch, when it only moved
-  // things, so a view's renderer may draw again just what moved. With no touched, the model is a new one (the page
-  // starting, a model from elsewhere, an Undo, an import), everything is drawn again, and the checks run at once.
+  // when the change can't have moved anything outside them, and how.patch, when it only moved things; with no how, the
+  // change may have altered anything, and every view is laid out again. Either way each view's renderer may then patch
+  // what it drew, drawing again just what changed, else the view is drawn again; a change that showed or hid things
+  // draws its views again. With no touched, the model is a new one (the page starting, a model from elsewhere, an
+  // Undo, an import): everything is drawn anew, and the checks run at once.
   function render(touched, how) {
     forget();
-    const views = touched && how && how.views ? how.views : null;
     const before = S.layout;
-    reading(() => { S.layout = computeLayout(views ? before : null, views, !!(how && how.patch)); });
+    const plan = touched && before ? { views: how && how.views ? how.views : null, moving: !!(how && how.patch), touched: new Set(touched.elements) } : null;
+    reading(() => { S.layout = computeLayout(plan ? before : null, plan); });
+    const frames = Array.from(svg.querySelectorAll(':scope > .frame')).map((g) => g.getAttribute('data-view')).join(' ');
     if (!S.camera) C.fit();
-    else if (!views || !covered()) drawAll();
+    else if (!plan || !covered() || frames !== S.model.views.map((v) => v.id).join(' ')) drawAll();
     else {
-      reading(() => views.forEach((id) => {
+      reading(() => (plan.views ? Array.from(plan.views) : S.model.views.map((v) => v.id)).forEach((id) => {
         const view = viewById(id);
         if (!view) return;
         const r = rendererFor(view);
         const g = svg.querySelector(':scope > .frame[data-view="' + id + '"]');
-        if (!(how.patch && r.patch && g && r.patch(view, g, before.views.get(id), S.layout.views.get(id), S.region))) redrawView(view);
+        const showing = !!plan.views && !plan.moving;
+        if (showing || !r.patch || !g || !r.patch(view, g, before.views.get(id), S.layout.views.get(id), S.region, plan.moving)) redrawView(view);
       }));
       decorate();
     }
