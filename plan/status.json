@@ -8,7 +8,7 @@
     { "id": 6, "name": "Panels from field lists", "status": "done" },
     { "id": 7, "name": "Scale tests first", "status": "done" },
     { "id": 8, "name": "Scale work", "status": "done" },
-    { "id": 9, "name": "Make the repo the tool's own", "status": "in_progress" },
+    { "id": 9, "name": "Make the repo the tool's own", "status": "done" },
     { "id": 10, "name": "Features from SysON", "status": "open" }
   ],
   "features": ["label editing", "details view", "validation rules"]

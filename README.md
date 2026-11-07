@@ -58,4 +58,4 @@ These decisions were made for Stronghold's design artifact, so the Stronghold re
 
 ## Next
 
-The steps `plan/status.json` has left, the last of them SysON's features, one at a time. The canvas's page on claude.ai, https://claude.ai/artifact/V7Fw94cGMbtPnwmyDNmnjU, shows the model it was last published with until it is published again; then it starts from the blank model, and the Stronghold example opens in it with Import state.
+The open steps in `plan/status.json`, ending with SysON's features, added one at a time. The canvas's page on claude.ai, https://claude.ai/artifact/V7Fw94cGMbtPnwmyDNmnjU, shows the model it was last published with until it is published again; then it starts from the blank model, and the Stronghold example opens in it with Import state.
