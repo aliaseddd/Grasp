@@ -4239,6 +4239,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ---- The one way the model changes.
 
   S.saveTimer = null;
+  // The model as the last change left it, and its parts as capture found them. A change made to the model outside
+  // edit, a mistake in the page's code, would be in no undo step and missing from what a change touched, so the next
+  // change, and Undo, check the model against it first.
+  let settled = null;
 
   // Every change to the model goes through edit(change, key). change() changes the model and returns what it did: a
   // string, the words for the Undo button and the log; { what, log, key } when the log needs other words (log) or
@@ -4260,11 +4264,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const top = S.history[S.history.length - 1];
     const joins = !!key && !!top && top.key === key;
     const was = capture(S.model);
+    checkSettled(was);
     const before = joins ? null : snapshot();
     let said = words(change(), key);
-    const diff = difference(was, capture(S.model));
+    const after = capture(S.model);
+    settled = { model: S.model, parts: after };
+    const diff = difference(was, after);
     if (!said) {
       if (!diff) return null;
+      mistake('A change given to edit() said it did nothing, yet it changed', diff);
       said = words('Changed the model', key);
     }
     const touched = diff || nothingTouched();
@@ -4285,7 +4293,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function words(said, key) {
     if (!said) return null;
     if (typeof said === 'string') return { what: said, log: said, key: key || null };
-    return { what: said.what, log: said.log === undefined ? said.what : said.log, key: said.key === undefined ? key || null : said.key };
+    return { what: said.what, log: said.log || said.what, key: said.key === undefined ? key || null : said.key };
+  }
+  // Reports a change made to the model outside edit since the last change.
+  function checkSettled(parts) {
+    if (!settled || settled.model !== S.model) return;
+    const stray = difference(settled.parts, parts || capture(S.model));
+    if (stray) mistake('The model was changed outside edit()', stray);
+  }
+  // A mistake in the page's code is thrown as an error of its own, once what the page is doing now is done, so the
+  // page goes on while the console, and the tests, see it.
+  function mistake(message, touched) {
+    const ids = LISTS.map((list) => touched[list].join(', ')).filter(Boolean).join('; ') || 'the package';
+    setTimeout(() => { throw new Error(message + ': ' + ids); }, 0);
   }
   // Ends the run of changes the newest undo step is, so the next change with its key is a step of its own, and logs
   // the run in its last words. A run that ended with the model as it was before it (a box dragged out and back) is no
@@ -4295,7 +4315,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!top || top.key === null) return;
     top.key = null;
     if (top.json === snapshot()) S.history.pop();
-    else if (top.log !== null) logChange(top.log, top.logKey);
+    else logChange(top.log, top.logKey);
     updateUndo();
     changed();
   }
@@ -4331,8 +4351,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!editable()) return;
     endEdit();
     if (!S.history.length) return;
+    checkSettled();
     const entry = S.history.pop();
     S.model = M.normalize(JSON.parse(entry.json));
+    settled = null;
     modelReplaced();
     logChange('Undid: ' + entry.what);
     changed();
@@ -4344,6 +4366,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function loadModel(raw) {
     S.model = M.normalize(raw);
     S.history = [];
+    settled = null;
   }
   // After the model was swapped for another (undo, the store, an import): the active view and the selection are kept
   // when they still exist, everything is drawn again, and the notes' labels follow.

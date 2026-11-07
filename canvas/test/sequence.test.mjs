@@ -147,6 +147,28 @@ describe('sequence view', () => {
     await finish(ctx);
   });
 
+  test('setting a message\'s order and the reordering of the messages it brings are one undo step', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    const { view, left, right } = await twoLifelines(page);
+    const from = await centreOf(page, view, left);
+    const to = await centreOf(page, view, right);
+    await drawMessage(page, from, to);
+    await until(page, () => document.querySelectorAll('g[data-rel][data-kind="Message"]').length === 1, null, 'the first message appears');
+    await drawMessage(page, to, from);
+    await until(page, () => document.querySelectorAll('g[data-rel][data-kind="Message"]').length === 2, null, 'the second message appears');
+    const messages = () => page.evaluate(() => window.SysMLCanvas.state.model.relationships.filter((r) => r.kind === 'Message').map((r) => ({ id: r.id, order: r.order })));
+    const [first, second] = (await messages()).map((m) => m.id);
+    const steps = await page.evaluate(() => window.SysMLCanvas.state.history.length);
+    await page.fill('#f-order', '1'); // the second message, just drawn, is selected
+    await until(page, (id) => window.SysMLCanvas.state.model.relationships.find((r) => r.kind === 'Message').id === id, second, 'the second message comes first in the model');
+    assert.equal(await page.evaluate(() => window.SysMLCanvas.state.history.length), steps + 1, 'the order and the reordering are one undo step');
+    await page.click('#undo');
+    await until(page, (id) => window.SysMLCanvas.state.model.relationships.find((r) => r.kind === 'Message').id === id, first, 'undo puts the first message back in front');
+    assert.deepEqual(await messages(), [{ id: first, order: '' }, { id: second, order: '' }], 'and takes the order back with it');
+    await finish(ctx);
+  });
+
   test('an event placed on a lifeline is drawn on it and exported inside the part as event occurrence', async () => {
     const ctx = await openCanvas(browser);
     const { page } = ctx;
