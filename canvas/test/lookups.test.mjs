@@ -1,10 +1,12 @@
 // The model library's lookups, outside a browser: SysMLModel.lookups(model) and SysMLModel.reading(model, fn, look).
 // Inside a reading of a model, every helper and every kind's hook answers what it answers outside one, with the same
-// objects in the same order: on every fixture, on each fixture with lines of every kind drawn between its elements and
-// names taken twice (so the checks find problems), and on a generated model of 300 elements. A reading puts back the
-// reading around it once it ends, nested or after a throw, and a reading of the same model inside one goes on in it; a
-// helper asked about another model inside a reading answers from that model; and a look made before names and fields
-// change still answers right, since it holds the model's structure only.
+// objects in the same order, given the look's own ids, a new index, or ids that leave elements out: on every fixture,
+// on each fixture with lines of every kind drawn between its elements and names taken twice (so the checks find
+// problems), on each fixture as no normalize would leave it (a line from an element to itself, an id taken twice, an
+// owner of null), and on a generated model of 300 elements. A reading puts back the reading around it once it ends,
+// nested or after a throw, and a reading of the same model inside one goes on in it; a helper asked about another model
+// inside a reading answers from that model; and a look made before names and fields change still answers right, since
+// it holds the model's structure only.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -32,7 +34,9 @@ const fixtures = () => fs.readdirSync(FIXTURES).filter((name) => name.endsWith('
   .map((name) => [name, M.normalize(JSON.parse(fs.readFileSync(path.join(FIXTURES, name), 'utf8')).model)]);
 
 // A fixture with problems: a line of each kind in turn between pairs of its elements, every third one named like an
-// element or another line, and every fifth element named like the one before it.
+// element or another line; then a succession, a connection or a transition from each element, named twin0 or twin1,
+// so lines of one name sit beside each other in both orders (some kinds look only at the lines before them); and every
+// fifth element named like the one before it.
 function troubled(raw) {
   const m = copy(raw);
   const els = m.elements;
@@ -41,9 +45,23 @@ function troubled(raw) {
     const other = els[(i * 7 + 3) % els.length];
     const name = i % 3 ? '' : i % 2 ? other.name : 'line' + (i % 4);
     m.relationships.push({ id: 'extra' + i, kind: kinds[i % kinds.length], from: el.id, to: other.id, name, guard: i % 4 ? '' : 'else', trigger: i % 5 ? '' : 'go' });
-    if (i % 5 === 4) el.name = els[i - 1].name;
   });
+  els.forEach((el, i) => {
+    const kind = ['SuccessionAsUsage', 'ConnectionUsage', 'TransitionUsage'][i % 3];
+    m.relationships.push({ id: 'twin' + i, kind, from: el.id, to: els[(i * 3 + 1) % els.length].id, name: 'twin' + (i % 2) });
+  });
+  els.forEach((el, i) => { if (i % 5 === 4) el.name = els[i - 1].name; });
   return M.normalize(m);
+}
+// A fixture as no normalize would leave it, which the helpers take as it is: a line from an element to itself, a second
+// element under the id of the first, and an element whose owner is null.
+function unnormalized(model) {
+  const m = copy(model);
+  const [first, second] = m.elements;
+  m.relationships.push({ id: 'loop', kind: 'ConnectionUsage', from: second.id, to: second.id, name: 'loop', doc: '' });
+  m.elements.push(Object.assign(copy(first), { name: first.name + 'Again' }));
+  m.elements.push({ id: 'orphan', kind: 'EventOccurrenceUsage', name: 'orphan', owner: null, doc: '' });
+  return m;
 }
 
 // The answers of every helper and every kind's hook on a model, one line each: what was asked, and the answer as JSON,
@@ -138,8 +156,8 @@ function answers(model, ids) {
   return lines;
 }
 
-// The helpers' answers on a model inside a reading, given the look's own ids and given a new index, against their
-// answers outside one.
+// The helpers' answers on a model inside a reading, given the look's own ids, a new index, or ids without every other
+// element, against their answers outside one with a new index, or with those same ids.
 function assertSameInside(name, model) {
   const outside = answers(model, M.index(model));
   for (const [given, ids] of [['the look\'s ids', () => M.idsOf(model)], ['a new index', () => M.index(model)]]) {
@@ -147,6 +165,9 @@ function assertSameInside(name, model) {
     assert.equal(inside.length, outside.length, `${name}: as many answers inside a reading`);
     outside.forEach((line, i) => assert.equal(inside[i], line, `${name}, inside a reading with ${given}`));
   }
+  const some = new Map(model.elements.filter((e, i) => i % 2).map((e) => [e.id, e]));
+  const without = answers(model, some);
+  M.reading(model, () => answers(model, some)).forEach((line, i) => assert.equal(line, without[i], `${name}, inside a reading with ids that leave elements out`));
   // validate and toSysML read the model themselves, nested in a reading or not.
   assert.equal(JSON.stringify(M.reading(model, () => M.validate(model))), JSON.stringify(M.validate(model)), `${name}: validate`);
   assert.equal(M.reading(model, () => M.toSysML(model, [])), M.toSysML(model, []), `${name}: toSysML`);
@@ -168,7 +189,7 @@ function staleLook(model) {
 }
 
 describe('lookups', () => {
-  test('inside a reading, every helper and hook answers as it does outside one, on every fixture and on each with problems', () => {
+  test('inside a reading, every helper and hook answers as it does outside one, on every fixture, on each with problems, and on each unnormalized', () => {
     let asked = 0;
     let problems = 0;
     for (const [name, model] of fixtures()) {
@@ -176,6 +197,7 @@ describe('lookups', () => {
       const bad = troubled(model);
       problems += M.validate(bad).length;
       asked += assertSameInside(name + ' with problems', bad);
+      asked += assertSameInside(name + ' unnormalized', unnormalized(model));
     }
     assert.ok(asked > 10000, `${asked} answers compared`);
     assert.ok(problems > 100, `the models with problems have ${problems}`);
@@ -234,12 +256,15 @@ describe('lookups', () => {
   });
 
   test('a look made before names, fields, places and orders change still answers right: it holds the structure only', () => {
+    let clashes = 0;
     for (const [name, raw] of fixtures().concat([['scale 300', M.normalize(scaleModel(300))]])) {
       const model = troubled(raw);
       const look = M.lookups(model);
       assert.equal(JSON.stringify(M.reading(model, () => M.validate(model), look)), JSON.stringify(M.validate(model)), `${name}, before`);
+      // Elements named like the twin lines beside them, or like other elements, then fields of every sort.
       model.elements.forEach((el, i) => {
-        if (i % 2) el.name = model.elements[(i + 3) % model.elements.length].name;
+        if (i % 4 === 1) el.name = 'twin' + ((i >> 2) % 2);
+        else if (i % 4 === 3) el.name = model.elements[(i + 3) % model.elements.length].name;
         if ('direction' in el && i % 3 === 0) el.direction = '';
         if ('parallel' in el) el.parallel = !el.parallel;
       });
@@ -250,7 +275,10 @@ describe('lookups', () => {
       });
       model.views.forEach((view) => { for (const id of Object.keys(view.layout).filter((id, i) => i % 2)) delete view.layout[id]; });
       model.package.name = model.elements.length ? model.elements[0].name || 'P' : 'P';
-      assert.equal(JSON.stringify(M.reading(model, () => M.validate(model), look)), JSON.stringify(M.validate(model)), `${name}, after the changes`);
+      const found = M.validate(model);
+      assert.equal(JSON.stringify(M.reading(model, () => M.validate(model), look)), JSON.stringify(found), `${name}, after the changes`);
+      clashes += found.filter((p) => /is named like something else beside it/.test(p.message)).length;
     }
+    assert.ok(clashes > 10, `the renamed elements clash with the lines beside them: ${clashes}`);
   });
 });
