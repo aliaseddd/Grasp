@@ -649,3 +649,147 @@ page loads (1.1 ms before), most of it making and freezing the lists.
 - Moving to another release: `canvas/metamodel/README.md`. Move `check.sh`'s kernel at the same time.
 - The licensing of `metamodel.js` and `index.html` is open (above).
 - `docs/REPO_MAP.md` still shows the old single file.
+
+## Session 8, November 7, 2026: step 7, Scale tests first
+
+Step 7 is done. Four scale tests hold the canvas to the plan's limits on generated models. They are marked todo, each
+runs and misses its limit for the reasons the plan measured, and the rest of the suite passes. Three commits, each with
+every test passing: the fake store keeping the real store's limits, with the test that pins them; the model generator
+and the four scale tests; then these notes. No canvas code changed.
+
+### Where things are now
+
+- `canvas/test/scale-model.mjs` generates the models. `scaleModel(count)` (and `scaleState(count)`, a state file holding
+  it) has exactly `count` elements: 5 shared definitions (`Service`, `Store`, `Storage`, `Request`, `Reply`), then as
+  many services as fit, 26 elements and 25 lines each, then spare part defs for the rest. A service has its part def,
+  its store's and its API's in a general view (`definitions`), the site it runs on in an interconnection view
+  (`deployment`: a part def holding the service and its store as typed parts, their ports redefined, a connection and a
+  binding), and how it answers a request in an action flow view (`workflows`: an action def with parameters, a start, a
+  fork, two actions, a join, an answer, done, and eight successions). Every usage is typed. The same count always gives
+  the same model. The models have no problems from 31 to 10,000 elements, and `canvas/check.sh` accepts the export at 57
+  and 300 elements with no warnings. `middleService(count)` names the part def the typing and drag tests work on, and
+  `VIEWS` the three views' ids.
+- Four test files, one limit each, so each stays far under the documented command's 120 s per file:
+  - `scale-typing.test.mjs`: at 5,000 elements, the middle service's part def is put in the middle of the window at 100%
+    (`lookAt`), clicked, and three names of three letters each are typed into its name field, with Tab between. The
+    median of the keystrokes that open a name's undo step, and of those that join it, must each be under 50 ms. The name
+    must end up as typed.
+  - `scale-drag.test.mjs`: at 5,000 elements, the same box is dragged three times, four moves of 12 by 6 px each, there
+    and back. The medians of the moves that open a drag's undo step and of those that join one must each be under 16 ms.
+    The box must end where the moves put it.
+  - `scale-checks.test.mjs`: `SysMLModel.validate` in the page on a 10,000-element model, which must find no problems;
+    then the median of up to five more runs must be under 100 ms.
+  - `scale-save.test.mjs`: in shared mode, an empty store, 10,000 elements imported through Import state. Once the page
+    has written to the store and the store has been quiet for 2 s, the page must still be editable, and a second page
+    opened on the store's documents must show the same model (the SHA-256 of the model's JSON).
+- How a time is taken (`timing` in `helpers.mjs`): the input is real, sent by Playwright. The script's time runs from
+  when the event reaches the window, before the page's listeners, to when it has been through them: for a keystroke from
+  keydown to the end of the input event, for a drag move the one pointermove. The frame's time is the main thread's work
+  for the frame that follows, from its animation callbacks until after it is painted. The total is the two; the wait for
+  the frame to begin isn't counted. `measure(planned, limit)` keeps the samples and their median, and says the measure
+  is settled once more than half of the planned samples are on one side of the limit, since the median is then on that
+  side whatever the rest would be. So a todo run stops early: each scale file takes 12 to 25 s now.
+- The fake store (`fake-claude.mjs`) keeps every limit `db.d.ts` gives a number for, as the real store does: a body of
+  at most 256 KiB serialized and 32 levels deep (else `invalid_argument`, for an update's or an acquire's merged body
+  too), at most 25,000 documents (creating one more is `quota_exceeded`; the documents held can still be written), path
+  segments of at most 200 bytes and paths of at most 1000 bytes and 16 segments (a `TypeError`, as the real builders
+  throw), queries of at most 10 filters, `in` arrays of at most 30, one orderBy and a limit from 1 to 1000
+  (`invalid_argument`), and 64 active subscriptions (the 65th gets `resource_exhausted` on its error callback). A seed
+  past a limit throws. `__store.idle()` says how long the store has had nothing to do. `fake-store.test.mjs` pins all of
+  it; the 138 earlier tests pass unchanged with it.
+- `until()` in `helpers.mjs` takes a wait longer than its 5 s when asked; the scale tests wait up to `SCALE_WAIT`, 60 s.
+  Its failure message cuts a store dump over 20,000 characters.
+- A test marked `{ todo: '…' }` runs, and node's test runner reports its failure as todo, not as a failure: the
+  documented command exits 0. `canvas/README.md` says so under the tests, and `test/index.js` says the one-process run
+  now takes about three minutes (give it no timeout, or 360000 or more).
+
+### The measured times
+
+Taken one size at a time in this container (4 CPUs, Node 22.23.4, Playwright 1.63.0's Chromium), on the generated
+models, the way the tests take them. The keystroke and the drag move are medians of three that open an undo step and six
+or nine that join one; the checks are medians of five after a first run.
+
+| Elements | Drawn SVG nodes | Keystroke, opening / joining | Drag move, opening / joining | The frame's part of a drag move |
+|---|---|---|---|---|
+| 31 | 240 | 10 / 9 ms | 9.5 / 8.5 ms | 2–3 ms |
+| 1,200 | 6,940 | 249 / 189 ms | 176 / 192 ms | 29–31 ms |
+| 2,500 | 14,440 | 527 / 447 ms | 582 / 625 ms | 67–70 ms |
+| 5,000 | 28,902 | 1,691 / 1,692 ms | 1,759 / 1,725 ms | 111–118 ms |
+| 10,000 | 57,734 | 5,196 / 4,865 ms | 5,271 / 5,048 ms | 226–234 ms |
+
+A keystroke's frame is small (7 to 22 ms at 5,000 and 10,000): its script already makes the browser lay the new drawing
+out (below). Importing takes 4.3 s at 5,000 elements and 13 s at 10,000.
+
+| Elements | Checks in the page | Checks in Node | Export in Node | The one-document save |
+|---|---|---|---|---|
+| 1,250 | 40 ms | 57 ms | 0.9 s | 362 KiB |
+| 2,500 | 183 ms | 115 ms | 3.7 s | 728 KiB |
+| 5,000 | 594 ms | 424 ms | 13.8 s | 1,479 KiB |
+| 10,000 | 1,835 ms | 1,910 ms | 57 s | 2,974 KiB |
+
+Against the limits: a keystroke at 5,000 elements takes 1.7 s against 50 ms, a drag move 1.7 s against 16 ms, the checks
+at 10,000 elements 1.8 s against 100 ms, and the save at 10,000 elements sends one document of 2,974 KiB to a store that
+takes 256 KiB. The one-document save passes 256 KiB at 889 elements of these models. In the full suite, run several
+files at a time, the scale tests reported the same times within about 15%.
+
+### Why they miss
+
+From Chrome's CPU profiles at 5,000 elements (the time in a function and what it calls):
+
+- One keystroke, 1.94 s of work: `render()` takes 1.90 s of it. Drawing every view again takes 0.91 s, 0.62 s of that in
+  the port glyphs, which ask which way each port's items go by looking through the model (`portWay`, `portItems`,
+  `typingOf`, `definitionOf`). Checking the whole model takes 0.76 s (`inheritedFeatures` 0.48 s, `typingOf` 0.18 s,
+  `childrenOf` 0.11 s). The browser lays out the new drawing when the camera reads the stage's size, 0.19 s
+  (`applyCamera`, `stageSize`, `getBoundingClientRect`). `edit()`'s own capture and comparison take 12 to 13 ms. Opening
+  an undo step also copies the whole model (8 ms at 5,000 elements, 16 ms at 10,000), and the history keeps up to 100
+  such copies: about 145 MB at 5,000 elements and 290 MB at 10,000.
+- One drag move, 1.83 s of work: the same `render()`, 1.76 s (drawing 0.87 s, port glyphs 0.63 s, checks 0.62 s, layout
+  0.23 s). Then the frame, 110 to 120 ms, which grows with the drawing.
+- The checks at 10,000 elements, 1.91 s: `inheritedFeatures` 1.15 s, `typingOf` 0.43 s, `nameTakenBeside` 0.22 s,
+  `childrenOf` 0.15 s, and the behavior checks' `checkControlNode`, `ends` and `checkPseudoNode`. Each looks through all
+  the model's elements or lines for each element, so the checks grow three to four times for each doubling of the model.
+- The save: `persist()` writes the model as one document, `model/working`. The store refuses it with `invalid_argument`,
+  which `refused()` takes to mean the viewer may not write, so the page turns read-only and says "You can look at this
+  model here but not change it." Its status line still says the import worked.
+
+Those are the plan's reasons: every change lays out, draws and checks the whole model again; undo keeps full copies; the
+checks look through the model instead of looking things up; the whole model saves as one document. Two more show up: the
+drawing looks through the model too (the port glyphs), and the browser's own frame grows with what is drawn, so drawing
+only what's on screen counts twice for the drag move.
+
+Against the plan's measurements: a keystroke took 4 ms at 30 elements and 382 ms at 1,200 there, and 10 ms at 31 and 190
+to 250 ms at 1,200 here. The checks took 353 ms at 9,000 elements there and 1.8 s at 10,000 here, and the export 1.9 s
+at 9,000 there and 57 s at 10,000 here. The plan doesn't record its model; these have a line for nearly every element
+(9,600 at 10,000), most of them typings. The export's time is in `declaredIn`, which looks through every line for each
+element to find the lines declared in it (2.85 s of 3.3 s at 2,500 elements).
+
+### How it was checked
+
+- Tests: 143, of which 139 pass and the 4 scale tests are todo, with no failures. The documented command exits 0 in 73
+  to 76 s (46 to 48 s before). The fake store's test takes 1.3 s.
+- Each scale test, run on a small model in a scratch copy (57 elements for typing and dragging, 300 for the checks and
+  the save), passes: the measures can come in under the limits, and the save test's second page shows the same model
+  when the store took it.
+- No canvas code changed: `node canvas/build.mjs --check` passes, the saved model exports the bytes session 1 recorded
+  (SHA-256 `9825ca06…`), `canvas/check.sh` accepts it, and `test/format.test.mjs` checks the fixtures' pinned texts.
+
+### For the next session
+
+- Step 8: make the scale tests pass, then take their `{ todo: … }` marks off, and the README's sentence about todo with
+  them. Each failure message says where the time went: script and frame per sample.
+- The timing tests run alongside other test files under the documented command, three at a time here, so leave room
+  under the limits. The keystroke and the drag are timed with the camera at 100% on the element, which drawing only
+  what's on screen counts on.
+- The save test waits until the page has written to the store and the store has been quiet for 2 s, past the page's
+  0.8 s pause. A save that spaces its writes further apart than that needs a better signal. The second page is opened
+  with `openCanvas(…, { shared: true, seed })`, which waits for a read of `model/working` or `model`: a new store layout
+  must change that helper, which the other shared-mode tests use too.
+- The fake store can't keep the budgets `db.d.ts` names without numbers: the per-viewer call rate, too many concurrent
+  writes, a query that scans too many documents ("keep queried collections modest — hundreds to low thousands of
+  documents"; a collection too large to read whole comes as `fromCache: true`), and the database's total size. A store
+  layout of thousands of small documents should keep collections modest and writes paced, and needs trying against the
+  real store on the published page before it is relied on.
+- The record of what each change touched is `S.history[i].touched` and the return value of `edit()` (session 3).
+- The export takes 57 s at 10,000 elements. Step 8 doesn't name it, but the lookups that would make the checks fast
+  (owner to children, element to typing, owner to declared lines) would make `declaredIn` fast too.
+- `docs/REPO_MAP.md` still shows the old single file.

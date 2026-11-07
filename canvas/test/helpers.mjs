@@ -86,17 +86,18 @@ export async function finish({ page, errors }) {
 }
 
 /**
- * Waits until predicate(arg), run in the page, is truthy. On a timeout it fails with `what`, plus the status line and
- * the fake store's documents when there is one, instead of Playwright's bare timeout.
+ * Waits until predicate(arg), run in the page, is truthy, for up to `timeout` ms. On a timeout it fails with `what`,
+ * plus the status line and the fake store's documents when there is one, instead of Playwright's bare timeout.
  */
-export async function until(page, predicate, arg, what) {
+export async function until(page, predicate, arg, what, timeout = WAIT) {
   try {
-    await page.waitForFunction(predicate, arg, { timeout: WAIT, polling: 50 });
+    await page.waitForFunction(predicate, arg, { timeout, polling: 50 });
   } catch (error) {
     if (error.name !== 'TimeoutError') throw error;
     const status = await page.textContent('#status').catch(() => '(no #status)');
     const store = await page.evaluate(() => (window.__store ? JSON.stringify(window.__store.dump(), null, 1) : ''));
-    assert.fail(`Waited ${WAIT} ms for: ${what}.\n#status: ${status}${store ? `\nstore: ${store}` : ''}`);
+    const shown = store.length > 20000 ? `${store.slice(0, 20000)}… (${store.length - 20000} more characters)` : store;
+    assert.fail(`Waited ${timeout} ms for: ${what}.\n#status: ${status}${store ? `\nstore: ${shown}` : ''}`);
   }
 }
 
@@ -267,3 +268,94 @@ export const storeDoc = (page, docPath) => page.evaluate((p) => window.__store.g
 export const storeDump = (page) => page.evaluate(() => window.__store.dump());
 
 // Helpers a slice's tests share with no other, one region per slice.
+
+// The scale tests': taking a big model in, looking at one of its elements, and timing what a person does to it. The
+// models come from scale-model.mjs.
+
+/** How long a scale test waits for the page to take a model in or to answer one event, in ms. */
+export const SCALE_WAIT = 60000;
+
+/** Imports `state` through Import state, as a file named `name`, and waits for the page to say it imported it. */
+export async function importLarge(page, state, name = 'scale.json') {
+  await page.setInputFiles('#import-file', { name, mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(state)) });
+  await until(page, () => /^Imported /.test(document.querySelector('#status')?.textContent || ''), null, `the page says it imported ${name}`, SCALE_WAIT);
+}
+
+/**
+ * Puts the camera at 100% with element `id`, as view `viewId` draws it, in the middle of the window, where a person
+ * would have zoomed and panned to before clicking it.
+ */
+export async function lookAt(page, viewId, id) {
+  const found = await page.evaluate(([view, el]) => {
+    const outline = document.querySelector(`#drawing g.frame[data-view="${view}"] g[data-el="${el}"] > rect.outline`);
+    if (!outline) return false;
+    const C = window.SysMLCanvas;
+    const box = outline.getBoundingClientRect();
+    const middle = C.toDrawing(box.left + box.width / 2, box.top + box.height / 2);
+    C.state.camera = Object.assign({}, C.state.camera, { k: 1 });
+    C.showPoint(middle.x, middle.y);
+    return true;
+  }, [viewId, id]);
+  assert.ok(found, `view ${viewId} draws ${id}`);
+}
+
+/**
+ * Starts timing one kind of event in the page, as a person meets it. A sample is { script, frame, total }, in ms: the
+ * script's time runs from when `first` reaches the window (its capture, before any of the page's listeners) to when
+ * `last` has been through them (its bubble back to the window), so for a keystroke from keydown to the end of the
+ * input event, for a drag move the one pointermove; the frame's time is the main thread's work for the frame that
+ * follows, from its animation callbacks until it is painted; total is the two. The wait for the frame to begin isn't
+ * counted. Returns time(act), which runs act, a Playwright action that sends one such event, and resolves its sample.
+ */
+export async function timing(page, first, last) {
+  const name = first + '>' + last;
+  await page.evaluate(([key, a, b]) => {
+    const t = { armed: false, start: null, samples: [] };
+    (window.__timing = window.__timing || {})[key] = t;
+    addEventListener(a, () => { if (t.armed) t.start = performance.now(); }, true);
+    addEventListener(b, () => {
+      if (!t.armed || t.start === null) return;
+      const script = performance.now() - t.start;
+      t.start = null;
+      requestAnimationFrame(() => {
+        const painting = performance.now();
+        const channel = new MessageChannel();
+        channel.port1.onmessage = () => {
+          const frame = performance.now() - painting;
+          t.samples.push({ script, frame, total: script + frame });
+        };
+        channel.port2.postMessage(null);
+      });
+    });
+  }, [name, first, last]);
+  return async (act) => {
+    const count = await page.evaluate((key) => { const t = window.__timing[key]; t.armed = true; return t.samples.length; }, name);
+    await act();
+    await until(page, ([key, n]) => window.__timing[key].samples.length > n, [name, count], `the page answers one ${first}`, SCALE_WAIT);
+    return page.evaluate((key) => { const t = window.__timing[key]; t.armed = false; return t.samples[t.samples.length - 1]; }, name);
+  };
+}
+
+/**
+ * One measure against its limit: up to `planned` samples ({ total } in ms, with any parts), whose median must be under
+ * `limit`. Once more than half of the planned samples are on one side of the limit, the median is on that side
+ * whatever the rest would be, so the measure is settled and a test takes no more of it.
+ */
+export function measure(planned, limit) {
+  const samples = [];
+  const over = () => samples.filter((s) => s.total >= limit).length;
+  return {
+    samples,
+    add(sample) { samples.push(sample); },
+    get settled() { return samples.length >= planned || over() > planned / 2 || samples.length - over() > planned / 2; },
+    get median() {
+      const sorted = samples.map((s) => s.total).sort((a, b) => a - b);
+      const middle = sorted.length >> 1;
+      return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+    },
+    toString() {
+      const ms = (v) => v.toFixed(1);
+      return samples.map((s) => (s.script === undefined ? ms(s.total) : `${ms(s.total)} (${ms(s.script)} script + ${ms(s.frame)} frame)`)).join(', ');
+    },
+  };
+}
