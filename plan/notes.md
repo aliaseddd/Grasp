@@ -1059,3 +1059,70 @@ What a user can notice: the page is called Grasp and opens blank, and the Strong
   `openCanvas(browser, { file })`.
 - Noticed, outside this step: Fit on the blank model's empty frame zooms to 221%, so the first element is placed large.
 - `docs/REPO_MAP.md` still shows the old single file and the old helper (`PAGE_URL`).
+
+## Session 11, November 7, 2026: step 10, Features from SysON
+
+Damon asked to hear what step 10 is before it started, approved it with three choices made SysON's way (the zoom keys
+type while something editable is selected; what the canvas can't hold yet is named as not kept; the keyword isn't
+part of the text edited), and asked for the whole step. SysON's user manual was read from its repository at the map's
+commit (`git` sparse checkout of `doc/content` into the session's scratchpad), never its code; the inventory in
+`docs/sysml/syson/features/` is the rest of the spec.
+
+### Label editing (done)
+
+Two commits, each with every test passing: the library's part, then the page's.
+
+Where it is (`canvas/src/labels/`, the feature's folder; `src/README.md` and `canvas/README.md` say what it does):
+
+- `lib.js`: `readLabel(text)` reads a text as SysON's node rule (keywords, `ref`, `<short>`, the name, `[m]` before or
+  after the type, `: Type` with `~`, `:>`, `:>>`, a bare operator that takes its part away when it comes first, a value,
+  `ordered`/`nonunique`, what can't be read). `labelText(model, target)` is the text the box starts from, SysON's
+  initial text: `wheels[4] : Wheel`, `api : ~App`, `ServerHost :> Host`, an interface's `: Def`; a reference whose
+  name would end a reference is quoted, and one a simple name wouldn't find is a path from the package.
+  `applyLabel(model, target, text, make)` makes it, in place, inside the page's `edit()`, and returns `{ done,
+  created, notKept, unread, refused }`; `labelWords` and `labelLeftOut` give the words. `labelEditable` and
+  `renamable` say what has a label to edit and what a browser row can rename. All on `SysMLModel` through `EXTRA`.
+- `page.js`: the box (`.label-editor`, a textarea in `.stage`, outside `#canvas`), `editTarget()` (the selection, in
+  the active view, which must draw it), `openLabelEditor(typed)`, `labelKey(event)` (pointing.js asks it first, so a
+  printable key opens the box and the zoom keys don't zoom while something editable is selected), F2 on the document,
+  the panel's `#edit-label` button (`renderLabelButton`, which panel.js calls; Rename in a browser view), and
+  `placeLabelEditor` (camera.js calls it, so the box follows the camera).
+- Each drawn label is marked `data-label` by `asLabel` (drawing.js) in the eight places a name or a line's label is
+  drawn (box, border item, line, behavior header, control node, item, event, footprint tspan, browser row tspan); the
+  box opens over its bounding box, or, when none is drawn, over a place from the layout.
+
+How it follows SysON, and where it doesn't:
+
+- SysON's grammar has a list-item rule (compartment rows, with `in`/`out`/`inout`); the canvas draws no compartment
+  rows, so every label is read with the node rule, and a border item's `in x` stays in the name, as SysON's border
+  nodes do. Direction stays the panel's.
+- A definition's `abstract` and typing part are left aside, as SysON does; the usages' keywords, short names, `ref`,
+  redefinitions, values, `ordered`/`nonunique`, and a multiplicity on what has none are "not kept", said in the status.
+- The manual lists `=` among what ends a name (SysON's grammar at v2026.11.0 doesn't); the canvas follows the manual,
+  since a value is not kept anyway.
+- Resolution is SysON's scoping (own members, each owner going out, the package, then anywhere), filtered to what the
+  canvas's rules accept (the usage's definition kind; the same kind, and for a usage the same box), and never the
+  element itself. A simple name nothing in scope has makes a definition at the top of the package (definitions here
+  are never nested) or, for `:>` on a usage, a usage beside it (SysON puts it in the package; the canvas's rule wants
+  it in the same box). Nothing is made beside an element with the same name. A qualified name or a `~` never makes.
+- A refused part (a definition of another kind, a circle, a usage in another box) is refused with the canvas's own
+  rule sentence (`RELATIONSHIPS[kind].ends`), and the other parts are still made.
+- SysON keeps a typed line break in a label (Shift+Enter); the canvas's labels are one line, so it is read as a space.
+- A click on the drawing commits the box and then selects what it is on, which clears the status line (as any
+  selection does); leaving the box any other way leaves the status's words up.
+
+How it was checked:
+
+- Tests: 201 of 201 pass, the 179 from session 10 and 22 in `test/labels.test.mjs` (13 Node: reading, starting text,
+  what a text changes, lines, a property test that every label of the example and the fixtures edited to its own
+  starting text changes nothing; 9 browser: F2, a key, the button, Enter, Escape, leaving the box, undo, the log and
+  the save, the zoom keys, a grid, a start node, a page that can't be changed, lines, a transition, the browser's
+  rename, and the box over the label in a general, sequence and geometry view).
+- Faults put in one at a time, each failing a test: no typed key, no focus back, a new typing drawn as a line, a late
+  bare operator taking its part away, `=` read into the name, the keywords not named, F2 renaming a browser row, a
+  grid opening a box.
+- Exports: the saved model and the example print their pinned texts. The example, `interconnection.json` and
+  `behavior-actions.json`, each changed through labels in Node (new definitions, a subsetting, renamed lines, an
+  interface retyped, a conjugation), export with no problems, and `canvas/check.sh` accepts all three (the example
+  with a warning that a subsetting feature's upper bound, 2..*, is larger than the subsetted one's, 1, which the edit
+  asked for).
