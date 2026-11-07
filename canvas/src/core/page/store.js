@@ -433,7 +433,7 @@
     const run = () => Promise.resolve().then(fn).catch((error) => {
       const code = error && error.code;
       if (code === 'unavailable' && unavailable < 1) { unavailable += 1; return pause(400 + Math.random() * 800).then(run); }
-      if (code === 'resource_exhausted' && crowded < 2) { crowded += 1; return pause(1000 * crowded * (1 + Math.random())).then(run); }
+      if (code === 'resource_exhausted' && crowded < 2) { crowded += 1; return pause(500 * crowded * (1 + Math.random())).then(run); }
       throw error;
     });
     return run();

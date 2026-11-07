@@ -146,6 +146,44 @@ describe('the store in layout 2', () => {
     await finish(ctx);
   });
 
+  test('a model from elsewhere that comes while a change here waits to be saved isn\'t taken: this page\'s write follows and wins, saying so', async () => {
+    const ctx = await openCanvas(browser, { shared: true });
+    const { page } = ctx;
+    const id = await placeElement(page, 'PartDefinition');
+    await untilStored(page, (m) => m.elements.some((e) => e.id === id), 'the element is saved');
+    await page.fill('#f-name', 'Mine');
+    // Within the pause before the save, another page writes its model: its parts, then its head, as a page does.
+    await page.evaluate(() => {
+      const M = window.SysMLModel;
+      const db = window.__store.db;
+      const theirs = M.readStore(window.__store.dump()).model;   // what the store holds: the element, not renamed yet
+      theirs.elements.push({ id: 'e-theirs', kind: 'PartDefinition', name: 'Theirs', abstract: false, doc: '', code: [] });
+      const split = M.splitModel(theirs);
+      const head = M.storeHead(split, { baseRevision: window.__store.get('model/current').baseRevision, changes: [], updated: '2026-11-07T12:00:00.000Z' });
+      return Promise.all(split.parts.map((part) => db.doc('model/current/parts/' + part.id).set(JSON.parse(part.text)))).then(() => db.doc('model/current').set(head));
+    });
+    const model = await untilStored(page, (m) => m.elements.some((e) => e.id === id && e.name === 'Mine'), 'this page\'s write follows');
+    assert.ok(!model.elements.some((e) => e.id === 'e-theirs'), 'and wins: the store holds this page\'s model');
+    assert.equal(await page.locator('g[data-el="e-theirs"]').count(), 0, 'the model from elsewhere was never shown');
+    assert.match(await status(page), /changed elsewhere while you were editing; this page's version was written over it/);
+    const head = await storeDoc(page, 'model/current');
+    assert.match(head.changes[head.changes.length - 1].text, /^Wrote this page's model over a change made elsewhere at 2026-11-07T12:00:00\.000Z/, 'the change log Claude reads says so');
+    await finish(ctx);
+  });
+
+  test('a part the head names that goes from the store is written again by the page that shows it', async () => {
+    const ctx = await openCanvas(browser, { shared: true });
+    const { page } = ctx;
+    const id = await placeElement(page, 'PartDefinition');
+    await untilStored(page, (m) => m.elements.some((e) => e.id === id), 'the element is saved');
+    const part = (await storeDoc(page, 'model/current')).parts[0];
+    // Another page, saving at the same time, deletes a part it thinks no head names.
+    await page.evaluate((p) => window.__store.db.doc('model/current/parts/' + p).delete(), part);
+    await until(page, (p) => Boolean(window.__store.get('model/current/parts/' + p)), part, 'the page writes the part again');
+    assert.ok(await storedModel(page), 'the store holds the whole model again');
+    await finish(ctx);
+  });
+
   test('a head a newer canvas wrote, in a layout this page doesn\'t know, turns the page read-only and is never written over', async () => {
     const { revision } = embeddedModel();
     const newer = { layout: 3, baseRevision: revision, format: 'stronghold-canvas/9', shards: ['a'], changes: [], updated: '2026-12-01T00:00:00.000Z' };
