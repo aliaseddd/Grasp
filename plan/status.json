@@ -3,7 +3,7 @@
     { "id": 1, "name": "Split the source", "status": "done" },
     { "id": 2, "name": "One edit function", "status": "done" },
     { "id": 3, "name": "One naming owner", "status": "done" },
-    { "id": 4, "name": "Version the file format", "status": "open" },
+    { "id": 4, "name": "Version the file format", "status": "done" },
     { "id": 5, "name": "Generate the kind lists", "status": "open" },
     { "id": 6, "name": "Panels from field lists", "status": "open" },
     { "id": 7, "name": "Scale tests first", "status": "open" },
