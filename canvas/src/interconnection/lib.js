@@ -129,7 +129,7 @@
     InterconnectionView: { name: 'InterconnectionView', label: 'interconnection view', qualified: 'StandardViewDefinitions::InterconnectionView', renderer: 'graph',
       admits: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition'],
       tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition', '|', 'ConnectionUsage', 'InterfaceUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'],
-      options: {} },
+      fields: ['name', 'doc'], options: {} },
   });
   Object.assign(FIELDS, {
     // The interface def an interface is typed by.

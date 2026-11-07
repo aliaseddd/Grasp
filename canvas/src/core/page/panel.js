@@ -4,10 +4,9 @@
   const S = C.state;
   const {
     M, VIEW_PANELS, FIELD_HOOKS, $, panel, showPanel, inspectorEmpty, fields, fKind, fPath, fViews, addNoteButton,
-    removeFromViewButton, deleteButton, viewFields, vKind, vName, vDoc, vShow, vMeta, vShowAdd, deleteViewButton,
-    problemsList, problemsButton, undoButton, say, editable, newId, plural, relById, viewById, viewLayout, viewShowing,
-    rendererFor, center, endpoints, marksFor, applyMarks, showPoint, blankField, edit, endEdit, undo, setActive,
-    deleteView, showable
+    removeFromViewButton, deleteButton, viewFields, vKind, vShow, vMeta, vShowAdd, deleteViewButton, problemsList,
+    problemsButton, undoButton, say, editable, newId, plural, relById, viewById, viewLayout, viewShowing, rendererFor,
+    center, endpoints, marksFor, applyMarks, showPoint, blankField, edit, endEdit, undo, setActive, deleteView, showable
   } = C;
 
   // ---- Selecting, moving, and the panel.
@@ -72,7 +71,7 @@
     inspectorEmpty.hidden = !!s;
     C.renderCodeSection(s, write);
     if (!s) { renderProblemsList(); return; }
-    if (s.type === 'view') renderViewFields(s.item, write);
+    if (s.type === 'view') renderViewFields(s, write);
     else renderElementFields(s, write);
     renderProblemsList();
   }
@@ -96,9 +95,17 @@
     deleteButton.hidden = !write;
     addNoteButton.hidden = !write || (s.type === 'el' && M.textName(s.item) === null);
   }
-  // The lines around an element's or a line's fields: what it is (its kind and name, or the line in words), its path,
-  // and the views it is drawn in, with Remove from view for an element shown in one.
+  // The lines around the selection's fields: for an element or a line, what it is (its kind and name, or the line in
+  // words), its path, and the views it is drawn in, with Remove from view for an element shown in one; for a view, its
+  // kind, and what it shows.
   function renderHead(s, write) {
+    if (s.type === 'view') {
+      const L = viewLayout(s.item.id);
+      vKind.textContent = s.item.kind;
+      vMeta.textContent = plural(L ? L.shown.size : Object.keys(s.item.layout).length, 'element') + ' shown · ' + M.VIEW_KINDS[s.item.kind].label +
+        (s.item.id === S.active ? ' · active' : '');
+      return;
+    }
     const views = (S.layout.where.get(s.item.id) || []).map((id) => viewById(id)).filter(Boolean);
     const names = views.map((v) => v.name.trim() || '(unnamed view)').join(', ');
     if (s.type === 'el') {
@@ -117,13 +124,17 @@
   // ---- The fields, every one of them the same way.
   //
   // A field of the selection is a row of M.FIELDS that the selection's kind lists, drawn by a label holding its input:
-  // <label id="l-<field>"> holding <… id="f-<field>"> in #fields, for an element or a line. The panel shows each field
-  // by its row's type, and every change to a field goes through the same two listeners and edit(), so it is an undo
-  // step, logged for Claude, and saved. FIELD_HOOKS (base.js) adds what a field's row can't say.
+  // <label id="l-<field>"> holding <… id="f-<field>"> in #fields, for an element or a line, and l-v-<field> holding
+  // v-<field> in #view-fields, for a view. The panel shows each field by its row's type, and every change to a field
+  // goes through the same two listeners and edit(), so it is an undo step, logged for Claude, and saved. FIELD_HOOKS
+  // (base.js) adds what a field's row can't say.
 
   // Where the labels and inputs of the selection's fields are, by its type.
-  const PLACES = { el: { label: 'l-', input: 'f-' }, rel: { label: 'l-', input: 'f-' } };
-  function fieldsOf(s) { return s.type === 'el' ? M.KINDS[s.item.kind].fields : M.RELATIONSHIPS[s.item.kind].fields; }
+  const PLACES = { el: { label: 'l-', input: 'f-' }, rel: { label: 'l-', input: 'f-' }, view: { label: 'l-v-', input: 'v-' } };
+  function fieldsOf(s) {
+    if (s.type === 'el') return M.KINDS[s.item.kind].fields;
+    return s.type === 'rel' ? M.RELATIONSHIPS[s.item.kind].fields : M.VIEW_KINDS[s.item.kind].fields;
+  }
   // A field of the selection s with its input, as the hooks are given it; null when its kind doesn't list the field,
   // or the field has no input in the panel (a field its feature edits in a section of its own: the code links).
   function fieldAt(s, fld, input) {
@@ -192,8 +203,12 @@
     if (spec.type === 'number') return input.value.trim() !== '' && Number.isFinite(+input.value) ? +input.value : '';
     return spec.trim ? input.value.trim() : input.value;
   }
-  // The selection in a sentence: an element as describe says it, a line as "the" and its words.
-  function whatOf(x) { return x.type === 'el' ? M.describe(S.model, x.item) : 'the ' + M.describeRel(S.model, x.item); }
+  // The selection in a sentence: an element as describe says it, a line as "the" and its words, a view as "view" and
+  // its name.
+  function whatOf(x) {
+    if (x.type === 'el') return M.describe(S.model, x.item);
+    return x.type === 'rel' ? 'the ' + M.describeRel(S.model, x.item) : M.describeView(S.model, x.item);
+  }
   // The words for a change to a field that has none of its own: Set the <label> of <what> to <value>.
   function fieldChangeText(x) {
     const v = valueOf(x);
@@ -207,14 +222,16 @@
   function changeField(x, key) {
     const value = readInput(x.spec, x.input);
     if (value === valueOf(x)) return null;
-    return edit(() => {
+    const touched = edit(() => {
       if (x.hooks.write) x.hooks.write(x, value); else x.item[x.fld] = value;
       return x.hooks.said ? x.hooks.said(x) : fieldChangeText(x);
     }, key);
+    if (touched && x.type === 'view') setActive(S.active); // the eyebrow names the active view
+    return touched;
   }
   // The one pair of listeners for every field. Typing in a string, text or number field is one undo step per field, a
   // run the field's change event ends, which logs it once the field is left; a bool, an enum or a ref changes at once.
-  [fields].forEach((box) => {
+  [fields, viewFields].forEach((box) => {
     box.addEventListener('input', (event) => {
       const x = fieldOf(event);
       if (x && typed(x.spec)) changeField(x, x.fld + ':' + x.item.id);
@@ -231,11 +248,13 @@
     });
   });
 
-  function renderViewFields(view, write) {
+  // The panel for a view: the lines that say what it is, its fields (renderFields), what it can show, and its kind's
+  // own options.
+  function renderViewFields(s, write) {
+    const view = s.item;
     viewFields.hidden = false;
-    vKind.textContent = view.kind;
-    vName.value = view.name;
-    vDoc.value = view.doc;
+    renderHead(s, write);
+    renderFields(s, write);
     while (vShow.firstChild) vShow.removeChild(vShow.firstChild);
     const candidates = showable(view);
     if (!candidates.length) {
@@ -253,10 +272,6 @@
       o.textContent = M.describe(S.model, e);
       vShow.appendChild(o);
     });
-    const L = viewLayout(view.id);
-    vMeta.textContent = plural(L ? L.shown.size : Object.keys(view.layout).length, 'element') + ' shown · ' + M.VIEW_KINDS[view.kind].label +
-      (view.id === S.active ? ' · active' : '');
-    [vName, vDoc].forEach((i) => { i.readOnly = !write; });
     vShow.disabled = !write || !candidates.length;
     vShowAdd.disabled = !write || !candidates.length;
     deleteViewButton.hidden = !write;
@@ -281,7 +296,8 @@
   Object.assign(FIELD_HOOKS, {
     name: {
       said: function (x) {
-        return x.type === 'el' ? 'Renamed to ' + M.describe(S.model, x.item) : 'Named the ' + M.describeRel(S.model, x.item);
+        if (x.type === 'el') return 'Renamed to ' + M.describe(S.model, x.item);
+        return x.type === 'rel' ? 'Named the ' + M.describeRel(S.model, x.item) : 'Renamed the view to ' + (x.item.name.trim() || '(unnamed)');
       },
       // Once the name is left, the lines that say what the selection is follow it, and so do the notes' labels.
       done: function () {
@@ -344,25 +360,6 @@
       }
     }
   });
-
-  vName.addEventListener('input', () => {
-    const view = selectedView();
-    if (!view) return;
-    const done = edit(() => {
-      view.name = vName.value;
-      return 'Renamed the view to ' + (view.name.trim() || '(unnamed)');
-    }, 'name:' + view.id);
-    if (done) setActive(S.active); // the eyebrow names the active view
-  });
-  vName.addEventListener('change', () => endEdit());
-  vDoc.addEventListener('input', () => {
-    const view = selectedView();
-    if (view) edit(() => {
-      view.doc = vDoc.value;
-      return 'Wrote the doc of ' + M.describeView(S.model, view);
-    }, 'doc:' + view.id);
-  });
-  vDoc.addEventListener('change', () => endEdit());
 
   // Delete takes an element out of the model and every view, with everything inside it and every line on it; a line
   // out of the model; a view off the plane, its elements staying.

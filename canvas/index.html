@@ -998,24 +998,26 @@ textarea.text[readonly] { resize: none; background: transparent; }
   };
 
   // View kinds. renderer names the page's renderer for the kind; admits the element kinds a view of the kind may
-  // show (null: every kind); tools the palette, element and relationship kinds with '|' between groups; options
-  // the defaults of the view's own options, which normalize keeps the keys of; check(model, view, ids, add), when
+  // show (null: every kind); tools the palette, element and relationship kinds with '|' between groups; fields the
+  // panel's fields that apply (rows of FIELDS), which normalize keeps by their types; options the defaults of the
+  // view's own options, which normalize keeps the keys of; check(model, view, ids, add), when
   // present, adds the view's own problems; exposes(model, view, h), when present, returns the statements of the
   // view's body in the export (expose …;, render …;) in place of those the core makes from the view's layout
   // (h.exposesOf(view) gives those, to build on). The core has the general view; each feature's script adds the rows
   // of the view kinds it draws.
   const VIEW_KINDS = {
     GeneralView: { name: 'GeneralView', label: 'general view', qualified: 'StandardViewDefinitions::GeneralView', renderer: 'graph',
-      admits: null, tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', '|', 'Specialization', 'FeatureTyping', 'ConnectionUsage'], options: {} },
+      admits: null, tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', '|', 'Specialization', 'FeatureTyping', 'ConnectionUsage'], fields: ['name', 'doc'], options: {} },
   };
 
-  // The fields the panel can show and normalize keeps, by name, for elements (KINDS[kind].fields) and relationships
-  // (RELATIONSHIPS[kind].fields). type says what the value is: string or text (a string; trim takes the ends off),
-  // bool (true or false), enum (one of values, else the first), number (a finite number, else ''), ref (the id of an
-  // element, else ''; options(model, item) returns the elements the field may name). label is the field's name in
-  // sentences. views, when present, lists the view kinds the field shows in (absent: every kind). The page shows and
-  // changes every field through its row, each with a <label id="l-<field>"> holding an <input id="f-<field>"> in the
-  // panel (the page's FIELD_HOOKS add what a row can't say). read(raw), when present, replaces the reading by type
+  // The fields the panel can show and normalize keeps, by name, for elements (KINDS[kind].fields), relationships
+  // (RELATIONSHIPS[kind].fields) and views (VIEW_KINDS[kind].fields). type says what the value is: string or text (a
+  // string; trim takes the ends off), bool (true or false), enum (one of values, else the first), number (a finite
+  // number, else ''), ref (the id of an element, else ''; options(model, item) returns the elements the field may
+  // name). label is the field's name in sentences. views, when present, lists the view kinds the field shows in
+  // (absent: every kind). The page shows and changes every field through its row, each with a <label id="l-<field>">
+  // holding an <input id="f-<field>"> in the panel, or l-v-<field> and v-<field> for a view's (the page's FIELD_HOOKS
+  // add what a row can't say). read(raw), when present, replaces the reading by type
   // (for a value that is none of these, a list say), and fresh(), when present, gives a new element's or
   // relationship's starting value. stored: false marks a field that is no value of the item, which normalize keeps out
   // of the model: type is the usage's FeatureTyping relationship, and typeLine whether that relationship is drawn as a
@@ -1268,6 +1270,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       if (!kind) continue;
       const id = typeof v.id === 'string' && ID.test(v.id) && !taken.has(v.id) && !vseen.has(v.id) ? v.id : freeViewId();
       const view = { id: id, kind: kindName, name: str(v.name).trim(), doc: str(v.doc), x: Math.round(num(v.x, 0)), y: Math.round(num(v.y, 0)), layout: {}, options: copy(kind.options) };
+      keepFields(kind.fields, v, view);
       if (isObject(v.options)) for (const key in view.options) if (v.options[key] !== undefined) view.options[key] = copy(v.options[key]);
       const lay = isObject(v.layout) ? v.layout : {};
       for (const eid in lay) {
@@ -1646,7 +1649,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     InterconnectionView: { name: 'InterconnectionView', label: 'interconnection view', qualified: 'StandardViewDefinitions::InterconnectionView', renderer: 'graph',
       admits: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition'],
       tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', 'ItemDefinition', 'ItemUsage', 'InterfaceDefinition', '|', 'ConnectionUsage', 'InterfaceUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'],
-      options: {} },
+      fields: ['name', 'doc'], options: {} },
   });
   Object.assign(FIELDS, {
     // The interface def an interface is typed by.
@@ -1903,10 +1906,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
   Object.assign(VIEW_KINDS, {
     ActionFlowView: { name: 'ActionFlowView', label: 'action flow view', qualified: 'StandardViewDefinitions::ActionFlowView', renderer: 'graph',
       admits: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'],
-      tools: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', '|', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode', '|', 'SuccessionAsUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'], options: {} },
+      tools: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', '|', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode', '|', 'SuccessionAsUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'], fields: ['name', 'doc'], options: {} },
     StateTransitionView: { name: 'StateTransitionView', label: 'state transition view', qualified: 'StandardViewDefinitions::StateTransitionView', renderer: 'graph',
       admits: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode'],
-      tools: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode', '|', 'TransitionUsage', 'FeatureTyping'], options: {} },
+      tools: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode', '|', 'TransitionUsage', 'FeatureTyping'], fields: ['name', 'doc'], options: {} },
   });
   Object.assign(FIELDS, {
     // Behavior: what an action does (plain, send, accept) with its payload and its target, its role under a state
@@ -2407,7 +2410,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   });
   Object.assign(VIEW_KINDS, {
     SequenceView: { name: 'SequenceView', label: 'sequence view', qualified: 'StandardViewDefinitions::SequenceView', renderer: 'sequence',
-      admits: ['PartUsage', 'EventOccurrenceUsage'], tools: ['PartUsage', 'EventOccurrenceUsage', '|', 'Message', 'SuccessionAsUsage'], options: { spacing: 56 } },
+      admits: ['PartUsage', 'EventOccurrenceUsage'], tools: ['PartUsage', 'EventOccurrenceUsage', '|', 'Message', 'SuccessionAsUsage'], fields: ['name', 'doc'], options: { spacing: 56 } },
   });
   Object.assign(FIELDS, {
     // Sequence: a message's place in time, a number; the messages with one come first, the lowest at the top.
@@ -2462,7 +2465,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   Object.assign(VIEW_KINDS, {
     // A plan of parts (and items, once that kind is in) drawn to scale: scale is the pixels per unit of the view's unit.
     GeometryView: { name: 'GeometryView', label: 'geometry view', qualified: 'StandardViewDefinitions::GeometryView', renderer: 'geometry',
-      admits: ['PartUsage', 'ItemUsage'], tools: ['PartUsage', 'ItemUsage'], options: { scale: 40, unit: 'm' } },
+      admits: ['PartUsage', 'ItemUsage'], tools: ['PartUsage', 'ItemUsage'], fields: ['name', 'doc'], options: { scale: 40, unit: 'm' } },
   });
   Object.assign(FIELDS, {
     // The spatial fields of a part or item drawn to scale in a geometry view: its shape (a ShapeItems kind whose
@@ -2634,7 +2637,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // table's columns (keys of GRID_COLUMNS, in its order), and sort (a column, with a leading - for descending; null
     // for the model's order). The layout's keys are the rows, so there is no rows option.
     GridView: { name: 'GridView', label: 'grid view', qualified: 'StandardViewDefinitions::GridView', renderer: 'grid',
-      admits: null, tools: [], options: { mode: 'table', columns: ['kind', 'name', 'type', 'multiplicity', 'owner', 'doc'], sort: null },
+      admits: null, tools: [], fields: ['name', 'doc'], options: { mode: 'table', columns: ['kind', 'name', 'type', 'multiplicity', 'owner', 'doc'], sort: null },
       // The view's body in the text: the core's expose lines, then, for a table, the library's tabular rendering (one
       // row per exposed element). A matrix has no library rendering, so it exposes and says nothing more. Validated
       // in every form a grid can take (a view with exposes and the render clause, with the render clause alone, with a
@@ -2677,7 +2680,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // for the whole package (every element at the top) or the ids of the elements whose subtrees the tree shows, and
     // collapsed the ids whose insides are folded away.
     BrowserView: { name: 'BrowserView', label: 'browser view', qualified: 'StandardViewDefinitions::BrowserView', renderer: 'browser',
-      admits: null, tools: [], options: { roots: null, collapsed: [] },
+      admits: null, tools: [], fields: ['name', 'doc'], options: { roots: null, collapsed: [] },
       // A root is exposed by its qualified name, so one without a full name can't be, and the text leaves it out.
       check: function (model, view, ids, add) {
         (browserRoots(model, view, ids) || []).forEach((root) => {
@@ -3234,7 +3237,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const viewFields = $('view-fields');
   const vKind = $('v-kind');
   const vName = $('v-name');
-  const vDoc = $('v-doc');
   const vShow = $('v-show');
   const vMeta = $('v-meta');
   const vShowAdd = $('v-show-add');
@@ -3263,9 +3265,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
     PORT, MARGIN, MIN_FRAME, VIEW_GAP, HISTORY, NARROW, WHERE, TOOL_TITLE, TOOL_HINT, BASE_NAME, TOOLS, ACTIONS,
     VIEW_PANELS, FIELD_HOOKS, $, canvas, svg, hint, status, zoomLevel, hud, eyebrow, palette, panel, showPanel,
     inspectorEmpty, fields, fKind, fName, fPath, fViews, addNoteButton, removeFromViewButton, deleteButton, viewFields,
-    vKind, vName, vDoc, vShow, vMeta, vShowAdd, deleteViewButton, problemsList, problemsButton, undoButton,
-    newViewButton, newViewKind, list, notesEmpty, notesCount, where, warning, exportPanel, exportText, exportProblems,
-    downloadButton, importButton, fileInput, str
+    vKind, vName, vShow, vMeta, vShowAdd, deleteViewButton, problemsList, problemsButton, undoButton, newViewButton,
+    newViewKind, list, notesEmpty, notesCount, where, warning, exportPanel, exportText, exportProblems, downloadButton,
+    importButton, fileInput, str
   });
 })(window.SysMLCanvas = { state: {} });   // the object the scripts share, and the state they share in it
 // ==== src/core/page/state.js
@@ -4642,8 +4644,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, PAD, CHILD_TOP, MARGIN, VIEW_GAP, removeFromViewButton, vName, vShow, vShowAdd, deleteViewButton, newViewButton,
-    newViewKind, say, editable, newId, plural, viewById, activeView, viewLayout, viewShowing, rendererFor, fit, edit,
-    setActive
+    newViewKind, say, editable, newId, plural, viewById, activeView, viewLayout, viewShowing, rendererFor, blankField,
+    fit, edit, setActive
   } = C;
 
   // ---- Views: making, moving, showing things in, and deleting them.
@@ -4666,6 +4668,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         x: beside ? beside.x + beside.w + VIEW_GAP + MARGIN : 0, y: beside ? beside.y + MARGIN + 12 : 0,
         layout: {}, options: JSON.parse(JSON.stringify(M.VIEW_KINDS[kind].options))
       };
+      M.VIEW_KINDS[kind].fields.forEach((fld) => { if (view[fld] === undefined) blankField(view, fld); });
       S.model.views.push(view);
       return { what: 'Added the ' + M.describeView(S.model, view), log: 'Added the ' + M.describeView(S.model, view) + ', ' + M.an(M.VIEW_KINDS[kind].label) };
     });
@@ -4767,10 +4770,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, VIEW_PANELS, FIELD_HOOKS, $, panel, showPanel, inspectorEmpty, fields, fKind, fPath, fViews, addNoteButton,
-    removeFromViewButton, deleteButton, viewFields, vKind, vName, vDoc, vShow, vMeta, vShowAdd, deleteViewButton,
-    problemsList, problemsButton, undoButton, say, editable, newId, plural, relById, viewById, viewLayout, viewShowing,
-    rendererFor, center, endpoints, marksFor, applyMarks, showPoint, blankField, edit, endEdit, undo, setActive,
-    deleteView, showable
+    removeFromViewButton, deleteButton, viewFields, vKind, vShow, vMeta, vShowAdd, deleteViewButton, problemsList,
+    problemsButton, undoButton, say, editable, newId, plural, relById, viewById, viewLayout, viewShowing, rendererFor,
+    center, endpoints, marksFor, applyMarks, showPoint, blankField, edit, endEdit, undo, setActive, deleteView, showable
   } = C;
 
   // ---- Selecting, moving, and the panel.
@@ -4835,7 +4837,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     inspectorEmpty.hidden = !!s;
     C.renderCodeSection(s, write);
     if (!s) { renderProblemsList(); return; }
-    if (s.type === 'view') renderViewFields(s.item, write);
+    if (s.type === 'view') renderViewFields(s, write);
     else renderElementFields(s, write);
     renderProblemsList();
   }
@@ -4859,9 +4861,17 @@ textarea.text[readonly] { resize: none; background: transparent; }
     deleteButton.hidden = !write;
     addNoteButton.hidden = !write || (s.type === 'el' && M.textName(s.item) === null);
   }
-  // The lines around an element's or a line's fields: what it is (its kind and name, or the line in words), its path,
-  // and the views it is drawn in, with Remove from view for an element shown in one.
+  // The lines around the selection's fields: for an element or a line, what it is (its kind and name, or the line in
+  // words), its path, and the views it is drawn in, with Remove from view for an element shown in one; for a view, its
+  // kind, and what it shows.
   function renderHead(s, write) {
+    if (s.type === 'view') {
+      const L = viewLayout(s.item.id);
+      vKind.textContent = s.item.kind;
+      vMeta.textContent = plural(L ? L.shown.size : Object.keys(s.item.layout).length, 'element') + ' shown · ' + M.VIEW_KINDS[s.item.kind].label +
+        (s.item.id === S.active ? ' · active' : '');
+      return;
+    }
     const views = (S.layout.where.get(s.item.id) || []).map((id) => viewById(id)).filter(Boolean);
     const names = views.map((v) => v.name.trim() || '(unnamed view)').join(', ');
     if (s.type === 'el') {
@@ -4880,13 +4890,17 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ---- The fields, every one of them the same way.
   //
   // A field of the selection is a row of M.FIELDS that the selection's kind lists, drawn by a label holding its input:
-  // <label id="l-<field>"> holding <… id="f-<field>"> in #fields, for an element or a line. The panel shows each field
-  // by its row's type, and every change to a field goes through the same two listeners and edit(), so it is an undo
-  // step, logged for Claude, and saved. FIELD_HOOKS (base.js) adds what a field's row can't say.
+  // <label id="l-<field>"> holding <… id="f-<field>"> in #fields, for an element or a line, and l-v-<field> holding
+  // v-<field> in #view-fields, for a view. The panel shows each field by its row's type, and every change to a field
+  // goes through the same two listeners and edit(), so it is an undo step, logged for Claude, and saved. FIELD_HOOKS
+  // (base.js) adds what a field's row can't say.
 
   // Where the labels and inputs of the selection's fields are, by its type.
-  const PLACES = { el: { label: 'l-', input: 'f-' }, rel: { label: 'l-', input: 'f-' } };
-  function fieldsOf(s) { return s.type === 'el' ? M.KINDS[s.item.kind].fields : M.RELATIONSHIPS[s.item.kind].fields; }
+  const PLACES = { el: { label: 'l-', input: 'f-' }, rel: { label: 'l-', input: 'f-' }, view: { label: 'l-v-', input: 'v-' } };
+  function fieldsOf(s) {
+    if (s.type === 'el') return M.KINDS[s.item.kind].fields;
+    return s.type === 'rel' ? M.RELATIONSHIPS[s.item.kind].fields : M.VIEW_KINDS[s.item.kind].fields;
+  }
   // A field of the selection s with its input, as the hooks are given it; null when its kind doesn't list the field,
   // or the field has no input in the panel (a field its feature edits in a section of its own: the code links).
   function fieldAt(s, fld, input) {
@@ -4955,8 +4969,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (spec.type === 'number') return input.value.trim() !== '' && Number.isFinite(+input.value) ? +input.value : '';
     return spec.trim ? input.value.trim() : input.value;
   }
-  // The selection in a sentence: an element as describe says it, a line as "the" and its words.
-  function whatOf(x) { return x.type === 'el' ? M.describe(S.model, x.item) : 'the ' + M.describeRel(S.model, x.item); }
+  // The selection in a sentence: an element as describe says it, a line as "the" and its words, a view as "view" and
+  // its name.
+  function whatOf(x) {
+    if (x.type === 'el') return M.describe(S.model, x.item);
+    return x.type === 'rel' ? 'the ' + M.describeRel(S.model, x.item) : M.describeView(S.model, x.item);
+  }
   // The words for a change to a field that has none of its own: Set the <label> of <what> to <value>.
   function fieldChangeText(x) {
     const v = valueOf(x);
@@ -4970,14 +4988,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function changeField(x, key) {
     const value = readInput(x.spec, x.input);
     if (value === valueOf(x)) return null;
-    return edit(() => {
+    const touched = edit(() => {
       if (x.hooks.write) x.hooks.write(x, value); else x.item[x.fld] = value;
       return x.hooks.said ? x.hooks.said(x) : fieldChangeText(x);
     }, key);
+    if (touched && x.type === 'view') setActive(S.active); // the eyebrow names the active view
+    return touched;
   }
   // The one pair of listeners for every field. Typing in a string, text or number field is one undo step per field, a
   // run the field's change event ends, which logs it once the field is left; a bool, an enum or a ref changes at once.
-  [fields].forEach((box) => {
+  [fields, viewFields].forEach((box) => {
     box.addEventListener('input', (event) => {
       const x = fieldOf(event);
       if (x && typed(x.spec)) changeField(x, x.fld + ':' + x.item.id);
@@ -4994,11 +5014,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     });
   });
 
-  function renderViewFields(view, write) {
+  // The panel for a view: the lines that say what it is, its fields (renderFields), what it can show, and its kind's
+  // own options.
+  function renderViewFields(s, write) {
+    const view = s.item;
     viewFields.hidden = false;
-    vKind.textContent = view.kind;
-    vName.value = view.name;
-    vDoc.value = view.doc;
+    renderHead(s, write);
+    renderFields(s, write);
     while (vShow.firstChild) vShow.removeChild(vShow.firstChild);
     const candidates = showable(view);
     if (!candidates.length) {
@@ -5016,10 +5038,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
       o.textContent = M.describe(S.model, e);
       vShow.appendChild(o);
     });
-    const L = viewLayout(view.id);
-    vMeta.textContent = plural(L ? L.shown.size : Object.keys(view.layout).length, 'element') + ' shown · ' + M.VIEW_KINDS[view.kind].label +
-      (view.id === S.active ? ' · active' : '');
-    [vName, vDoc].forEach((i) => { i.readOnly = !write; });
     vShow.disabled = !write || !candidates.length;
     vShowAdd.disabled = !write || !candidates.length;
     deleteViewButton.hidden = !write;
@@ -5044,7 +5062,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   Object.assign(FIELD_HOOKS, {
     name: {
       said: function (x) {
-        return x.type === 'el' ? 'Renamed to ' + M.describe(S.model, x.item) : 'Named the ' + M.describeRel(S.model, x.item);
+        if (x.type === 'el') return 'Renamed to ' + M.describe(S.model, x.item);
+        return x.type === 'rel' ? 'Named the ' + M.describeRel(S.model, x.item) : 'Renamed the view to ' + (x.item.name.trim() || '(unnamed)');
       },
       // Once the name is left, the lines that say what the selection is follow it, and so do the notes' labels.
       done: function () {
@@ -5107,25 +5126,6 @@ textarea.text[readonly] { resize: none; background: transparent; }
       }
     }
   });
-
-  vName.addEventListener('input', () => {
-    const view = selectedView();
-    if (!view) return;
-    const done = edit(() => {
-      view.name = vName.value;
-      return 'Renamed the view to ' + (view.name.trim() || '(unnamed)');
-    }, 'name:' + view.id);
-    if (done) setActive(S.active); // the eyebrow names the active view
-  });
-  vName.addEventListener('change', () => endEdit());
-  vDoc.addEventListener('input', () => {
-    const view = selectedView();
-    if (view) edit(() => {
-      view.doc = vDoc.value;
-      return 'Wrote the doc of ' + M.describeView(S.model, view);
-    }, 'doc:' + view.id);
-  });
-  vDoc.addEventListener('change', () => endEdit());
 
   // Delete takes an element out of the model and every view, with everything inside it and every line on it; a line
   // out of the model; a view off the plane, its elements staying.

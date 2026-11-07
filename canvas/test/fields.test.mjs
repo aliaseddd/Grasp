@@ -1,9 +1,10 @@
 // The panel's fields. Every field goes the one way: its row in FIELDS, by which the panel shows it, and the panel's
 // one pair of listeners, which make every change through edit(). So a change to any field through its input is one
 // undo step, logged for Claude in that step's words, and saved, and Undo takes it back; and no field's input has
-// listeners of its own. The fixtures together hold every kind of element and line, so the first test merges them into
-// one model and changes, one at a time, every field each kind lists. Then the fields whose rows don't say it all: the
-// definition, which is the usage's typing, with the box that draws its line, and the fields whose rows trim.
+// listeners of its own. The fixtures together hold every kind of element, line and view, so the second test merges
+// them into one model and changes, one at a time, every field each kind lists. Then the fields whose rows don't say it
+// all: the definition, which is the usage's typing, with the box that draws its line; the core's words; the fields
+// whose rows trim; and a view's name, which the eyebrow and the notes on the view follow.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -11,9 +12,12 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { after, before, describe, test } from 'node:test';
-import { clickElement, finish, launch, modelLibSource, openCanvas, pageSource, relationshipIds, until } from './helpers.mjs';
+import { clickElement, embeddedModel, finish, launch, modelLibSource, openCanvas, pageSource, relationshipIds, until } from './helpers.mjs';
 
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
+/** Where a field's input and label are, by what is selected: #fields for an element or a line, #view-fields for a view. */
+const INPUT = { el: 'f-', rel: 'f-', view: 'v-' };
+const LABEL = { el: 'l-', rel: 'l-', view: 'l-v-' };
 
 // As in model-lib.test.mjs: the library the page holds, run in a vm context with a bare window.
 function loadLib(source) {
@@ -93,26 +97,26 @@ async function importState(page, state, name = 'fields.json') {
  * lists, whether the panel has an input for it, whether it is shown, and a select's choices; null when the selection
  * didn't land on the item (a line that isn't drawn selects the element it starts from).
  */
-const selectItem = (page, item, viewId) => page.evaluate(([it, vid]) => {
+const selectItem = (page, item, viewId) => page.evaluate(([it, vid, input, label]) => {
   const C = window.SysMLCanvas;
   const M = window.SysMLModel;
   C.select({ type: it.type, id: it.id }, vid || undefined);
   const s = C.resolve(C.state.selection);
   if (!s || s.type !== it.type || s.item.id !== it.id) return null;
-  const listed = it.type === 'el' ? M.KINDS[s.item.kind].fields : M.RELATIONSHIPS[s.item.kind].fields;
-  return listed.map((fld) => {
-    const input = document.getElementById('f-' + fld);
-    const label = document.getElementById('l-' + fld);
+  const table = it.type === 'el' ? M.KINDS : it.type === 'rel' ? M.RELATIONSHIPS : M.VIEW_KINDS;
+  return table[s.item.kind].fields.map((fld) => {
+    const field = document.getElementById(input + fld);
+    const caption = document.getElementById(label + fld);
     const spec = M.FIELDS[fld];
     return {
       fld,
       spec: spec ? { type: spec.type, trim: !!spec.trim } : null,
-      input: !!input,
-      shown: !!input && !!label && !label.hidden && input.offsetParent !== null,
-      options: input && input.tagName === 'SELECT' ? Array.from(input.options).map((o) => o.value) : null
+      input: !!field,
+      shown: !!field && !!caption && !caption.hidden && field.offsetParent !== null,
+      options: field && field.tagName === 'SELECT' ? Array.from(field.options).map((o) => o.value) : null
     };
   });
-}, [item, viewId]);
+}, [item, viewId, INPUT[item.type], LABEL[item.type]]);
 
 /**
  * In the page: the value of a field of an item, from the model: for the definition, the id of what the usage's typing
@@ -121,18 +125,18 @@ const selectItem = (page, item, viewId) => page.evaluate(([it, vid]) => {
  * log's newest entry is marked, window.__lastLog), whether a save is scheduled, and what the field's input shows. With
  * save, it then makes the scheduled save now, as its timer would, and says whether this browser's store holds the model.
  */
-const fieldState = (page, item, fld, save = false) => page.evaluate(([it, f, saveNow]) => {
+const fieldState = (page, item, fld, save = false) => page.evaluate(([it, f, saveNow, prefix]) => {
   const C = window.SysMLCanvas;
   const S = C.state;
   const M = window.SysMLModel;
-  const found = (it.type === 'el' ? S.model.elements : S.model.relationships).find((x) => x.id === it.id);
+  const found = (it.type === 'el' ? S.model.elements : it.type === 'rel' ? S.model.relationships : S.model.views).find((x) => x.id === it.id);
   const typing = it.type === 'el' ? M.typingOf(S.model, found) : null;
   const value = f === 'type' ? (typing ? typing.to : '') : f === 'typeLine' ? !!typing && !typing.hidden : found[f];
   const top = S.history[S.history.length - 1];
   const mark = window.__lastLog;
   const logged = mark ? S.changes.slice(S.changes.indexOf(mark) + 1) : S.changes.slice();
   window.__lastLog = S.changes[S.changes.length - 1];
-  const input = document.getElementById('f-' + f);
+  const input = document.getElementById(prefix + f);
   const state = {
     value, json: JSON.stringify(S.model), steps: S.history.length, top: top ? { what: top.what, key: top.key } : null,
     logged: logged.map((c) => c.text), saving: S.saveTimer !== null, shows: input.type === 'checkbox' ? input.checked : input.value
@@ -145,7 +149,7 @@ const fieldState = (page, item, fld, save = false) => page.evaluate(([it, f, sav
     state.saved = !!stored && JSON.stringify(stored.model) === state.json;
   }
   return state;
-}, [item, fld, save]);
+}, [item, fld, save, INPUT[item.type]]);
 
 /**
  * Changes one field of the selected item through its input, as a person does: types two more characters into a text
@@ -154,7 +158,7 @@ const fieldState = (page, item, fld, save = false) => page.evaluate(([it, f, sav
  */
 async function changeField(page, item, field) {
   const what = `${item.kind} ${item.id}, field ${field.fld}`;
-  const selector = '#f-' + field.fld;
+  const selector = '#' + INPUT[item.type] + field.fld;
   const before = await fieldState(page, item, field.fld);
   before.normal = await page.evaluate((json) => JSON.stringify(window.SysMLModel.normalize(JSON.parse(json))), before.json);
   let expected;
@@ -219,11 +223,20 @@ describe('the panel\'s fields', () => {
       assert.deepEqual(types, [], `#f-${fld} has no listeners of its own`);
     }
     assert.deepEqual(without, ['code'], 'every field but the code links, which their own section edits, has an input in the panel');
+    const viewInputs = [];
+    for (const fld of names) {
+      const types = await listenersOf('v-' + fld);
+      if (types === null) continue;
+      viewInputs.push(fld);
+      assert.deepEqual(types, [], `#v-${fld} has no listeners of its own`);
+    }
+    assert.deepEqual(viewInputs, ['name', 'doc'], 'a view\'s fields have their inputs too');
     assert.deepEqual(await listenersOf('fields'), ['change', 'input'], '#fields has the one pair of listeners');
+    assert.deepEqual(await listenersOf('view-fields'), ['change', 'input'], 'and so has #view-fields');
     await finish(ctx);
   });
 
-  test('every field of every kind of element and line: a change through its input is one undo step, logged, saved and undone', async () => {
+  test('every field of every kind of element, line and view: a change through its input is one undo step, logged, saved and undone', async () => {
     const lib = loadLib(pageSource());
     const ctx = await openCanvas(browser);
     const { page } = ctx;
@@ -232,10 +245,11 @@ describe('the panel\'s fields', () => {
       const S = window.SysMLCanvas.state;
       const where = (id) => S.layout.where.get(id) || [];
       return S.model.elements.map((e) => ({ type: 'el', id: e.id, kind: e.kind, views: where(e.id) }))
-        .concat(S.model.relationships.map((r) => ({ type: 'rel', id: r.id, kind: r.kind, views: where(r.id) })));
+        .concat(S.model.relationships.map((r) => ({ type: 'rel', id: r.id, kind: r.kind, views: where(r.id) })))
+        .concat(S.model.views.map((v) => ({ type: 'view', id: v.id, kind: v.kind, views: [] })));
     });
     const kinds = new Set(items.map((item) => item.kind));
-    for (const kind of Object.keys(lib.KINDS).concat(Object.keys(lib.RELATIONSHIPS))) {
+    for (const kind of Object.keys(lib.KINDS).concat(Object.keys(lib.RELATIONSHIPS), Object.keys(lib.VIEW_KINDS))) {
       assert.ok(kinds.has(kind), `a fixture holds ${kind}, so its fields are tried here`);
     }
     // Each kind's fields, each changed once: the first item of the kind that shows the field, in a view that shows it
@@ -244,7 +258,7 @@ describe('the panel\'s fields', () => {
     const tried = new Map();
     const noInput = new Set();
     for (const item of items) {
-      const row = item.type === 'el' ? lib.KINDS[item.kind] : lib.RELATIONSHIPS[item.kind];
+      const row = (item.type === 'el' ? lib.KINDS : item.type === 'rel' ? lib.RELATIONSHIPS : lib.VIEW_KINDS)[item.kind];
       if (!listed.has(item.kind)) { listed.set(item.kind, Array.from(row.fields)); tried.set(item.kind, new Set()); }
       const left = () => listed.get(item.kind).filter((f) => !tried.get(item.kind).has(f) && !noInput.has(f));
       for (const viewId of item.views.length ? item.views : [null]) {
@@ -268,7 +282,7 @@ describe('the panel\'s fields', () => {
         count += 1;
       }
     }
-    assert.ok(count >= 80, `every listed field was tried (${count})`);
+    assert.ok(count >= 90, `every listed field was tried (${count})`);
     await finish(ctx);
   });
 
@@ -356,6 +370,32 @@ describe('the panel\'s fields', () => {
       await change();
       assert.deepEqual(await said(), [words, words], `the step and the log say: ${words}`);
     }
+    await finish(ctx);
+  });
+
+  test('a view\'s name: the eyebrow follows it as it is typed, the notes on the view once it is left, in one undo step', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    // A note on the view, as Claude leaves one: the page adds notes to elements and lines, the store and files bring
+    // notes on views too.
+    const note = { id: 'n-view', no: 1, target: 'v-proof', targetLabel: 'view proofStructure', text: 'Why these hosts?', by: 'claude' };
+    await importState(page, { model: embeddedModel(), notes: [note], archive: [] }, 'with-a-view-note.json');
+    await page.evaluate(() => window.SysMLCanvas.select({ type: 'view', id: 'v-proof' }));
+    const noteLabel = () => page.evaluate(() => window.SysMLCanvas.state.notes[0].targetLabel);
+    assert.equal(await noteLabel(), 'view proofStructure');
+    await page.focus('#v-name');
+    await page.keyboard.press('Control+End');
+    await page.keyboard.type('Xy');
+    assert.match(await page.textContent('.eyebrow'), / · proofStructureXy$/, 'the eyebrow follows each keystroke');
+    assert.equal(await noteLabel(), 'view proofStructure', 'the note keeps its label while the name is typed');
+    await page.keyboard.press('Tab');
+    assert.equal(await noteLabel(), 'view proofStructureXy', 'and takes the new name once the field is left');
+    const steps = await page.evaluate(() => window.SysMLCanvas.state.history.map((h) => h.what));
+    assert.equal(steps[steps.length - 1], 'Renamed the view to proofStructureXy', 'one step, in its words');
+    await page.focus('#v-doc');
+    await page.keyboard.type('Why.');
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => window.SysMLCanvas.state.history.slice(-1)[0].what), 'Wrote the doc of view proofStructureXy');
     await finish(ctx);
   });
 

@@ -94,7 +94,6 @@
   const viewFields = $('view-fields');
   const vKind = $('v-kind');
   const vName = $('v-name');
-  const vDoc = $('v-doc');
   const vShow = $('v-show');
   const vMeta = $('v-meta');
   const vShowAdd = $('v-show-add');
@@ -123,8 +122,8 @@
     PORT, MARGIN, MIN_FRAME, VIEW_GAP, HISTORY, NARROW, WHERE, TOOL_TITLE, TOOL_HINT, BASE_NAME, TOOLS, ACTIONS,
     VIEW_PANELS, FIELD_HOOKS, $, canvas, svg, hint, status, zoomLevel, hud, eyebrow, palette, panel, showPanel,
     inspectorEmpty, fields, fKind, fName, fPath, fViews, addNoteButton, removeFromViewButton, deleteButton, viewFields,
-    vKind, vName, vDoc, vShow, vMeta, vShowAdd, deleteViewButton, problemsList, problemsButton, undoButton,
-    newViewButton, newViewKind, list, notesEmpty, notesCount, where, warning, exportPanel, exportText, exportProblems,
-    downloadButton, importButton, fileInput, str
+    vKind, vName, vShow, vMeta, vShowAdd, deleteViewButton, problemsList, problemsButton, undoButton, newViewButton,
+    newViewKind, list, notesEmpty, notesCount, where, warning, exportPanel, exportText, exportProblems, downloadButton,
+    importButton, fileInput, str
   });
 })(window.SysMLCanvas = { state: {} });   // the object the scripts share, and the state they share in it

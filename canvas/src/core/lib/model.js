@@ -136,24 +136,26 @@
   };
 
   // View kinds. renderer names the page's renderer for the kind; admits the element kinds a view of the kind may
-  // show (null: every kind); tools the palette, element and relationship kinds with '|' between groups; options
-  // the defaults of the view's own options, which normalize keeps the keys of; check(model, view, ids, add), when
+  // show (null: every kind); tools the palette, element and relationship kinds with '|' between groups; fields the
+  // panel's fields that apply (rows of FIELDS), which normalize keeps by their types; options the defaults of the
+  // view's own options, which normalize keeps the keys of; check(model, view, ids, add), when
   // present, adds the view's own problems; exposes(model, view, h), when present, returns the statements of the
   // view's body in the export (expose …;, render …;) in place of those the core makes from the view's layout
   // (h.exposesOf(view) gives those, to build on). The core has the general view; each feature's script adds the rows
   // of the view kinds it draws.
   const VIEW_KINDS = {
     GeneralView: { name: 'GeneralView', label: 'general view', qualified: 'StandardViewDefinitions::GeneralView', renderer: 'graph',
-      admits: null, tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', '|', 'Specialization', 'FeatureTyping', 'ConnectionUsage'], options: {} },
+      admits: null, tools: ['PartDefinition', 'PortDefinition', 'PartUsage', 'PortUsage', '|', 'Specialization', 'FeatureTyping', 'ConnectionUsage'], fields: ['name', 'doc'], options: {} },
   };
 
-  // The fields the panel can show and normalize keeps, by name, for elements (KINDS[kind].fields) and relationships
-  // (RELATIONSHIPS[kind].fields). type says what the value is: string or text (a string; trim takes the ends off),
-  // bool (true or false), enum (one of values, else the first), number (a finite number, else ''), ref (the id of an
-  // element, else ''; options(model, item) returns the elements the field may name). label is the field's name in
-  // sentences. views, when present, lists the view kinds the field shows in (absent: every kind). The page shows and
-  // changes every field through its row, each with a <label id="l-<field>"> holding an <input id="f-<field>"> in the
-  // panel (the page's FIELD_HOOKS add what a row can't say). read(raw), when present, replaces the reading by type
+  // The fields the panel can show and normalize keeps, by name, for elements (KINDS[kind].fields), relationships
+  // (RELATIONSHIPS[kind].fields) and views (VIEW_KINDS[kind].fields). type says what the value is: string or text (a
+  // string; trim takes the ends off), bool (true or false), enum (one of values, else the first), number (a finite
+  // number, else ''), ref (the id of an element, else ''; options(model, item) returns the elements the field may
+  // name). label is the field's name in sentences. views, when present, lists the view kinds the field shows in
+  // (absent: every kind). The page shows and changes every field through its row, each with a <label id="l-<field>">
+  // holding an <input id="f-<field>"> in the panel, or l-v-<field> and v-<field> for a view's (the page's FIELD_HOOKS
+  // add what a row can't say). read(raw), when present, replaces the reading by type
   // (for a value that is none of these, a list say), and fresh(), when present, gives a new element's or
   // relationship's starting value. stored: false marks a field that is no value of the item, which normalize keeps out
   // of the model: type is the usage's FeatureTyping relationship, and typeLine whether that relationship is drawn as a
@@ -406,6 +408,7 @@
       if (!kind) continue;
       const id = typeof v.id === 'string' && ID.test(v.id) && !taken.has(v.id) && !vseen.has(v.id) ? v.id : freeViewId();
       const view = { id: id, kind: kindName, name: str(v.name).trim(), doc: str(v.doc), x: Math.round(num(v.x, 0)), y: Math.round(num(v.y, 0)), layout: {}, options: copy(kind.options) };
+      keepFields(kind.fields, v, view);
       if (isObject(v.options)) for (const key in view.options) if (v.options[key] !== undefined) view.options[key] = copy(v.options[key]);
       const lay = isObject(v.layout) ? v.layout : {};
       for (const eid in lay) {

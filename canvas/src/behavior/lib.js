@@ -59,10 +59,10 @@
   Object.assign(VIEW_KINDS, {
     ActionFlowView: { name: 'ActionFlowView', label: 'action flow view', qualified: 'StandardViewDefinitions::ActionFlowView', renderer: 'graph',
       admits: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'],
-      tools: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', '|', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode', '|', 'SuccessionAsUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'], options: {} },
+      tools: ['ActionDefinition', 'ActionUsage', 'ParameterUsage', '|', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode', '|', 'SuccessionAsUsage', 'FlowConnectionUsage', 'BindingConnectorAsUsage', 'FeatureTyping'], fields: ['name', 'doc'], options: {} },
     StateTransitionView: { name: 'StateTransitionView', label: 'state transition view', qualified: 'StandardViewDefinitions::StateTransitionView', renderer: 'graph',
       admits: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode'],
-      tools: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode', '|', 'TransitionUsage', 'FeatureTyping'], options: {} },
+      tools: ['StateDefinition', 'StateUsage', 'InitialNode', 'ActionUsage', 'DoneNode', '|', 'TransitionUsage', 'FeatureTyping'], fields: ['name', 'doc'], options: {} },
   });
   Object.assign(FIELDS, {
     // Behavior: what an action does (plain, send, accept) with its payload and its target, its role under a state

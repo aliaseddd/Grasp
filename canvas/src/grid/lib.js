@@ -10,7 +10,7 @@
     // table's columns (keys of GRID_COLUMNS, in its order), and sort (a column, with a leading - for descending; null
     // for the model's order). The layout's keys are the rows, so there is no rows option.
     GridView: { name: 'GridView', label: 'grid view', qualified: 'StandardViewDefinitions::GridView', renderer: 'grid',
-      admits: null, tools: [], options: { mode: 'table', columns: ['kind', 'name', 'type', 'multiplicity', 'owner', 'doc'], sort: null },
+      admits: null, tools: [], fields: ['name', 'doc'], options: { mode: 'table', columns: ['kind', 'name', 'type', 'multiplicity', 'owner', 'doc'], sort: null },
       // The view's body in the text: the core's expose lines, then, for a table, the library's tabular rendering (one
       // row per exposed element). A matrix has no library rendering, so it exposes and says nothing more. Validated
       // in every form a grid can take (a view with exposes and the render clause, with the render clause alone, with a

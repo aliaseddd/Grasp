@@ -12,7 +12,7 @@
     // for the whole package (every element at the top) or the ids of the elements whose subtrees the tree shows, and
     // collapsed the ids whose insides are folded away.
     BrowserView: { name: 'BrowserView', label: 'browser view', qualified: 'StandardViewDefinitions::BrowserView', renderer: 'browser',
-      admits: null, tools: [], options: { roots: null, collapsed: [] },
+      admits: null, tools: [], fields: ['name', 'doc'], options: { roots: null, collapsed: [] },
       // A root is exposed by its qualified name, so one without a full name can't be, and the text leaves it out.
       check: function (model, view, ids, add) {
         (browserRoots(model, view, ids) || []).forEach((root) => {
