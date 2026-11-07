@@ -102,6 +102,27 @@ describe('drawing what the window shows', () => {
     await finish(ctx);
   });
 
+  test('a browser and a grid draw the rows on screen', async () => {
+    const ctx = await openCanvas(browser);
+    const { page } = ctx;
+    // Beside the generated model's three frames, a browser of the whole model and a grid of every element.
+    const state = scaleState(ELEMENTS);
+    const right = Math.max(...state.model.views.map((v) => v.x)) + 9000;
+    const every = Object.fromEntries(state.model.elements.map((e) => [e.id, {}]));
+    state.model.views.push({ id: 'v-tree', kind: 'BrowserView', name: 'tree', doc: '', x: right, y: 0, layout: {}, options: { roots: null, collapsed: [] } });
+    state.model.views.push({ id: 'v-table', kind: 'GridView', name: 'table', doc: '', x: right + 2000, y: 0, layout: every, options: {} });
+    await importLarge(page, state, 'with-rows.json');
+    const rows = (view) => page.evaluate((v) => document.querySelectorAll(`#drawing g.frame[data-view="${v}"] [data-el]`).length, view);
+    await lookAt(page, 'v-tree', 'Service1');
+    const tree = await rows('v-tree');
+    assert.ok(tree > 10 && tree < ELEMENTS / 4, `the browser draws the rows on screen, not all ${ELEMENTS}: ${tree}`);
+    await lookAt(page, 'v-table', 'Service1');
+    const table = await rows('v-table');
+    assert.ok(table > 10 && table < ELEMENTS / 4, `the grid draws the rows on screen, not all ${ELEMENTS}: ${table}`);
+    assert.ok(await page.locator('#drawing g.frame[data-view="v-table"] g[data-el="Service1"]').count() === 1, 'the row looked at among them');
+    await finish(ctx);
+  });
+
   test('far out, a graph view draws its boxes and border items as outlines and its lines without labels', async () => {
     const ctx = await openCanvas(browser);
     const { page } = ctx;

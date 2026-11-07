@@ -4,7 +4,7 @@
   const S = C.state;
   const {
     M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, byNumber, viewById, frameAround, node, text, RENDERERS,
-    marksFor, edit, renderInspector, selectedView
+    onScreen, marksFor, edit, renderInspector, selectedView
   } = C;
 
   // ---- The grid view: a table with a row per shown element, or a matrix of the shown elements against each other
@@ -146,8 +146,11 @@
     cell.appendChild(text(x + GRID_PAD, G.y + G.headH - 10, gridClip(title + mark, w), 'grid-head grid-col-title'));
     return cell;
   }
-  function gridDraw(view, g, L) {
+  // Draws the sheet, and of its rows (and a matrix's columns) those on screen.
+  function gridDraw(view, g, L, region) {
     const G = L.grid;
+    const rowOn = (r) => onScreen({ x: G.x, y: r.y, w: G.w, h: GRID_ROW_H }, region);
+    const colOn = (c) => onScreen({ x: c.x, y: G.y, w: GRID_MATRIX_COL, h: G.h }, region);
     const ids = S.layout.ids;
     const sheet = node('g', {}, 'grid');
     g.appendChild(sheet);
@@ -159,6 +162,7 @@
       sheet.appendChild(gridHeadCell(G, G.x, GRID_MATRIX_HEAD, 'name', 'from \\ to', 'Click to sort the rows and the columns by name; again for descending; again for the model\'s order.'));
       sheet.appendChild(node('rect', { x: f(left), y: f(G.y), width: f(G.w - GRID_MATRIX_HEAD), height: f(G.headH) }, 'grid-head-cell'));
       G.rows.forEach((c) => {
+        if (!colOn(c)) return;
         const cx = c.x + GRID_MATRIX_COL / 2 + 4;
         const cy = top - 8;
         const t = text(cx, cy, c.label, 'grid-head', 'start');
@@ -166,9 +170,11 @@
         sheet.appendChild(t);
       });
       G.rows.forEach((r, i) => {
+        if (!rowOn(r)) return;
         const row = gridRowGroup(view, r, i, G);
         row.appendChild(text(G.x + GRID_PAD, r.y + 16, gridClip(r.path, GRID_MATRIX_HEAD), 'grid-cell grid-name'));
         G.rows.forEach((c) => {
+          if (!colOn(c)) return;
           if (c.el.id === r.el.id) { row.appendChild(node('rect', { x: f(c.x), y: f(r.y), width: f(GRID_MATRIX_COL), height: f(GRID_ROW_H) }, 'grid-self')); return; }
           const rels = S.model.relationships.filter((x) => x.from === r.el.id && x.to === c.el.id);
           if (!rels.length) return;
@@ -182,10 +188,11 @@
         });
         sheet.appendChild(row);
       });
-      G.rows.forEach((c) => sheet.appendChild(node('line', { x1: f(c.x), y1: f(G.y), x2: f(c.x), y2: f(G.y + G.h) }, 'grid-rule')));
+      G.rows.forEach((c) => { if (colOn(c)) sheet.appendChild(node('line', { x1: f(c.x), y1: f(G.y), x2: f(c.x), y2: f(G.y + G.h) }, 'grid-rule')); });
     } else {
       G.cols.forEach((c) => sheet.appendChild(gridHeadCell(G, c.x, c.w, c.key, c.key, 'Click to sort the rows by ' + c.key + '; again for descending; again for the model\'s order.')));
       G.rows.forEach((r, i) => {
+        if (!rowOn(r)) return;
         const row = gridRowGroup(view, r, i, G);
         G.cols.forEach((c) => {
           const value = gridCell(r.el, c.key, ids);

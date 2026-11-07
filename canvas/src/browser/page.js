@@ -3,7 +3,7 @@
   'use strict';
   const S = C.state;
   const {
-    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, edit,
+    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, onScreen, edit,
     renderInspector, selectedView
   } = C;
 
@@ -87,7 +87,8 @@
       const box = rows.length ? { x: view.x, y: view.y, x2: view.x + width, y2: view.y + rows.length * BROWSER_ROW } : null;
       return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: new Map(), frameRect: frameAround(view, box), rows: rows, treeWidth: width };
     },
-    draw: function (view, g, L) {
+    // Only the rows on screen are drawn, each in its place.
+    draw: function (view, g, L, region) {
       const rows = node('g', {}, 'browser-rows');
       g.appendChild(rows);
       if (!L.rows.length) {
@@ -98,6 +99,7 @@
       }
       L.rows.forEach((row, i) => {
         const top = view.y + i * BROWSER_ROW;
+        if (!onScreen({ x: view.x, y: top, w: L.treeWidth, h: BROWSER_ROW }, region)) return;
         const x0 = view.x + row.depth * BROWSER_INDENT;
         const isEl = row.type === 'el';
         const attrs = { 'data-kind': row.item.kind, 'data-view': view.id };
