@@ -69,8 +69,20 @@ Every change to the model goes through `C.edit(change, key)`, in `core/page/chan
 
 - Read the model anywhere; write it only inside the function given to `edit`, or in what that function calls, such as a renderer's `place`, `drag` and `drop`, which only `edit` calls.
 - A `key` joins a run of changes into one undo step: the keystrokes of one field, the moves of one drag. The run is logged once, in its last words, when it ends: at `endEdit()`, which the field's change event or the drag's drop calls, or when a change with another key comes. A run that ends where it started is no step.
-- Each change, and Undo, first checks that the model is as the last change left it. A change made anywhere else would be in no undo step and missing from what changes touched, so it is thrown as an error, which the console and the tests see.
+- The model records its own changes. Every object and array in it is a `Proxy` of itself, whose traps note each write before it is made: the key and what it held, or an array's items. So `edit` learns what a change touched from its notes, without looking through the model; an undo step keeps those notes, not a copy of the model, and Undo puts back what they say. Reads go straight through, and what is read from the model is always its own `Proxy`, so `===` and `indexOf` work as on plain objects. An object a change makes and puts into the model becomes part of it there: to find it again, read it back from the model (a renderer's `place` returns `S.model.elements[…]`, not the object it made).
+- A write made while no change is open is noted too, and reported as an error when the next change, or Undo, comes: it would be in no undo step and missing from what changes touched. The console and the tests see it.
 - Outside `edit`, only `changes.js` replaces the whole model: Undo, and `loadModel` for a model from storage. Import state replaces it through `edit`, as one undo step.
+
+## Drawing
+
+`render()` (`core/page/render.js`) brings the drawing up to date after each change, from what `edit` says the change touched and what it wrote:
+
+- A change that only moved things (it wrote places in views' layouts, or a view's `x` and `y`) lays out again just the views it touched, and their renderers may patch what they drew: the graph renderer draws again just the boxes, border items and lines that moved, in the groups already drawn. A change that showed or hid things in views lays out just those views again and draws them again. Any other change can have moved anything, so every view is laid out and drawn again.
+- Each view draws only what the window shows, with a margin of half the window on each side (`S.region`), and the window leaving that region, or the zoom crossing 25%, draws it again (`applyCamera`). Below 25% a graph view draws its boxes as outlines (a shape's `radius` gives their corners), its border items as squares and its lines without their labels.
+- A renderer's `draw(view, g, L, region)` gets the region, and keeps to it as far as it can (`onScreen`, `pointsOnScreen` in `drawing.js`); the frame itself is always drawn. A renderer may add `patch(view, g, before, L, region)`, which draws again only what moved and returns true, or returns false to have the view drawn again whole. A renderer whose drawing shows what the checks found carries `problems: true`.
+- The pins and badges are drawn at screen size on top, for what is drawn; the marks (`is-selected`, `is-problem`) go on what is drawn, whenever it is drawn.
+- The checks (`check()`) run once the changes pause, as the save does, at once when the model is a new one (the page starting, a model from elsewhere, Undo, an import), and at once when something needs them up to date (`checkNow()`: the export panel, the HUD's button). A test that reads the problems right after a change waits for them (`checked` in `test/helpers.mjs`).
+- The drawing and the checks read the model inside the library's lookups (`reading` in `render.js`), which are made once for the model as it is and forgotten at each change.
 
 ## The panel's fields
 
