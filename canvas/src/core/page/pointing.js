@@ -4,9 +4,9 @@
   const S = C.state;
   const {
     M, MIN_ZOOM, MAX_ZOOM, TOOLS, ACTIONS, $, canvas, svg, hint, say, clamp, editable, noteById, viewById, rendererFor,
-    viewAt, marksFor, render, stageSize, applyCamera, fit, zoomAt, zoomAtCenter, toDrawing, logChange, changed,
-    snapshot, commit, undo, setTool, baseHint, place, connectStep, select, selectionFor, renderInspector,
-    deleteSelection, noteTimers, focusNote, persist, writeShared
+    viewAt, marksFor, stageSize, applyCamera, fit, zoomAt, zoomAtCenter, toDrawing, edit, endEdit, undo, setTool,
+    baseHint, place, connectStep, select, selectionFor, renderInspector, deleteSelection, noteTimers, focusNote,
+    persist, writeShared
   } = C;
 
   // ---- Moving around and pointing at things.
@@ -126,59 +126,68 @@
       moveDrag(event);
     }
   });
-  // A drag moves a view by its tab, or an element in its view through the view's renderer. Its first move takes the
-  // model as it was, so the whole drag is one undo step.
+  // A drag moves a view by its tab, or an element in its view through the view's renderer. Each move is a change,
+  // and the moves and the drop are one run, keyed by what is dragged (finishDrag ends it), so the whole drag is one
+  // undo step, logged once.
   function moveDrag(event) {
     const p = toDrawing(event.clientX, event.clientY);
-    if (!S.drag.moved) { S.drag.moved = true; S.drag.before = snapshot(); }
+    const first = !S.drag.moved;
+    S.drag.moved = true;
     if (S.drag.kind === 'pin') { C.movePin(S.drag, event); return; }
-    if (S.drag.kind === 'view') {
-      const view = viewById(S.drag.id);
-      if (!view) return;
-      view.x = Math.round(S.drag.from.x + (p.x - S.drag.start.x));
-      view.y = Math.round(S.drag.from.y + (p.y - S.drag.start.y));
-      render();
-      return;
-    }
-    const view = viewById(S.drag.view);
-    const el = S.layout.ids.get(S.drag.id);
-    if (!view || !el || !view.layout[el.id]) return;
-    rendererFor(view).drag(view, el, S.drag, p);
-    render();
-    if (S.drag.over) {
-      const g = svg.querySelector('.frame[data-view="' + view.id + '"] [data-el="' + S.drag.over + '"]');
-      if (g) g.classList.add('is-drop');
-    }
-  }
-  // Ends a drag: a pin's, a view's, or an element's through its renderer's drop. The record comes off drag first, so
-  // the render that follows no longer makes way for what was dragged: a box dropped in its owner is drawn held by it
-  // at once.
-  function finishDrag(event) {
+    if (first) endEdit(); // a drag is a step of its own
     const d = S.drag;
-    S.drag = null;
-    if (d.kind === 'pin') { C.dropPin(d, event); return; }
     if (d.kind === 'view') {
       const view = viewById(d.id);
       if (!view) return;
-      commit('Moved the ' + M.describeView(S.model, view), null, d.before);
-      logChange('Moved the ' + M.describeView(S.model, view), 'move:' + view.id);
-      render();
-      changed();
-      say('Moved the ' + M.describeView(S.model, view) + '.');
+      edit(() => {
+        view.x = Math.round(d.from.x + (p.x - d.start.x));
+        view.y = Math.round(d.from.y + (p.y - d.start.y));
+        return 'Moved the ' + M.describeView(S.model, view);
+      }, 'move:' + view.id);
       return;
     }
     const view = viewById(d.view);
     const el = S.layout.ids.get(d.id);
     if (!view || !el || !view.layout[el.id]) return;
-    const result = rendererFor(view).drop(view, el, d, toDrawing(event.clientX, event.clientY), event);
-    if (result && result.undo) {
-      commit(result.undo, null, d.before);
-      logChange(result.text, result.key);
+    edit(() => {
+      rendererFor(view).drag(view, el, d, p);
+      return 'Moved ' + M.describe(S.model, el);
+    }, 'move:' + el.id);
+    if (S.drag.over) {
+      const g = svg.querySelector('.frame[data-view="' + view.id + '"] [data-el="' + S.drag.over + '"]');
+      if (g) g.classList.add('is-drop');
     }
-    render();
-    renderInspector();
-    changed();
-    if (result) say(result.say || result.text + '.');
+  }
+  // Ends a drag: a pin's, a view's, or an element's through its renderer's drop, the last change of the drag's run,
+  // which ends with it. The record comes off drag first, so the render that follows no longer makes way for what was
+  // dragged: a box dropped in its owner is drawn held by it at once. A drop that puts the element back has no words of
+  // its own, and the run, back where it started, is then no step at all.
+  function finishDrag(event) {
+    const d = S.drag;
+    S.drag = null;
+    if (d.kind === 'pin') { C.dropPin(d, event); return; }
+    let said = '';
+    if (d.kind === 'view') {
+      const view = viewById(d.id);
+      if (view) edit(() => {
+        const what = 'Moved the ' + M.describeView(S.model, view);
+        said = what + '.';
+        return what;
+      }, 'move:' + view.id);
+    } else {
+      const view = viewById(d.view);
+      const el = S.layout.ids.get(d.id);
+      if (view && el && view.layout[el.id]) {
+        edit(() => {
+          const result = rendererFor(view).drop(view, el, d, toDrawing(event.clientX, event.clientY), event);
+          if (result) said = result.say || result.text + '.';
+          return result && result.undo ? { what: result.undo, log: result.text, key: result.key } : 'Moved ' + M.describe(S.model, el);
+        }, 'move:' + el.id);
+        renderInspector();
+      }
+    }
+    endEdit();
+    if (said) say(said);
   }
   function endPointer(event) {
     const p = pointers[event.pointerId];

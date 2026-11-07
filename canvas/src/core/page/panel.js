@@ -6,8 +6,8 @@
     M, VIEW_PANELS, $, panel, showPanel, inspectorEmpty, fields, fKind, fName, fAbstract, fType, fTypeLine, fMult,
     fConj, fDoc, fPath, fViews, addNoteButton, removeFromViewButton, deleteButton, viewFields, vKind, vName, vDoc,
     vShow, vMeta, vShowAdd, deleteViewButton, problemsList, problemsButton, undoButton, say, editable, plural, relById,
-    viewById, viewLayout, viewShowing, rendererFor, center, endpoints, marksFor, render, applyMarks, showPoint,
-    logChange, changed, snapshot, commit, endEdit, undo, setActive, createRel, deleteView, showable
+    viewById, viewLayout, viewShowing, rendererFor, center, endpoints, marksFor, applyMarks, showPoint, edit, endEdit,
+    undo, setActive, createRel, deleteView, showable
   } = C;
 
   // ---- Selecting, moving, and the panel.
@@ -208,33 +208,23 @@
     return 'Set the ' + x.spec.label + ' of ' + x.what + ' to ' + value;
   }
   // One pair of listeners for all of those fields: typing in a string, text or number field is one undo step per field,
-  // logged once the field is left; a bool, enum or ref changes at once.
+  // a run the field's change event ends, which logs it once the field is left; a bool, enum or ref changes at once.
   fields.addEventListener('input', (event) => {
     const x = extraFieldOf(event);
-    if (!x || !editable() || ['string', 'text', 'number'].indexOf(x.spec.type) < 0) return;
-    const before = snapshot();
-    x.item[x.fld] = readInput(x.spec, x.input);
-    commit(fieldChangeText(x), x.fld + ':' + x.item.id, before);
-    render();
-    changed();
+    if (!x || ['string', 'text', 'number'].indexOf(x.spec.type) < 0) return;
+    edit(() => {
+      x.item[x.fld] = readInput(x.spec, x.input);
+      return fieldChangeText(x);
+    }, x.fld + ':' + x.item.id);
   });
   fields.addEventListener('change', (event) => {
     const x = extraFieldOf(event);
     if (!x) return;
-    if (['string', 'text', 'number'].indexOf(x.spec.type) >= 0) {
-      logChange(fieldChangeText(x), x.fld + ':' + x.item.id);
-      endEdit();
-      changed();
-      return;
-    }
-    if (!editable()) return;
-    const before = snapshot();
-    x.item[x.fld] = readInput(x.spec, x.input);
-    const what = fieldChangeText(x);
-    commit(what, null, before);
-    logChange(what);
-    render();
-    changed();
+    if (['string', 'text', 'number'].indexOf(x.spec.type) >= 0) { endEdit(); return; }
+    edit(() => {
+      x.item[x.fld] = readInput(x.spec, x.input);
+      return fieldChangeText(x);
+    });
   });
   function renderViewFields(view, write) {
     viewFields.hidden = false;
@@ -280,142 +270,104 @@
     });
   }
 
+  // Typing in a field is a run of changes, one undo step, which the field's change event ends once the field is left:
+  // that logs it.
   fName.addEventListener('input', () => {
     const el = selectedElement();
-    const rel = selectedRel();
-    if (!editable() || (!el && !rel)) return;
-    const before = snapshot();
-    (el || rel).name = fName.value;
-    commit(el ? 'Renamed to ' + M.describe(S.model, el) : 'Named the ' + M.describeRel(S.model, rel), 'name:' + (el || rel).id, before);
-    render();
-    changed();
+    const item = el || selectedRel();
+    if (!item) return;
+    edit(() => {
+      item.name = fName.value;
+      return el ? 'Renamed to ' + M.describe(S.model, el) : 'Named the ' + M.describeRel(S.model, item);
+    }, 'name:' + item.id);
   });
   fName.addEventListener('change', () => {
     const el = selectedElement();
     const rel = selectedRel();
-    if (el) { logChange('Renamed to ' + M.describe(S.model, el), 'rename:' + el.id); fKind.textContent = M.describe(S.model, el); fPath.textContent = M.qualified(S.model, el); }
-    else if (rel) { logChange('Named the ' + M.describeRel(S.model, rel), 'rename:' + rel.id); fKind.textContent = M.describeRel(S.model, rel); }
+    if (el) { fKind.textContent = M.describe(S.model, el); fPath.textContent = M.qualified(S.model, el); }
+    else if (rel) fKind.textContent = M.describeRel(S.model, rel);
     endEdit();
     syncNoteLabels();
     C.renderNotes();
-    changed();
   });
   fAbstract.addEventListener('change', () => {
     const el = selectedElement();
-    if (!el || !editable()) return;
-    const before = snapshot();
-    el.abstract = fAbstract.checked;
-    const what = (el.abstract ? 'Made abstract: ' : 'Made concrete: ') + M.describe(S.model, el);
-    commit(what, null, before);
-    logChange(what);
-    render();
-    changed();
+    if (el) edit(() => {
+      el.abstract = fAbstract.checked;
+      return (el.abstract ? 'Made abstract: ' : 'Made concrete: ') + M.describe(S.model, el);
+    });
   });
   fType.addEventListener('change', () => {
     const el = selectedElement();
     if (!el || !editable()) return;
     const old = M.typingOf(S.model, el);
     if (!fType.value) {
-      if (old) {
-        const before = snapshot();
+      edit(() => {
+        if (!old) return null;
         S.model.relationships.splice(S.model.relationships.indexOf(old), 1);
-        commit('Undefined ' + M.describe(S.model, el), null, before);
-        logChange('Undefined ' + M.describe(S.model, el));
-      }
-      render();
-      changed();
+        return 'Undefined ' + M.describe(S.model, el);
+      });
       renderInspector();
       return;
     }
     const def = S.layout.ids.get(fType.value);
     if (!def) return;
     const rel = createRel('FeatureTyping', el, def, old ? !!old.hidden : true, 'Defined ' + M.describe(S.model, el) + ' by ' + (def.name.trim() || '(unnamed)'));
+    if (!rel) return;
     select({ type: 'el', id: el.id });
     say('Defined ' + M.describe(S.model, el) + ' by ' + def.name + '.' + (rel.hidden ? ' It shows as text; tick the box to draw the line too.' : ''));
   });
   fTypeLine.addEventListener('change', () => {
     const el = selectedElement();
     const typing = el ? M.typingOf(S.model, el) : null;
-    if (!typing || !editable()) return;
-    const before = snapshot();
-    if (fTypeLine.checked) delete typing.hidden; else typing.hidden = true;
-    const what = (fTypeLine.checked ? 'Drew the line ' : 'Hid the line ') + M.describeRel(S.model, typing);
-    commit(what, null, before);
-    logChange(what);
-    render();
-    changed();
+    if (typing) edit(() => {
+      if (fTypeLine.checked) delete typing.hidden; else typing.hidden = true;
+      return (fTypeLine.checked ? 'Drew the line ' : 'Hid the line ') + M.describeRel(S.model, typing);
+    });
   });
   fMult.addEventListener('input', () => {
     const el = selectedElement();
-    if (!el || !editable()) return;
-    const before = snapshot();
-    el.multiplicity = fMult.value.trim();
-    commit('Set the multiplicity of ' + M.describe(S.model, el) + ' to ' + (el.multiplicity || 'nothing'), 'mult:' + el.id, before);
-    render();
-    changed();
+    if (el) edit(() => {
+      el.multiplicity = fMult.value.trim();
+      return 'Set the multiplicity of ' + M.describe(S.model, el) + ' to ' + (el.multiplicity || 'nothing');
+    }, 'mult:' + el.id);
   });
-  fMult.addEventListener('change', () => {
-    const el = selectedElement();
-    if (el) { logChange('Set the multiplicity of ' + M.describe(S.model, el) + ' to ' + (el.multiplicity || 'nothing'), 'mult:' + el.id); changed(); }
-    endEdit();
-  });
+  fMult.addEventListener('change', () => endEdit());
   fConj.addEventListener('change', () => {
     const el = selectedElement();
-    if (!el || !editable()) return;
-    const before = snapshot();
-    el.conjugated = fConj.checked;
-    const what = (el.conjugated ? 'Conjugated ' : 'Unconjugated ') + M.describe(S.model, el);
-    commit(what, null, before);
-    logChange(what);
-    render();
-    changed();
+    if (el) edit(() => {
+      el.conjugated = fConj.checked;
+      return (el.conjugated ? 'Conjugated ' : 'Unconjugated ') + M.describe(S.model, el);
+    });
   });
   fDoc.addEventListener('input', () => {
     const el = selectedElement();
-    const rel = selectedRel();
-    if (!editable() || (!el && !rel)) return;
-    const before = snapshot();
-    (el || rel).doc = fDoc.value;
-    commit('Wrote the doc of ' + (el ? M.describe(S.model, el) : 'the ' + M.describeRel(S.model, rel)), 'doc:' + (el || rel).id, before);
-    render();
-    changed();
+    const item = el || selectedRel();
+    if (!item) return;
+    edit(() => {
+      item.doc = fDoc.value;
+      return 'Wrote the doc of ' + (el ? M.describe(S.model, el) : 'the ' + M.describeRel(S.model, item));
+    }, 'doc:' + item.id);
   });
-  fDoc.addEventListener('change', () => {
-    const el = selectedElement();
-    const rel = selectedRel();
-    if (el) logChange('Wrote the doc of ' + M.describe(S.model, el), 'doc:' + el.id);
-    else if (rel) logChange('Wrote the doc of the ' + M.describeRel(S.model, rel), 'doc:' + rel.id);
-    if (el || rel) changed();
-    endEdit();
-  });
+  fDoc.addEventListener('change', () => endEdit());
   vName.addEventListener('input', () => {
     const view = selectedView();
-    if (!view || !editable()) return;
-    const before = snapshot();
-    view.name = vName.value;
-    commit('Renamed the view to ' + (view.name.trim() || '(unnamed)'), 'name:' + view.id, before);
-    render();
-    setActive(S.active);
-    changed();
+    if (!view) return;
+    const done = edit(() => {
+      view.name = vName.value;
+      return 'Renamed the view to ' + (view.name.trim() || '(unnamed)');
+    }, 'name:' + view.id);
+    if (done) setActive(S.active); // the eyebrow names the active view
   });
-  vName.addEventListener('change', () => {
-    const view = selectedView();
-    if (view) { logChange('Renamed the view to ' + (view.name.trim() || '(unnamed)'), 'rename:' + view.id); changed(); }
-    endEdit();
-  });
+  vName.addEventListener('change', () => endEdit());
   vDoc.addEventListener('input', () => {
     const view = selectedView();
-    if (!view || !editable()) return;
-    const before = snapshot();
-    view.doc = vDoc.value;
-    commit('Wrote the doc of ' + M.describeView(S.model, view), 'doc:' + view.id, before);
-    changed();
+    if (view) edit(() => {
+      view.doc = vDoc.value;
+      return 'Wrote the doc of ' + M.describeView(S.model, view);
+    }, 'doc:' + view.id);
   });
-  vDoc.addEventListener('change', () => {
-    const view = selectedView();
-    if (view) { logChange('Wrote the doc of ' + M.describeView(S.model, view), 'doc:' + view.id); changed(); }
-    endEdit();
-  });
+  vDoc.addEventListener('change', () => endEdit());
 
   // Delete takes an element out of the model and every view, with everything inside it and every line on it; a line
   // out of the model; a view off the plane, its elements staying.
@@ -423,32 +375,30 @@
     const s = resolve(S.selection);
     if (!s || !editable()) return;
     if (s.type === 'view') { deleteView(s.item); return; }
-    const before = snapshot();
     let gone = [];
     let what;
     let dropped;
-    if (s.type === 'el') {
-      what = M.describe(S.model, s.item);
-      gone = [s.item].concat(M.descendants(S.model, s.item.id));
-      const ids = new Set(gone.map((e) => e.id));
-      const rels = S.model.relationships.filter((r) => ids.has(r.from) || ids.has(r.to));
-      rels.forEach((r) => ids.add(r.id));
-      S.model.elements = S.model.elements.filter((e) => !ids.has(e.id));
-      S.model.relationships = S.model.relationships.filter((r) => !ids.has(r.id));
-      S.model.views.forEach((v) => ids.forEach((id) => { delete v.layout[id]; }));
-      if (S.pending && ids.has(S.pending)) S.pending = null;
-      dropped = dropNotesOn(ids);
-    } else {
-      what = 'the ' + M.describeRel(S.model, s.item);
-      S.model.relationships = S.model.relationships.filter((r) => r.id !== s.item.id);
-      dropped = dropNotesOn(new Set([s.item.id]));
-    }
-    commit('Deleted ' + what, null, before);
-    logChange('Deleted ' + what);
+    edit(() => {
+      if (s.type === 'el') {
+        what = M.describe(S.model, s.item);
+        gone = [s.item].concat(M.descendants(S.model, s.item.id));
+        const ids = new Set(gone.map((e) => e.id));
+        const rels = S.model.relationships.filter((r) => ids.has(r.from) || ids.has(r.to));
+        rels.forEach((r) => ids.add(r.id));
+        S.model.elements = S.model.elements.filter((e) => !ids.has(e.id));
+        S.model.relationships = S.model.relationships.filter((r) => !ids.has(r.id));
+        S.model.views.forEach((v) => ids.forEach((id) => { delete v.layout[id]; }));
+        if (S.pending && ids.has(S.pending)) S.pending = null;
+        dropped = dropNotesOn(ids);
+      } else {
+        what = 'the ' + M.describeRel(S.model, s.item);
+        S.model.relationships = S.model.relationships.filter((r) => r.id !== s.item.id);
+        dropped = dropNotesOn(new Set([s.item.id]));
+      }
+      return 'Deleted ' + what;
+    });
     select(null);
-    render();
     C.renderNotes();
-    changed();
     say('Deleted ' + what + (gone.length > 1 ? ', with ' + plural(gone.length - 1, 'element') + ' inside it' : '') +
       (dropped ? ', and ' + plural(dropped, 'note') + ' on it' : '') + '.');
   }

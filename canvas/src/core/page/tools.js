@@ -4,8 +4,7 @@
   const S = C.state;
   const {
     M, NARROW, TOOL_TITLE, TOOL_HINT, BASE_NAME, TOOLS, canvas, svg, hint, eyebrow, palette, fName, say, editable,
-    newId, paletteButtons, viewById, activeView, rendererFor, viewAt, blankField, render, applyMarks, logChange,
-    changed, snapshot, commit
+    newId, paletteButtons, viewById, activeView, rendererFor, viewAt, blankField, applyMarks, edit
   } = C;
 
   // ---- Tools: adding elements and drawing relationships.
@@ -104,15 +103,14 @@
       return;
     }
     if (view.id !== S.active) setActive(view.id);
-    const before = snapshot();
-    const el = rendererFor(view).place(view, kind, p, hit);
+    let el = null;
+    edit(() => {
+      el = rendererFor(view).place(view, kind, p, hit);
+      return el ? 'Added ' + M.describe(S.model, el) : null;
+    });
     if (!el) return;
-    commit('Added ' + M.describe(S.model, el), null, before);
-    logChange('Added ' + M.describe(S.model, el));
     setTool(null);
-    render();
     C.select({ type: 'el', id: el.id }, view.id);
-    changed();
     // A kind with no name field (a start node) has nothing to name, and the panel shows no name input for it.
     if (!M.hasName(kind)) { say('Added ' + M.describe(S.model, el) + ' to ' + M.describeView(S.model, view) + '.'); return; }
     say('Added ' + M.describe(S.model, el) + ' to ' + M.describeView(S.model, view) + '. Name it in the panel.');
@@ -148,28 +146,26 @@
     createRel(kind, a, b, false, null, hit.view);
   }
   // Draws a relationship, as one undo step: what names it for Undo and the log when the plain "Drew …" won't do.
+  // Returns the relationship, or null when the page can't be changed.
   function createRel(kind, a, b, hidden, what, viewId) {
-    const before = snapshot();
-    const rel = { id: newId('r'), kind: kind, from: a.id, to: b.id };
-    M.RELATIONSHIPS[kind].fields.forEach((fld) => blankField(rel, fld));
-    if (hidden && M.RELATIONSHIPS[kind].hideable) rel.hidden = true;
-    if (kind === 'FeatureTyping') {
-      // One definition per usage: the old line goes, and the notes on it move to the new one.
-      const old = M.typingOf(S.model, a);
-      if (old) {
-        S.model.relationships.splice(S.model.relationships.indexOf(old), 1);
-        S.notes.filter((n) => n.target === old.id).forEach((n) => { n.target = rel.id; n.targetLabel = M.describeRel(S.model, rel); C.noteChanged(n, ['target', 'targetLabel']); });
-      }
-    }
-    S.model.relationships.push(rel);
-    S.pending = null;
-    const text = what || 'Drew ' + M.describeRel(S.model, rel);
-    commit(text, null, before);
-    logChange(text);
+    let rel = null;
+    let text = '';
+    edit(() => {
+      rel = { id: newId('r'), kind: kind, from: a.id, to: b.id };
+      M.RELATIONSHIPS[kind].fields.forEach((fld) => blankField(rel, fld));
+      if (hidden && M.RELATIONSHIPS[kind].hideable) rel.hidden = true;
+      // One definition per usage: the old line goes, and the notes on it move to the new one once it is in.
+      const old = kind === 'FeatureTyping' ? M.typingOf(S.model, a) : null;
+      if (old) S.model.relationships.splice(S.model.relationships.indexOf(old), 1);
+      S.model.relationships.push(rel);
+      if (old) S.notes.filter((n) => n.target === old.id).forEach((n) => { n.target = rel.id; n.targetLabel = M.describeRel(S.model, rel); C.noteChanged(n, ['target', 'targetLabel']); });
+      S.pending = null;
+      text = what || 'Drew ' + M.describeRel(S.model, rel);
+      return text;
+    });
+    if (!rel) return null;
     setTool(null);
-    render();
     C.select({ type: 'rel', id: rel.id }, viewId);
-    changed();
     const drawn = (S.layout.where.get(rel.id) || []).length > 0;
     say(text + (kind === 'ConnectionUsage' ? '. Name it in the panel.' : '.') +
       (!drawn && !rel.hidden ? ' No view shows both ends, so the line is not drawn anywhere yet.' : ''));
