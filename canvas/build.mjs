@@ -52,6 +52,7 @@ export const LIBRARY = [
   'grid/lib.js',
   'browser/lib.js',
   'annotations/lib.js',
+  'labels/lib.js',
   'core/lib/validate.js',
   'core/lib/sysml.js',
   'core/lib/stored.js',
