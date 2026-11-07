@@ -6,20 +6,41 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { build, readStateFile } from '../build.mjs';
 import { installFakeClaude } from './fake-claude.mjs';
 
 // Playwright is installed globally in this container, where only require() finds it: ESM imports ignore NODE_PATH.
 const { chromium } = createRequire(import.meta.url)('playwright');
 
-export const PAGE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'index.html');
-export const PAGE_URL = pathToFileURL(PAGE).href;
+const CANVAS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/** The canvas's own page, which starts from the blank model saved in state.json. start.test.mjs opens it. */
+export const INDEX = path.join(CANVAS, 'index.html');
+/** The Stronghold example, the model the canvas was first built to draw, which the tests were written against. */
+export const EXAMPLE = path.join(CANVAS, 'examples', 'stronghold-proof.json');
+
+/** A page built from the sources with a state file as its saved state, into a folder of its own, removed at exit. */
+function pageHolding(stateFile) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'canvas-page-'));
+  process.on('exit', () => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'index.html');
+  fs.writeFileSync(file, build(readStateFile(stateFile)));
+  return file;
+}
+
+/**
+ * The page the tests open, unless they name another: the canvas holding the Stronghold example. It is index.html with
+ * the example as its saved state in place of state.json, since build.test.mjs checks that index.html is what the same
+ * sources build. It is built once per process.
+ */
+export const PAGE = pageHolding(EXAMPLE);
 /** How long a wait may take, in ms: past the page's 2 s debounced store write, short enough to fail fast. */
 export const WAIT = 5000;
 
-export function assertPageExists() {
-  assert.ok(fs.existsSync(PAGE), `No canvas page at ${PAGE}. These tests drive canvas/index.html; build it first.`);
+export function assertPageExists(file = PAGE) {
+  assert.ok(fs.existsSync(file), `No canvas page at ${file}. Build index.html first: node canvas/build.mjs.`);
 }
 
 /** Launches Chromium for a test file, after checking the page is there, so a missing page fails before any browser work. */
@@ -30,9 +51,9 @@ export function launch() {
 
 // The page's source, read from disk: the model it embeds and its model library.
 
-export function pageSource() {
-  assertPageExists();
-  return fs.readFileSync(PAGE, 'utf8');
+export function pageSource(file = PAGE) {
+  assertPageExists(file);
+  return fs.readFileSync(file, 'utf8');
 }
 
 /** The saved model in <script type="application/json" id="model">, parsed. */
@@ -59,20 +80,22 @@ export function modelElementIds(model) {
 // Opening and closing the page.
 
 /**
- * Opens the page on a fresh browser context (so a fresh localStorage), 1400 x 900. With `shared`, the fake window.claude
- * is installed first, its store holding `seed` (documents by path), and the call returns once the page has read the
- * model from the store: the head of its layout 2, model/current, or a whole model in model/working. `init`, when given,
- * is a function run in the page after the fake is installed and before the page's scripts (to change what the fake
- * says). Dialogs are accepted. Uncaught errors in the page are collected for finish().
+ * Opens the page (`file`, the canvas holding the Stronghold example unless another is named) on a fresh browser context
+ * (so a fresh localStorage), 1400 x 900. With `shared`, the fake window.claude is installed first, its store holding
+ * `seed` (documents by path), and the call returns once the page has read the model from the store: the head of its
+ * layout 2, model/current, or a whole model in model/working. `init`, when given, is a function run in the page after the
+ * fake is installed and before the page's scripts (to change what the fake says). Dialogs are accepted. Uncaught errors
+ * in the page are collected for finish().
  */
-export async function openCanvas(browser, { shared = false, seed = {}, init = null } = {}) {
+export async function openCanvas(browser, { shared = false, seed = {}, init = null, file = PAGE } = {}) {
+  assertPageExists(file);
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('dialog', (dialog) => dialog.accept());
   if (shared) await page.addInitScript(installFakeClaude, seed);
   if (shared && init) await page.addInitScript(init);
-  await page.goto(PAGE_URL);
+  await page.goto(pathToFileURL(file).href);
   await page.waitForSelector('#canvas svg#drawing', { state: 'attached', timeout: WAIT });
   if (shared) {
     await until(page, () => window.__store.log.some((entry) =>

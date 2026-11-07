@@ -1,6 +1,6 @@
 # SysML v2 Pilot Implementation map
 
-A map of [Systems-Modeling/SysML-v2-Pilot-Implementation][repo], the open-source pilot implementation of KerML and SysML v2. It holds the parsers, the semantics, the Eclipse editors, and the Jupyter kernel whose release build [`../README.md`](../README.md) suggests for checking `stronghold-proof.sysml`. The map was drawn from master at commit [`378a870`][commit] of November 4, 2026: version 0.64.0-SNAPSHOT, which comes after the release tagged `2026-09.1`.
+A map of [Systems-Modeling/SysML-v2-Pilot-Implementation][repo], the open-source pilot implementation of KerML and SysML v2. It holds the parsers, the semantics, the Eclipse editors, and the Jupyter kernel whose release build `../check.sh` runs to check SysML files, the canvas's export among them ([`../README.md`](../README.md)). The map was drawn from master at commit [`378a870`][commit] of November 4, 2026: version 0.64.0-SNAPSHOT, which comes after the release tagged `2026-09.1`.
 
 [aider](https://aider.chat) drew the maps: for each file, the definitions it would hand a model as context, chosen by how much the rest of the code refers to them. This page adds what the maps can't show: how the projects fit together, and the files aider can't read.
 

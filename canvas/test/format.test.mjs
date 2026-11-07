@@ -26,6 +26,10 @@ function loadLib(source) {
   return sandbox.SysMLModel;
 }
 
+// The format's names: Grasp's, and the one files were saved under before the canvas was named Grasp. Both name the
+// same versions.
+const NAMES = ['grasp', 'stronghold-canvas'];
+
 const fixtures = () => fs.readdirSync(FIXTURES).filter((name) => name.endsWith('.json')).sort();
 const readState = (name) => JSON.parse(fs.readFileSync(path.join(FIXTURES, name), 'utf8'));
 const pinnedName = (name) => name.replace(/\.json$/, '.sysml');
@@ -45,17 +49,20 @@ describe('saved files', () => {
   test('the library reads and writes the current version, and a model names the version it was saved in', () => {
     const lib = loadLib(pageSource());
     assert.ok(Number.isInteger(lib.VERSION) && lib.VERSION >= 2, `VERSION is a whole number, 2 or more: ${lib.VERSION}`);
-    assert.equal(lib.FORMAT, 'stronghold-canvas/' + lib.VERSION, 'the format names the version');
+    assert.equal(lib.FORMAT, 'grasp/' + lib.VERSION, 'the format names the version');
     assert.equal(lib.blank().format, lib.FORMAT, 'a new model is in the current version');
-    for (const raw of [null, {}, { format: 'stronghold-canvas/1' }, { format: lib.FORMAT }]) {
+    for (const raw of [null, {}, { format: 'stronghold-canvas/1' }, { format: 'stronghold-canvas/2' }, { format: lib.FORMAT }]) {
       assert.equal(lib.normalize(raw).format, lib.FORMAT, `normalize gives ${JSON.stringify(raw)} in the current version`);
     }
-    assert.equal(lib.versionOf({ format: 'stronghold-canvas/1' }), 1);
+    for (const name of NAMES) {
+      assert.equal(lib.versionOf({ format: name + '/1' }), 1, `${name}/1 is version 1`);
+      assert.equal(lib.versionOf({ format: name + '/' + (lib.VERSION + 1) }), lib.VERSION + 1, `${name}: a version newer than the library is named as it is`);
+    }
     assert.equal(lib.versionOf({ format: lib.FORMAT }), lib.VERSION);
-    assert.equal(lib.versionOf({ format: 'stronghold-canvas/' + (lib.VERSION + 1) }), lib.VERSION + 1, 'a version newer than the library is named as it is');
     // A model that names no version is one written by hand, in the version of the day.
     for (const raw of [undefined, null, 'junk', [], {}, { format: 7 }, { format: 'other/1' }, { format: 'stronghold-canvas/0' },
-      { format: 'stronghold-canvas/v1' }, { format: 'stronghold-canvas/1 ' }]) {
+      { format: 'stronghold-canvas/v1' }, { format: 'stronghold-canvas/1 ' }, { format: 'grasp/0' }, { format: 'grasp/v1' },
+      { format: 'grasp/1 ' }, { format: 'grasp-canvas/1' }]) {
       assert.equal(lib.versionOf(raw), lib.VERSION, `${JSON.stringify(raw)} names no version, so it is read as the current one`);
     }
   });
@@ -64,16 +71,20 @@ describe('saved files', () => {
     const lib = loadLib(pageSource());
     for (let version = 1; version < lib.VERSION; version += 1) {
       // Even the barest model of a version: a file may have been written by hand, so an upgrade takes any JSON.
-      for (const raw of [{ format: 'stronghold-canvas/' + version }, { format: 'stronghold-canvas/' + version, elements: [null, 5, 'x', {}], views: 'x', view: 7 }]) {
-        const upgraded = lib.upgrade(frozen(raw));
-        assert.equal(lib.versionOf(upgraded), lib.VERSION, `${JSON.stringify(raw)} is upgraded to version ${lib.VERSION}`);
-        assert.equal(lib.normalize(raw).format, lib.FORMAT);
+      for (const format of NAMES.map((name) => name + '/' + version)) {
+        for (const raw of [{ format }, { format, elements: [null, 5, 'x', {}], views: 'x', view: 7 }]) {
+          const upgraded = lib.upgrade(frozen(raw));
+          assert.equal(lib.versionOf(upgraded), lib.VERSION, `${JSON.stringify(raw)} is upgraded to version ${lib.VERSION}`);
+          assert.equal(lib.normalize(raw).format, lib.FORMAT);
+        }
       }
     }
     const current = { format: lib.FORMAT, elements: [] };
     assert.equal(lib.upgrade(current), current, 'a model in the current version is read as it is');
-    const newer = { format: 'stronghold-canvas/' + (lib.VERSION + 1), elements: [] };
-    assert.equal(lib.upgrade(newer), newer, 'and so is one in a version the library doesn\'t know yet');
+    for (const name of NAMES) {
+      const newer = { format: name + '/' + (lib.VERSION + 1), elements: [] };
+      assert.equal(lib.upgrade(newer), newer, `and so is one in a version the library doesn't know yet (${name})`);
+    }
   });
 
   test('every fixture names its version, and there is a fixture saved in every version from 1 to the current one', () => {
@@ -81,7 +92,7 @@ describe('saved files', () => {
     const versions = new Map();
     for (const name of fixtures()) {
       const { model } = readState(name);
-      assert.match(String(model.format), /^stronghold-canvas\/[1-9][0-9]*$/, `${name} names the version it was saved in`);
+      assert.match(String(model.format), /^(?:grasp|stronghold-canvas)\/[1-9][0-9]*$/, `${name} names the version it was saved in`);
       const version = lib.versionOf(model);
       assert.ok(version <= lib.VERSION, `${name} was saved in a version the library knows: ${version}`);
       versions.set(version, (versions.get(version) || []).concat(name));
@@ -124,7 +135,7 @@ describe('saved files', () => {
     const raw = readState('format1.json').model;
     assert.equal(lib.versionOf(raw), 1, 'format1.json was saved in version 1');
     const upgraded = lib.upgrade(raw);
-    assert.equal(upgraded.format, 'stronghold-canvas/2', 'version 1 goes to version 2');
+    assert.equal(upgraded.format, 'grasp/2', 'version 1 goes to version 2');
     assert.equal(upgraded.view, undefined, 'version 1\'s view is gone');
     assert.equal(upgraded.views.length, 1, 'into one view');
     const view = upgraded.views[0];

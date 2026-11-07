@@ -961,3 +961,101 @@ are opening / joining an undo step). Before is session 8's table.
   pair; all three are small today.
 - Agents' worktrees live under `.claude/worktrees`, which is in this clone's `.git/info/exclude`, not in `.gitignore`.
 - The licensing of `metamodel.js` is still open (session 7). `docs/REPO_MAP.md` still shows the old single file.
+
+## Session 10, November 7, 2026: step 9, Make the repo the tool's own
+
+Step 9 is done. The canvas starts from a blank model, Stronghold's models are labeled as examples, the README's decision
+record says the page is one file built from several and the saved state lives in `canvas/state.json`, and the tool is
+named Grasp. Damon gave the name when asked, once the rest was committed: the repository becomes Grasp (it was
+Playground), and the page's title and heading carry the name. Five commits, each with every test passing: the
+Stronghold model kept as an example with the tests opening the canvas holding it; the blank start, the page's title and
+its tests; the READMEs and the decision record; these notes as they stood before the name; the renames. These notes, as
+they stand now, are the sixth.
+
+### Where things are now
+
+- `canvas/state.json` holds a blank model, the one SysON's "SysMLv2" template (its empty project) starts with
+  (`docs/sysml/syson/features/application.md`, "SysON project templates"): the package `Package1` with an empty doc,
+  holding one general view, `view1` (id `v-1`, at 0, 0, an empty layout), and no elements, lines, notes or archive. Its
+  format is `grasp/2` and its revision `2026-11-07T16:43:21.719Z`, both written by `save-state.mjs`, which also built
+  `index.html`. It exports as `package Package1 {`, a blank line, `view view1 : StandardViewDefinitions::GeneralView;`,
+  `}` (SHA-256 `a8423a94…`), and the page draws one empty frame whose palette is the general view's. The package's name
+  can't be changed on the page (no field has it), as before; Claude changes it on its side.
+- `canvas/examples/stronghold-proof.json` is the old `state.json` byte for byte, its format `stronghold-canvas/2` and
+  its revision `2026-11-06T11:57:16.000Z` included: the Stronghold proof's structure. It exports session 1's
+  saved-model text (SHA-256 `9825ca06…`). `canvas/examples/README.md` says what it is and how to open it (Import
+  state; `export.mjs`, `check.sh`).
+- The tests open the canvas holding that example, the model they were written against. In `test/helpers.mjs`, `PAGE` is
+  now a page built from the sources with the example as its saved state (`build(readStateFile(EXAMPLE))`, written into
+  a folder in the system's temp folder, once per process, removed at exit). It is `index.html` with another saved
+  state, since `build.test.mjs` checks that `index.html` is what the sources build. `INDEX` is `index.html` itself and
+  `EXAMPLE` the example's path; `openCanvas(browser, { file })`, `pageSource(file)` and `assertPageExists(file)` take
+  another page; `PAGE_URL` is gone (nothing used it). No assertion changed for this.
+- Two Node tests read `state.json` itself: the save test in `store-dump.test.mjs` now saves the example (it pins notes
+  on the model's first element) from a dump based on `state.json`'s revision, and `stored.test.mjs` splits the example
+  as well as the saved model.
+- `test/start.test.mjs` (4 tests) opens `index.html` itself: the blank model it saves; its text, with no problems; the
+  page opening on one empty, active general view with its palette, nothing to undo, no problems, the export panel's
+  text, the title and heading Grasp, and nothing the page shows naming Stronghold; and a first part def going into
+  `Package1`, which the view then exposes as `Package1::*::**`.
+- The name, Grasp:
+  - The page's title and heading say Grasp (they said Stronghold Design Canvas). `README.md`'s title is Grasp.
+  - The saved format is `grasp/2` (`FORMAT` in `core/lib/model.js`): the same version 2 under a new name, so `VERSION`
+    is unchanged. `versionOf` reads `grasp/N` and `stronghold-canvas/N` alike, and must go on reading the old name for
+    the files already saved; version 1's upgrade writes `grasp/2`. A page from before the rename finds no version in
+    `grasp/2` and reads it as its own current version, 2, so files pass both ways. The fixtures and the example keep the
+    old name, as they were saved, and so do the models several tests build (`model-lib`, `naming`, `stored`, `visible`,
+    `scale-model.mjs`), which now also check that old files read.
+  - The browser's keys are `grasp:` (plus the saved revision, for the page opened as a file) and `grasp-camera:v1` in
+    `core/page/base.js`. A copy kept under the old key was set aside by the new revision anyway; the camera forgets
+    where it was, once.
+  - `src/README.md`, `canvas/README.md` and the decision record in `README.md` say all this.
+- `core/style.css`'s comment says the colors and type were first taken from the Stronghold project's design tokens;
+  `interconnection/lib.js`'s comment says `~Api` for `~StrongholdApp`.
+- `canvas/canvas.png` was taken again, the same scene under the title Grasp: `annotations.json` with the grid fixture's
+  `v-table` and the browser fixture's `v-tree` (moved to x 1400, y 560) added, imported through Import state into
+  `index.html` at 1400 × 900 and device scale 2, then Fit, then a click on the empty plane at (200, 250) to clear the
+  status line. The script was the session's own, in its scratchpad.
+- The READMEs: `README.md` says what Grasp is, that it was first built to draw Stronghold's design, lists
+  `canvas/examples/` and `plan/`, shows the build and an example's check under Run it, and its decision record gains
+  November 7, 2026 (the canvas a tool of its own with a blank start and Stronghold's models as examples; the name;
+  one file built from several; the saved state in `canvas/state.json`), with the November 6 entry pointing to it.
+  `canvas/README.md` says what the page starts from, where the examples are, and what the tests open, and writes its
+  examples of the text in `Package1`'s names. `docs/sysml/README.md` puts first what the canvas uses (the validator
+  script, the maps) and the Stronghold proof last, under "The example", its text kept but for two sentences (below).
+
+What a user can notice: the page is called Grasp and opens blank, and the Stronghold model opens with Import state.
+
+### How it was checked
+
+- Tests: 179 of 179 pass, the 175 from session 9 and the 4 in `start.test.mjs`; the documented command takes about 70 s,
+  as before. Before the renames, the one-process run (`node --test canvas/test/`) passed too, 179 of 179 in 2.5 minutes,
+  with one page built for all the files.
+- The first commit changed only how the tests reach their model: while `state.json` was still the example, the page the
+  tests open was `index.html` byte for byte, and 175 of 175 passed.
+- The start tests fail when they should: on an `index.html` holding the Stronghold example all four fail, and under the
+  old title the page test fails.
+- The format's names: a `versionOf` that knows only `grasp` fails five of the format tests (old files no longer
+  upgrade), and one that knows only `stronghold-canvas` fails the first.
+- Exports: the saved model prints `a8423a94…`, before and after the renames, and `canvas/check.sh` accepts it
+  (`Package Package1`); the example prints session 1's `9825ca06…` and `check.sh` accepts it (`Package
+  StrongholdProof`), as it does `format1.json`; every fixture prints its pinned text.
+- `docs/sysml/README.md`: every line of the old file is in the new one word for word, except the title, the demoted
+  headings, the script's comment, and the two sentences changed on purpose (the paths "in this section"; the canvas's
+  example named).
+
+### For the next session
+
+- Step 10: SysON's features, in the order of `features` in `plan/status.json`, label editing first.
+- Damon renames the GitHub repository to Grasp himself. GitHub sends the old address on to the new one, so a clone of
+  `aliaseddd/Playground` keeps working; the session's tools may need the new name once it changes.
+- The published page, https://claude.ai/artifact/V7Fw94cGMbtPnwmyDNmnjU, was built from the revision
+  `2026-11-06T11:57:16.000Z`, the example's. Published again from this `index.html`, it starts blank, and its store's
+  model, based on the old revision, is set aside, not deleted. If Damon drew on the page, read the store first:
+  `save-state.mjs` now refuses a dump based on the old revision (it isn't `state.json`'s), but `export.mjs` reads it
+  with a note, and `SysMLModel.readStore(dump, '2026-11-06T11:57:16.000Z')` gives `{ model, notes, archive }` to keep as
+  a state file, in `canvas/examples/` or wherever Damon says.
+- Step 10's tests can open the canvas holding the example (the default), import a fixture, or open another page with
+  `openCanvas(browser, { file })`.
+- Noticed, outside this step: Fit on the blank model's empty frame zooms to 221%, so the first element is placed large.
+- `docs/REPO_MAP.md` still shows the old single file and the old helper (`PAGE_URL`).

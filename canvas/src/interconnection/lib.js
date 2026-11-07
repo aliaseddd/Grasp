@@ -171,7 +171,7 @@
   // and interfaces, and the statement a connector is written as.
 
   // The definition a usage is typed by, found through what it redefines when it isn't typed itself (port :>> api;
-  // on a part takes the api : ~StrongholdApp of the part's def): { def, conjugated }, or null for nothing.
+  // on a part takes the api : ~Api of the part's def): { def, conjugated }, or null for nothing.
   function definitionOf(model, el, ids) {
     const seen = new Set();
     let cur = el;

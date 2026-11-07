@@ -144,7 +144,7 @@ const fieldState = (page, item, fld, save = false) => page.evaluate(([it, f, sav
   if (saveNow) {
     clearTimeout(S.saveTimer);
     C.persist();
-    const key = Object.keys(localStorage).find((k) => k.indexOf('stronghold-canvas:') === 0);
+    const key = Object.keys(localStorage).find((k) => k.indexOf('grasp:') === 0);
     const stored = key ? JSON.parse(localStorage.getItem(key)) : null;
     state.saved = !!stored && JSON.stringify(stored.model) === state.json;
   }
@@ -315,7 +315,7 @@ describe('the panel\'s fields', () => {
     assert.equal(await page.evaluate(() => window.SysMLCanvas.state.notes[0].target), 't-hosts', 'the note stays on the line');
     assert.equal(await noteLabel(), 'hosts defined by ServerHost', 'and its label follows the new end');
     // The save the change schedules, when it comes, writes the moved end.
-    await until(page, () => Object.keys(localStorage).some((k) => k.indexOf('stronghold-canvas:') === 0 &&
+    await until(page, () => Object.keys(localStorage).some((k) => k.indexOf('grasp:') === 0 &&
       JSON.parse(localStorage.getItem(k)).model.relationships.some((r) => r.id === 't-hosts' && r.to === 'ServerHost')), null, 'the change is saved');
 
     await page.click('#f-typeLine');

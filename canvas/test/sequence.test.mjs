@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { embeddedModel, exportText, finish, launch, openCanvas, placeElement, rename, until } from './helpers.mjs';
 
 const FIXTURE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'sequence.json');
-const STATE_KEY = 'stronghold-canvas:' + embeddedModel().revision; // where local mode keeps the page's state
+const STATE_KEY = 'grasp:' + embeddedModel().revision; // where local mode keeps the page's state
 
 /** The layout entry of an element in a view as the page has persisted it, after its pending save is flushed. */
 async function savedLayout(page, viewId, elId) {
