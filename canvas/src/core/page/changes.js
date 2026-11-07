@@ -311,22 +311,34 @@
     changed();
     return touched;
   }
-  // What the drawing must do about a change, from its notes (see render): a change that only moved things (each
-  // write was to a place in a view's layout, or to a view's x or y) lays out again just the views it touched, and
-  // may draw again just what moved; one that showed or hid things in views (a place put in a layout or taken out of
-  // it, and nothing else) lays out just those views again; any other can have moved anything, in any view.
+  // What the drawing must do about a change, from its notes (see render): { views, patch, structure, shown }. A change
+  // that only moved things (each write was to a place in a view's layout, or to a view's x or y) lays out again just
+  // the views it touched (views), and may draw again just what moved (patch); one that showed or hid things in views
+  // (a place put in a layout or taken out of it) lays out just those views again (shown); any other can have moved
+  // anything, in any view (views null). structure says the change altered which elements, lines and views there are,
+  // or their order, kinds, owners or ends: what the library's lookups are made from. Null for a whole new model.
+  const STRUCTURE = { elements: ['id', 'kind', 'owner'], relationships: ['id', 'kind', 'from', 'to'], views: ['id', 'kind'] };
   function howToDraw(notes, touched) {
     if (notes.replaced) return null;
     let patch = true;
-    for (const t of notes.lists.keys()) { if ((homes.get(t) || REST).at !== 'place') return null; }
+    let shown = false;
+    let structure = false;
+    for (const t of notes.lists.keys()) {
+      const h = homes.get(t) || REST;
+      if (h.at === 'list') structure = true;
+      if (h.at !== 'place') patch = false;
+    }
     for (const [t, keys] of notes.objects) {
       const h = homes.get(t) || REST;
       if (h.at === 'place') continue;
-      if (h.at === 'layout') { patch = false; continue; }
+      if (h.at === 'layout') { shown = true; continue; }
       if (h.at === 'item' && h.list === 'views' && Array.from(keys.keys()).every((k) => k === 'x' || k === 'y')) continue;
-      return null;
+      patch = false;
+      if (h.at === 'root' || (h.at === 'item' && Array.from(keys.keys()).some((k) => STRUCTURE[h.list].indexOf(k) >= 0))) structure = true;
     }
-    return { views: new Set(touched.views), patch: patch };
+    if (patch && !shown) return { views: new Set(touched.views), patch: true, structure: false, shown: false };
+    if (patch) return { views: new Set(touched.views), patch: false, structure: false, shown: true };
+    return { views: null, patch: false, structure: structure, shown: shown };
   }
   // What a change says it did, as { what, log, key }, or null when it says it did nothing.
   function words(said, key) {

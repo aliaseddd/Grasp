@@ -4638,9 +4638,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const rects = new Map();
     const comps = new Map();
     const widths = new Map();     // the width each box's compartments were wrapped to
+    let foreign = false;          // whether a box shows a compartment that reads more than the box's element
     function size(el) {
       const lay = view.layout[el.id];
       const shape = C.SHAPES[M.KINDS[el.kind].shape] || C.SHAPES.rect;
+      if (shape.compartments && !C.ownCompartments(el)) foreign = true;
       const same = before && before.widths && before.widths.get(el.id) === lay.w && (!touched || (!touched.has(el.id) && C.ownCompartments(el)));
       const kept = same ? before.comps.get(el.id) : null;
       const blocks = kept || (shape.compartments ? C.compartmentsOf(el, lay.w) : []);
@@ -4680,7 +4682,23 @@ textarea.text[readonly] { resize: none; background: transparent; }
         x2: Math.max(box.x2, r.x + r.w), y2: Math.max(box.y2, r.y + r.h)
       } : { x: r.x, y: r.y, x2: r.x + r.w, y2: r.y + r.h };
     }
-    return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: comps, widths: widths, frameRect: frameAround(view, box) };
+    return { view: view, shown: shown, kids: kids, parentOf: parentOf, rects: rects, comps: comps, widths: widths, foreign: foreign, frameRect: frameAround(view, box) };
+  }
+  // Whether a graph view's layout L still holds after a change to what things are, not to which there are or where
+  // (render, keeps): the rest of a graph layout is made from the view's places and the model's structure, so it does
+  // when no box the change touched has other compartments now, and no box shows a compartment that reads beyond its
+  // own element.
+  function graphKeeps(view, L, plan, ids) {
+    if (L.foreign) return false;
+    for (const id of plan.touched) {
+      if (!L.shown.has(id)) continue;
+      const el = ids.get(id);
+      const lay = view.layout[id];
+      const shape = C.SHAPES[M.KINDS[el.kind].shape] || C.SHAPES.rect;
+      const now = shape.compartments ? C.compartmentsOf(el, lay.w) : [];
+      if (JSON.stringify(now) !== JSON.stringify(L.comps.get(id) || [])) return false;
+    }
+    return true;
   }
   // The frame around a view's content: its bounding box plus the margin, never smaller than the minimum. An empty
   // view's frame starts at the view's origin.
@@ -4696,12 +4714,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // list of view ids, or undefined for none); and bounds, the box around every frame. Given the layout from before a
   // change (previous) and what the change can have altered (plan, from render), it lays out again only what it must:
   // plan.views, when given, are the views a change that showed, hid or moved things touched, and the others keep
-  // their layouts and the element index, since such a change adds and removes no element; plan.moving says it only
-  // moved things, so a view laid out again draws the same lines, and its renderer may keep what moves can't change;
-  // with no plan.views every view is laid out again, its renderer told what the change touched (plan.touched, the
-  // ids of the elements), to keep what that can't have changed. With no previous layout, everything is laid out anew.
+  // their layouts; plan.moving says it only moved things, so a view laid out again draws the same lines, and its
+  // renderer may keep what moves can't change. With no plan.views, every view is laid out again, unless its renderer
+  // says the change can't have altered its layout (keeps(view, L, plan)); a renderer laying a view out again is told
+  // what the change touched (plan.touched, the ids of the elements), to keep what that can't have changed. A change
+  // that left the model's structure as it was (plan.structure false: no element added, removed or moved in the list)
+  // keeps the element index, and one that touched no line and showed or hid nothing keeps each view's lines. With no
+  // previous layout, everything is laid out anew.
   function computeLayout(previous, plan) {
-    const kept = !!previous && !!plan && !!plan.views;
+    const kept = !!previous && !!plan && (!!plan.views || !plan.structure);
     const ids = kept ? previous.ids : M.index(S.model);
     const order = kept ? previous.order : new Map(S.model.elements.map((e, i) => [e.id, i]));
     const views = new Map();
@@ -4709,15 +4730,20 @@ textarea.text[readonly] { resize: none; background: transparent; }
     for (const view of S.model.views) {
       const was = previous ? previous.views.get(view.id) : null;
       const same = !!was && was.view === view;
+      const r = rendererFor(view);
       let L;
-      if (kept && same && !plan.views.has(view.id)) L = was;
-      else if (kept && same && plan.moving) {
-        L = rendererFor(view).layout(view, ids, order, was);
-        L.rels = was.rels;
-        L.drawn = was.drawn;
-        L.byEnd = was.byEnd;
-      } else if (plan && same && !plan.views) L = drawnLines(rendererFor(view).layout(view, ids, order, was, plan.touched));
-      else L = drawnLines(rendererFor(view).layout(view, ids, order));
+      if (kept && same && plan.views && !plan.views.has(view.id)) L = was;
+      else if (kept && same && plan.views && plan.moving) L = sameLines(r.layout(view, ids, order, was), was);
+      else if (plan && same && !plan.views) {
+        const still = !plan.structure && !plan.shown;
+        // A layout that still holds after a change to lines still draws other lines (a line hidden, say).
+        if (still && r.keeps && r.keeps(view, was, plan, ids)) L = plan.lines.size ? drawnLines(Object.assign({}, was, { byEnd: undefined })) : was;
+        else {
+          L = r.layout(view, ids, order, was, plan.touched);
+          if (still && !plan.lines.size && L.shown.size === was.shown.size) sameLines(L, was);
+          else drawnLines(L);
+        }
+      } else L = drawnLines(r.layout(view, ids, order));
       views.set(view.id, L);
       const fr = L.frameRect;
       b = b ? { x: Math.min(b.x, fr.x), y: Math.min(b.y, fr.y), x2: Math.max(b.x2, fr.x + fr.w), y2: Math.max(b.y2, fr.y + fr.h) }
@@ -4725,6 +4751,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
     }
     const bounds = b ? { x: b.x, y: b.y, w: b.x2 - b.x, h: b.y2 - b.y } : { x: -220, y: -140, w: 440, h: 280 };
     return { ids: ids, order: order, views: views, where: whereIn(views), bounds: bounds };
+  }
+  // A view laid out again draws the lines it drew before: a change that touched no line, and showed or hid nothing.
+  function sameLines(L, was) {
+    L.rels = was.rels;
+    L.drawn = was.drawn;
+    L.byEnd = was.byEnd;
+    return L;
   }
   // The lines a view layout draws, as L.rels (the relationships, in the model's order) and L.drawn (their ids): those
   // the renderer routed itself, when it routes (L.lines holds every line such a renderer draws), else, for a renderer
@@ -4839,7 +4872,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   Object.assign(C, {
-    wrap, graphLayout, frameAround, computeLayout, center, ROUTES, endpoints, nearestBorder, contains, containerAt,
+    wrap, graphLayout, graphKeeps, frameAround, computeLayout, center, ROUTES, endpoints, nearestBorder, contains, containerAt,
     viewAt
   });
 })(window.SysMLCanvas);
@@ -4851,7 +4884,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, NS, HEADER, HEAD_H, LEAD, PAD, CHILD_TOP, say, f, newId, viewById, viewLayout, rendererFor, wrap, graphLayout,
-    frameAround, endpoints, nearestBorder, contains, containerAt, viewAt
+    graphKeeps, frameAround, endpoints, nearestBorder, contains, containerAt, viewAt
   } = C;
 
   // ---- Drawing.
@@ -5277,8 +5310,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // region is the part of the plane being drawn, which a renderer may keep to, see onScreen; null is all of it). A
   // renderer may also patch(view, g, before, L, region, moving) the content it drew after a change: draw again just
   // what the change altered, from the view's layout before it (before) to the one now (L), and return true; or return
-  // false, and the view's content is drawn again whole. moving says the change only moved things. When the view's
-  // elements can be placed and moved by hand, it
+  // false, and the view's content is drawn again whole. moving says the change only moved things. A renderer may say
+  // a view's layout still holds after a change to what things are (keeps(view, L, plan, ids), plan.touched the ids
+  // of the elements touched), so it isn't laid out again. When the view's elements can be placed and moved by hand, it
   // the view's elements can be placed and moved by hand, places one (place(view, kind, p, hit) adds the element to
   // the model and the view's layout, or says why not and returns null), starts a drag of one (dragStart(view, el, p)
   // returns the drag record or null), moves it (drag(view, el, d, p)), and finishes (drop(view, el, d, p, event)
@@ -5290,6 +5324,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const RENDERERS = {
     graph: {
       layout: graphLayout,
+      keeps: graphKeeps,
       draw: function (view, g, L, region) {
         // Boxes first, then lines on top of them, so a line between things inside a box shows over the box's fill.
         const els = node('g', {}, 'els');
@@ -5650,16 +5685,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // ---- Redrawing after a change.
 
   // Brings the drawing up to date with the model. After a change, edit() says what it touched (touched, the ids of
-  // the elements, lines and views) and what the drawing must do about it (how): how.views, the views to lay out again,
-  // when the change can't have moved anything outside them, and how.patch, when it only moved things; with no how, the
-  // change may have altered anything, and every view is laid out again. Either way each view's renderer may then patch
+  // the elements, lines and views) and what the drawing must do about it (how, see howToDraw in changes.js): how.views,
+  // the views to lay out again, when the change can't have moved anything outside them, and how.patch, when it only
+  // moved things; else every view is laid out again, or keeps its layout when its renderer says the change can't have
+  // altered it (keeps). The lookups are made again only after a change to the model's structure (how.structure).
+  // Either way each view's renderer may then patch
   // what it drew, drawing again just what changed, else the view is drawn again; a change that showed or hid things
   // draws its views again. With no touched, the model is a new one (the page starting, a model from elsewhere, an
   // Undo, an import): everything is drawn anew, and the checks run at once.
   function render(touched, how) {
-    forget();
+    if (!how || how.structure) forget();
     const before = S.layout;
-    const plan = touched && before ? { views: how && how.views ? how.views : null, moving: !!(how && how.patch), touched: new Set(touched.elements) } : null;
+    const plan = touched && before ? {
+      views: how && how.views ? how.views : null, moving: !!(how && how.patch), structure: !how || how.structure, shown: !!(how && how.shown),
+      touched: new Set(touched.elements), lines: new Set(touched.relationships)
+    } : null;
     reading(() => { S.layout = computeLayout(plan ? before : null, plan); });
     const frames = Array.from(svg.querySelectorAll(':scope > .frame')).map((g) => g.getAttribute('data-view')).join(' ');
     if (!S.camera) C.fit();
@@ -6113,22 +6153,34 @@ textarea.text[readonly] { resize: none; background: transparent; }
     changed();
     return touched;
   }
-  // What the drawing must do about a change, from its notes (see render): a change that only moved things (each
-  // write was to a place in a view's layout, or to a view's x or y) lays out again just the views it touched, and
-  // may draw again just what moved; one that showed or hid things in views (a place put in a layout or taken out of
-  // it, and nothing else) lays out just those views again; any other can have moved anything, in any view.
+  // What the drawing must do about a change, from its notes (see render): { views, patch, structure, shown }. A change
+  // that only moved things (each write was to a place in a view's layout, or to a view's x or y) lays out again just
+  // the views it touched (views), and may draw again just what moved (patch); one that showed or hid things in views
+  // (a place put in a layout or taken out of it) lays out just those views again (shown); any other can have moved
+  // anything, in any view (views null). structure says the change altered which elements, lines and views there are,
+  // or their order, kinds, owners or ends: what the library's lookups are made from. Null for a whole new model.
+  const STRUCTURE = { elements: ['id', 'kind', 'owner'], relationships: ['id', 'kind', 'from', 'to'], views: ['id', 'kind'] };
   function howToDraw(notes, touched) {
     if (notes.replaced) return null;
     let patch = true;
-    for (const t of notes.lists.keys()) { if ((homes.get(t) || REST).at !== 'place') return null; }
+    let shown = false;
+    let structure = false;
+    for (const t of notes.lists.keys()) {
+      const h = homes.get(t) || REST;
+      if (h.at === 'list') structure = true;
+      if (h.at !== 'place') patch = false;
+    }
     for (const [t, keys] of notes.objects) {
       const h = homes.get(t) || REST;
       if (h.at === 'place') continue;
-      if (h.at === 'layout') { patch = false; continue; }
+      if (h.at === 'layout') { shown = true; continue; }
       if (h.at === 'item' && h.list === 'views' && Array.from(keys.keys()).every((k) => k === 'x' || k === 'y')) continue;
-      return null;
+      patch = false;
+      if (h.at === 'root' || (h.at === 'item' && Array.from(keys.keys()).some((k) => STRUCTURE[h.list].indexOf(k) >= 0))) structure = true;
     }
-    return { views: new Set(touched.views), patch: patch };
+    if (patch && !shown) return { views: new Set(touched.views), patch: true, structure: false, shown: false };
+    if (patch) return { views: new Set(touched.views), patch: false, structure: false, shown: true };
+    return { views: null, patch: false, structure: structure, shown: shown };
   }
   // What a change says it did, as { what, log, key }, or null when it says it did nothing.
   function words(said, key) {
@@ -7582,7 +7634,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     if (!view || !el || !view.layout[el.id]) return;
     edit(() => {
       rendererFor(view).drag(view, el, d, p);
-      return 'Moved ' + M.describe(S.model, el);
+      return 'Moved ' + M.describe(S.model, el, S.layout.ids);
     }, 'move:' + el.id);
     // The box it would drop into is marked, and only that one: a drawing that moved things kept the other groups.
     const over = S.drag.over ? svg.querySelector('.frame[data-view="' + view.id + '"] [data-el="' + S.drag.over + '"]') : null;

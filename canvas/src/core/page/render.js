@@ -211,16 +211,21 @@
   // ---- Redrawing after a change.
 
   // Brings the drawing up to date with the model. After a change, edit() says what it touched (touched, the ids of
-  // the elements, lines and views) and what the drawing must do about it (how): how.views, the views to lay out again,
-  // when the change can't have moved anything outside them, and how.patch, when it only moved things; with no how, the
-  // change may have altered anything, and every view is laid out again. Either way each view's renderer may then patch
+  // the elements, lines and views) and what the drawing must do about it (how, see howToDraw in changes.js): how.views,
+  // the views to lay out again, when the change can't have moved anything outside them, and how.patch, when it only
+  // moved things; else every view is laid out again, or keeps its layout when its renderer says the change can't have
+  // altered it (keeps). The lookups are made again only after a change to the model's structure (how.structure).
+  // Either way each view's renderer may then patch
   // what it drew, drawing again just what changed, else the view is drawn again; a change that showed or hid things
   // draws its views again. With no touched, the model is a new one (the page starting, a model from elsewhere, an
   // Undo, an import): everything is drawn anew, and the checks run at once.
   function render(touched, how) {
-    forget();
+    if (!how || how.structure) forget();
     const before = S.layout;
-    const plan = touched && before ? { views: how && how.views ? how.views : null, moving: !!(how && how.patch), touched: new Set(touched.elements) } : null;
+    const plan = touched && before ? {
+      views: how && how.views ? how.views : null, moving: !!(how && how.patch), structure: !how || how.structure, shown: !!(how && how.shown),
+      touched: new Set(touched.elements), lines: new Set(touched.relationships)
+    } : null;
     reading(() => { S.layout = computeLayout(plan ? before : null, plan); });
     const frames = Array.from(svg.querySelectorAll(':scope > .frame')).map((g) => g.getAttribute('data-view')).join(' ');
     if (!S.camera) C.fit();

@@ -5,7 +5,7 @@
   const S = C.state;
   const {
     M, NS, HEADER, HEAD_H, LEAD, PAD, CHILD_TOP, say, f, newId, viewById, viewLayout, rendererFor, wrap, graphLayout,
-    frameAround, endpoints, nearestBorder, contains, containerAt, viewAt
+    graphKeeps, frameAround, endpoints, nearestBorder, contains, containerAt, viewAt
   } = C;
 
   // ---- Drawing.
@@ -431,8 +431,9 @@
   // region is the part of the plane being drawn, which a renderer may keep to, see onScreen; null is all of it). A
   // renderer may also patch(view, g, before, L, region, moving) the content it drew after a change: draw again just
   // what the change altered, from the view's layout before it (before) to the one now (L), and return true; or return
-  // false, and the view's content is drawn again whole. moving says the change only moved things. When the view's
-  // elements can be placed and moved by hand, it
+  // false, and the view's content is drawn again whole. moving says the change only moved things. A renderer may say
+  // a view's layout still holds after a change to what things are (keeps(view, L, plan, ids), plan.touched the ids
+  // of the elements touched), so it isn't laid out again. When the view's elements can be placed and moved by hand, it
   // the view's elements can be placed and moved by hand, places one (place(view, kind, p, hit) adds the element to
   // the model and the view's layout, or says why not and returns null), starts a drag of one (dragStart(view, el, p)
   // returns the drag record or null), moves it (drag(view, el, d, p)), and finishes (drop(view, el, d, p, event)
@@ -444,6 +445,7 @@
   const RENDERERS = {
     graph: {
       layout: graphLayout,
+      keeps: graphKeeps,
       draw: function (view, g, L, region) {
         // Boxes first, then lines on top of them, so a line between things inside a box shows over the box's fill.
         const els = node('g', {}, 'els');

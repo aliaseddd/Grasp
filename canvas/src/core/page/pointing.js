@@ -152,7 +152,7 @@
     if (!view || !el || !view.layout[el.id]) return;
     edit(() => {
       rendererFor(view).drag(view, el, d, p);
-      return 'Moved ' + M.describe(S.model, el);
+      return 'Moved ' + M.describe(S.model, el, S.layout.ids);
     }, 'move:' + el.id);
     // The box it would drop into is marked, and only that one: a drawing that moved things kept the other groups.
     const over = S.drag.over ? svg.querySelector('.frame[data-view="' + view.id + '"] [data-el="' + S.drag.over + '"]') : null;
