@@ -53,3 +53,12 @@ The rules, which `build.mjs` checks as it stitches:
 4. Keep the state other scripts read or change on `S`. A `let` that only this script uses stays a `let` in it.
 
 Order matters in two more ways. A feature's rows land in the library's tables in the order the features are listed, and that is the order the palette, the panel, the checks and the export follow. And a script may change what the scripts before it registered (wrap a kind's hooks, push onto a row's lists), never what comes after it. The styles are stitched in cascade order: the core's, each feature's, then `core/style-end.css`, the rules that must come after everything else.
+
+## Changing the model
+
+Every change to the model goes through `C.edit(change, key)`, in `core/page/changes.js`. `change()` makes the change and returns what it did, in the words the Undo button and the log Claude reads will use; `edit` records the undo step with the ids of the elements, relationships and views the change touched, logs it, redraws the drawing, and schedules the save. The panel, the selection and the status line are the caller's to bring up to date afterwards.
+
+- Read the model anywhere; write it only inside the function given to `edit`, or in what that function calls, such as a renderer's `place`, `drag` and `drop`, which only `edit` calls.
+- A `key` joins a run of changes into one undo step: the keystrokes of one field, the moves of one drag. The run is logged once, in its last words, when it ends: at `endEdit()`, which the field's change event or the drag's drop calls, or when a change with another key comes. A run that ends where it started is no step.
+- Each change, and Undo, first checks that the model is as the last change left it. A change made anywhere else would be in no undo step and missing from what changes touched, so it is thrown as an error, which the console and the tests see.
+- Outside `edit`, only `changes.js` replaces the whole model: Undo, and `loadModel` for a model from storage. Import state replaces it through `edit`, as one undo step.
