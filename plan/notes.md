@@ -252,3 +252,67 @@ model without the line.
   isn't logged; and `S.model` is the same object as `saved.model` until the first replacement (only its revision is
   read later, so nothing breaks).
 - `docs/REPO_MAP.md` still shows the old single file.
+
+## Session 4, November 7, 2026: step 3, One naming owner
+
+Step 3 is done. `textName(el)` in `src/core/lib/model.js` (`M.textName` on the page) is the one place that decides
+whether an element has a name in the text. Two commits, each with every test passing: the naming owner with its tests
+and the rule in `src/README.md`, then these notes.
+
+### Where things are now
+
+- `textName(el)` returns the element's name, trimmed, when its kind has a name field, or `''` while it has none; it
+  returns `null` when its kind has none (StartNode, DoneNode, InitialNode), whatever the name field holds. The page
+  still keeps a name in those nodes for itself (`freeName` gives start1, done1, initial1 from `BASE_NAME`; the
+  fixtures keep `''`), and nothing reads it now.
+- `hasName(kind)` is gone from the library and from `SysMLModel`. To ask about a kind, ask `textName({ kind })`, as
+  `annotations/lib.js` does to give the code field only to kinds whose elements have a name in the text.
+- A path in the text reaches an element with no name in the text by its kind's keyword (`segment` in `model.js`, used
+  by `qualified` and `featurePath`), so `first start then a1;` comes from the core. The behavior library's
+  `behaviorEndName` and `behaviorEndPath`, with their StartNode and DoneNode tests, are gone: successions and
+  transitions call `featurePath`. The KINDS comment says what `keyword` means for such a kind.
+- Every read of an element's name goes through `textName`. A syntax-tree pass over `src/` (acorn, in the session's
+  scratchpad, not committed) found two other reads of an element's `name`, both of which store it rather than read it:
+  `normalize` (what a file carries) and the panel's Name box (`fName.value = el.name`). Every other `.name` read is of a
+  relationship (each one inside a relationship kind's label, check or writer, `describeRel`, `nameTakenBeside`, or the
+  panel's relationship branch), a view, the package, a view kind's row, a File, or the browser's row parts.
+- The 15 kind tests left in `behavior/lib.js` are placement and flow rules: where each node may sit
+  (`checkPseudoNode`), what may lead into or out of it (`successionFirst`, `successionEnds`, `transitionFirst`,
+  `transitionEnds`), and the initial node's own rules and finding it (`stateBody`, `checkState`, `checkTransition`,
+  `writeTransition`). None decides a name.
+
+What a user can notice, all small: the panel's path line for a start, done or initial node ends in start, done or
+entry (it showed the kept name: `StrongholdProof::ActionDef1::start1`); a fresh name beside such a node is free even
+when it is the name the node keeps (only a file written elsewhere can do that, since the page's own kept names start
+with start, done or initial); the "Defined … by …" status line names an unnamed definition "(unnamed)" (it printed the
+raw name); and a line in a file that the rules refuse no longer writes a kept name into the text: a connection
+between a start and a done node reads `connect start to done;`, a transition into an initial node `then entry`, and a
+note on a specializes line between two start nodes is about `P::A::start, P::A::start`. Those lines were problems
+before and still are.
+
+### How it was checked
+
+- Tests: 114 of 114 pass: the 109 from session 3 and 5 in the new `test/naming.test.mjs`. They cover `textName`'s three
+  answers and that `hasName` is gone; ten cases of a name beside a start, done or initial node, each equal to the name
+  the node keeps (a sibling action or state, a named succession, a named transition, a definition, the package, a
+  library name, an inherited feature, a view), with no problem found and the expected text; the text and the problems
+  never holding a kept name, even with three refused lines and notes on them, and `qualified`, `featurePath`,
+  `describe` and `labelFor` saying start, done and entry; and, on the page, the panel's path, kind line, Name box and
+  Add note for the three nodes, an action named like the start node beside it, and a fresh name beside a start node
+  that keeps action1.
+- Before the change, 4 of the 5 new tests failed, each for a reason above (no `textName`; three kept names in the
+  text; the panel's path; the fresh name came out action2). The rules test passed, as cover for the guards the old
+  checks already had, now extended to done and initial nodes.
+- Mutations, in a scratch copy: letting `textName` give every kind a name failed all 5 new tests and 8 older ones
+  (model-lib, grid, behavior-states); dropping the keyword from paths failed 3 new tests and model-lib's start1 test.
+- Exports: every input in session 1's table still prints the same bytes, and `canvas/check.sh` accepts the saved model
+  (the kernel downloaded again).
+
+### For the next session
+
+- Step 4: version the file format. `FORMAT` is `stronghold-canvas/2` (`core/lib/model.js`); `normalize` reads format 1
+  as it goes (elements that carry their own places, an old `view`), with no upgrade function yet.
+  `test/fixtures/format1.json` exports the same bytes as the saved model.
+- Relationship names are still read as `rel.name` in each relationship kind's own code. They have no kept-name problem,
+  since `normalize` gives a relationship a name only when its kind has the field, so step 3 left them.
+- `docs/REPO_MAP.md` still shows the old single file.
