@@ -1,0 +1,15 @@
+{
+  "steps": [
+    { "id": 1, "name": "Split the source", "status": "open" },
+    { "id": 2, "name": "One edit function", "status": "open" },
+    { "id": 3, "name": "One naming owner", "status": "open" },
+    { "id": 4, "name": "Version the file format", "status": "open" },
+    { "id": 5, "name": "Generate the kind lists", "status": "open" },
+    { "id": 6, "name": "Panels from field lists", "status": "open" },
+    { "id": 7, "name": "Scale tests first", "status": "open" },
+    { "id": 8, "name": "Scale work", "status": "open" },
+    { "id": 9, "name": "Make the repo the tool's own", "status": "open" },
+    { "id": 10, "name": "Features from SysON", "status": "open" }
+  ],
+  "features": ["label editing", "details view", "validation rules"]
+}
