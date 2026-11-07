@@ -2,7 +2,7 @@
 // library's scripts from src/, stitched as build.mjs stitches them into index.html, run here in Node.
 //
 //   node canvas/export.mjs                     # the model and the notes saved in state.json
-//   node canvas/export.mjs canvas-state.json   # a state file: what Download state saves, shaped { model, notes, archive }
+//   node canvas/export.mjs canvas-state.json   # a state file, { model, notes, archive }: what Download state saves
 //   node canvas/export.mjs store.json          # a dump of the published page's store: its documents' bodies by path,
 //                                              # as Claude reads them ({ "model/current": {...},
 //                                              # "model/current/parts/<id>": {...}, "notes/<id>": {...}, ... })

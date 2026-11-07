@@ -4530,10 +4530,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return { fields: fields, parts: parts };
   }
 
-  // The head for a model split by splitModel: { layout, baseRevision, the model's own fields, parts, changes, updated }.
-  // changes is the log of what was done that Claude reads, newest last: when the head would be more than a document of
-  // the store holds, its oldest entries are left out until it fits. A head that doesn't fit with no changes at all is
-  // refused as a record too large is, its record naming the model's field that takes the most room.
+  // The head for a model split by splitModel: { layout, baseRevision, the model's own fields, parts, changes,
+  // updated }. changes is the log of what was done that Claude reads, newest last: when the head would be more than a
+  // document of the store holds, its oldest entries are left out until it fits. A head that doesn't fit with no
+  // changes at all is refused as a record too large is, its record naming the model's field that takes the most room.
   function storeHead(split, extra) {
     extra = extra || {};
     const head = { layout: STORE.layout, baseRevision: extra.baseRevision === undefined ? null : extra.baseRevision };
@@ -6934,7 +6934,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // Opened as a file: this browser, starting from what is saved in the file.
 
   let reason = '';               // said under the notes in place of the mode's words, when there is a reason (setMode)
-  let mayWrite = null;           // whether the platform says this viewer may write to the store: true, false, or null for nothing said
+  let mayWrite = null;           // can('data.write'): whether this viewer may write; null when the platform said nothing
 
   function start() {
     Object.keys(M.VIEW_KINDS).forEach((k) => {

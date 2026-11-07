@@ -13,7 +13,7 @@
   // Opened as a file: this browser, starting from what is saved in the file.
 
   let reason = '';               // said under the notes in place of the mode's words, when there is a reason (setMode)
-  let mayWrite = null;           // whether the platform says this viewer may write to the store: true, false, or null for nothing said
+  let mayWrite = null;           // can('data.write'): whether this viewer may write; null when the platform said nothing
 
   function start() {
     Object.keys(M.VIEW_KINDS).forEach((k) => {

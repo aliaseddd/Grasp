@@ -198,10 +198,10 @@
     return { fields: fields, parts: parts };
   }
 
-  // The head for a model split by splitModel: { layout, baseRevision, the model's own fields, parts, changes, updated }.
-  // changes is the log of what was done that Claude reads, newest last: when the head would be more than a document of
-  // the store holds, its oldest entries are left out until it fits. A head that doesn't fit with no changes at all is
-  // refused as a record too large is, its record naming the model's field that takes the most room.
+  // The head for a model split by splitModel: { layout, baseRevision, the model's own fields, parts, changes,
+  // updated }. changes is the log of what was done that Claude reads, newest last: when the head would be more than a
+  // document of the store holds, its oldest entries are left out until it fits. A head that doesn't fit with no
+  // changes at all is refused as a record too large is, its record naming the model's field that takes the most room.
   function storeHead(split, extra) {
     extra = extra || {};
     const head = { layout: STORE.layout, baseRevision: extra.baseRevision === undefined ? null : extra.baseRevision };
