@@ -394,3 +394,68 @@ wrote the format and every element's place, so no file it saved is any of these.
 - The format's name has Stronghold in it. If step 9 renames it, `versionOf` must still read `stronghold-canvas/1` and
   `stronghold-canvas/2`, and the format tests will say so.
 - `docs/REPO_MAP.md` still shows the old single file.
+
+## Session 6, November 7, 2026: step 5, Generate the kind lists, is blocked
+
+Step 5 is blocked, and no code was written for it. `SysML.ecore` is under the Eclipse Public License 2.0, the license the
+standing rules keep SysON's code out of the canvas for, and lists generated from it would bring that license's terms
+into the published page. One commit: `plan/status.json` and these notes. The session then went on to step 6, the first
+step neither done nor blocked (below).
+
+### What was checked
+
+In a scratch clone of the pilot implementation, in the session's scratchpad (not committed):
+
+- The release the validator runs, kernel 0.63.1, is the tag `2026-09.1` (commit `d81b2ad`, October 28, 2026), where
+  `org.omg.sysml` is version 0.63.1. Its `org.omg.sysml/model/SysML.ecore` holds the 182 classifiers (175 classes and 7
+  enumerations; SHA-256 `dd3960e0…b464d6`). The file carries no copyright or license notice of its own, so the
+  repository's license governs it.
+- That license is `LICENSE` at the repository's root: the Eclipse Public License 2.0, with no secondary license named
+  (its Exhibit A is the license's blank template). The README says "This software is licensed under the Eclipse Public
+  License. See the files LICENSE and LICENSE-GPL"; `LICENSE-GPL` no longer exists. Master at `378a870`, which the maps
+  in `docs/sysml/pilot-implementation` were drawn from, is the same.
+- The license changed on May 11, 2026, in commit `1e4405d` ("ST6RI-922 Updated the repository README.adoc and the
+  LICENSE file"), which replaced the LGPL 3.0 with the EPL 2.0 and deleted the GPL 3.0 text. An ecore from before that
+  date is under the LGPL 3.0, whose terms would come into the page the same way, so an older release doesn't help.
+- The OMG's release repository, `Systems-Modeling/SysML-v2-Release`, moved to the EPL 2.0 three days later (commit
+  `9baca59`, May 14, 2026).
+- `www.omg.org` is blocked by this environment's network policy (the proxy refuses it), so the OMG's own terms for the
+  machine-readable metamodel files it publishes with the specification could not be read here.
+
+### Why it blocks the step
+
+This is a reading of the license's text, not legal advice.
+
+- The EPL 2.0 lets anyone copy and change the program, on conditions. A "Modified Work" includes, in its words, "any new
+  file in Source Code form that contains any contents of the Program" (section 1), and a Modified Work passed on as
+  source "must be made available under this Agreement", with a copy of the license (section 3.2).
+- The generated lists would be the ecore's contents: its classifiers' names, their supertypes, what each may contain,
+  and their fields, copied out by a script. The build would put them into `canvas/index.html`, the one file the page is
+  published as. That file would then be a Modified Work, and the page, with all of the canvas's own code in it, would
+  have to be offered under the EPL 2.0.
+- The license leaves out works that hold a program's declarations "solely ... in order to link to, bind by name, or
+  subclass the Program". The canvas doesn't link to the pilot implementation; it would copy the declarations to build
+  lists of its own, so that exception doesn't fit.
+- That is the outcome the standing rules name for SysON: "copied code would bring its license terms into the canvas."
+
+### What would unblock it
+
+Damon's decision, one of:
+
+1. Accept the EPL 2.0 for the generated lists and so for the published page (`index.html`) as a whole: ship the
+   license's text with it, keep the notices, and keep the source available. The files in `src/` that hold none of the
+   lists could stay under his own terms, since the EPL 2.0 binds file by file.
+2. Ask the pilot implementation's copyright holders for permission to use the metamodel's structure under other terms.
+3. Read the metamodel from a source under other terms: the OMG publishes machine-readable metamodel files with the
+   specification, under its own terms, which couldn't be checked from here. If they allow it, the generator would read
+   those files instead of the pilot's ecore, which changes the step as written; a session would need `www.omg.org`
+   allowed in the environment's network to fetch them.
+4. Keep writing kinds by hand from the specification's text, as the 29 are now, and rescope or drop step 5.
+
+Steps 6 to 9 don't need step 5. Step 10's features need kinds that don't exist yet (SysON has many more), so the
+decision matters before step 10.
+
+### Noticed, outside this step
+
+- `docs/sysml/pilot-implementation` and `docs/sysml/syson` hold aider's maps, which quote lines of both projects' EPL 2.0
+  code, with no copy of the license beside them. They aren't in the page.
