@@ -3,8 +3,8 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    RELATIONSHIPS, VIEW_KINDS, textName, idsOf, chain, childrenOf, quote, qualified, nameable, describe, describeView,
-    EXTRA
+    RELATIONSHIPS, VIEW_KINDS, textName, reading, idsOf, chain, childrenOf, quote, qualified, nameable, describe,
+    describeView, EXTRA
   } = lib;
 
   Object.assign(VIEW_KINDS, {
@@ -49,9 +49,12 @@
   // what it owns under it, unless the view folds it (its id in options.collapsed), then the relationships declared in
   // it. The package's relationships, and those declared above a root, come last. A relationship is a row only when
   // both of its ends are rows, so what is drawn in the view is what pins and badges can find. Each row is
-  // { type: 'el' | 'rel', id, item, depth, kids (whether anything is inside it), folded }.
+  // { type: 'el' | 'rel', id, item, depth, kids (whether anything is inside it), folded }. The walk asks for the
+  // children of each element, so it runs in a reading of the model.
   function browserRows(model, view, ids) {
-    ids = ids || idsOf(model);
+    return reading(model, () => treeRows(model, view, ids || idsOf(model)));
+  }
+  function treeRows(model, view, ids) {
     const roots = browserRoots(model, view, ids);
     const folded = new Set(view.options && Array.isArray(view.options.collapsed) ? view.options.collapsed : []);
     const nodes = new Map(); // element id → its node, for the elements that are rows

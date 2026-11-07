@@ -712,11 +712,15 @@
     if (look) return look.children(id).slice();
     return model.elements.filter((e) => (id === null || id === undefined ? e.owner === undefined : e.owner === id));
   }
+  // Everything inside an element (null: the package), depth first: in a reading of the model, which asks for the
+  // children of each element it finds.
   function descendants(model, id) {
-    const out = [];
-    const walk = (parent) => childrenOf(model, parent).forEach((c) => { out.push(c); walk(c.id); });
-    walk(id);
-    return out;
+    return reading(model, () => {
+      const out = [];
+      const walk = (parent) => childrenOf(model, parent).forEach((c) => { out.push(c); walk(c.id); });
+      walk(id);
+      return out;
+    });
   }
   function typingOf(model, el) {
     const look = lookOf(model);
