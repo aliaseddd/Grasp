@@ -73,6 +73,16 @@ Every change to the model goes through `C.edit(change, key)`, in `core/page/chan
 - A write made while no change is open is noted too, and reported as an error when the next change, or Undo, comes: it would be in no undo step and missing from what changes touched. The console and the tests see it.
 - Outside `edit`, only `changes.js` replaces the whole model: Undo, and `loadModel` for a model from storage. Import state replaces it through `edit`, as one undo step.
 
+## Lookups
+
+The library's helpers (`childrenOf`, `typingOf`, `inheritedFeatures`, and the rest) find what they are asked about a model by looking through its lists, a pass over the whole model for each answer, which is right however the model changed since the last question. Asked once for each element, that is a pass for each element, so the checks and the export answer from lookups instead:
+
+- `lookups(model)` (`SysMLModel.lookups`) holds maps of the model: the elements by id, what each element owns in model order, the elements and the lines of each kind, the lines that start or end at each element, and where each line stands in the list. Each is made on its first use, in one pass, from the model as it is then. A look reads the model's structure only (which elements, lines and views there are, in what order, and of each its id, kind, and owner or ends), never a name or another field, and it holds the model's own objects, changing nothing and keeping nothing on them. So it stays right while names, fields and places change, and is made again once the structure changes.
+- `reading(model, fn, look)` (`SysMLModel.reading`) runs `fn` and returns what it returns. While it runs, every helper asked about that model object answers from `look` (a new `lookups(model)` when none is given), in a step or in as many as the answer is long, and what an answer needs beyond the structure (the names beside each owner, the features each type inherits) is worked out once for the reading, by `perReading`. The answers are the ones the helpers give outside a reading, in the same order, and a list is a new one each time. The model must not change while `fn` runs. A reading of the same model inside `fn` goes on in it; a reading of another model opens its own beside it. Outside a reading, the helpers look through the model as before.
+- `validate` and `toSysML` do all their work in a reading of the model. The `ids` a check or a writer is given is then the look's own map: read it, never change it.
+
+A new check, hook or writer asks the helpers for what it needs (`childrenOf`, `typingOf`, `linesFrom`, `linesTo`, `linesAt`, `elementsOfKind`, `inheritedFeature`, `nameTakenBeside`…) rather than looking through `model.elements` or `model.relationships` for each element. What no helper answers yet becomes one in `core/lib/model.js` that answers from the look during a reading (a map made from the structure only) or from `perReading` (what depends on names or fields), and looks through the model outside one. `test/lookups.test.mjs` checks that every helper and hook answers the same inside a reading as outside one.
+
 ## Drawing
 
 `render()` (`core/page/render.js`) brings the drawing up to date after each change, from what `edit` says the change touched and what it wrote:
@@ -82,7 +92,7 @@ Every change to the model goes through `C.edit(change, key)`, in `core/page/chan
 - A renderer's `draw(view, g, L, region)` gets the region, and keeps to it as far as it can (`onScreen`, `pointsOnScreen` in `drawing.js`); the frame itself is always drawn. A renderer may add `patch(view, g, before, L, region)`, which draws again only what moved and returns true, or returns false to have the view drawn again whole. A renderer whose drawing shows what the checks found carries `problems: true`.
 - The pins and badges are drawn at screen size on top, for what is drawn; the marks (`is-selected`, `is-problem`) go on what is drawn, whenever it is drawn.
 - The checks (`check()`) run once the changes pause, as the save does, at once when the model is a new one (the page starting, a model from elsewhere, Undo, an import), and at once when something needs them up to date (`checkNow()`: the export panel, the HUD's button). A test that reads the problems right after a change waits for them (`checked` in `test/helpers.mjs`).
-- The drawing and the checks read the model inside the library's lookups (`reading` in `render.js`), which are made once for the model as it is and forgotten at each change.
+- The drawing and the checks read the model inside the library's lookups (`reading` in `render.js`, see "Lookups" above), made once for the model as it is and kept until a change alters its structure: an element, line or view added, removed or replaced, an id, kind, owner or end changed, a list reordered (`howToDraw` in `changes.js` says which changes do). After any other change the drawing keeps the element index too.
 
 ## The panel's fields
 

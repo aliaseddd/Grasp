@@ -4,9 +4,9 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, index, childrenOf, typingOf,
-    specializes, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel,
-    inheritedFeatures, EXTRA
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, idsOf, elementsOfKind,
+    childrenOf, typingOf, specializes, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an,
+    describe, describeRel, inheritedFeature, EXTRA
   } = lib;
 
   addKinds({
@@ -135,7 +135,7 @@
   });
   Object.assign(FIELDS, {
     // The interface def an interface is typed by.
-    interfaceDef: { type: 'ref', label: 'interface def', options: function (model) { return model.elements.filter((e) => e.kind === 'InterfaceDefinition'); } },
+    interfaceDef: { type: 'ref', label: 'interface def', options: function (model) { return elementsOfKind(model, 'InterfaceDefinition'); } },
   });
 
   // Interconnection: items live in part defs, parts and port defs; a port is an interface's, a flow's and a binding's
@@ -180,7 +180,7 @@
       const typing = typingOf(model, cur);
       if (typing && ids.has(typing.to)) return { def: ids.get(typing.to), conjugated: cur.conjugated === true };
       const owner = cur.owner !== undefined ? ids.get(cur.owner) : null;
-      const inherited = owner && textName(cur) ? inheritedFeatures(model, owner, ids).get(textName(cur)) : null;
+      const inherited = owner && textName(cur) ? inheritedFeature(model, owner, textName(cur), ids) : null;
       cur = inherited && inherited.kind === el.kind ? inherited : null;
     }
     return null;
@@ -200,7 +200,7 @@
   // The glyph a port shows: in when every directed item of its def comes in, out when every one goes out, inout when
   // they mix or any goes both ways, null when there are none.
   function portWay(model, port) {
-    const ways = new Set(portItems(model, port, index(model)).map((x) => x.direction));
+    const ways = new Set(portItems(model, port, idsOf(model)).map((x) => x.direction));
     if (!ways.size) return null;
     return ways.size === 1 && !ways.has('inout') ? ways.values().next().value : 'inout';
   }
@@ -222,7 +222,7 @@
   // checks an interface, a flow or a binding against everything beside it.
   function connectorNameClash(model, rel, ids, add) {
     const cname = rel.name.trim();
-    if (cname && nameTakenBeside(model, rel, ids, model.relationships)) add(rel.id, 'The ' + RELATIONSHIPS[rel.kind].label + ' ' + cname + ' is named like something else beside it. Rename one.');
+    if (cname && nameTakenBeside(model, rel, ids, {})) add(rel.id, 'The ' + RELATIONSHIPS[rel.kind].label + ' ' + cname + ' is named like something else beside it. Rename one.');
   }
   // The end of a flow as the text names it (which is 'from' or 'to'): for a port, the directed item of its port def
   // that is of the flow's item and goes out of the source or into the target, through the port's conjugation; for

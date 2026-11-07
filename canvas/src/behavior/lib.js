@@ -6,8 +6,8 @@
   const lib = root.SysMLModelLib;
   const {
     KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, NAME, MULTIPLICITY, addKinds, addRelationships, attributeField, str,
-    hasTrait, textName, childrenOf, typingOf, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath,
-    an, describe, describeRel, EXTRA, BODY, commentLines
+    hasTrait, textName, perReading, elementsOfKind, linesFrom, linesTo, linesAt, childrenOf, typingOf, commonOwner,
+    acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel, EXTRA, BODY, commentLines
   } = lib;
 
   addKinds({
@@ -96,10 +96,7 @@
     'subperformances timeEnclosedOccurrences suboccurrences portionOfLife localClock predecessors successors').split(' '));
   // The relationships of one kind that lead into and out of an element.
   function behaviorLinksOf(model, id, kind) {
-    return {
-      into: model.relationships.filter((r) => r.kind === kind && r.to === id),
-      outOf: model.relationships.filter((r) => r.kind === kind && r.from === id)
-    };
+    return { into: linesTo(model, id, kind), outOf: linesFrom(model, id, kind) };
   }
   function parametersOf(model, id) { return childrenOf(model, id).filter((e) => e.kind === 'ParameterUsage'); }
   function entryActionOf(model, stateId) { return childrenOf(model, stateId).find((e) => e.kind === 'ActionUsage' && e.role === 'entry') || null; }
@@ -110,8 +107,15 @@
     return def && def.kind === KINDS[el.kind].definedBy ? def : null;
   }
   // Whether a target names a port of the model, by its last segment: a send goes via a port and to anything else.
+  // During a reading, the ports' names, plain and quoted, are gathered once.
   function namesAPort(model, target) {
     const last = String(target).split('.').pop().trim();
+    const names = perReading(model, 'behavior:portNames', () => {
+      const set = new Set();
+      elementsOfKind(model, 'PortUsage').forEach((e) => { set.add(textName(e)); set.add(quote(textName(e))); });
+      return set;
+    });
+    if (names) return names.has(last);
     return model.elements.some((e) => e.kind === 'PortUsage' && (textName(e) === last || quote(textName(e)) === last));
   }
   // The type a trigger or an accept payload names, as the text reads it: the whole text, or what follows the colon of
@@ -125,9 +129,11 @@
     if (colon >= 0) s = s.slice(colon + 1).trim();
     return NAME.test(s) ? s : null;
   }
+  // During a reading, the definitions' names are gathered once.
   function checkNamedType(model, id, text, what, add) {
     const type = namedType(text);
-    if (type && !model.elements.some((e) => KINDS[e.kind].definition && textName(e) === type)) {
+    const definitions = type && perReading(model, 'behavior:definitionNames', () => new Set(model.elements.filter((e) => KINDS[e.kind].definition).map(textName)));
+    if (type && !(definitions ? definitions.has(type) : model.elements.some((e) => KINDS[e.kind].definition && textName(e) === type))) {
       add(id, what + ' names ' + type + ', which is no definition in the model, so the text can\'t resolve it. Name a part def or item def, as x : Type, or write after …, when … or at ….');
     }
   }
@@ -168,7 +174,7 @@
     let text = (p.direction ? p.direction + ' ' : '') + 'item' + (textName(p) ? ' ' + quote(textName(p)) : '');
     if (typing && ids.get(typing.to)) text += ' : ' + quote(textName(ids.get(typing.to)));
     if (p.multiplicity && MULTIPLICITY.test(p.multiplicity)) text += ' [' + p.multiplicity + ']';
-    const generals = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === p.id && ids.get(r.to)).map((r) => quote(textName(ids.get(r.to))));
+    const generals = linesFrom(model, p.id, 'Specialization').filter((r) => ids.get(r.to)).map((r) => quote(textName(ids.get(r.to))));
     if (generals.length) text += ' :> ' + generals.join(', ');
     return text;
   }
@@ -232,7 +238,7 @@
     const owner = el.owner !== undefined ? ids.get(el.owner) : null;
     if (!el.direction) add(el.id, what + ' needs a direction: in, out or inout.');
     const name = textName(el);
-    if (name === '' && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) add(el.id, what + ' has no name. Name it, so flows and bindings can reach it.');
+    if (name === '' && !linesAt(model, el.id).length) add(el.id, what + ' has no name. Name it, so flows and bindings can reach it.');
     if (owner && owner.kind === 'ActionUsage' && name) {
       const def = typingDefinitionOf(model, owner, ids);
       const inherited = def ? parametersOf(model, def.id).find((p) => textName(p) === name) : null;
@@ -346,8 +352,7 @@
     const name = str(rel.name).trim();
     if (!name) return;
     const o = RELATIONSHIPS[rel.kind].owner(model, rel, ids);
-    const before = model.relationships.slice(0, model.relationships.indexOf(rel));
-    if (nameTakenBeside(model, rel, ids, before)) add(rel.id, 'The ' + describeRel(model, rel, ids) + ' is named like something else beside it. Rename one.');
+    if (nameTakenBeside(model, rel, ids, { before: true })) add(rel.id, 'The ' + describeRel(model, rel, ids) + ' is named like something else beside it. Rename one.');
     if (o !== null && INHERITED_BEHAVIOR_NAMES.has(name)) add(rel.id, 'The name ' + name + ' is one every action and state already has inside it. Rename the ' + describeRel(model, rel, ids) + '.');
   }
   // Both ends of a succession or transition are written in one body: the innermost element holding both, or the

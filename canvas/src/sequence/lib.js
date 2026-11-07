@@ -4,8 +4,9 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, commonOwner, acrossDefinitions,
-    nameTakenBeside, quote, shown, featurePath, describe, describeRel, EXTRA, BODY, declare
+    KINDS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, perReading, linesOfKind, linesAt,
+    childrenOf, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, describe, describeRel, EXTRA,
+    BODY, declare
   } = lib;
 
   addKinds({
@@ -22,7 +23,7 @@
       // The core says so once something refers to it; an event nothing refers to yet still needs its name, since a
       // message can only start or end on it by name.
       check: function (model, el, ids, add) {
-        if (textName(el) === '' && !model.relationships.some((r) => r.from === el.id || r.to === el.id)) {
+        if (textName(el) === '' && !linesAt(model, el.id).length) {
           const owner = el.owner !== undefined ? ids.get(el.owner) : null;
           add(el.id, 'An event' + (owner ? ' in ' + shown(textName(owner)) : '') + ' has no name. Name it, so a message can start or end on it.');
         }
@@ -48,7 +49,7 @@
       // another named line declared there. The payload, when there is one, is an item def.
       check: function (model, rel, ids, add) {
         const mname = rel.name.trim();
-        if (mname && nameTakenBeside(model, rel, ids, model.relationships)) add(rel.id, 'The message ' + mname + ' is named like something else beside it. Rename one.');
+        if (mname && nameTakenBeside(model, rel, ids, {})) add(rel.id, 'The message ' + mname + ' is named like something else beside it. Rename one.');
         if (rel.item && ids.has(rel.item) && ids.get(rel.item).kind !== 'ItemDefinition') {
           add(rel.id, 'The ' + describeRel(model, rel, ids) + ' carries ' + describe(model, ids.get(rel.item), ids) + ', which is not an item def.');
         }
@@ -88,20 +89,37 @@
   KINDS.PartUsage.contains.push('EventOccurrenceUsage');
   KINDS.PartUsage.traits.push('lifeline', 'occurrence');
   // Sequence: the time order. The messages in order: those with a numeric order first, by it, then the rest as the
-  // model has them, so a new message, with no order yet, lands last.
+  // model has them, so a new message, with no order yet, lands last. During a reading they are put in order once.
   function messagesInOrder(model) {
+    const ordered = perReading(model, 'sequence:messages', () => inTimeOrder(linesOfKind(model, 'Message')));
+    return ordered ? ordered.slice() : inTimeOrder(model.relationships.filter((r) => r.kind === 'Message'));
+  }
+  // Messages, given in model order, in time order.
+  function inTimeOrder(messages) {
     const numbered = (r) => (typeof r.order === 'number' ? 0 : 1);
-    return model.relationships.map((r, i) => ({ r: r, i: i })).filter((x) => x.r.kind === 'Message')
+    return messages.map((r, i) => ({ r: r, i: i }))
       .sort((a, b) => (numbered(a.r) - numbered(b.r)) || (numbered(a.r) === 0 ? a.r.order - b.r.order : 0) || (a.i - b.i))
       .map((x) => x.r);
   }
   // A lifeline's events in time order: an event a message starts or ends on takes its place from the first such
   // message's place in time, so the chain always agrees with the rows a sequence view draws; the others keep their
-  // places among their siblings in model.elements, which the sequence view's place and drop set by height.
+  // places among their siblings in model.elements, which the sequence view's place and drop set by height. During a
+  // reading, the first message at each element is found once.
   function eventOrder(model, ownerId) {
-    const events = model.elements.filter((e) => e.kind === 'EventOccurrenceUsage' && e.owner === ownerId);
-    const messages = messagesInOrder(model);
-    const keyOf = (e) => { const i = messages.findIndex((m) => m.from === e.id || m.to === e.id); return i < 0 ? null : i; };
+    // childrenOf takes null for the top of the package; here it is an owner like any other.
+    const events = (ownerId === null ? model.elements.filter((e) => e.owner === null) : childrenOf(model, ownerId)).filter((e) => e.kind === 'EventOccurrenceUsage');
+    const first = perReading(model, 'sequence:firstMessage', () => {
+      const at = new Map();
+      messagesInOrder(model).forEach((m, i) => {
+        if (!at.has(m.from)) at.set(m.from, i);
+        if (!at.has(m.to)) at.set(m.to, i);
+      });
+      return at;
+    });
+    const messages = first ? null : messagesInOrder(model);
+    const keyOf = first
+      ? (e) => (e.id === e.id && first.has(e.id) ? first.get(e.id) : null)
+      : (e) => { const i = messages.findIndex((m) => m.from === e.id || m.to === e.id); return i < 0 ? null : i; };
     const keyed = events.map((e, i) => ({ e: e, i: i, key: keyOf(e) })).filter((x) => x.key !== null);
     const slots = keyed.map((x) => x.i);
     keyed.sort((a, b) => (a.key - b.key) || (a.i - b.i));

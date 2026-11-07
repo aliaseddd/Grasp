@@ -3,15 +3,19 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, normalize, index, relIndex, childrenOf, typingOf,
-    commonOwner, quote, shown, qualified, featurePath, nameable, describe, describeRel, inheritedFeatures, BODY,
-    noteRecords, noteStatements, commentLines
+    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, normalize, relIndex, reading, idsOf, linesFrom,
+    childrenOf, typingOf, commonOwner, quote, shown, qualified, featurePath, nameable, describe, describeRel,
+    inheritedFeature, BODY, noteRecords, noteStatements, commentLines
   } = lib;
 
   // The notes and the archived notes are written together, at the end of the package (noteRecords, noteStatements).
+  // The text is written in a reading of the model, so the helpers the writers ask answer from its lookups.
   function toSysML(model, notes, archive) {
     model = normalize(model);
-    const ids = index(model);
+    return reading(model, () => textOf(model, notes, archive));
+  }
+  function textOf(model, notes, archive) {
+    const ids = idsOf(model);
     const rels = relIndex(model);
     const noteList = noteRecords(notes, archive);
     const out = [];
@@ -19,15 +23,23 @@
     const line = (depth, text) => out.push('    '.repeat(depth) + text);
     const comment = (depth, head, text) => commentLines(depth, head, text).forEach((l) => out.push(l));
     const noteText = (n) => n.text + (n.response.trim() ? '\nClaude: ' + n.response.trim() : '');
-    // The relationships written as statements in an element's body (null: the package's), by each kind's own rule.
-    const declaredIn = (ownerId) => model.relationships.filter((r) => RELATIONSHIPS[r.kind].toSysML && RELATIONSHIPS[r.kind].owner(model, r, ids) === ownerId);
+    const listsBy = (list, key) => {
+      const map = new Map();
+      list.forEach((item) => { const k = key(item); if (map.has(k)) map.get(k).push(item); else map.set(k, [item]); });
+      return map;
+    };
+    // The relationships written as statements in an element's body (null: the package's), by each kind's own rule,
+    // each kind's owner asked once for each relationship; and the notes on each element or relationship.
+    const declared = listsBy(model.relationships.filter((r) => RELATIONSHIPS[r.kind].toSysML), (r) => RELATIONSHIPS[r.kind].owner(model, r, ids));
+    const declaredIn = (ownerId) => (declared.get(ownerId) || []).slice();
+    const notesBy = listsBy(noteList, (n) => n.target);
     // What the hooks may use (a kind's head and body, a relationship kind's toSysML): line(depth, text) and
     // comment(depth, head, text) write out; needImport(qualifiedName) asks for a private import at the top of the
     // package; headOf(el) is the generated head of an element; the rest are the library's functions with the model
     // and its index filled in.
     const helpers = {
       ids: ids, line: line, comment: comment, noteText: noteText, quote: quote, featurePath: featurePath, shown: shown,
-      notesOn: (id) => noteList.filter((n) => n.target === id),
+      notesOn: (id) => (notesBy.get(id) || []).slice(),
       // A note in its standard forms (noteStatements), written at depth through this object's own line, so a hook's
       // lines land where its other lines do; about null writes it inside the body it is in. Asks for the import.
       note: function (depth, n, about, text) { noteStatements(n, about, text).forEach((s) => this.line(depth, s)); imports.add('ModelingMetadata::*'); },
@@ -46,7 +58,7 @@
       const kind = KINDS[el.kind];
       const owner = el.owner !== undefined ? ids.get(el.owner) : null;
       const name = textName(el);
-      const inherited = owner && name ? inheritedFeatures(model, owner, ids).get(name) : null;
+      const inherited = owner && name ? inheritedFeature(model, owner, name, ids) : null;
       const redefines = !!inherited && inherited.kind === el.kind;
       // A usage may go unnamed ("part : Host;"); a definition can't, so an unnamed one is written as unnamed.
       const written = name ? quote(name) : (kind.definition ? quote('unnamed') : '');
@@ -56,8 +68,7 @@
         if (typing) head += ' : ' + (el.conjugated ? '~' : '') + quote(textName(ids.get(typing.to)));
         if (el.multiplicity && MULTIPLICITY.test(el.multiplicity)) head += ' [' + el.multiplicity + ']';
       }
-      const general = model.relationships.filter((r) => r.kind === 'Specialization' && r.from === el.id)
-        .map((r) => quote(textName(ids.get(r.to))));
+      const general = linesFrom(model, el.id, 'Specialization').map((r) => quote(textName(ids.get(r.to))));
       if (general.length) head += ' :> ' + general.join(', ');
       return head;
     }
