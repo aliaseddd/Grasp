@@ -54,9 +54,31 @@ export const LIBRARY = [
   'core/lib/api.js',
 ];
 
-// The page's script, after the library.
+// The page's script, after the library: the core's scripts, then each feature's, then boot.js, which starts the page.
 export const SCRIPTS = [
-  'core/page.js',
+  'core/page/base.js',
+  'core/page/state.js',
+  'core/page/layout.js',
+  'core/page/drawing.js',
+  'core/page/render.js',
+  'core/page/camera.js',
+  'core/page/changes.js',
+  'core/page/tools.js',
+  'core/page/views.js',
+  'core/page/panel.js',
+  'core/page/notes.js',
+  'core/page/store.js',
+  'core/page/io.js',
+  'core/page/export.js',
+  'core/page/pointing.js',
+  'interconnection/page.js',
+  'behavior/page.js',
+  'sequence/page.js',
+  'geometry/page.js',
+  'grid/page.js',
+  'browser/page.js',
+  'annotations/page.js',
+  'core/page/boot.js',
 ];
 
 // The shared object each list's scripts register on, as the scripts name it.

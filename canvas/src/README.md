@@ -24,7 +24,7 @@ A feature's folder holds up to three files: `lib.js`, its part of the model libr
 The scripts are plain scripts, not modules, so stitching them needs no bundler: each runs once, in the order `build.mjs` lists them, inside the page's one `<script>` (or the library's `<script id="model-lib" data-lib>`). Each is a function that runs at once, and the scripts share one object, the way the library has always registered `SysMLModel`:
 
 - The model library's scripts share `SysMLModelLib`, `lib` in each script. The first creates it; the last builds `SysMLModel` from it the way it always has, freezes it, and removes `SysMLModelLib`, so the page, `export.mjs` and `save-state.mjs` see only `SysMLModel`.
-- The page's scripts share `window.SysMLCanvas`, `C` in each script, which the first creates. What the page shows and changes as it runs, the state its scripts share, is `C.state`, `S` in each script: `S.model`, `S.selection`, `S.layout`, and the rest, listed in `core/page/state.js`.
+- The page's scripts share `window.SysMLCanvas`, `C` in each script, which the first (`core/page/base.js`) creates. What the page shows and changes as it runs, the state its scripts share, is `C.state`, `S` in each script: `S.model`, `S.selection`, `S.layout`, and the rest. `core/page/state.js` sets most of it and names the scripts that set the others.
 
 A page script looks like this:
 
@@ -33,15 +33,15 @@ A page script looks like this:
 (function (C) {
   'use strict';
   const S = C.state;
-  const { M, svg, render, commit } = C;   // what the scripts before this one registered
+  const { M, say, render } = C;               // what the scripts before this one registered
 
-  function addThing(p) {
-    commit('Added a thing', null, S.model);
+  function saySelected() {
+    if (S.selection) say(M.labelFor(S.model, S.selection.id));
     render();
-    C.select({ type: 'el', id: p.id });   // registered by a script after this one
+    C.renderInspector();                      // registered by a script after this one
   }
 
-  Object.assign(C, { addThing });         // what other scripts use
+  Object.assign(C, { saySelected });          // what other scripts use
 })(window.SysMLCanvas);
 ```
 
