@@ -72,6 +72,16 @@ Every change to the model goes through `C.edit(change, key)`, in `core/page/chan
 - Each change, and Undo, first checks that the model is as the last change left it. A change made anywhere else would be in no undo step and missing from what changes touched, so it is thrown as an error, which the console and the tests see.
 - Outside `edit`, only `changes.js` replaces the whole model: Undo, and `loadModel` for a model from storage. Import state replaces it through `edit`, as one undo step.
 
+## Lookups
+
+The library's helpers (`childrenOf`, `typingOf`, `inheritedFeatures`, and the rest) find what they are asked about a model by looking through its lists, a pass over the whole model for each answer, which is right however the model changed since the last question. Asked once for each element, that is a pass for each element, so the checks and the export answer from lookups instead:
+
+- `lookups(model)` (`SysMLModel.lookups`) holds maps of the model: the elements by id, what each element owns in model order, the elements and the lines of each kind, the lines that start or end at each element, and where each line stands in the list. Each is made on its first use, in one pass, from the model as it is then. A look reads the model's structure only (which elements, lines and views there are, in what order, and of each its id, kind, and owner or ends), never a name or another field, and it holds the model's own objects, changing nothing and keeping nothing on them. So it stays right while names, fields and places change, and is made again once the structure changes.
+- `reading(model, fn, look)` (`SysMLModel.reading`) runs `fn` and returns what it returns. While it runs, every helper asked about that model object answers from `look` (a new `lookups(model)` when none is given), in a step or in as many as the answer is long, and what an answer needs beyond the structure (the names beside each owner, the features each type inherits) is worked out once for the reading, by `perReading`. The answers are the ones the helpers give outside a reading, in the same order, and a list is a new one each time. The model must not change while `fn` runs. A reading of the same model inside `fn` goes on in it; a reading of another model opens its own beside it. Outside a reading, the helpers look through the model as before.
+- `validate` and `toSysML` do all their work in a reading of the model. The `ids` a check or a writer is given is then the look's own map: read it, never change it.
+
+A new check, hook or writer asks the helpers for what it needs (`childrenOf`, `typingOf`, `linesFrom`, `linesTo`, `linesAt`, `elementsOfKind`, `inheritedFeature`, `nameTakenBeside`…) rather than looking through `model.elements` or `model.relationships` for each element. What no helper answers yet becomes one in `core/lib/model.js` that answers from the look during a reading (a map made from the structure only) or from `perReading` (what depends on names or fields), and looks through the model outside one. `test/lookups.test.mjs` checks that every helper and hook answers the same inside a reading as outside one.
+
 ## The panel's fields
 
 Every field the panel shows, for an element, a line or a view, goes one way, so a new field, or a new panel of fields, is rows in tables rather than code of its own:
