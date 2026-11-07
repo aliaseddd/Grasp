@@ -1,0 +1,26 @@
+/* The grid view: a sheet with a header row and a row per element, or a matrix of the elements against each other. A
+   row is an element group (el grid-row), so the core's hover, selection and problem marks apply to it; it has no
+   outline of its own, only its zebra fill, and the marks are said again for it, since its own rule would hide them. */
+.sysml .grid-sheet { fill: var(--card); stroke: currentColor; stroke-width: 1; stroke-opacity: 0.55; }
+.sysml .grid-head-cell { fill: currentColor; fill-opacity: 0.06; stroke: none; }
+.sysml g[data-action="sort"] { cursor: pointer; }
+.sysml g[data-action="sort"]:hover .grid-head-cell { fill: var(--accent); fill-opacity: 0.16; }
+.sysml .grid-head { font: 500 11px var(--mono); fill-opacity: 0.8; }
+.sysml .grid-col-title { letter-spacing: 0.05em; text-transform: uppercase; }
+.sysml .grid-rule { stroke: currentColor; stroke-width: 0.75; stroke-opacity: 0.18; pointer-events: none; }
+.sysml .grid-cell { font: 400 12px var(--sans); }
+.sysml .grid-name { font-weight: 500; }
+.sysml .grid-row.is-abstract .grid-name { font-style: italic; }
+.sysml .grid-matrix-text { font: 500 11.5px var(--mono); fill: var(--accent); }
+.sysml .grid-self { fill: currentColor; fill-opacity: 0.08; pointer-events: none; }
+.sysml .grid-hint { font: italic 400 12.5px var(--sans); fill-opacity: 0.6; pointer-events: none; }
+.sysml .el.grid-row > .outline { fill: transparent; stroke: none; }
+.sysml .el.grid-row.is-even > .outline { fill: currentColor; fill-opacity: 0.04; }
+.sysml .el.grid-row.is-hover > .outline { fill: var(--accent); fill-opacity: 0.12; stroke: none; }
+.sysml .el.grid-row.is-source > .outline { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.sysml .el.grid-row.is-selected > .outline { fill: var(--accent-soft); fill-opacity: 1; stroke: var(--accent); stroke-width: 1.5; }
+.sysml .el.grid-row.is-problem > .outline { stroke: var(--danger); stroke-width: 1.5; }
+.fields .grid-columns { margin: 0; padding: 6px 10px 8px; border: 1px solid var(--line); border-radius: 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+.fields .grid-columns legend { padding: 0 4px; font: 500 11px/1.2 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); }
+.fields .grid-columns label.check { font-size: 12.5px; }
+.fields .grid-kind-row select { width: auto; flex: 1 1 120px; min-width: 0; }

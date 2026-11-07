@@ -1,0 +1,7 @@
+/* Behavior: a succession is dashed with an open arrowhead, a transition solid with the same head; fork and join are
+   filled bars, decision and merge hollow diamonds; start, done's centre and a state's initial node are filled; a send
+   or accept action carries its glyph beside the header; a control node's name sits under it in the code font. */
+.sysml .rel.succession .line { stroke-dasharray: 5 3; }
+.sysml .open-head { fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+.sysml .el.bar > .outline, .sysml .el.start > .outline, .sysml .el.initial > .outline, .sysml .el.done > .centre { fill: currentColor; }
+.sysml .el.action > .action-glyph { fill: currentColor; }

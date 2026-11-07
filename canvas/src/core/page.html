@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stronghold Design Canvas</title>
+<!-- A SysML v2 model drawn as views on an endless plane, each view a frame with its own layout of the model's
+     elements, with notes on its elements and lines, checks while drawing, undo, and an export to textual SysML v2. Open
+     this file in a browser; it needs no server. canvas/build.mjs makes it from the sources in canvas/src/ and the saved
+     model, notes and archive in canvas/state.json: change those and build, rather than editing this file. Published on
+     claude.ai, the page keeps the working model and the notes in the page's database, where Claude reads them.
+     README.md in this folder says how. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<!-- build: style -->
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="title">
+      <p class="eyebrow">SysML v2 · general view</p>
+      <h1>Stronghold Design Canvas</h1>
+    </div>
+    <!-- The palette's buttons are made by the page from the active view's kind: button[data-tool] per tool, span.sep
+         between groups. -->
+    <div class="palette" role="toolbar" aria-label="Draw">
+      <span class="label">Add</span>
+    </div>
+    <div class="actions">
+      <button type="button" id="undo" disabled title="Nothing to undo">Undo</button>
+      <button type="button" id="new-view">New view</button>
+      <select id="new-view-kind" aria-label="The kind of the new view"></select>
+      <button type="button" id="export">Export SysML</button>
+      <button type="button" id="download-state" hidden>Download state</button>
+      <button type="button" id="import-state" hidden>Import state</button>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing, Escape puts a tool down, Delete removes the selection, Ctrl+Z undoes.">
+      <svg id="drawing" class="sysml" viewBox="0 0 1200 800" role="img" aria-label="SysML v2 views on a plane"></svg>
+    </div>
+
+    <div class="float hud">
+      <p class="hint" id="hint"></p>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <button type="button" class="problems-button" id="problems" hidden title="Select what has a problem; click again for the next">0 problems</button>
+    </div>
+
+    <div class="float zoom" role="group" aria-label="Zoom">
+      <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
+      <output id="zoom-level">100%</output>
+      <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+      <button type="button" id="zoom-fit">Fit</button>
+    </div>
+
+    <button type="button" class="show-panel" id="show-panel" hidden>Panel</button>
+    <aside class="float panel" id="panel" aria-label="Selection and notes">
+      <section id="inspector" aria-labelledby="inspector-title">
+        <div class="panel-head">
+          <h2 id="inspector-title">Selection</h2>
+          <button type="button" class="hide" id="hide-panel">Hide</button>
+        </div>
+        <p class="empty" id="inspector-empty">Nothing selected. Click a box, a port, or a line.</p>
+        <div class="fields" id="fields" hidden>
+          <p class="kind" id="f-kind"></p>
+          <label id="l-name">Name <input type="text" id="f-name" autocomplete="off" spellcheck="false"></label>
+          <label class="check" id="l-abstract"><input type="checkbox" id="f-abstract"> abstract</label>
+          <label id="l-type">Defined by <select id="f-type"></select></label>
+          <label class="check" id="l-type-line"><input type="checkbox" id="f-type-line"> draw the defined-by line</label>
+          <label id="l-multiplicity">Multiplicity <input type="text" id="f-multiplicity" autocomplete="off" spellcheck="false" placeholder="1, 0..1, or 1..*"></label>
+          <label class="check" id="l-conjugated"><input type="checkbox" id="f-conjugated"> conjugated (~), the other side of the port</label>
+          <label id="l-doc">Doc <textarea id="f-doc" rows="2" spellcheck="true"></textarea></label>
+          <label id="l-direction">Direction <select id="f-direction"><option value="">undirected</option><option value="in">in</option><option value="out">out</option><option value="inout">inout</option></select></label>
+          <label id="l-item">Item (the payload) <select id="f-item"></select></label>
+          <!-- Each slice's fields: <label id="l-<field>">… <input id="f-<field>"></label>, one per row of FIELDS. -->
+          <label id="l-interfaceDef">Interface def <select id="f-interfaceDef"></select></label>
+          <label id="l-actionKind">Kind of action <select id="f-actionKind"><option value="plain">plain</option><option value="send">send</option><option value="accept">accept</option></select></label>
+          <label id="l-payload">Payload <input type="text" id="f-payload" autocomplete="off" spellcheck="false" placeholder="new Alert() to send; x : Type or after 10 [SI::s] to accept"></label>
+          <label id="l-target">Target (via a port, to anything else) <input type="text" id="f-target" autocomplete="off" spellcheck="false" placeholder="a port, a part or an action"></label>
+          <label id="l-role">Role under a state <select id="f-role"><option value="">none</option><option value="entry">entry</option><option value="do">do</option><option value="exit">exit</option></select></label>
+          <label id="l-guard">Guard <input type="text" id="f-guard" autocomplete="off" spellcheck="false" placeholder="a Boolean expression, or else"></label>
+          <label id="l-trigger">Trigger (the accept part) <input type="text" id="f-trigger" autocomplete="off" spellcheck="false" placeholder="StartSignal · x : Sig via port · after 48 [SI::h] · when ready"></label>
+          <label id="l-effect">Effect <input type="text" id="f-effect" autocomplete="off" spellcheck="false" placeholder="action name, send new X() to y, assign a := b"></label>
+          <label class="check" id="l-parallel"><input type="checkbox" id="f-parallel"> parallel: its regions run at the same time</label>
+          <label id="l-order">Order (the message's place in time, top to bottom) <input type="text" id="f-order" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="1, 2, 3…"></label>
+          <!-- The spatial fields of a part drawn in a geometry view: its shape and unit, the dimensions its shape has (in
+               that unit), and the position of its origin in its owner's frame. -->
+          <div class="geo-row">
+            <label id="l-shape">Shape <select id="f-shape"><option value="">none</option><option value="Box">Box</option><option value="Rectangle">Rectangle</option><option value="CircularCylinder">CircularCylinder</option><option value="Sphere">Sphere</option><option value="CircularCone">CircularCone</option></select></label>
+            <label id="l-unit">Unit <select id="f-unit"><option value="m">m</option><option value="mm">mm</option><option value="cm">cm</option><option value="km">km</option><option value="ft">ft</option><option value="in">in</option></select></label>
+          </div>
+          <div class="geo-row">
+            <label id="l-length">Length <input type="text" id="f-length" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label id="l-width">Width <input type="text" id="f-width" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label id="l-height">Height <input type="text" id="f-height" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label id="l-radius">Radius <input type="text" id="f-radius" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <div class="geo-row">
+            <label id="l-posX">Position x <input type="text" id="f-posX" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label id="l-posY">Position y <input type="text" id="f-posY" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label id="l-posZ">Position z <input type="text" id="f-posZ" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <p class="meta" id="f-path"></p>
+          <p class="meta" id="f-views"></p>
+          <div class="row">
+            <button type="button" id="add-note">Add note</button>
+            <button type="button" id="remove-from-view" title="Take it out of this view. It stays in the model and in the other views.">Remove from view</button>
+            <button type="button" class="danger" id="delete-selected">Delete</button>
+          </div>
+        </div>
+        <div class="fields" id="view-fields" hidden>
+          <p class="kind" id="v-kind"></p>
+          <label id="l-v-name">Name <input type="text" id="v-name" autocomplete="off" spellcheck="false"></label>
+          <label id="l-v-doc">Doc <textarea id="v-doc" rows="2" spellcheck="true"></textarea></label>
+          <label id="l-v-show">Show in this view <select id="v-show"></select></label>
+          <p class="meta" id="v-meta"></p>
+          <!-- Each kind's options, in <div class="view-options" data-view-kind="GridView" hidden>, shown for a view of the kind. -->
+          <div class="view-options" data-view-kind="SequenceView" hidden>
+            <label id="l-sv-spacing">Row spacing (between messages, in drawing units) <input type="text" id="sv-spacing" inputmode="numeric" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <div class="view-options" data-view-kind="GeometryView" hidden>
+            <div class="geo-row">
+              <label id="l-g-scale">Pixels per unit <input type="text" id="g-scale" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+              <label id="l-g-unit">Unit <select id="g-unit"><option value="m">m</option><option value="mm">mm</option><option value="cm">cm</option><option value="km">km</option><option value="ft">ft</option><option value="in">in</option></select></label>
+            </div>
+          </div>
+          <div class="view-options" data-view-kind="GridView" hidden>
+            <label id="l-grid-mode">Grid <select id="grid-mode"><option value="table">table: a row per element</option><option value="matrix">matrix: the elements against each other</option></select></label>
+            <fieldset class="grid-columns" id="grid-columns">
+              <legend>Columns</legend>
+              <label class="check"><input type="checkbox" class="grid-column" value="kind"> kind</label>
+              <label class="check"><input type="checkbox" class="grid-column" value="name"> name</label>
+              <label class="check"><input type="checkbox" class="grid-column" value="type"> type</label>
+              <label class="check"><input type="checkbox" class="grid-column" value="multiplicity"> multiplicity</label>
+              <label class="check"><input type="checkbox" class="grid-column" value="owner"> owner</label>
+              <label class="check"><input type="checkbox" class="grid-column" value="doc"> doc</label>
+              <label class="check"><input type="checkbox" class="grid-column" value="specializes"> specializes</label>
+              <label class="check"><input type="checkbox" class="grid-column" value="notes"> notes</label>
+              <label class="check"><input type="checkbox" class="grid-column" value="code"> code</label>
+              <label class="check"><input type="checkbox" class="grid-column" value="problems"> problems</label>
+            </fieldset>
+            <div class="row">
+              <button type="button" id="grid-show-all" title="Every element of the model becomes a row">Show all</button>
+            </div>
+            <div class="row grid-kind-row">
+              <select id="grid-kind" aria-label="The kind of element to show as rows"></select>
+              <button type="button" id="grid-show-kind" title="Every element of the chosen kind becomes a row">Show kind</button>
+            </div>
+          </div>
+          <div class="view-options" data-view-kind="BrowserView" hidden>
+            <label id="l-browser-roots">Roots of the tree <select id="browser-roots" multiple size="6" aria-describedby="browser-roots-help"></select></label>
+            <p class="meta" id="browser-roots-help">The whole package, or the elements the tree starts from; Ctrl or ⌘ + click picks several. Click the whole package to show everything again.</p>
+            <div class="row">
+              <button type="button" id="browser-expand-all" title="Nothing is folded in this view">Expand all</button>
+            </div>
+          </div>
+          <div class="row">
+            <button type="button" id="v-show-add">Show it</button>
+            <button type="button" class="danger" id="delete-view">Delete view</button>
+          </div>
+        </div>
+        <ul class="problems" id="problems-list" hidden></ul>
+        <section id="code" class="code-links" hidden aria-labelledby="code-title">
+          <div class="panel-head">
+            <h3 id="code-title">Code <span class="count" id="code-count"></span></h3>
+            <button type="button" class="add-code" id="add-code" title="Link a file of the code to this element">Add code</button>
+          </div>
+          <p class="empty" id="code-empty">No code linked yet.</p>
+          <ol class="list" id="code-list"></ol>
+          <p class="meta" id="code-hint">Each link exports as a textual representation (rep) inside the element. The one change made to the text: */ is written * /, since it would end the SysML comment.</p>
+        </section>
+      </section>
+      <section class="notes" aria-labelledby="notes-title">
+        <div class="panel-head">
+          <h2 id="notes-title">Notes <span class="count" id="notes-count"></span></h2>
+        </div>
+        <p class="empty" id="notes-empty">Loading the notes…</p>
+        <ol class="list" id="notes-list"></ol>
+        <p class="where" id="where"></p>
+        <p class="warning" id="storage-warning" hidden>This browser isn't keeping your changes. Download the state before you close it.</p>
+        <section id="archive" class="archive-section" aria-label="Archived notes">
+          <button type="button" class="archive-toggle" id="archive-toggle" hidden aria-expanded="false" aria-controls="archive-list">Archive · 0</button>
+          <ol class="list" id="archive-list" hidden></ol>
+        </section>
+      </section>
+    </aside>
+
+    <div class="float export-panel" id="export-panel" hidden aria-labelledby="export-title">
+      <div class="panel-head">
+        <h2 id="export-title">Textual SysML v2</h2>
+        <div class="row">
+          <button type="button" id="copy-export">Copy</button>
+          <button type="button" class="hide" id="close-export">Close</button>
+        </div>
+      </div>
+      <ul class="problems" id="export-problems"></ul>
+      <textarea class="code" id="export-text" readonly spellcheck="false" aria-label="The model as textual SysML v2"></textarea>
+    </div>
+  </div>
+</div>
+
+<!-- build: state -->
+
+<!-- build: library -->
+
+<!-- build: page -->
+</body>
+</html>

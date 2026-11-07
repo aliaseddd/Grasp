@@ -1,0 +1,7 @@
+/* Interconnection: an interface is a connector with a name tag, a flow a thin line with a filled head at the target, a
+   binding a line with an equals sign on it. */
+.sysml .rel.interface .line { stroke: var(--accent); stroke-width: 2; }
+.sysml .rel.flow .line { stroke: currentColor; stroke-width: 1.5; }
+.sysml .flow-head { fill: currentColor; stroke: none; }
+.sysml .rel.binding .line { stroke: currentColor; stroke-width: 1.5; }
+.sysml .rel.binding .uname { font: 600 14px var(--sans); }

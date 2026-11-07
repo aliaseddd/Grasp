@@ -102,3 +102,61 @@ printed:
 ### Next
 
 Step 1, Split the source.
+
+## Session 2, November 7, 2026: step 1, Split the source
+
+Step 1 is done. The page is now built from `canvas/src/` and `canvas/state.json` by `canvas/build.mjs`, and it
+behaves as before. Four commits, each with every test passing: the build and `state.json` with the scripts still
+whole, then the library split, then the page's script split, then these notes.
+
+### Where things are now
+
+- `canvas/build.mjs` stitches `src/` into `index.html` in the fixed order of its three lists (`STYLES`, `LIBRARY`,
+  `SCRIPTS`), into the four slots of the shell `src/core/page.html`, and puts `state.json` between the model and
+  notes markers. `--check` fails when `index.html` isn't what the sources build; `test/build.test.mjs` runs it.
+  Every file in the built page follows a line naming its source (`// ==== src/core/page/panel.js`), so a line
+  of `index.html` in an error can be traced back.
+- `src/README.md` has the layout and the rules. In short: every script is a plain script (an IIFE). The library's
+  scripts share `SysMLModelLib` (`lib`), which `core/lib/api.js` turns into the same frozen `SysMLModel` as before
+  and then removes. The page's scripts share `window.SysMLCanvas` (`C`), and the state they share is `C.state`
+  (`S`): `S.model`, `S.selection`, `S.layout`, 19 fields in all. A script takes what earlier scripts registered
+  with one `const { … } = C;` at its top, calls later scripts as `C.name(…)` (47 places), and registers what others
+  use with `Object.assign(C, { … })`. The build checks these rules and refuses a file in `src/` that no list names.
+- 45 files. The library: `core/lib/model.js` (the tables' core rows and the shared helpers), a `lib.js` per
+  feature, then `core/lib/validate.js`, `core/lib/sysml.js`, `core/lib/api.js`. The page: 15 core scripts in
+  `core/page/`, a `page.js` per feature, then `core/page/boot.js`, which calls `start()`. The styles: the core's,
+  a `style.css` per feature, then `core/style-end.css`. The largest file is `behavior/lib.js` at 38 KB.
+- The panel's markup is all still in `src/core/page.html`, feature fields included. Step 6 turns the hand-wired
+  fields into field-table rows, which is the time to let a feature bring its own fields.
+- `export.mjs` reads `state.json` and runs the library from `src/` (the code the build puts in the page);
+  `save-state.mjs` writes `state.json` and builds the page, writing nothing if the build fails.
+- `index.html` is now 7,604 lines and 437,188 bytes: the saved JSON is written by `JSON.stringify` (the same data,
+  one value per line), and each file has its marker line. The notes block's `saved` is the model's revision, as
+  `save-state.mjs` always wrote it; the old file had `null` there, and the page never reads it.
+
+### How the split was checked
+
+- Tests: 100 of 100 pass, the 95 from session 1 and 5 new build tests.
+- Exports: every input in session 1's table still prints the same bytes (same SHA-256), and `canvas/check.sh`
+  accepts the saved model.
+- The library: `SysMLModel` has the same 61 names in the same order, and its four tables are the same, with their
+  keys, lists and hook sources in the same order. The features load in the order their rows had in the tables.
+- The page: the stitched script uses the same 28 globals as the old one, so no name was left unresolved; no
+  function or constant is ever reassigned, so what a script takes is always the live value; no element gets
+  listeners from two scripts, so loading the features after the core changes no listener order; and nothing a
+  script runs while loading needs a later script (the camera is now read as `camera.js` loads).
+- In Chromium, the old page and the new one draw the same SVG, palette and panel and export the same text for the
+  saved model and each of the nine fixtures, imported through Import state.
+- The split was made by scripts on Claude's side (acorn and eslint-scope, in the session's scratchpad, not
+  committed), so the code was moved, not retyped. The only edits are the `S.`/`C.` rewrites above, the moved
+  declarations, and the comments that described the one file's regions.
+
+### For the next session
+
+- Change the files in `src/` (or `state.json`), run `node canvas/build.mjs`, and commit `index.html` with them.
+- Step 2: the edit routine's pieces are defined in `src/core/page/changes.js` (`logChange`, `changed`, `commit`;
+  `snapshot` and `endEdit` too). Calls, not counting the definitions: 36 of `commit(` (panel.js 12, views.js 4,
+  grid 4, annotations 4, browser 3, sequence 2, geometry 2, tools.js 2, pointing.js 2, io.js 1), 40 of
+  `logChange(` and 46 of `changed()`. The one edit function belongs in `changes.js`, registered on `C`.
+- `docs/REPO_MAP.md`, the map aider draws of this repository, still shows the old single file; aider wasn't
+  available here to draw it again.
