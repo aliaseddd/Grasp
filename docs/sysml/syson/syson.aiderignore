@@ -1,0 +1,16 @@
+# What draw-maps.sh tells aider to leave out of every map (gitignore syntax, read against the clone's root).
+
+# The lexer, parser, and listeners ANTLR generates from DirectEdit.g4, which are committed next to the
+# grammar. The parser alone is thousands of lines of rule methods.
+backend/services/syson-direct-edit-grammar/src/main/java/org/eclipse/syson/direct/edit/grammars/
+
+# Third-party code bundled into single files: the SysIDE command-line tool that the import runs under
+# Node to parse textual SysML (4 MB, built with esbuild), and the minified scripts of the documentation's UI.
+backend/application/syson-sysml-import/src/main/resources/syside-cli.js
+doc/doc-ui/src/js/vendor/
+
+# Pictures: icons for the EMF editor and the diagrams, and the documentation's screenshots. They have
+# no definitions to show.
+*.gif
+*.png
+*.svg

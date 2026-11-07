@@ -7,7 +7,7 @@ The design canvas and the SysML v2 work behind it. They started here beside the 
 | Folder | What it is | Built with |
 |---|---|---|
 | `canvas/` | The design canvas: SysML v2 models drawn in the eight standard view kinds on one endless plane, with undo, checks while drawing, notes pinned to elements or left free on the plane, an archive, code attached to elements, and an export to textual SysML v2, worked on with Claude in a loop. One HTML file. | SVG, no libraries; Node for the scripts, Playwright for the tests |
-| `docs/sysml/` | A SysML v2 model of the proof's structure and its drawing, the validator script `check.sh` the canvas exports through, and aider's map of the SysML v2 Pilot Implementation (`docs/sysml/pilot-implementation`). | Java 17+ and python3 for `check.sh` |
+| `docs/sysml/` | A SysML v2 model of the proof's structure and its drawing, the validator script `check.sh` the canvas exports through, and aider's maps of the SysML v2 Pilot Implementation (`docs/sysml/pilot-implementation`) and of Eclipse SysON (`docs/sysml/syson`). | Java 17+ and python3 for `check.sh` |
 | `docs/REPO_MAP.md` | The repo map aider draws of this repository. | aider |
 
 Each folder has a README that says why it is the way it is. The model and the canvas's saved model describe Stronghold's code, so paths in them like `app/src/host/load-app.ts` name files in the Stronghold repository.
