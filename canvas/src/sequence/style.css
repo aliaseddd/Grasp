@@ -1,0 +1,8 @@
+/* The sequence view: a dashed lifeline under each head, the event dots on it, the message's arrowhead, and the two
+   small arrows under a message that move its row. */
+.sysml .lifeline { fill: none; stroke: currentColor; stroke-width: 1; stroke-dasharray: 4 4; stroke-opacity: 0.7; pointer-events: none; }
+.sysml .el.event > .outline { fill: currentColor; }
+.sysml .el.event > .event-hit { fill: transparent; stroke: none; pointer-events: all; }
+.sysml .message-head { fill: var(--card); stroke: currentColor; stroke-width: 1.25; stroke-linejoin: round; }
+.sysml .message-order { font: 600 9px var(--sans); fill: currentColor; fill-opacity: 0.4; cursor: pointer; }
+.sysml .message-order:hover { fill: var(--accent); fill-opacity: 1; }

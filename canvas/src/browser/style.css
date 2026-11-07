@@ -1,0 +1,20 @@
+/* The browser view: the model as a tree of rows. Each row has a fill (alternating) and, inset, the outline the core's
+   marks land on (is-hover, is-selected, is-problem, is-source), on element and relationship rows alike. */
+.sysml .browser-row .browser-fill { fill: var(--card); stroke: none; }
+.sysml .browser-row.browser-alt .browser-fill { fill: var(--bg); }
+.sysml .browser-row > .outline { fill: none; stroke: none; stroke-width: 1.25; }
+.sysml .browser-row.is-hover > .outline { stroke: var(--accent); }
+.sysml .browser-row.is-source > .outline { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 4 3; }
+.sysml .browser-row.is-selected > .outline { stroke: var(--accent); stroke-width: 2.5; }
+.sysml .browser-row.is-problem > .outline { stroke: var(--danger); }
+.sysml .browser-row .browser-name { font: 500 12.5px var(--sans); }
+.sysml .browser-row.is-abstract .browser-name { font-style: italic; }
+.sysml .browser-row .browser-type { font: 400 12px var(--sans); fill-opacity: 0.8; }
+.sysml .browser-row .browser-rel { font: 400 12.5px var(--sans); }
+.sysml .browser-row .browser-notes { font: 400 10.5px var(--sans); fill-opacity: 0.72; }
+/* The disclosure triangle: a control on a row with something inside it, with a clear square around it to click. */
+.sysml .browser-toggle { cursor: pointer; }
+.sysml .browser-toggle .browser-hit { fill: transparent; stroke: none; pointer-events: all; }
+.sysml .browser-toggle .browser-arrow { fill: currentColor; fill-opacity: 0.75; }
+.sysml .browser-toggle:hover .browser-arrow { fill: var(--accent); fill-opacity: 1; }
+.sysml .browser-empty { font: italic 400 12.5px var(--sans); fill-opacity: 0.6; pointer-events: none; }

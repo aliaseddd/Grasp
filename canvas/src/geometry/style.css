@@ -1,0 +1,13 @@
+/* The geometry view: a plan with a coordinate frame and the parts' footprints to scale. A footprint that isn't to scale
+   (no shape, or its dimensions not set yet) is dashed. */
+.sysml .geo-axis { fill: none; stroke: currentColor; stroke-width: 1; stroke-opacity: 0.6; pointer-events: none; }
+.sysml .geo-arrow { fill: currentColor; fill-opacity: 0.6; }
+.sysml .geo-origin { fill: currentColor; fill-opacity: 0.6; pointer-events: none; }
+.sysml .geo-label { font: italic 400 11.5px var(--sans); fill-opacity: 0.7; pointer-events: none; }
+.sysml .geo-scale { font: 400 10.5px var(--mono); fill-opacity: 0.7; pointer-events: none; }
+.sysml .footprint.no-shape > .outline { stroke-dasharray: 5 3; stroke-opacity: 0.7; }
+.sysml .footprint .geo-dims { font: 400 11px var(--mono); fill-opacity: 0.8; }
+.sysml .footprint.no-shape .geo-dims { font: italic 400 11px var(--sans); fill-opacity: 0.6; }
+/* The spatial fields sit in rows, as many columns as the row has fields showing; a row with none showing takes no room. */
+.fields .geo-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.fields .geo-row:not(:has(label:not([hidden]))) { display: none; }

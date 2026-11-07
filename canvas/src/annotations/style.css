@@ -1,0 +1,39 @@
+/* A free note's pin is hollow, since it sits on nothing. While a pin is dragged, the pins and badges let the pointer
+   through to what is under it, and the element or line there is marked as the drop. */
+.sysml .pin.is-free circle { fill: var(--card); stroke: var(--accent); stroke-width: 2; }
+.sysml .pin.is-free text { fill: var(--accent); }
+.sysml .pin.is-free.is-resolved circle { stroke: var(--fg-2); }
+.sysml .pin.is-free.is-resolved text { fill: var(--fg-2); }
+.sysml .pin.is-free.is-active circle { stroke: var(--fg); }
+.sysml .pin.is-dragging { opacity: 0.85; }
+.sysml.is-pinning .pins, .sysml.is-pinning .problems { pointer-events: none; }
+.canvas.is-pinning, .canvas.is-pinning * { cursor: grabbing !important; }
+.sysml .rel.is-drop .line { stroke: var(--accent); stroke-width: 2.75; stroke-dasharray: 5 3; }
+/* The archive, under the notes: a button that opens the list, and each archived note as read-only text with Restore. */
+.archive-section { display: grid; gap: 10px; }
+.archive-toggle { justify-self: start; padding: 6px 9px; font-size: 12px; }
+.note .archive { padding: 6px 8px; font-size: 12px; color: var(--fg-2); border-color: var(--line); }
+.archived { display: grid; gap: 6px; padding: 10px; border: 1px dashed var(--line-strong); border-radius: 6px; }
+.archived .number { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--fg-2); color: var(--on-accent); font: 600 11px/1 var(--sans); }
+.archived .archived-text { margin: 0; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.archived .restore { padding: 6px 8px; font-size: 12px; }
+/* Code links, under the selection's fields: each a path, a language and the text, in the code font. */
+.code-links { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); min-width: 0; }
+.code-links h3 { margin: 0; display: flex; align-items: baseline; gap: 8px; font: 600 13px/1.3 var(--sans); }
+.code-links .add-code { padding: 6px 9px; font-size: 12px; }
+/* A grid item is at least as wide as its content unless told otherwise, and a textarea that keeps its lines unwrapped
+   would widen the whole panel to its longest line. */
+.code-links .list, .code-link, .code-link .code-text { min-width: 0; }
+.code-link { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 6px; }
+.code-link .code-row { display: flex; gap: 6px; align-items: center; }
+.code-link .code-path { flex: 1; min-width: 0; }
+.code-link .code-path, .code-link .code-language, .code-link .code-text {
+  font: 400 12.5px/1.4 var(--mono); color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+}
+.code-link .code-language { font: 400 12px/1.4 var(--sans); max-width: 110px; }
+.code-link .code-text { width: 100%; min-height: 38px; resize: vertical; white-space: pre; overflow-x: auto; tab-size: 2; }
+.code-link .code-path:read-only, .code-link .code-text:read-only { background: transparent; }
+.code-link .code-remove { padding: 6px 8px; font-size: 12px; color: var(--fg-2); border-color: var(--line); }
+.code-link .code-remove:hover { color: var(--danger); border-color: var(--danger); }
+.code-link .code-static { margin: 0; font: 400 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }

@@ -1,0 +1,16 @@
+@media (max-width: 720px) {
+  /* On a phone the palette is one row that scrolls sideways, so the bar stays short. */
+  .top { gap: 8px 12px; }
+  .title { flex: 1 1 100%; }
+  .palette, .actions { flex: 1 1 100%; min-width: 0; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+  .palette .label { display: none; }
+  .palette button[data-tool], .actions button { white-space: nowrap; flex: none; }
+  .panel { top: auto; left: 12px; right: 12px; width: auto; bottom: 64px; max-height: 46%; }
+  .hud { max-width: calc(100% - 136px); bottom: auto; top: 12px; }
+  .show-panel { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .export-panel { bottom: 64px; max-height: 60%; }
+  .code { height: 30vh; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sysml .el > .outline, .sysml .rel .line { transition: stroke 120ms ease; }
+}

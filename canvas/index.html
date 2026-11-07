@@ -6,13 +6,15 @@
 <title>Stronghold Design Canvas</title>
 <!-- A SysML v2 model drawn as views on an endless plane, each view a frame with its own layout of the model's
      elements, with notes on its elements and lines, checks while drawing, undo, and an export to textual SysML v2. Open
-     this file in a browser; it needs no server. The model between the model markers and the notes between the notes
-     markers are written by save-state.mjs. Published on claude.ai, the page keeps the working model and the notes in
-     the page's database, where Claude reads them. README.md in this folder says how. -->
+     this file in a browser; it needs no server. canvas/build.mjs makes it from the sources in canvas/src/ and the saved
+     model, notes and archive in canvas/state.json: change those and build, rather than editing this file. Published on
+     claude.ai, the page keeps the working model and the notes in the page's database, where Claude reads them.
+     README.md in this folder says how. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:ital,wght@0,400;0,500;0,600;1,400&display=swap">
 <style>
+/* ==== src/core/style.css */
 /* Layout: a bar with the palette along the top, the plane under it, and panels floating on the plane.
    Stronghold's design tokens (app/src/design/tokens.css), with a dark set made from the same ink and teal. */
 :root {
@@ -244,6 +246,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   border: 1px solid var(--line-strong); border-radius: 6px; padding: 8px; white-space: pre; overflow: auto;
 }
 /* What the slices add to the look: their shapes, lines, rows and panel sections, one region each. */
+/* ==== src/interconnection/style.css */
 /* Interconnection: an interface is a connector with a name tag, a flow a thin line with a filled head at the target, a
    binding a line with an equals sign on it. */
 .sysml .rel.interface .line { stroke: var(--accent); stroke-width: 2; }
@@ -251,6 +254,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .sysml .flow-head { fill: currentColor; stroke: none; }
 .sysml .rel.binding .line { stroke: currentColor; stroke-width: 1.5; }
 .sysml .rel.binding .uname { font: 600 14px var(--sans); }
+/* ==== src/behavior/style.css */
 /* Behavior: a succession is dashed with an open arrowhead, a transition solid with the same head; fork and join are
    filled bars, decision and merge hollow diamonds; start, done's centre and a state's initial node are filled; a send
    or accept action carries its glyph beside the header; a control node's name sits under it in the code font. */
@@ -258,6 +262,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .sysml .open-head { fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
 .sysml .el.bar > .outline, .sysml .el.start > .outline, .sysml .el.initial > .outline, .sysml .el.done > .centre { fill: currentColor; }
 .sysml .el.action > .action-glyph { fill: currentColor; }
+/* ==== src/sequence/style.css */
 /* The sequence view: a dashed lifeline under each head, the event dots on it, the message's arrowhead, and the two
    small arrows under a message that move its row. */
 .sysml .lifeline { fill: none; stroke: currentColor; stroke-width: 1; stroke-dasharray: 4 4; stroke-opacity: 0.7; pointer-events: none; }
@@ -266,6 +271,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .sysml .message-head { fill: var(--card); stroke: currentColor; stroke-width: 1.25; stroke-linejoin: round; }
 .sysml .message-order { font: 600 9px var(--sans); fill: currentColor; fill-opacity: 0.4; cursor: pointer; }
 .sysml .message-order:hover { fill: var(--accent); fill-opacity: 1; }
+/* ==== src/geometry/style.css */
 /* The geometry view: a plan with a coordinate frame and the parts' footprints to scale. A footprint that isn't to scale
    (no shape, or its dimensions not set yet) is dashed. */
 .sysml .geo-axis { fill: none; stroke: currentColor; stroke-width: 1; stroke-opacity: 0.6; pointer-events: none; }
@@ -279,6 +285,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 /* The spatial fields sit in rows, as many columns as the row has fields showing; a row with none showing takes no room. */
 .fields .geo-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
 .fields .geo-row:not(:has(label:not([hidden]))) { display: none; }
+/* ==== src/grid/style.css */
 /* The grid view: a sheet with a header row and a row per element, or a matrix of the elements against each other. A
    row is an element group (el grid-row), so the core's hover, selection and problem marks apply to it; it has no
    outline of its own, only its zebra fill, and the marks are said again for it, since its own rule would hide them. */
@@ -305,6 +312,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .fields .grid-columns legend { padding: 0 4px; font: 500 11px/1.2 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); }
 .fields .grid-columns label.check { font-size: 12.5px; }
 .fields .grid-kind-row select { width: auto; flex: 1 1 120px; min-width: 0; }
+/* ==== src/browser/style.css */
 /* The browser view: the model as a tree of rows. Each row has a fill (alternating) and, inset, the outline the core's
    marks land on (is-hover, is-selected, is-problem, is-source), on element and relationship rows alike. */
 .sysml .browser-row .browser-fill { fill: var(--card); stroke: none; }
@@ -325,6 +333,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .sysml .browser-toggle .browser-arrow { fill: currentColor; fill-opacity: 0.75; }
 .sysml .browser-toggle:hover .browser-arrow { fill: var(--accent); fill-opacity: 1; }
 .sysml .browser-empty { font: italic 400 12.5px var(--sans); fill-opacity: 0.6; pointer-events: none; }
+/* ==== src/annotations/style.css */
 /* A free note's pin is hollow, since it sits on nothing. While a pin is dragged, the pins and badges let the pointer
    through to what is under it, and the element or line there is marked as the drop. */
 .sysml .pin.is-free circle { fill: var(--card); stroke: var(--accent); stroke-width: 2; }
@@ -364,6 +373,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .code-link .code-remove { padding: 6px 8px; font-size: 12px; color: var(--fg-2); border-color: var(--line); }
 .code-link .code-remove:hover { color: var(--danger); border-color: var(--danger); }
 .code-link .code-static { margin: 0; font: 400 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* ==== src/core/style-end.css */
 @media (max-width: 720px) {
   /* On a phone the palette is one row that scrolls sideways, so the bar stays short. */
   .top { gap: 8px 12px; }
@@ -579,57 +589,258 @@ textarea.text[readonly] { resize: none; background: transparent; }
     "doc": "One app, built once with current tools, and thin hosts that load it into a page the same way. The names follow the code: app/, hosts/server, hosts/online, hosts/dev."
   },
   "elements": [
-    { "id": "Page", "kind": "PartDefinition", "name": "Page", "abstract": false,
-      "doc": "A page with Stronghold on it: a SharePoint Server page, a SharePoint Online page, a Teams tab, or the dev page. Every Stronghold web part on the page mounts the same app, because the first entry file to load wins (app/src/host/load-app.ts)." },
-    { "id": "Page.hosts", "kind": "PartUsage", "name": "hosts", "owner": "Page", "multiplicity": "1..*", "doc": "" },
-    { "id": "Page.hosts.api", "kind": "PortUsage", "name": "api", "owner": "Page.hosts", "conjugated": true, "multiplicity": "", "doc": "" },
-    { "id": "Page.app", "kind": "PartUsage", "name": "app", "owner": "Page", "multiplicity": "1", "doc": "" },
-    { "id": "Page.app.api", "kind": "PortUsage", "name": "api", "owner": "Page.app", "conjugated": false, "multiplicity": "", "doc": "" },
-    { "id": "Host", "kind": "PartDefinition", "name": "Host", "abstract": true,
-      "doc": "hosts/: the small piece of code that plugs the app into one place. It works out where its package's files are, loads the entry file with the shared loader, and calls mount. It has no settings: it only ever loads the app from its own package." },
-    { "id": "Host.api", "kind": "PortUsage", "name": "api", "owner": "Host", "conjugated": true, "multiplicity": "", "doc": "" },
-    { "id": "App", "kind": "PartDefinition", "name": "App", "abstract": false,
-      "doc": "app/: Stronghold itself, built once with webpack 5 and TypeScript 5.9. Nothing in it knows about SharePoint." },
-    { "id": "App.api", "kind": "PortUsage", "name": "api", "owner": "App", "conjugated": false, "multiplicity": "", "doc": "" },
-    { "id": "StrongholdApp", "kind": "PortDefinition", "name": "StrongholdApp", "abstract": false,
-      "doc": "What the app's entry file registers on window.Stronghold." },
-    { "id": "ServerHost", "kind": "PartDefinition", "name": "ServerHost", "abstract": false,
-      "doc": "hosts/server: the web part for SharePoint Server." },
-    { "id": "OnlineHost", "kind": "PartDefinition", "name": "OnlineHost", "abstract": false,
-      "doc": "hosts/online: the web part for SharePoint Online, which is also the Teams tab." },
-    { "id": "DevHost", "kind": "PartDefinition", "name": "DevHost", "abstract": false,
-      "doc": "hosts/dev: a plain page that mounts the app the way the SharePoint hosts do. It never ships." }
+    {
+      "id": "Page",
+      "kind": "PartDefinition",
+      "name": "Page",
+      "abstract": false,
+      "doc": "A page with Stronghold on it: a SharePoint Server page, a SharePoint Online page, a Teams tab, or the dev page. Every Stronghold web part on the page mounts the same app, because the first entry file to load wins (app/src/host/load-app.ts)."
+    },
+    {
+      "id": "Page.hosts",
+      "kind": "PartUsage",
+      "name": "hosts",
+      "owner": "Page",
+      "multiplicity": "1..*",
+      "doc": ""
+    },
+    {
+      "id": "Page.hosts.api",
+      "kind": "PortUsage",
+      "name": "api",
+      "owner": "Page.hosts",
+      "conjugated": true,
+      "multiplicity": "",
+      "doc": ""
+    },
+    {
+      "id": "Page.app",
+      "kind": "PartUsage",
+      "name": "app",
+      "owner": "Page",
+      "multiplicity": "1",
+      "doc": ""
+    },
+    {
+      "id": "Page.app.api",
+      "kind": "PortUsage",
+      "name": "api",
+      "owner": "Page.app",
+      "conjugated": false,
+      "multiplicity": "",
+      "doc": ""
+    },
+    {
+      "id": "Host",
+      "kind": "PartDefinition",
+      "name": "Host",
+      "abstract": true,
+      "doc": "hosts/: the small piece of code that plugs the app into one place. It works out where its package's files are, loads the entry file with the shared loader, and calls mount. It has no settings: it only ever loads the app from its own package."
+    },
+    {
+      "id": "Host.api",
+      "kind": "PortUsage",
+      "name": "api",
+      "owner": "Host",
+      "conjugated": true,
+      "multiplicity": "",
+      "doc": ""
+    },
+    {
+      "id": "App",
+      "kind": "PartDefinition",
+      "name": "App",
+      "abstract": false,
+      "doc": "app/: Stronghold itself, built once with webpack 5 and TypeScript 5.9. Nothing in it knows about SharePoint."
+    },
+    {
+      "id": "App.api",
+      "kind": "PortUsage",
+      "name": "api",
+      "owner": "App",
+      "conjugated": false,
+      "multiplicity": "",
+      "doc": ""
+    },
+    {
+      "id": "StrongholdApp",
+      "kind": "PortDefinition",
+      "name": "StrongholdApp",
+      "abstract": false,
+      "doc": "What the app's entry file registers on window.Stronghold."
+    },
+    {
+      "id": "ServerHost",
+      "kind": "PartDefinition",
+      "name": "ServerHost",
+      "abstract": false,
+      "doc": "hosts/server: the web part for SharePoint Server."
+    },
+    {
+      "id": "OnlineHost",
+      "kind": "PartDefinition",
+      "name": "OnlineHost",
+      "abstract": false,
+      "doc": "hosts/online: the web part for SharePoint Online, which is also the Teams tab."
+    },
+    {
+      "id": "DevHost",
+      "kind": "PartDefinition",
+      "name": "DevHost",
+      "abstract": false,
+      "doc": "hosts/dev: a plain page that mounts the app the way the SharePoint hosts do. It never ships."
+    }
   ],
   "relationships": [
-    { "id": "t-hosts", "kind": "FeatureTyping", "from": "Page.hosts", "to": "Host" },
-    { "id": "t-app", "kind": "FeatureTyping", "from": "Page.app", "to": "App" },
-    { "id": "t-hosts-api", "kind": "FeatureTyping", "from": "Page.hosts.api", "to": "StrongholdApp", "hidden": true },
-    { "id": "t-app-api", "kind": "FeatureTyping", "from": "Page.app.api", "to": "StrongholdApp", "hidden": true },
-    { "id": "t-Host-api", "kind": "FeatureTyping", "from": "Host.api", "to": "StrongholdApp", "hidden": true },
-    { "id": "t-App-api", "kind": "FeatureTyping", "from": "App.api", "to": "StrongholdApp", "hidden": true },
-    { "id": "s-ServerHost", "kind": "Specialization", "from": "ServerHost", "to": "Host" },
-    { "id": "s-OnlineHost", "kind": "Specialization", "from": "OnlineHost", "to": "Host" },
-    { "id": "s-DevHost", "kind": "Specialization", "from": "DevHost", "to": "Host" },
-    { "id": "mount", "kind": "ConnectionUsage", "name": "mount", "from": "Page.hosts.api", "to": "Page.app.api", "doc": "" }
+    {
+      "id": "t-hosts",
+      "kind": "FeatureTyping",
+      "from": "Page.hosts",
+      "to": "Host"
+    },
+    {
+      "id": "t-app",
+      "kind": "FeatureTyping",
+      "from": "Page.app",
+      "to": "App"
+    },
+    {
+      "id": "t-hosts-api",
+      "kind": "FeatureTyping",
+      "from": "Page.hosts.api",
+      "to": "StrongholdApp",
+      "hidden": true
+    },
+    {
+      "id": "t-app-api",
+      "kind": "FeatureTyping",
+      "from": "Page.app.api",
+      "to": "StrongholdApp",
+      "hidden": true
+    },
+    {
+      "id": "t-Host-api",
+      "kind": "FeatureTyping",
+      "from": "Host.api",
+      "to": "StrongholdApp",
+      "hidden": true
+    },
+    {
+      "id": "t-App-api",
+      "kind": "FeatureTyping",
+      "from": "App.api",
+      "to": "StrongholdApp",
+      "hidden": true
+    },
+    {
+      "id": "s-ServerHost",
+      "kind": "Specialization",
+      "from": "ServerHost",
+      "to": "Host"
+    },
+    {
+      "id": "s-OnlineHost",
+      "kind": "Specialization",
+      "from": "OnlineHost",
+      "to": "Host"
+    },
+    {
+      "id": "s-DevHost",
+      "kind": "Specialization",
+      "from": "DevHost",
+      "to": "Host"
+    },
+    {
+      "id": "mount",
+      "kind": "ConnectionUsage",
+      "name": "mount",
+      "from": "Page.hosts.api",
+      "to": "Page.app.api",
+      "doc": ""
+    }
   ],
   "views": [
-    { "id": "v-proof", "kind": "GeneralView", "name": "proofStructure", "doc": "", "x": 0, "y": 0,
+    {
+      "id": "v-proof",
+      "kind": "GeneralView",
+      "name": "proofStructure",
+      "doc": "",
+      "x": 0,
+      "y": 0,
       "layout": {
-        "Page": { "x": 32, "y": 72, "w": 760, "h": 250 },
-        "Page.hosts": { "x": 96, "y": 104, "w": 180, "h": 110 },
-        "Page.hosts.api": { "side": "right", "at": 0.5 },
-        "Page.app": { "x": 568, "y": 104, "w": 180, "h": 110 },
-        "Page.app.api": { "side": "left", "at": 0.5 },
-        "Host": { "x": 32, "y": 400, "w": 368, "h": 130 },
-        "Host.api": { "side": "right", "at": 0.5 },
-        "App": { "x": 600, "y": 400, "w": 368, "h": 130 },
-        "App.api": { "side": "right", "at": 0.5 },
-        "StrongholdApp": { "x": 840, "y": 72, "w": 368, "h": 100 },
-        "ServerHost": { "x": 32, "y": 620, "w": 368, "h": 100 },
-        "OnlineHost": { "x": 436, "y": 620, "w": 368, "h": 100 },
-        "DevHost": { "x": 840, "y": 620, "w": 368, "h": 100 }
+        "Page": {
+          "x": 32,
+          "y": 72,
+          "w": 760,
+          "h": 250
+        },
+        "Page.hosts": {
+          "x": 96,
+          "y": 104,
+          "w": 180,
+          "h": 110
+        },
+        "Page.hosts.api": {
+          "side": "right",
+          "at": 0.5
+        },
+        "Page.app": {
+          "x": 568,
+          "y": 104,
+          "w": 180,
+          "h": 110
+        },
+        "Page.app.api": {
+          "side": "left",
+          "at": 0.5
+        },
+        "Host": {
+          "x": 32,
+          "y": 400,
+          "w": 368,
+          "h": 130
+        },
+        "Host.api": {
+          "side": "right",
+          "at": 0.5
+        },
+        "App": {
+          "x": 600,
+          "y": 400,
+          "w": 368,
+          "h": 130
+        },
+        "App.api": {
+          "side": "right",
+          "at": 0.5
+        },
+        "StrongholdApp": {
+          "x": 840,
+          "y": 72,
+          "w": 368,
+          "h": 100
+        },
+        "ServerHost": {
+          "x": 32,
+          "y": 620,
+          "w": 368,
+          "h": 100
+        },
+        "OnlineHost": {
+          "x": 436,
+          "y": 620,
+          "w": 368,
+          "h": 100
+        },
+        "DevHost": {
+          "x": 840,
+          "y": 620,
+          "w": 368,
+          "h": 100
+        }
       },
-      "options": {} }
+      "options": {}
+    }
   ]
 }
 </script>
@@ -638,13 +849,15 @@ textarea.text[readonly] { resize: none; background: transparent; }
 <!-- notes:start -->
 <script type="application/json" id="saved-notes">
 {
-  "saved": null,
-  "notes": []
+  "saved": "2026-11-06T11:57:16.000Z",
+  "notes": [],
+  "archive": []
 }
 </script>
 <!-- notes:end -->
 
 <script id="model-lib" data-lib>
+// ==== src/core/library.js
 // The model: what the drawing holds, what is wrong with it, and how it reads as textual SysML v2. Pure functions,
 // shared with export.mjs and save-state.mjs, which run this script in Node. The four tables at the top say what the
 // canvas knows: the element kinds, the relationship kinds, the view kinds, and the fields. Each slice adds its rows
@@ -2687,6 +2900,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 </script>
 
 <script>
+// ==== src/core/page.js
 (function () {
   'use strict';
 

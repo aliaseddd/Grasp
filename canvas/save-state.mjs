@@ -1,17 +1,18 @@
-// Saves a state into index.html: the model between the model markers and the notes between the notes markers, with
-// a new revision, so the file in git carries them and the page starts from them.
+// Saves a state as the canvas's saved state, with a new revision: the model, the notes and the archive into
+// state.json, and index.html built again from it (build.mjs), so the files in git carry them and the page starts
+// from them.
 //
 //   node canvas/save-state.mjs canvas-state.json
 //
-// canvas-state.json is { "model": {...}, "notes": [...] }: what the page's Download state saves, or what Claude
-// read from the published page's store (the document model/working and the collection notes). Everything the
-// page can't draw is dropped, the same way the page drops it. The revision is the time of saving, so a working
-// copy in the store made against an older revision is left alone by the page.
+// canvas-state.json is { "model": {...}, "notes": [...], "archive": [...] }: what the page's Download state saves, or
+// what Claude read from the published page's store (the document model/working and the collections notes and
+// archive). Everything the page can't draw is dropped, the same way the page drops it. The revision is the time of
+// saving, so a working copy in the store made against an older revision is left alone by the page.
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { PAGE, loadLib } from './export.mjs';
+import { PAGE, STATE, build } from './build.mjs';
+import { loadLib } from './export.mjs';
 
 const file = process.argv[2];
 if (!file) {
@@ -19,8 +20,7 @@ if (!file) {
   process.exit(1);
 }
 
-const html = fs.readFileSync(PAGE, 'utf8');
-const lib = loadLib(html);
+const lib = loadLib();
 const input = JSON.parse(fs.readFileSync(file, 'utf8'));
 if (!input || typeof input !== 'object' || !input.model) {
   console.error(`${file} has no model, so nothing was written.`);
@@ -44,23 +44,15 @@ const notes = tidy(input.notes, NOTE);
 const archive = tidy(input.archive, ARCHIVED);
 const orphans = notes.filter((n) => n.target !== null && !known.has(n.target)).length;
 
-// `<` is written as < so no text can end the script element early.
-const json = (value) => JSON.stringify(value, null, 2).replace(/</g, '\\u003c');
-const replaceBetween = (text, start, end, block) => {
-  const a = text.indexOf(start);
-  const b = text.indexOf(end);
-  if (a < 0 || b < a) throw new Error(`No ${start} … ${end} in ${PAGE}.`);
-  return text.slice(0, a + start.length) + block + text.slice(b);
-};
-
-let out = replaceBetween(html, '<!-- model:start -->', '<!-- model:end -->',
-  `\n<script type="application/json" id="model">\n${json(model)}\n</script>\n`);
-out = replaceBetween(out, '<!-- notes:start -->', '<!-- notes:end -->',
-  `\n<script type="application/json" id="saved-notes">\n${json({ saved: model.revision, notes, archive })}\n</script>\n`);
-fs.writeFileSync(PAGE, out);
+// The page is built first, so a source the build refuses leaves both files as they were.
+const state = { model, notes, archive };
+const page = build(state);
+fs.writeFileSync(STATE, JSON.stringify(state, null, 2) + '\n');
+fs.writeFileSync(PAGE, page);
 
 const problems = lib.validate(model);
+const rel = (f) => path.relative(process.cwd(), f) || f;
 console.log(`Saved ${model.elements.length} elements, ${model.relationships.length} relationships, ${model.views.length} views, ` +
   `${notes.length} notes${orphans ? ` (${orphans} on things no longer in the model)` : ''}, and ${archive.length} archived notes ` +
-  `into ${path.relative(process.cwd(), PAGE)}, revision ${model.revision}.`);
+  `into ${rel(STATE)}, revision ${model.revision}, and built ${rel(PAGE)} from it.`);
 for (const p of problems) console.log(`problem: ${p.message}`);

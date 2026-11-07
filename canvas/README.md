@@ -1,6 +1,6 @@
 # The design canvas
 
-`index.html` is a SysML v2 model drawn on an endless plane, in one HTML file with its script inline. The model is drawn in views, one frame per view, in any of the eight standard view kinds: a general view, an interconnection view, an action flow view, a state transition view, a sequence view, a geometry view, a grid, and a browser. You draw the elements each kind admits and the lines between them; the page checks the model as you draw; you pin notes to any box, port, or line, or leave them free on the plane; the drawing exports as textual SysML v2 that the SysML v2 Pilot Implementation's own validator accepts; and Undo takes back any change to the model. Claude reads your notes and changes the model on its side of the loop. This is the second slice of the design artifact described in the Stronghold developer log: the first proved the loop with one view kind, and this one adds what the log deferred.
+`index.html` is a SysML v2 model drawn on an endless plane, in one HTML file with its script inline, which `build.mjs` builds from the sources in `src/` and the saved state in `state.json`. The model is drawn in views, one frame per view, in any of the eight standard view kinds: a general view, an interconnection view, an action flow view, a state transition view, a sequence view, a geometry view, a grid, and a browser. You draw the elements each kind admits and the lines between them; the page checks the model as you draw; you pin notes to any box, port, or line, or leave them free on the plane; the drawing exports as textual SysML v2 that the SysML v2 Pilot Implementation's own validator accepts; and Undo takes back any change to the model. Claude reads your notes and changes the model on its side of the loop. This is the second slice of the design artifact described in the Stronghold developer log: the first proved the loop with one view kind, and this one adds what the log deferred.
 
 ![The canvas showing the Stronghold proof in several views](canvas.png)
 
@@ -31,12 +31,12 @@ The design is worked on in a loop, and git is its memory between conversations.
 1. **Load.** Claude publishes `index.html` to its page on claude.ai, https://claude.ai/artifact/V7Fw94cGMbtPnwmyDNmnjU. The page is private until it is shared from its Share menu. It starts from the model, the notes, and the archive saved in the file.
 2. **Draw and annotate.** You change the drawing and pin notes. On the published page, every change saves as you work, into the page's own store, where Claude reads it.
 3. **Review and respond.** You ask Claude to look. Claude reads the working model, the notes, and the archive from the store, exports the model with `export.mjs`, checks it with `check.sh`, makes the changes the notes ask for, answers each note, and republishes the page. The page picks up the new model.
-4. **Save.** When you say so, Claude writes the model, the notes, and the archive into `index.html` with `save-state.mjs` and commits. Nothing reaches GitHub until then.
+4. **Save.** When you say so, Claude writes the model, the notes, and the archive into `state.json` with `save-state.mjs`, which builds `index.html` from it, and commits. Nothing reaches GitHub until then.
 
 Where the model and the notes are kept:
 
 - **On the published page**, in the page's store: one document, `model/working`, holds the working model as `{ baseRevision, model, changes, updated }`, where `baseRevision` is the `revision` of the model saved in the file the page was published from and `changes` is a list of `{ at, text }` saying what was done, newest last. A collection `notes` holds one document per note, named by the note's id, with `no`, `target` (the id of the element or line it is on, or `null` for a note on the plane, which then carries `x` and `y`), `targetLabel`, `text`, `by` (`user` or `claude`), `created`, `updated`, `response`, and `resolved`. A collection `archive` holds the archived notes the same way, each with `archived` (when) and `resolution` (the response at the time). Archiving is set `archive/<id>` then delete `notes/<id>`; restoring is the reverse. The page ignores a working model whose `baseRevision` is not the file's, so a republished file starts clean.
-- **In git**, inside `index.html`: the model between `<!-- model:start -->` and `<!-- model:end -->`, the notes and the archive between `<!-- notes:start -->` and `<!-- notes:end -->` as `{ saved, notes, archive }`.
+- **In git**, in `state.json`, as `{ model, notes, archive }`. The build puts them into `index.html`: the model between `<!-- model:start -->` and `<!-- model:end -->`, the notes and the archive between `<!-- notes:start -->` and `<!-- notes:end -->` as `{ saved, notes, archive }`, where `saved` is the model's revision.
 - **Opened as a file** in a browser, the page needs no server. It starts from what is saved in it and keeps your changes in that browser. Download state saves them as `canvas-state.json` (`{ model, notes, archive, changes }`), which Import state, or `save-state.mjs`, takes back.
 
 The model's format is `stronghold-canvas/2`: `elements` carry their meaning (kind, name, owner, the fields of their kind, code links), `relationships` their two ends and fields, and each of the `views` its kind, name, doc, place on the plane, options, and a `layout` saying where each element it shows sits (a box's place and size relative to its nearest owner shown in the same view, a border item's side). A format-1 file, or an element written by hand with `x` and `y` of its own, is read and placed into the first view on load.
@@ -46,15 +46,17 @@ How Claude responds to a note: it sets `response`, and `resolved` once the note 
 ## The scripts
 
 ```sh
-node canvas/export.mjs                     # the model saved in index.html, as textual SysML v2
+node canvas/build.mjs                      # build index.html from src/ and state.json
+node canvas/build.mjs --check              # fail if index.html isn't what they build
+node canvas/export.mjs                     # the model saved in state.json, as textual SysML v2
 node canvas/export.mjs canvas-state.json   # a state file, the same way
 canvas/check.sh [canvas-state.json]        # export, then check with the pilot implementation's validator
-node canvas/save-state.mjs canvas-state.json   # write a state into index.html, with a new revision
-node --test --test-timeout=120000 canvas/test/*.test.mjs   # the Chromium tests, one process per file
+node canvas/save-state.mjs canvas-state.json   # write a state into state.json, with a new revision, and build
+node --test --test-timeout=120000 canvas/test/*.test.mjs   # the tests, one process per file
 ```
 
 `node --test canvas/test/` runs the same files in one process through `test/index.js`; give it no `--test-timeout`, or at least 180000, since the bound then covers the whole suite.
-`export.mjs` runs the page's own model script (`<script id="model-lib">` in `index.html`) in Node, so the text it prints is the text the Export button shows. `check.sh` hands that text to `docs/sysml/check.sh`, which runs the validator inside the pilot implementation's Jupyter kernel; its first run downloads the kernel. The tests need Playwright 1.63.0 and its Chromium where Node finds them from `canvas/test/`: run `npm install --no-save playwright@1.63.0` at the repository root (it writes only `node_modules/`, which git ignores), then `npx playwright install chromium`, once per machine; `canvas/test/fixtures/` holds a state file per view kind, each of which `canvas/check.sh` accepts, and the model-library test exports every one of them.
+`src/README.md` says how the sources are laid out and stitched. `export.mjs` runs the model library's scripts from `src/` in Node, stitched the way the build puts them into the page's `<script id="model-lib">`, so the text it prints is the text the Export button shows. `check.sh` hands that text to `docs/sysml/check.sh`, which runs the validator inside the pilot implementation's Jupyter kernel; its first run downloads the kernel. The tests need Playwright 1.63.0 and its Chromium where Node finds them from `canvas/test/`: run `npm install --no-save playwright@1.63.0` at the repository root (it writes only `node_modules/`, which git ignores), then `npx playwright install chromium`, once per machine; `canvas/test/fixtures/` holds a state file per view kind, each of which `canvas/check.sh` accepts, and the model-library test exports every one of them.
 
 ## How the model is written out
 
