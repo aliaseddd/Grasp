@@ -14,6 +14,7 @@ import path from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { LIBRARY, SRC } from '../build.mjs';
 import { modelLibSource, pageSource } from './helpers.mjs';
 
 const CANVAS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,6 +40,26 @@ function loadLib() {
   vm.runInContext(modelLibSource(pageSource()), vm.createContext(sandbox), { filename: 'canvas/index.html#model-lib' });
   return sandbox.SysMLModel;
 }
+
+/**
+ * The model library from its sources, with a script of the test's own run right after core/lib/model.js, as a
+ * feature's lib.js is: it throws what the library throws as it loads.
+ */
+function loadLibWith(script) {
+  const files = LIBRARY.map((file) => fs.readFileSync(path.join(SRC, file), 'utf8'));
+  files.splice(LIBRARY.indexOf('core/lib/model.js') + 1, 0, `(function (root) {\n  'use strict';\n  const lib = root.SysMLModelLib;\n${script}\n})(globalThis);\n`);
+  const sandbox = {};
+  vm.runInContext(files.join(''), vm.createContext(sandbox), { filename: 'model-lib.js' });
+  return sandbox.SysMLModel;
+}
+
+// A class and its supertypes, all the way up, nearest first; whether a class conforms to another.
+function lineage(lists, metaclass) {
+  const out = [metaclass];
+  for (let i = 0; i < out.length; i++) for (const g of lists[out[i]].general) if (!out.includes(g)) out.push(g);
+  return out;
+}
+const conformsIn = (lists, metaclass, general) => lineage(lists, metaclass).includes(general);
 
 // The ecore read with patterns, in the file's order: each classifier's tag, then its features' and literals' tags,
 // until the next classifier. These tags hold no documentation (that is in the annotations), so none has a > inside
@@ -175,5 +196,152 @@ describe('the kind lists', () => {
         for (const k of (f.subsets || []).concat(f.redefines || [])) assert.ok(all.has(k), `${c}::${f.name} names ${k}, which is in the lists`);
       }
     }
+  });
+});
+
+// The canvas's 29 kinds on the lists: each stands on a class, which says whether it is a definition or a usage, and
+// what the kinds' hand-written rules allow (what nests, what defines a usage, a field that holds an attribute) is
+// what that class allows.
+describe('the kinds on the lists', () => {
+  // The definitions and the usages, as the kinds' rows said by hand before they stood on the lists.
+  const DEFINITIONS = ['PartDefinition', 'PortDefinition', 'ItemDefinition', 'InterfaceDefinition', 'ActionDefinition', 'StateDefinition'];
+  const USAGES = ['PartUsage', 'PortUsage', 'ItemUsage', 'ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode',
+    'StartNode', 'DoneNode', 'StateUsage', 'InitialNode', 'EventOccurrenceUsage'];
+  // The kinds that aren't named after the class they stand on.
+  const STANDS_ON = { ParameterUsage: 'ItemUsage', StartNode: 'ActionUsage', DoneNode: 'ActionUsage', InitialNode: 'ActionUsage', FlowConnectionUsage: 'FlowUsage', Message: 'FlowUsage' };
+
+  test('each of the 29 kinds stands on a class of the lists, not an abstract one: its own name\'s, or the one its row names', () => {
+    const M = loadLib();
+    const kinds = Object.keys(M.KINDS).concat(Object.keys(M.RELATIONSHIPS));
+    assert.equal(kinds.length, 29, 'the 20 element kinds and the 9 relationship kinds');
+    for (const kind of kinds) {
+      const row = M.KINDS[kind] || M.RELATIONSHIPS[kind];
+      assert.equal(row.metaclass, STANDS_ON[kind] || kind, `${kind} stands on ${STANDS_ON[kind] || kind}`);
+      const c = M.METAMODEL[row.metaclass];
+      assert.ok(c && c.general && !c.abstract, `${kind}'s class ${row.metaclass} is a class of the lists, and not abstract`);
+    }
+  });
+
+  test('whether a kind is a definition or a usage is its class\'s, as the rows said by hand before', () => {
+    const M = loadLib();
+    const lists = M.METAMODEL;
+    assert.deepEqual(Object.keys(M.KINDS).sort(), DEFINITIONS.concat(USAGES).sort());
+    for (const kind of Object.keys(M.KINDS)) {
+      const row = M.KINDS[kind];
+      assert.equal(row.definition, DEFINITIONS.includes(kind), `${kind} is ${DEFINITIONS.includes(kind) ? '' : 'not '}a definition`);
+      assert.equal(row.usage, USAGES.includes(kind), `${kind} is ${USAGES.includes(kind) ? '' : 'not '}a usage`);
+      assert.equal(row.definition, conformsIn(lists, row.metaclass, 'Definition'), `${kind}: its class ${row.metaclass} says whether it is a Definition`);
+      assert.equal(row.usage, conformsIn(lists, row.metaclass, 'Usage'), `${kind}: and whether it is a Usage`);
+    }
+  });
+
+  test('what a kind nests, its class may own, each through one feature that holds just such elements', () => {
+    const M = loadLib();
+    const lists = M.METAMODEL;
+    // For each nesting the kinds allow, the owning feature it is: the one of the owner's class whose type is the most
+    // specific that the child's class conforms to. These are the features SysON's compartments list.
+    const THROUGH = {
+      PartDefinition: { PartUsage: 'Definition::ownedPart', PortUsage: 'Definition::ownedPort', ItemUsage: 'Definition::ownedItem', ActionUsage: 'Definition::ownedAction', StateUsage: 'Definition::ownedState' },
+      PortDefinition: { ItemUsage: 'Definition::ownedItem' },
+      PartUsage: { PartUsage: 'Usage::nestedPart', PortUsage: 'Usage::nestedPort', ItemUsage: 'Usage::nestedItem', ActionUsage: 'Usage::nestedAction', StateUsage: 'Usage::nestedState', EventOccurrenceUsage: 'Usage::nestedOccurrence' },
+      InterfaceDefinition: { PortUsage: 'Definition::ownedPort' },
+      ActionDefinition: { ActionUsage: 'Definition::ownedAction', ParameterUsage: 'Definition::ownedItem', ForkNode: 'Definition::ownedAction', JoinNode: 'Definition::ownedAction',
+        DecisionNode: 'Definition::ownedAction', MergeNode: 'Definition::ownedAction', StartNode: 'Definition::ownedAction', DoneNode: 'Definition::ownedAction' },
+      ActionUsage: { ActionUsage: 'Usage::nestedAction', ParameterUsage: 'Usage::nestedItem', ForkNode: 'Usage::nestedAction', JoinNode: 'Usage::nestedAction',
+        DecisionNode: 'Usage::nestedAction', MergeNode: 'Usage::nestedAction', StartNode: 'Usage::nestedAction', DoneNode: 'Usage::nestedAction' },
+      StateDefinition: { StateUsage: 'Definition::ownedState', ActionUsage: 'Definition::ownedAction', InitialNode: 'Definition::ownedAction', DoneNode: 'Definition::ownedAction' },
+      StateUsage: { StateUsage: 'Usage::nestedState', ActionUsage: 'Usage::nestedAction', InitialNode: 'Usage::nestedAction', DoneNode: 'Usage::nestedAction' },
+    };
+    const nests = {};
+    for (const kind of Object.keys(M.KINDS)) {
+      const row = M.KINDS[kind];
+      for (const child of row.contains || []) {
+        const owning = lineage(lists, row.metaclass).flatMap((c) => lists[c].owns.map((f) => ({ key: `${c}::${f.name}`, type: f.type })));
+        const able = owning.filter((f) => conformsIn(lists, M.KINDS[child].metaclass, f.type));
+        const nearest = able.filter((f) => able.every((g) => conformsIn(lists, f.type, g.type)));
+        assert.equal(nearest.length, 1, `${kind} nests ${child} through one most specific feature of ${row.metaclass}: ${nearest.map((f) => f.key).join(', ') || 'none'}`);
+        (nests[kind] = nests[kind] || {})[child] = nearest[0].key;
+      }
+    }
+    assert.deepEqual(nests, THROUGH, 'each nesting the kinds allow, through the feature the table above says');
+  });
+
+  test('what defines a usage, its class may be typed by', () => {
+    const M = loadLib();
+    const lists = M.METAMODEL;
+    // The feature of the usage's class that types it: the one the nearest class in its lineage declares that is, or
+    // subsets or redefines, Usage::definition.
+    const TYPED_BY = {
+      PartUsage: 'PartUsage::partDefinition', PortUsage: 'PortUsage::portDefinition', ItemUsage: 'ItemUsage::itemDefinition',
+      ActionUsage: 'ActionUsage::actionDefinition', ParameterUsage: 'ItemUsage::itemDefinition', StateUsage: 'StateUsage::stateDefinition',
+    };
+    const all = Object.keys(lists).filter((c) => lists[c].general).flatMap((c) => lists[c].owns.concat(lists[c].fields).map((f) => ({ key: `${c}::${f.name}`, owner: c, f })));
+    const family = new Set(['Usage::definition']);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const x of all) if (!family.has(x.key) && (x.f.subsets || []).concat(x.f.redefines || []).some((k) => family.has(k))) { family.add(x.key); grew = true; }
+    }
+    const typedBy = {};
+    for (const kind of Object.keys(M.KINDS)) {
+      const row = M.KINDS[kind];
+      if (!row.definedBy) continue;
+      assert.ok(M.KINDS[row.definedBy] && M.KINDS[row.definedBy].definition, `${kind} is defined by a definition kind`);
+      const nearest = lineage(lists, row.metaclass).find((c) => all.some((x) => x.owner === c && family.has(x.key)));
+      const features = all.filter((x) => x.owner === nearest && family.has(x.key));
+      for (const x of features) {
+        assert.ok(conformsIn(lists, M.KINDS[row.definedBy].metaclass, x.f.type), `${kind}'s ${row.definedBy} is ${x.f.type === row.definedBy ? 'a' : 'a kind of'} ${x.f.type}, what ${x.key} types it by`);
+      }
+      typedBy[kind] = features.map((x) => x.key).join(', ');
+    }
+    assert.deepEqual(typedBy, TYPED_BY);
+  });
+
+  test('a field that holds an attribute takes its type from it, and every kind that shows the field has the attribute', () => {
+    const M = loadLib();
+    const lists = M.METAMODEL;
+    const held = Object.keys(M.FIELDS).filter((f) => M.FIELDS[f].attribute);
+    assert.deepEqual(held.map((f) => `${f}: ${M.FIELDS[f].attribute}`), ['name: declaredName', 'abstract: isAbstract', 'direction: direction', 'parallel: isParallel']);
+    assert.equal(JSON.stringify(['name', 'abstract', 'direction', 'parallel'].map((f) => [M.FIELDS[f].type, M.FIELDS[f].values || null])),
+      JSON.stringify([['string', null], ['bool', null], ['enum', ['', 'in', 'inout', 'out']], ['bool', null]]), 'a string, a bool, an enum of none and the literals, a bool');
+    let shown = 0;
+    for (const [table, rows] of [['KINDS', M.KINDS], ['RELATIONSHIPS', M.RELATIONSHIPS]]) {
+      for (const kind of Object.keys(rows)) {
+        const row = rows[kind];
+        for (const f of row.fields.filter((x) => held.includes(x))) {
+          const attribute = M.FIELDS[f].attribute;
+          const c = lineage(lists, row.metaclass).find((k) => lists[k].fields.some((x) => x.name === attribute));
+          assert.ok(c, `${table}.${kind} shows ${f}, and its class ${row.metaclass} has the attribute ${attribute}`);
+          const type = lists[c].fields.find((x) => x.name === attribute).type;
+          const expected = { String: 'string', Boolean: 'bool', Integer: 'number', Real: 'number' }[type] || (lists[type].literals ? 'enum' : null);
+          assert.equal(M.FIELDS[f].type, expected, `${table}.${kind}'s ${f} is a ${expected}, as ${c}::${attribute} is a ${type}`);
+          shown += 1;
+        }
+      }
+    }
+    assert.equal(shown, 34, 'the 34 places a kind shows a field that holds an attribute: 24 names, 6 abstracts, 2 directions, 2 parallels');
+  });
+
+  test('the library refuses a kind on no class or an abstract one, or one that says whether it is a definition, and a field on no attribute', () => {
+    const row = "{ keyword: 'gadget', label: 'gadget', contains: false, onBorder: false, size: [180, 60], shape: 'rounded', fields: ['name', 'doc'], traits: [] }";
+    // New kinds on classes of the lists, their own names': the classes say an attribute is a usage, an attribute def a
+    // definition, and a KerML class, a classifier that is no definition, neither.
+    const M = loadLibWith(`  lib.addKinds({ AttributeUsage: ${row}, AttributeDefinition: ${row}, Class: ${row} });`);
+    const said = (kind) => JSON.stringify(['metaclass', 'definition', 'usage'].map((k) => M.KINDS[kind][k]));
+    assert.equal(said('AttributeUsage'), JSON.stringify(['AttributeUsage', false, true]));
+    assert.equal(said('AttributeDefinition'), JSON.stringify(['AttributeDefinition', true, false]));
+    assert.equal(said('Class'), JSON.stringify(['Class', false, false]));
+    assert.deepEqual(Object.keys(M.KINDS).slice(3, 8), ['PortUsage', 'AttributeUsage', 'AttributeDefinition', 'Class', 'ItemDefinition'], 'they land after the core\'s rows, before the features\' that load after them');
+    assert.equal(loadLibWith(`  lib.addRelationships({ Dependency: { label: 'dependency', fields: [] } });`).RELATIONSHIPS.Dependency.metaclass, 'Dependency');
+    assert.throws(() => loadLibWith(`  lib.addKinds({ Gadget: ${row} });`), /The kind Gadget stands on Gadget, which is not a class of the metamodel\./);
+    assert.throws(() => loadLibWith(`  lib.addKinds({ Gadget: Object.assign(${row}, { metaclass: 'FeatureDirectionKind' }) });`), /stands on FeatureDirectionKind, which is not a class of the metamodel/);
+    assert.throws(() => loadLibWith(`  lib.addKinds({ Gadget: Object.assign(${row}, { metaclass: 'ControlNode' }) });`), /The kind Gadget stands on ControlNode, which is abstract/);
+    assert.throws(() => loadLibWith(`  lib.addKinds({ AttributeUsage: Object.assign(${row}, { usage: true }) });`), /The kind AttributeUsage says whether it is a definition or a usage; its class says that\./);
+    assert.throws(() => loadLibWith(`  lib.addKinds({ PartUsage: ${row} });`), /KINDS has PartUsage already\./);
+    assert.throws(() => loadLibWith(`  lib.addRelationships({ Gadget: { label: 'gadget', fields: [] } });`), /The kind Gadget stands on Gadget, which is not a class/);
+    assert.throws(() => loadLibWith(`  lib.attributeField('isGadget', { label: 'gadget' });`), /The field for isGadget follows no attribute of the metamodel\./);
+    assert.throws(() => loadLibWith(`  lib.attributeField('type', { label: 'type' });`), /The field for type follows a reference, not an attribute\./);
+    assert.throws(() => loadLibWith(`  lib.attributeField('isAbstract', { label: 'abstract', type: 'string' });`), /The field for isAbstract says its type; the attribute says that\./);
+    assert.equal(JSON.stringify(loadLibWith(`  lib.FIELDS.visibility = lib.attributeField('visibility', { label: 'visibility' });`).FIELDS.visibility),
+      JSON.stringify({ attribute: 'visibility', type: 'enum', values: ['private', 'protected', 'public'], label: 'visibility' }), 'an attribute that must be set has no \'\' for none');
   });
 });

@@ -2008,6 +2008,63 @@ textarea.text[readonly] { resize: none; background: transparent; }
 (function (root) {
   'use strict';
   const lib = root.SysMLModelLib;   // what the scripts register for the ones after them; metamodel.js creates it
+  const { METAMODEL } = lib;
+
+  // The kinds stand on the metamodel's classes. A class conforms to another when it is that class or specializes it,
+  // directly or through others.
+  function conforms(metaclass, general) {
+    if (metaclass === general) return true;
+    const c = METAMODEL[metaclass];
+    return !!(c && c.general) && c.general.some((g) => conforms(g, general));
+  }
+  // A row of KINDS or RELATIONSHIPS, put in the table on the class it stands on: its metaclass, the kind's own name
+  // unless the row names another. An element of the kind is one of that class, so it is a class of the metamodel, and
+  // not an abstract one, whose elements are always of one of its subclasses.
+  function standOn(table, tableName, name, row) {
+    if (Object.prototype.hasOwnProperty.call(table, name)) throw new Error(tableName + ' has ' + name + ' already.');
+    const metaclass = row.metaclass === undefined ? name : row.metaclass;
+    const c = METAMODEL[metaclass];
+    if (!c || !c.general) throw new Error('The kind ' + name + ' stands on ' + metaclass + ', which is not a class of the metamodel.');
+    if (c.abstract) throw new Error('The kind ' + name + ' stands on ' + metaclass + ', which is abstract: an element is always one of its subclasses.');
+    row.metaclass = metaclass;
+    table[name] = row;
+  }
+  // Adds element kinds to KINDS, in the order given, each on its class, which says whether it is a definition or a
+  // usage: definition and usage are set here, from the class, and a row that says either is refused.
+  function addKinds(rows) {
+    Object.keys(rows).forEach((name) => {
+      const row = rows[name];
+      if (row.definition !== undefined || row.usage !== undefined) throw new Error('The kind ' + name + ' says whether it is a definition or a usage; its class says that.');
+      standOn(KINDS, 'KINDS', name, row);
+      row.definition = conforms(row.metaclass, 'Definition');
+      row.usage = conforms(row.metaclass, 'Usage');
+    });
+  }
+  // Adds relationship kinds to RELATIONSHIPS, in the order given, each on its class.
+  function addRelationships(rows) {
+    Object.keys(rows).forEach((name) => standOn(RELATIONSHIPS, 'RELATIONSHIPS', name, rows[name]));
+  }
+  // A row of FIELDS for a field that holds an attribute of the metamodel, the one named: the field's type follows the
+  // attribute's, a String a string, a Boolean a bool, an Integer or a Real a number, an enumeration an enum of its
+  // literals, after '' for none when the attribute may be left unset. Every class that declares an attribute of that
+  // name gives it one type, or there is no one type to follow. The rest of the row (its label, trim, views) is given,
+  // and says neither type nor values, which the attribute says.
+  function attributeField(attribute, row) {
+    if (row.type !== undefined || row.values !== undefined) throw new Error('The field for ' + attribute + ' says its type; the attribute says that.');
+    const types = new Set();
+    let optional = false;
+    Object.keys(METAMODEL).forEach((c) => (METAMODEL[c].fields || []).forEach((f) => {
+      if (f.name !== attribute) return;
+      types.add(f.type);
+      if (!f.lower) optional = true;
+    }));
+    if (types.size !== 1) throw new Error('The field for ' + attribute + ' follows ' + (types.size ? 'attributes of ' + types.size + ' types' : 'no attribute of the metamodel') + '.');
+    const type = types.values().next().value;
+    const plain = { String: 'string', Boolean: 'bool', Integer: 'number', Real: 'number' }[type];
+    const literals = METAMODEL[type] && METAMODEL[type].literals;
+    if (!plain && !literals) throw new Error('The field for ' + attribute + ' follows a reference, not an attribute.');
+    return Object.assign({ attribute: attribute, type: plain || 'enum' }, literals ? { values: (optional ? [''] : []).concat(literals) } : {}, row);
+  }
 
   // The saved format. A model names the version of the format it was saved in, format: 'stronghold-canvas/2' for
   // version 2. VERSION is the version this library reads and writes; a model saved in an older one is upgraded as it
@@ -2016,14 +2073,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const FORMAT = 'stronghold-canvas/' + VERSION;
   const VIEW_DEF = 'StandardViewDefinitions::GeneralView';
 
-  // Element kinds. keyword is the word the text declares an element of the kind with (part def, port), or, for a kind
-  // whose elements have no name in the text (no name field: textName), the word the text has for what they stand for
-  // (start, done); label is the kind in sentences. contains is the kinds an element may own (false: none); onBorder
-  // draws it on its owner's border; definedBy is the definition kind a usage is typed by; size the default box; shape
-  // names the entry of the page's SHAPES that draws it (rect, rounded, port; an unknown shape is drawn as a rect, or as
-  // a port on a border); fields the panel's fields that apply, each a row of FIELDS below, which normalize keeps by
-  // their types; traits the words the relationship rules may ask about with hasTrait (connectable, flowEnd, bindable,
-  // lifeline…).
+  // Element kinds. Each stands on a class of the metamodel, METAMODEL: metaclass names it, the kind's own name unless
+  // its row names another (a parameter is an ItemUsage; start and done are the ActionUsages every action has; an
+  // initial node is a state's entry action). What the class is, the kind is: addKinds adds the rows, and sets
+  // definition, whether the class is a Definition, and usage, whether it is a Usage, so no row says either.
+  // keyword is the word the text declares an element of the kind with (part def, port), or, for a kind whose elements
+  // have no name in the text (no name field: textName), the word the text has for what they stand for (start, done);
+  // label is the kind in sentences. contains is the kinds an element may own (false: none); onBorder draws it on its
+  // owner's border; definedBy is the definition kind a usage is typed by; size the default box; shape names the entry
+  // of the page's SHAPES that draws it (rect, rounded, port; an unknown shape is drawn as a rect, or as a port on a
+  // border); fields the panel's fields that apply, each a row of FIELDS below, which normalize keeps by their types;
+  // traits the words the relationship rules may ask about with hasTrait (connectable, flowEnd, bindable, lifeline…).
+  // contains, definedBy and fields are the canvas's rules, written by hand: what it draws nested, what defines a usage,
+  // and what the panel shows. Each is one the class allows (test/metamodel.test.mjs checks them against METAMODEL):
+  // what it nests, the class may own; what defines it, the class may be typed by; a field that holds an attribute, the
+  // class has.
   // A kind may also carry hooks for the export and the checks: head(model, el, h) returns the head of its
   // declaration, everything before the ' {' or ';' (h.headOf(el) is the generated one, to build on), or null for an
   // element the text doesn't declare (a start node), which is then left out with everything inside it; body(model,
@@ -2032,16 +2096,19 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // number, 0 unless said) puts a kind's children before (lower) or after the others in a body; check(model, el,
   // ids, add) adds the problems validate doesn't know about; glyph(model, el) says which way a border item's glyph
   // points (in, out, inout, or null for none).
-  const KINDS = {
+  const KINDS = {};
+  addKinds({
     // Structure.
-    PartDefinition: { keyword: 'part def', label: 'part def', definition: true, usage: false, contains: ['PartUsage', 'PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
-    PortDefinition: { keyword: 'port def', label: 'port def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
-    PartUsage: { keyword: 'part', label: 'part', definition: false, usage: true, contains: ['PartUsage', 'PortUsage'], onBorder: false, definedBy: 'PartDefinition', size: [180, 60], shape: 'rounded', fields: ['name', 'type', 'typeLine', 'multiplicity', 'doc'], traits: ['connectable'] },
-    PortUsage: { keyword: 'port', label: 'port', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16], shape: 'port', fields: ['name', 'type', 'typeLine', 'multiplicity', 'conjugated', 'doc'], traits: ['connectable'] },
-  };
+    PartDefinition: { keyword: 'part def', label: 'part def', contains: ['PartUsage', 'PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
+    PortDefinition: { keyword: 'port def', label: 'port def', contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
+    PartUsage: { keyword: 'part', label: 'part', contains: ['PartUsage', 'PortUsage'], onBorder: false, definedBy: 'PartDefinition', size: [180, 60], shape: 'rounded', fields: ['name', 'type', 'typeLine', 'multiplicity', 'doc'], traits: ['connectable'] },
+    PortUsage: { keyword: 'port', label: 'port', contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16], shape: 'port', fields: ['name', 'type', 'typeLine', 'multiplicity', 'conjugated', 'doc'], traits: ['connectable'] },
+  });
 
-  // Relationship kinds. fields are the panel's fields that apply (rows of FIELDS), which normalize keeps by their
-  // types; hideable lets the line be left undrawn. first(model, a, ids) says what rules out a as the first end and
+  // Relationship kinds. Each stands on a class of the metamodel, as an element kind does: metaclass, its own name
+  // unless its row names another (a flow and a message are both a FlowUsage); addRelationships adds the rows. fields
+  // are the panel's fields that apply (rows of FIELDS), which normalize keeps by their types; hideable lets the line be
+  // left undrawn. first(model, a, ids) says what rules out a as the first end and
   // ends(model, a, b, ids) what rules out the pair: a sentence, or null. The palette and validate both ask them, so
   // each rule is stated once; check(model, rel, ids, add), when present, adds the problems that need more than the
   // pair. owner(model, rel, ids) is the element whose body declares the relationship (null: the package). line says
@@ -2051,7 +2118,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // toSysML(model, rel, ownerId,
   // depth, out, h) writes it as a statement in that body; it is null when the relationship is written in the head
   // of its from element instead (:> for a specialization, : for a typing).
-  const RELATIONSHIPS = {
+  const RELATIONSHIPS = {};
+  addRelationships({
     // Structure.
     Specialization: {
       label: 'specializes', fields: [], hideable: false,
@@ -2132,7 +2200,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         h.line(depth, '}');
       },
     },
-  };
+  });
 
   // View kinds. renderer names the page's renderer for the kind; admits the element kinds a view of the kind may
   // show (null: every kind); tools the palette, element and relationship kinds with '|' between groups; fields the
@@ -2158,19 +2226,21 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // (for a value that is none of these, a list say), and fresh(), when present, gives a new element's or
   // relationship's starting value. stored: false marks a field that is no value of the item, which normalize keeps out
   // of the model: type is the usage's FeatureTyping relationship, and typeLine whether that relationship is drawn as a
-  // line or shown as text only.
+  // line or shown as text only. attribute, when present, names the attribute of the metamodel the field holds, which
+  // gives the row its type (attributeField): the name is the element's declaredName, abstract its isAbstract.
   const FIELDS = {
-    name: { type: 'string', label: 'name' },
-    abstract: { type: 'bool', label: 'abstract' },
+    name: attributeField('declaredName', { label: 'name' }),
+    abstract: attributeField('isAbstract', { label: 'abstract' }),
     type: { type: 'ref', label: 'definition', stored: false, options: function (model, item) { return model.elements.filter((e) => e.kind === KINDS[item.kind].definedBy); } },
     typeLine: { type: 'bool', label: 'defined-by line', stored: false },
     multiplicity: { type: 'string', label: 'multiplicity', trim: true },
     conjugated: { type: 'bool', label: 'conjugated' },
     doc: { type: 'text', label: 'doc' },
-    // Two rows several slices share, stated once: which way a feature goes (none, in, out, inout), and the item a flow
-    // or a message carries, an ItemDefinition (a kind no core row has yet, so the select offers nothing until a slice
-    // brings it). No core kind lists them, so the panel shows neither until a slice's kind does.
-    direction: { type: 'enum', label: 'direction', values: ['', 'in', 'out', 'inout'] },
+    // Two rows several slices share, stated once: which way a feature goes (none, or the literals of the attribute's
+    // FeatureDirectionKind: in, inout, out), and the item a flow or a message carries, an ItemDefinition (a kind no
+    // core row has yet, so the select offers nothing until a slice brings it). No core kind lists them, so the panel
+    // shows neither until a slice's kind does.
+    direction: attributeField('direction', { label: 'direction' }),
     item: { type: 'ref', label: 'item', options: function (model) { return model.elements.filter((e) => e.kind === 'ItemDefinition'); } },
   };
 
@@ -2648,6 +2718,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   Object.assign(lib, {
     VERSION, FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, NAME, MULTIPLICITY, str, isObject,
+    addKinds, addRelationships, attributeField,
     canContain, admits, hasTrait, textName, blank, placement, versionOf, upgrade, normalize, index, relIndex, viewIndex,
     shownIn, chain, childrenOf, descendants, typingOf, inUsage, specializes, commonOwner, acrossDefinitions,
     nameTakenBeside, isName, quote, shown, qualified, featurePath, nameable, an, definable, describe, describeRel,
@@ -2661,30 +2732,31 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, textName, index, childrenOf, typingOf, specializes, commonOwner,
-    acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel, inheritedFeatures, EXTRA
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, index, childrenOf, typingOf,
+    specializes, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel,
+    inheritedFeatures, EXTRA
   } = lib;
 
-  Object.assign(KINDS, {
+  addKinds({
     // Interconnection: items (what flows, and what a part holds) and interface definitions, whose ports are their ends.
-    ItemDefinition: { keyword: 'item def', label: 'item def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
+    ItemDefinition: { keyword: 'item def', label: 'item def', contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
     // An item's head carries its direction (in item x : T). On a port def it must have one: a port def may own only
     // ports and referential usages, as the validator says. Its shape, item, is the page's rounded box with the
     // direction inside the guillemets, «out item».
-    ItemUsage: { keyword: 'item', label: 'item', definition: false, usage: true, contains: false, onBorder: false, definedBy: 'ItemDefinition', size: [160, 52], shape: 'item', fields: ['name', 'type', 'typeLine', 'direction', 'multiplicity', 'doc'], traits: ['flowEnd', 'bindable', 'connectable'],
+    ItemUsage: { keyword: 'item', label: 'item', contains: false, onBorder: false, definedBy: 'ItemDefinition', size: [160, 52], shape: 'item', fields: ['name', 'type', 'typeLine', 'direction', 'multiplicity', 'doc'], traits: ['flowEnd', 'bindable', 'connectable'],
       head: function (model, el, h) { return (el.direction ? el.direction + ' ' : '') + h.headOf(el); },
       check: function (model, el, ids, add) {
         const owner = el.owner !== undefined ? ids.get(el.owner) : null;
         if (owner && owner.kind === 'PortDefinition' && !el.direction) add(el.id, describe(model, el, ids) + ' needs a direction: in, out, or inout. An item on a port def says which way it goes.');
       } },
     // An interface def's ports are its ends (end port a : P;), and it needs two of them.
-    InterfaceDefinition: { keyword: 'interface def', label: 'interface def', definition: true, usage: false, contains: ['PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [],
+    InterfaceDefinition: { keyword: 'interface def', label: 'interface def', contains: ['PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [],
       check: function (model, el, ids, add) {
         const ends = childrenOf(model, el.id).filter((c) => KINDS[c.kind].onBorder);
         if (ends.length < 2) add(el.id, describe(model, el, ids) + ' needs two ports on its border, its ends; it has ' + (ends.length ? 'one' : 'none') + '.');
       } },
   });
-  Object.assign(RELATIONSHIPS, {
+  addRelationships({
     // Interconnection: an interface between two ports, typed by an interface def whose ends they match; a flow of an
     // item from one port or item to another; a binding of two ports or items that are one thing. Each is declared in
     // the innermost element that holds both ends, as a connection is, and may carry a doc. The rules on the ends and
@@ -2722,8 +2794,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
         connectorStatement(rel, head, depth, h);
       },
     },
+    // A flow is a FlowUsage (flow of T from a to b;); the kind keeps the name models are saved with.
     FlowConnectionUsage: {
-      label: 'flow', fields: ['name', 'item', 'doc'], hideable: false,
+      metaclass: 'FlowUsage', label: 'flow', fields: ['name', 'item', 'doc'], hideable: false,
       first: function (model, a, ids) {
         return hasTrait(a.kind, 'flowEnd') ? null : 'A flow runs from a port or an item; ' + describe(model, a, ids) + ' is ' + an(KINDS[a.kind].label) + '.';
       },
@@ -2989,39 +3062,41 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, NAME, MULTIPLICITY, str, hasTrait, textName, childrenOf, typingOf,
-    commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath, an, describe, describeRel, EXTRA, BODY,
-    commentLines
+    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, NAME, MULTIPLICITY, addKinds, addRelationships, attributeField, str,
+    hasTrait, textName, childrenOf, typingOf, commonOwner, acrossDefinitions, nameTakenBeside, quote, shown, featurePath,
+    an, describe, describeRel, EXTRA, BODY, commentLines
   } = lib;
 
-  Object.assign(KINDS, {
+  addKinds({
     // Behavior: the action flow view's kinds (an action def, actions with their parameters on the border, the four
     // control nodes, and start and done) and the state view's (a state def, states, the initial node). Start, done
     // and the initial node have no name field, so no name in the text (textName): they stand for the start and done
     // every action and state inherits, and for a state's entry, so their heads are null and the text never declares
     // them; a succession or transition ending on one writes the keyword of its kind, start or done (featurePath), and a
-    // state's body writes the entry idiom for its initial node. The hooks are functions further down this script,
-    // which hoist.
-    ActionDefinition: { keyword: 'action def', label: 'action def', definition: true, usage: false, contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
-    ActionUsage: { keyword: 'action', label: 'action', definition: false, usage: true, contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false,
+    // state's body writes the entry idiom for its initial node. A parameter is an ItemUsage (in item x : T;), and start,
+    // done and the initial node are ActionUsages, so those four kinds name the class they stand on: start and done are
+    // the actions Actions::Action declares (action start: Action :>> startShot;), and an initial node is a state's
+    // empty entry action (entry;). The hooks are functions further down this script, which hoist.
+    ActionDefinition: { keyword: 'action def', label: 'action def', contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
+    ActionUsage: { keyword: 'action', label: 'action', contains: ['ActionUsage', 'ParameterUsage', 'ForkNode', 'JoinNode', 'DecisionNode', 'MergeNode', 'StartNode', 'DoneNode'], onBorder: false,
       definedBy: 'ActionDefinition', size: [180, 60], shape: 'action', fields: ['name', 'type', 'typeLine', 'multiplicity', 'actionKind', 'payload', 'target', 'role', 'doc'], traits: ['successionEnd', 'transitionEnd'],
       head: actionHead, body: actionBody, check: checkAction },
-    ParameterUsage: { keyword: 'item', label: 'parameter', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'ItemDefinition', size: [16, 16], shape: 'param',
+    ParameterUsage: { metaclass: 'ItemUsage', keyword: 'item', label: 'parameter', contains: false, onBorder: true, definedBy: 'ItemDefinition', size: [16, 16], shape: 'param',
       fields: ['name', 'direction', 'type', 'typeLine', 'multiplicity', 'doc'], traits: ['flowEnd', 'bindable'],
       head: parameterHead, check: checkParameter, glyph: function (model, el) { return el.direction || null; } },
-    ForkNode: { keyword: 'fork', label: 'fork', definition: false, usage: true, contains: false, onBorder: false, size: [60, 8], shape: 'bar', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
-    JoinNode: { keyword: 'join', label: 'join', definition: false, usage: true, contains: false, onBorder: false, size: [60, 8], shape: 'bar', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
-    DecisionNode: { keyword: 'decide', label: 'decision', definition: false, usage: true, contains: false, onBorder: false, size: [40, 40], shape: 'diamond', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode, after: decisionBranches },
-    MergeNode: { keyword: 'merge', label: 'merge', definition: false, usage: true, contains: false, onBorder: false, size: [40, 40], shape: 'diamond', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
-    StartNode: { keyword: 'start', label: 'start', definition: false, usage: true, contains: false, onBorder: false, size: [16, 16], shape: 'dot', fields: [], traits: ['successionEnd', 'transitionEnd'], head: noHead, check: checkPseudoNode },
-    DoneNode: { keyword: 'done', label: 'done', definition: false, usage: true, contains: false, onBorder: false, size: [22, 22], shape: 'bullseye', fields: [], traits: ['successionEnd', 'transitionEnd'], head: noHead, check: checkPseudoNode },
-    StateDefinition: { keyword: 'state def', label: 'state def', definition: true, usage: false, contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'state', fields: ['name', 'abstract', 'parallel', 'doc'], traits: [],
+    ForkNode: { keyword: 'fork', label: 'fork', contains: false, onBorder: false, size: [60, 8], shape: 'bar', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
+    JoinNode: { keyword: 'join', label: 'join', contains: false, onBorder: false, size: [60, 8], shape: 'bar', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
+    DecisionNode: { keyword: 'decide', label: 'decision', contains: false, onBorder: false, size: [40, 40], shape: 'diamond', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode, after: decisionBranches },
+    MergeNode: { keyword: 'merge', label: 'merge', contains: false, onBorder: false, size: [40, 40], shape: 'diamond', fields: ['name', 'doc'], traits: ['successionEnd'], check: checkControlNode },
+    StartNode: { metaclass: 'ActionUsage', keyword: 'start', label: 'start', contains: false, onBorder: false, size: [16, 16], shape: 'dot', fields: [], traits: ['successionEnd', 'transitionEnd'], head: noHead, check: checkPseudoNode },
+    DoneNode: { metaclass: 'ActionUsage', keyword: 'done', label: 'done', contains: false, onBorder: false, size: [22, 22], shape: 'bullseye', fields: [], traits: ['successionEnd', 'transitionEnd'], head: noHead, check: checkPseudoNode },
+    StateDefinition: { keyword: 'state def', label: 'state def', contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, size: [220, 72], shape: 'state', fields: ['name', 'abstract', 'parallel', 'doc'], traits: [],
       head: stateHead, body: stateBody, check: checkState },
-    StateUsage: { keyword: 'state', label: 'state', definition: false, usage: true, contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, definedBy: 'StateDefinition', size: [180, 60], shape: 'state',
+    StateUsage: { keyword: 'state', label: 'state', contains: ['StateUsage', 'ActionUsage', 'InitialNode', 'DoneNode'], onBorder: false, definedBy: 'StateDefinition', size: [180, 60], shape: 'state',
       fields: ['name', 'type', 'typeLine', 'multiplicity', 'parallel', 'doc'], traits: ['transitionEnd'], head: stateHead, body: stateBody, check: checkState },
-    InitialNode: { keyword: 'entry', label: 'initial node', definition: false, usage: true, contains: false, onBorder: false, size: [28, 16], shape: 'entry', fields: [], traits: ['transitionEnd'], head: noHead, check: checkPseudoNode },
+    InitialNode: { metaclass: 'ActionUsage', keyword: 'entry', label: 'initial node', contains: false, onBorder: false, size: [28, 16], shape: 'entry', fields: [], traits: ['transitionEnd'], head: noHead, check: checkPseudoNode },
   });
-  Object.assign(RELATIONSHIPS, {
+  addRelationships({
     // Behavior: a succession between actions and control nodes (dashed, an open arrowhead, [guard] or else as the
     // label) and a transition between states (solid, the same head, trigger [guard] / effect as the label). Both are
     // written in the innermost body that holds their two ends; the rules and the writers are in the behavior helpers.
@@ -3051,7 +3126,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   Object.assign(FIELDS, {
     // Behavior: what an action does (plain, send, accept) with its payload and its target, its role under a state
     // (entry, do, exit), a succession's guard (the text of a Boolean expression, or else), a transition's trigger,
-    // guard and effect (the texts after accept, if and do), and whether a state runs its regions in parallel.
+    // guard and effect (the texts after accept, if and do), and whether a state runs its regions in parallel (the
+    // attribute isParallel of a state and a state def).
     actionKind: { type: 'enum', label: 'kind', values: ['plain', 'send', 'accept'] },
     payload: { type: 'string', label: 'payload', trim: true },
     target: { type: 'string', label: 'target', trim: true },
@@ -3059,7 +3135,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     guard: { type: 'string', label: 'guard', trim: true },
     trigger: { type: 'string', label: 'trigger', trim: true },
     effect: { type: 'string', label: 'effect', trim: true },
-    parallel: { type: 'bool', label: 'parallel' },
+    parallel: attributeField('isParallel', { label: 'parallel' }),
   });
 
   // Behavior: a part def and a part hold actions and states too (actions in parts: afv10, b06; states: stv-12).
@@ -3475,16 +3551,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, textName, commonOwner, acrossDefinitions, nameTakenBeside, quote,
-    shown, featurePath, describe, describeRel, EXTRA, BODY, declare
+    KINDS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, commonOwner, acrossDefinitions,
+    nameTakenBeside, quote, shown, featurePath, describe, describeRel, EXTRA, BODY, declare
   } = lib;
 
-  Object.assign(KINDS, {
+  addKinds({
     // Sequence: an event occurrence on a lifeline, the dot a message starts or ends on. A lifeline writes its events
     // itself, as one then chain in time order (the BODY writer below), so an event owned by a
     // lifeline has no head of its own; one owned by nothing (a general view may put it in the package) is written
     // plainly, since then is only legal inside a body.
-    EventOccurrenceUsage: { keyword: 'event occurrence', label: 'event', definition: false, usage: true, contains: false, onBorder: false,
+    EventOccurrenceUsage: { keyword: 'event occurrence', label: 'event', contains: false, onBorder: false,
       size: [16, 16], shape: 'event', fields: ['name', 'doc'], traits: ['occurrence', 'successionEnd'],
       head: function (model, el, h) {
         const owner = el.owner !== undefined ? h.ids.get(el.owner) : null;
@@ -3499,12 +3575,13 @@ textarea.text[readonly] { resize: none; background: transparent; }
         }
       } },
   });
-  Object.assign(RELATIONSHIPS, {
+  addRelationships({
     // Sequence: a message between two occurrences (an event, or a lifeline itself), declared in the innermost
     // element that holds both ends, its context: a part def, a part, or the package. It may carry a payload (item, an
-    // item def) and has a place in time (order), the row the sequence renderer draws it at.
+    // item def) and has a place in time (order), the row the sequence renderer draws it at. The text declares it as a
+    // FlowUsage, as it does a flow (message m from a to b;).
     Message: {
-      label: 'message', fields: ['name', 'item', 'order', 'doc'], hideable: false,
+      metaclass: 'FlowUsage', label: 'message', fields: ['name', 'item', 'order', 'doc'], hideable: false,
       first: function (model, a, ids) {
         return hasTrait(a.kind, 'occurrence') ? null : 'A message starts at an event or a lifeline; ' + describe(model, a, ids) + ' is neither.';
       },

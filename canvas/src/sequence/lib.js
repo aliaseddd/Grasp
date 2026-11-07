@@ -4,16 +4,16 @@
   'use strict';
   const lib = root.SysMLModelLib;
   const {
-    KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, hasTrait, textName, commonOwner, acrossDefinitions, nameTakenBeside, quote,
-    shown, featurePath, describe, describeRel, EXTRA, BODY, declare
+    KINDS, VIEW_KINDS, FIELDS, addKinds, addRelationships, hasTrait, textName, commonOwner, acrossDefinitions,
+    nameTakenBeside, quote, shown, featurePath, describe, describeRel, EXTRA, BODY, declare
   } = lib;
 
-  Object.assign(KINDS, {
+  addKinds({
     // Sequence: an event occurrence on a lifeline, the dot a message starts or ends on. A lifeline writes its events
     // itself, as one then chain in time order (the BODY writer below), so an event owned by a
     // lifeline has no head of its own; one owned by nothing (a general view may put it in the package) is written
     // plainly, since then is only legal inside a body.
-    EventOccurrenceUsage: { keyword: 'event occurrence', label: 'event', definition: false, usage: true, contains: false, onBorder: false,
+    EventOccurrenceUsage: { keyword: 'event occurrence', label: 'event', contains: false, onBorder: false,
       size: [16, 16], shape: 'event', fields: ['name', 'doc'], traits: ['occurrence', 'successionEnd'],
       head: function (model, el, h) {
         const owner = el.owner !== undefined ? h.ids.get(el.owner) : null;
@@ -28,12 +28,13 @@
         }
       } },
   });
-  Object.assign(RELATIONSHIPS, {
+  addRelationships({
     // Sequence: a message between two occurrences (an event, or a lifeline itself), declared in the innermost
     // element that holds both ends, its context: a part def, a part, or the package. It may carry a payload (item, an
-    // item def) and has a place in time (order), the row the sequence renderer draws it at.
+    // item def) and has a place in time (order), the row the sequence renderer draws it at. The text declares it as a
+    // FlowUsage, as it does a flow (message m from a to b;).
     Message: {
-      label: 'message', fields: ['name', 'item', 'order', 'doc'], hideable: false,
+      metaclass: 'FlowUsage', label: 'message', fields: ['name', 'item', 'order', 'doc'], hideable: false,
       first: function (model, a, ids) {
         return hasTrait(a.kind, 'occurrence') ? null : 'A message starts at an event or a lifeline; ' + describe(model, a, ids) + ' is neither.';
       },

@@ -10,6 +10,63 @@
 (function (root) {
   'use strict';
   const lib = root.SysMLModelLib;   // what the scripts register for the ones after them; metamodel.js creates it
+  const { METAMODEL } = lib;
+
+  // The kinds stand on the metamodel's classes. A class conforms to another when it is that class or specializes it,
+  // directly or through others.
+  function conforms(metaclass, general) {
+    if (metaclass === general) return true;
+    const c = METAMODEL[metaclass];
+    return !!(c && c.general) && c.general.some((g) => conforms(g, general));
+  }
+  // A row of KINDS or RELATIONSHIPS, put in the table on the class it stands on: its metaclass, the kind's own name
+  // unless the row names another. An element of the kind is one of that class, so it is a class of the metamodel, and
+  // not an abstract one, whose elements are always of one of its subclasses.
+  function standOn(table, tableName, name, row) {
+    if (Object.prototype.hasOwnProperty.call(table, name)) throw new Error(tableName + ' has ' + name + ' already.');
+    const metaclass = row.metaclass === undefined ? name : row.metaclass;
+    const c = METAMODEL[metaclass];
+    if (!c || !c.general) throw new Error('The kind ' + name + ' stands on ' + metaclass + ', which is not a class of the metamodel.');
+    if (c.abstract) throw new Error('The kind ' + name + ' stands on ' + metaclass + ', which is abstract: an element is always one of its subclasses.');
+    row.metaclass = metaclass;
+    table[name] = row;
+  }
+  // Adds element kinds to KINDS, in the order given, each on its class, which says whether it is a definition or a
+  // usage: definition and usage are set here, from the class, and a row that says either is refused.
+  function addKinds(rows) {
+    Object.keys(rows).forEach((name) => {
+      const row = rows[name];
+      if (row.definition !== undefined || row.usage !== undefined) throw new Error('The kind ' + name + ' says whether it is a definition or a usage; its class says that.');
+      standOn(KINDS, 'KINDS', name, row);
+      row.definition = conforms(row.metaclass, 'Definition');
+      row.usage = conforms(row.metaclass, 'Usage');
+    });
+  }
+  // Adds relationship kinds to RELATIONSHIPS, in the order given, each on its class.
+  function addRelationships(rows) {
+    Object.keys(rows).forEach((name) => standOn(RELATIONSHIPS, 'RELATIONSHIPS', name, rows[name]));
+  }
+  // A row of FIELDS for a field that holds an attribute of the metamodel, the one named: the field's type follows the
+  // attribute's, a String a string, a Boolean a bool, an Integer or a Real a number, an enumeration an enum of its
+  // literals, after '' for none when the attribute may be left unset. Every class that declares an attribute of that
+  // name gives it one type, or there is no one type to follow. The rest of the row (its label, trim, views) is given,
+  // and says neither type nor values, which the attribute says.
+  function attributeField(attribute, row) {
+    if (row.type !== undefined || row.values !== undefined) throw new Error('The field for ' + attribute + ' says its type; the attribute says that.');
+    const types = new Set();
+    let optional = false;
+    Object.keys(METAMODEL).forEach((c) => (METAMODEL[c].fields || []).forEach((f) => {
+      if (f.name !== attribute) return;
+      types.add(f.type);
+      if (!f.lower) optional = true;
+    }));
+    if (types.size !== 1) throw new Error('The field for ' + attribute + ' follows ' + (types.size ? 'attributes of ' + types.size + ' types' : 'no attribute of the metamodel') + '.');
+    const type = types.values().next().value;
+    const plain = { String: 'string', Boolean: 'bool', Integer: 'number', Real: 'number' }[type];
+    const literals = METAMODEL[type] && METAMODEL[type].literals;
+    if (!plain && !literals) throw new Error('The field for ' + attribute + ' follows a reference, not an attribute.');
+    return Object.assign({ attribute: attribute, type: plain || 'enum' }, literals ? { values: (optional ? [''] : []).concat(literals) } : {}, row);
+  }
 
   // The saved format. A model names the version of the format it was saved in, format: 'stronghold-canvas/2' for
   // version 2. VERSION is the version this library reads and writes; a model saved in an older one is upgraded as it
@@ -18,14 +75,21 @@
   const FORMAT = 'stronghold-canvas/' + VERSION;
   const VIEW_DEF = 'StandardViewDefinitions::GeneralView';
 
-  // Element kinds. keyword is the word the text declares an element of the kind with (part def, port), or, for a kind
-  // whose elements have no name in the text (no name field: textName), the word the text has for what they stand for
-  // (start, done); label is the kind in sentences. contains is the kinds an element may own (false: none); onBorder
-  // draws it on its owner's border; definedBy is the definition kind a usage is typed by; size the default box; shape
-  // names the entry of the page's SHAPES that draws it (rect, rounded, port; an unknown shape is drawn as a rect, or as
-  // a port on a border); fields the panel's fields that apply, each a row of FIELDS below, which normalize keeps by
-  // their types; traits the words the relationship rules may ask about with hasTrait (connectable, flowEnd, bindable,
-  // lifeline…).
+  // Element kinds. Each stands on a class of the metamodel, METAMODEL: metaclass names it, the kind's own name unless
+  // its row names another (a parameter is an ItemUsage; start and done are the ActionUsages every action has; an
+  // initial node is a state's entry action). What the class is, the kind is: addKinds adds the rows, and sets
+  // definition, whether the class is a Definition, and usage, whether it is a Usage, so no row says either.
+  // keyword is the word the text declares an element of the kind with (part def, port), or, for a kind whose elements
+  // have no name in the text (no name field: textName), the word the text has for what they stand for (start, done);
+  // label is the kind in sentences. contains is the kinds an element may own (false: none); onBorder draws it on its
+  // owner's border; definedBy is the definition kind a usage is typed by; size the default box; shape names the entry
+  // of the page's SHAPES that draws it (rect, rounded, port; an unknown shape is drawn as a rect, or as a port on a
+  // border); fields the panel's fields that apply, each a row of FIELDS below, which normalize keeps by their types;
+  // traits the words the relationship rules may ask about with hasTrait (connectable, flowEnd, bindable, lifeline…).
+  // contains, definedBy and fields are the canvas's rules, written by hand: what it draws nested, what defines a usage,
+  // and what the panel shows. Each is one the class allows (test/metamodel.test.mjs checks them against METAMODEL):
+  // what it nests, the class may own; what defines it, the class may be typed by; a field that holds an attribute, the
+  // class has.
   // A kind may also carry hooks for the export and the checks: head(model, el, h) returns the head of its
   // declaration, everything before the ' {' or ';' (h.headOf(el) is the generated one, to build on), or null for an
   // element the text doesn't declare (a start node), which is then left out with everything inside it; body(model,
@@ -34,16 +98,19 @@
   // number, 0 unless said) puts a kind's children before (lower) or after the others in a body; check(model, el,
   // ids, add) adds the problems validate doesn't know about; glyph(model, el) says which way a border item's glyph
   // points (in, out, inout, or null for none).
-  const KINDS = {
+  const KINDS = {};
+  addKinds({
     // Structure.
-    PartDefinition: { keyword: 'part def', label: 'part def', definition: true, usage: false, contains: ['PartUsage', 'PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
-    PortDefinition: { keyword: 'port def', label: 'port def', definition: true, usage: false, contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
-    PartUsage: { keyword: 'part', label: 'part', definition: false, usage: true, contains: ['PartUsage', 'PortUsage'], onBorder: false, definedBy: 'PartDefinition', size: [180, 60], shape: 'rounded', fields: ['name', 'type', 'typeLine', 'multiplicity', 'doc'], traits: ['connectable'] },
-    PortUsage: { keyword: 'port', label: 'port', definition: false, usage: true, contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16], shape: 'port', fields: ['name', 'type', 'typeLine', 'multiplicity', 'conjugated', 'doc'], traits: ['connectable'] },
-  };
+    PartDefinition: { keyword: 'part def', label: 'part def', contains: ['PartUsage', 'PortUsage'], onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
+    PortDefinition: { keyword: 'port def', label: 'port def', contains: false, onBorder: false, size: [220, 72], shape: 'rect', fields: ['name', 'abstract', 'doc'], traits: [] },
+    PartUsage: { keyword: 'part', label: 'part', contains: ['PartUsage', 'PortUsage'], onBorder: false, definedBy: 'PartDefinition', size: [180, 60], shape: 'rounded', fields: ['name', 'type', 'typeLine', 'multiplicity', 'doc'], traits: ['connectable'] },
+    PortUsage: { keyword: 'port', label: 'port', contains: false, onBorder: true, definedBy: 'PortDefinition', size: [16, 16], shape: 'port', fields: ['name', 'type', 'typeLine', 'multiplicity', 'conjugated', 'doc'], traits: ['connectable'] },
+  });
 
-  // Relationship kinds. fields are the panel's fields that apply (rows of FIELDS), which normalize keeps by their
-  // types; hideable lets the line be left undrawn. first(model, a, ids) says what rules out a as the first end and
+  // Relationship kinds. Each stands on a class of the metamodel, as an element kind does: metaclass, its own name
+  // unless its row names another (a flow and a message are both a FlowUsage); addRelationships adds the rows. fields
+  // are the panel's fields that apply (rows of FIELDS), which normalize keeps by their types; hideable lets the line be
+  // left undrawn. first(model, a, ids) says what rules out a as the first end and
   // ends(model, a, b, ids) what rules out the pair: a sentence, or null. The palette and validate both ask them, so
   // each rule is stated once; check(model, rel, ids, add), when present, adds the problems that need more than the
   // pair. owner(model, rel, ids) is the element whose body declares the relationship (null: the package). line says
@@ -53,7 +120,8 @@
   // toSysML(model, rel, ownerId,
   // depth, out, h) writes it as a statement in that body; it is null when the relationship is written in the head
   // of its from element instead (:> for a specialization, : for a typing).
-  const RELATIONSHIPS = {
+  const RELATIONSHIPS = {};
+  addRelationships({
     // Structure.
     Specialization: {
       label: 'specializes', fields: [], hideable: false,
@@ -134,7 +202,7 @@
         h.line(depth, '}');
       },
     },
-  };
+  });
 
   // View kinds. renderer names the page's renderer for the kind; admits the element kinds a view of the kind may
   // show (null: every kind); tools the palette, element and relationship kinds with '|' between groups; fields the
@@ -160,19 +228,21 @@
   // (for a value that is none of these, a list say), and fresh(), when present, gives a new element's or
   // relationship's starting value. stored: false marks a field that is no value of the item, which normalize keeps out
   // of the model: type is the usage's FeatureTyping relationship, and typeLine whether that relationship is drawn as a
-  // line or shown as text only.
+  // line or shown as text only. attribute, when present, names the attribute of the metamodel the field holds, which
+  // gives the row its type (attributeField): the name is the element's declaredName, abstract its isAbstract.
   const FIELDS = {
-    name: { type: 'string', label: 'name' },
-    abstract: { type: 'bool', label: 'abstract' },
+    name: attributeField('declaredName', { label: 'name' }),
+    abstract: attributeField('isAbstract', { label: 'abstract' }),
     type: { type: 'ref', label: 'definition', stored: false, options: function (model, item) { return model.elements.filter((e) => e.kind === KINDS[item.kind].definedBy); } },
     typeLine: { type: 'bool', label: 'defined-by line', stored: false },
     multiplicity: { type: 'string', label: 'multiplicity', trim: true },
     conjugated: { type: 'bool', label: 'conjugated' },
     doc: { type: 'text', label: 'doc' },
-    // Two rows several slices share, stated once: which way a feature goes (none, in, out, inout), and the item a flow
-    // or a message carries, an ItemDefinition (a kind no core row has yet, so the select offers nothing until a slice
-    // brings it). No core kind lists them, so the panel shows neither until a slice's kind does.
-    direction: { type: 'enum', label: 'direction', values: ['', 'in', 'out', 'inout'] },
+    // Two rows several slices share, stated once: which way a feature goes (none, or the literals of the attribute's
+    // FeatureDirectionKind: in, inout, out), and the item a flow or a message carries, an ItemDefinition (a kind no
+    // core row has yet, so the select offers nothing until a slice brings it). No core kind lists them, so the panel
+    // shows neither until a slice's kind does.
+    direction: attributeField('direction', { label: 'direction' }),
     item: { type: 'ref', label: 'item', options: function (model) { return model.elements.filter((e) => e.kind === 'ItemDefinition'); } },
   };
 
@@ -650,6 +720,7 @@
 
   Object.assign(lib, {
     VERSION, FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, NAME, MULTIPLICITY, str, isObject,
+    addKinds, addRelationships, attributeField,
     canContain, admits, hasTrait, textName, blank, placement, versionOf, upgrade, normalize, index, relIndex, viewIndex,
     shownIn, chain, childrenOf, descendants, typingOf, inUsage, specializes, commonOwner, acrossDefinitions,
     nameTakenBeside, isName, quote, shown, qualified, featurePath, nameable, an, definable, describe, describeRel,
