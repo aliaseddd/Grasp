@@ -1,0 +1,366 @@
+# SysON features for Grasp: Application, projects, and workbench
+
+From `docs/sysml/syson/features/application.md`: 345 features. Kept 238 (core 19, useful 60, minor 159); dropped 107 (api 15, collaboration 24, tracking 0, studio 8, admin 7, internal 31, removed 22). Grasp: yes 13, partly 48, no 156, unclear 21.
+
+## App shell, navigation, theming & notifications (52)
+
+- **Navigation bar layout** · Sirius Web · core · Grasp: partly — the dark top bar with its coloured strip frames every SysON screen; Grasp's header holds title, palette and actions but looks different. Sources: `NavigationBar.tsx`, `NavigationBarExtensionPoints.tsx`
+- **Homepage action (SysON logo button)** · SysON · minor · Grasp: no — a logo button that always leads home; Grasp is one page with no homepage to return to. Sources: `SysONNavigationBarIcon.tsx`, `homepage-action.adoc`, `NavigationBarIcon.tsx`
+- **SysON logo icon** · SysON · minor · Grasp: no — SysON's brand mark in the bar; Grasp shows its name as text and has no logo. Sources: `SysONIcon.tsx`
+- **Navigation bar menu button (hamburger)** · SysON · minor · Grasp: no — a hamburger button opening the app menu; Grasp puts its actions as buttons in the header. Sources: `SysONNavigationBarMenuIcon.tsx`, `SysONExtensionRegistry.tsx`, `CHANGELOG.adoc` v2025.4.0
+- **Navigation bar menu (Libraries / Projects / Help)** · Sirius Web · minor · Grasp: no — one menu reaching libraries, projects and help; Grasp has no libraries, project list or help entry. Sources: `NavigationBarMenu.tsx`, `NavigationBarMenuExtensionPoints.tsx`, `libraries-action.adoc`
+- **Help action (SysON documentation link)** · SysON · minor · Grasp: no — a menu entry opening the user manual in a new tab; Grasp offers no in-page link to help. Sources: `index.tsx`, `help-action.adoc`, `NavigationBarMenu.tsx`
+- **Editor toolbar groups** · Sirius Web · useful · Grasp: partly — the editor's top bar grouped as home, project actions, command palette and help; Grasp's header has palette and actions but no omnibox or help. Sources: `workbench.adoc`, `editor.adoc`, `homepage.adoc`
+- **Project title and project menu in the editor navigation bar** · Sirius Web · useful · Grasp: no — shows which model is open and gathers rename, download, settings and delete; Grasp shows no model name or model menu. Sources: `EditProjectNavbarContextMenu.tsx`, `ProjectTitle.tsx`, `DuplicateProjectMenuItem.tsx`
+- **Application footer with version and credits** · SysON · minor · Grasp: no — a footer with the version and credits; Grasp shows no version anywhere in the page. Sources: `SysONFooter.tsx`, `index.tsx`, `CHANGELOG.adoc` v2024.9.0
+- **Browser tab title, favicon and no-JavaScript message** · SysON · minor · Grasp: partly — the tab reads SysON with a favicon; Grasp's tab reads Grasp but has no favicon. Sources: `index.html`
+- **SysON color theme** · SysON · core · Grasp: no — the navy, lavender and violet palette is the colour of every SysON screen; Grasp uses its own teal-and-grey tokens. Sources: `sysonTheme.ts`, `index.tsx`, `theme.ts`
+- **Theme color tokens for navigation bar, selection and toasts** · Sirius Web · minor · Grasp: partly — named colours for the bar, the selection and toasts keep them consistent; Grasp has colour tokens but none for a bar or toasts. Sources: `CHANGELOG.adoc`, `siriusWebTheme.ts`
+- **Snackbar toast color** · SysON · minor · Grasp: no — toasts coloured by severity in SysON's navy, green, red, orange and blue; Grasp reports in a plain status line. Sources: `sysonTheme.ts`, `ToastProvider.tsx`, `Toast.tsx`
+- **Menus and tooltips work in full-screen mode** · Sirius Web · minor · Grasp: no — menus and tooltips still show while a diagram is full screen; Grasp has no full-screen mode. Sources: `sysonTheme.ts`, `siriusWebTheme.ts`
+- **Roboto font** · Sirius Web · useful · Grasp: no — Roboto gives SysON its typographic feel on every machine; Grasp uses Inter and IBM Plex Mono. Sources: `index.tsx`, `CHANGELOG.adoc`
+- **Server startup banner** · dropped: admin — a console banner when the server starts
+- **Label ellipsis and length limit** · Sirius Web · minor · Grasp: unclear — long labels end with an ellipsis and tab close buttons stay visible; how Grasp clips long names is not stated. Sources: `CHANGELOG.adoc`
+- **Toast notifications (snackbars)** · Sirius Web · useful · Grasp: partly — stacked, auto-hiding messages report what each action did; Grasp reports in a single status line instead of toasts. Sources: `ToastProvider.tsx`, `MultiToast.ts`, `useReporting.ts`
+- **Server feedback messages as multi-toasts** · Sirius Web · useful · Grasp: partly — each message from an action shows on its own with its severity; Grasp's status line shows one message without a level. Sources: `useReporting.ts`, `CHANGELOG.adoc` v2026.9.0, `details.cy.ts`
+- **Generic error toasts in the application shell** · Sirius Web · minor · Grasp: no — a generic message when an action fails to reach the server; Grasp has no server, so few such failures arise. Sources: `useCreateProject.ts`, `UploadProjectView.tsx`, `sirius-web-application.json`
+- **Generic diagram error toasts** · Sirius Web · minor · Grasp: no — a notice when a diagram action fails on the server; Grasp's diagram actions run in the page. Sources: `sirius-components-diagrams.json`, `useActions.tsx`, `useInvokeAction.tsx`
+- **Form edit feedback toasts** · Sirius Web · minor · Grasp: unclear — a Details edit reports refusals such as a bad number; whether Grasp's panel reports a rejected value is not stated. Sources: `CheckboxPropertySection.tsx`, `sirius-components-forms.json`, `sirius-components-widget-reference.json`
+- **Toasts for tree and table mutations** · Sirius Web · minor · Grasp: unclear — tree and table edits report the outcome as toasts; Grasp's browser and grid say little about edits in the README. Sources: `useDropTreeItem.ts`, `useEditTextfieldCell.tsx`, `useInvokeToolMenuEntry.ts`
+- **Error toasts for workbench view subscriptions and queries** · Sirius Web · minor · Grasp: no — a view that fails to load says so in a toast; Grasp's views are drawn in the page and cannot fail this way. Sources: `useExplorerSubscription.tsx`, `useDetailsViewSubscription.tsx`, `useSearch.tsx`
+- **SysON diagram tool feedback messages** · SysON · useful · Grasp: partly — tool refusals name the element and the reason, such as a refused drop; Grasp's palette refuses in words in its status line. Sources: `DiagramQueryElementService.java`, `ViewLabelService.java`
+- **'Update incoming references' ignored notice** · SysON · minor · Grasp: no — tells the modeller a duplicate option is ignored; Grasp has no duplicate command. Sources: `SysONDuplicateDelegate.java`
+- **Display toggle load errors** · SysON · minor · Grasp: no — a failed display toggle reports its error; Grasp has no icon or inherited-member toggles. Sources: `useShowDiagramsIcons.ts`, `ShowHideDiagramsIcons.tsx`, `ShowHideDiagramsInheritedMembers.tsx`
+- **Standard backend error and status messages** · Sirius Web · minor · Grasp: no — the standard wording of refusals such as 'Invalid name'; Grasp words its own refusals and has no server messages. Sources: `messages.properties`, `sirius-components-collaborative.properties`, `sirius-components-collaborative_fr.properties`
+- **Deletion confirmation dialog** · Sirius Web · useful · Grasp: no — asks before a deletion that cannot be reverted; Grasp deletes at once and relies on Undo. Sources: `sirius-components-core.json`, `delete-dialog.spec.ts`, `CHANGELOG.adoc` v2026.1.0
+- **Confirmation dialog look and buttons** · Sirius Web · minor · Grasp: no — a red warning dialog whose Cancel button has focus so Enter is safe; Grasp shows no confirmation dialog. Sources: `ConfirmationDialog.tsx`, `ConfirmationDialogContext.tsx`, `useConfirmationDialog.tsx`
+- **Disable/re-enable confirmation dialogs (browser-stored preference)** · Sirius Web · minor · Grasp: no — lets a modeller turn the deletion prompt off per project; Grasp has no prompt to turn off. Sources: `useConfirmationDialogSettings.tsx`, `ProjectGeneralSettingsView.tsx`, `representation-operations.adoc`
+- **Impact analysis confirmation dialog** · Sirius Web · minor · Grasp: no — shows what a library update or removal would add, delete and change before running it; Grasp has no libraries. Sources: `ImpactAnalysisDialog.tsx`, `ImpactAnalysisDialogContext.tsx`, `sirius-components-core.json`
+- **Error page** · Sirius Web · minor · Grasp: no — a page that explains a missing or failed route; Grasp is one page with no routes. Sources: `ErrorView.tsx`, `ErrorViewExtensionPoints.tsx`, `sirius-web-application.json`
+- **Crash fallback message** · Sirius Web · minor · Grasp: unclear — a plain message replaces a crashed view; what Grasp shows when a script error occurs is not stated. Sources: `Router.tsx`, `ErrorBoundary.tsx`
+- **Pages wait for viewer capabilities and translations** · dropped: internal — pages wait for capability and translation queries
+- **Loading indicators** · Sirius Web · minor · Grasp: unclear — a thin bar shows while something loads; Grasp has a loading mode but how it shows it is not stated. Sources: `CHANGELOG.adoc`
+- **Blank page outside a secure context** · dropped: admin — HTTPS setup needed to serve the app to other machines
+- **File selection zone** · Sirius Web · minor · Grasp: no — a dashed click-to-pick-a-file box for uploads; Grasp uses a plain file chooser for Import state. Sources: `FileUpload.tsx`
+- **Server-driven UI language (English and French)** · Sirius Web · minor · Grasp: no — the interface can be shown in French; Grasp is English only. Sources: `useCreateI18nInstance.ts`, `ViewerLanguageDataFetcher.java`, `LocaleController.java`
+- **English/French label bundles for application, trees and tables** · Sirius Web · minor · Grasp: no — labels of dialogs, trees and tables in English and French; Grasp is English only. Sources: `sirius-web-application.json`, `sirius-components-trees.json`, `sirius-components-tables.json`
+- **Localized table controls** · Sirius Web · minor · Grasp: no — table controls such as search and paging labels follow the language; Grasp's grid has no such controls. Sources: `useTableTranslation.tsx`, `ProjectsTable.tsx`, `LibrariesImportTable.tsx`
+- **Localized explorer context-menu labels** · Sirius Web · minor · Grasp: no — Explorer menu labels follow the language; Grasp is English only and has no Explorer menu. Sources: `sirius-web-application.properties`, `sirius-web-application_fr.properties`
+- **Accessibility affordances in the shell** · Sirius Web · useful · Grasp: partly — labelled view buttons, focusable headers and keyboard tree navigation; Grasp labels its canvas and buttons but has no keyboard tree. Sources: `ViewAccordion.tsx`, `Sidebar.tsx`, `SysONIcon.tsx`
+- **Documentation, contributing guide and support channels** · SysON · minor · Grasp: partly — a user manual and support channels; Grasp has its README but no user manual. Sources: `2023.12.0.adoc`, `CHANGELOG.adoc` v2024.7.0
+- **Supported client browsers and minimum screen resolution** · SysON · minor · Grasp: unclear — states the browsers and screen size SysON supports; Grasp's README names no browser or size. Sources: `requirements.adoc`, `faq.adoc`, `index.adoc`
+- **Feature status banner on documentation pages** · SysON · minor · Grasp: no — documentation pages flag experimental features; Grasp's docs carry no status banners. Sources: `before-you-start-experimental-all.adoc`, `feature-status-experimental.adoc`, `feature-os.adoc`
+- **'Tour the interface' and 'Find your way around' pages (no in-app tour)** · SysON · minor · Grasp: no — the manual tours the interface page by page; Grasp has no tour pages. Sources: `tour.adoc`, `editor.adoc`, `OnboardArea.tsx`
+- **Help, support and community pages** · SysON · minor · Grasp: no — forum, support and resources pages for help; Grasp has none. Sources: `support.adoc`, `forum.adoc`, `best-practices.adoc`
+- **Role-based 'Guided Path' start page** · Sirius Web · minor · Grasp: no — a docs start page by role; Grasp's README is the only entry point. Sources: `guided-path.adoc`
+- **variables.css (custom colors and typography)** · dropped: removed — removed in 2026.7.0
+- **Question-mark navigation menu icon** · dropped: removed — replaced by the hamburger icon in 2025.4.0
+- **Navigation bar extension points** · dropped: removed — replaced by other extension points
+
+## Homepage, project browser & project lifecycle (83)
+
+- **Projects browser (homepage)** · Sirius Web, experimental · useful · Grasp: no — a home page to start a project or reopen one; Grasp is a single page holding one model. Sources: `ProjectBrowserView.tsx`, `homepage.adoc`, `project-browser.adoc`
+- **Project concept: flat, public container of models** · Sirius Web · minor · Grasp: partly — a project groups several models side by side; Grasp's page holds one model under one package. Sources: `concepts.adoc`
+- **Project count and sizing limits** · dropped: admin — server sizing and project limits
+- **Back to the homepage from a project** · Sirius Web · minor · Grasp: no — one click from a project back to the list; Grasp has no project list. Sources: `NavigationBarIcon.tsx`, `Projects.ts`
+- **Real links (open in a new tab)** · Sirius Web · minor · Grasp: no — project links open in new tabs with the usual browser gestures; Grasp has no project links. Sources: `useProjectsTableColumns.tsx`, `NewProjectCard.tsx`, `ProjectSettingsMenuItem.tsx`
+- **'Find your way around' tour (docs only)** · Sirius Web · minor · Grasp: no — the docs walk through the homepage regions; Grasp has no homepage to describe. Sources: `homepage.adoc`, `project-browser.adoc`
+- **Open a project (editor route)** · Sirius Web · minor · Grasp: no — each project opens at its own address; Grasp's page is the model, with no per-project address. Sources: `EditProjectView.tsx`, `DefaultExtensionRegistry.tsx`, `SiriusWebCapabilities.java`
+- **'Create a new project' card area** · Sirius Web, experimental · useful · Grasp: partly — starting cards for templates, a blank project and an upload; Grasp opens example files but offers no gallery of starts. Sources: `CreateProjectArea.tsx`, `CreateProjectAreaCard.tsx`, `ProjectTemplateApplicationService.java`
+- **Template card** · Sirius Web, experimental · minor · Grasp: partly — one click starts a project from a template, its name prefilled; Grasp opens examples only through Import state. Sources: `NewProjectCard.tsx`, `new-project.spec.ts`, `CHANGELOG.adoc` v2025.12.0
+- **Blank project card** · Sirius Web, experimental · minor · Grasp: partly — a card for an empty project; Grasp starts blank but has no action to begin a new blank model. Sources: `NewProjectCard.tsx`, `BlankProjectTemplateProvider.java`, `sirius-web-application.json`
+- **Upload project card** · Sirius Web, experimental · minor · Grasp: partly — a card to bring back a downloaded project; Grasp's Import state does this in local mode only. Sources: `UploadProjectCard.tsx`, `homepage.adoc`, `collaboration.adoc`
+- **Show all templates card** · Sirius Web · minor · Grasp: no — a card listing every template; Grasp has no template list. Sources: `ShowAllProjectTemplatesCard.tsx`, `new-project.spec.ts`, `CHANGELOG.adoc`
+- **Select a project template dialog** · Sirius Web, experimental · minor · Grasp: no — a paged dialog of all templates; Grasp has no template list. Sources: `ProjectTemplatesModal.tsx`, `project-management.adoc`, `project-browser.adoc`
+- **SysON template set and order** · SysON · useful · Grasp: partly — three starting points: an empty model, an empty library and the Batmobile example; Grasp ships one example and starts blank. Sources: `SysMLv2ProjectTemplatesProvider.java`, `homepage.adoc`, `TemplatesControllerIntegrationTests.java`
+- **Template: SysMLv2 (empty project)** · SysON · useful · Grasp: partly — a new project starts with Package1 and a General View on view1; Grasp starts with an empty package 'Model' and no view. Sources: `SysMLv2SemanticDataTemplatesInitializer.java`, `SysONDefaultResourceProvider.java`, `flashlight.adoc`
+- **Template: SysMLv2-Library (empty library project)** · SysON · minor · Grasp: no — a starting point for an empty library package; Grasp has no library packages. Sources: `SysMLv2SemanticDataTemplatesInitializer.java`, `SysONDefaultResourceProvider.java`, `2025.4.0.adoc`
+- **Template: Batmobile (example project)** · SysON · useful · Grasp: partly — a rich example model to learn from and try every view on; Grasp ships the Stronghold example, not Batmobile. Sources: `SysMLv2SemanticDataTemplatesInitializer.java`, `Batmobile.sysml`, `CHANGELOG.adoc` v2024.11.0, v2025.4.0
+- **Template General View initializer** · dropped: internal — creates view1 and its diagram after a template loads
+- **Blank Project template** · Sirius Web · minor · Grasp: partly — a project with no model at all; Grasp starts from a blank model. Sources: `BlankProjectTemplateProvider.java`, `sirius-web-application.json`, `CHANGELOG.adoc` v2026.1.0
+- **Studio project templates: Studio and Blank Studio** · dropped: studio — studio project templates
+- **'Create a new project' page** · Sirius Web · minor · Grasp: no — a form to name a new project and pick its template and libraries; Grasp has no new-project form. Sources: `NewProjectView.tsx`, `sirius-web-application.json`, `CHANGELOG.adoc`
+- **Project Name field** · Sirius Web · minor · Grasp: no — a required name with a live character counter; Grasp's model has no name field of its own. Sources: `NewProjectView.tsx`, `new-project.spec.ts`
+- **Project Template selector** · Sirius Web · minor · Grasp: no — pick the template a new project starts from; Grasp has no templates. Sources: `NewProjectView.tsx`, `useAllProjectTemplates.ts`, `new-project.spec.ts`
+- **Libraries picker at creation** · Sirius Web · useful · Grasp: no — choose published libraries when creating a project; Grasp has no libraries. Sources: `NewProjectView.tsx`, `LibrariesImportTable.tsx`, `CHANGELOG.adoc`
+- **Template required libraries** · Sirius Web · minor · Grasp: no — a template can insist on libraries; Grasp has no templates or libraries. Sources: `NewProjectView.tsx`, `2026.11.0.adoc`, `CHANGELOG.adoc`
+- **Create Project and Cancel buttons** · Sirius Web · minor · Grasp: no — create or cancel the new project; Grasp has no new-project form. Sources: `NewProjectView.tsx`, `useCreateProject.ts`, `new-project.spec.ts`
+- **Opening the project after creation** · Sirius Web · minor · Grasp: no — the new project opens without a diagram open; Grasp has no project creation. Sources: `CHANGELOG.adoc`, `project-management.adoc`, `flashlight.adoc`
+- **Upload a project page** · Sirius Web, experimental · useful · Grasp: partly — bring a downloaded project back with its diagrams; Grasp's Import state reads a saved JSON state in local mode only. Sources: `UploadProjectView.tsx`, `project-management.adoc`, `UploadProject.ts`
+- **File selection zone** · Sirius Web · minor · Grasp: no — a dashed click-to-pick box for the archive; Grasp uses a plain file chooser. Sources: `FileUpload.tsx`, `sirius-web-application.json`
+- **Existing Projects table** · Sirius Web, experimental · useful · Grasp: no — a table of every project to reopen one; Grasp holds one model per page. Sources: `ProjectsTable.tsx`, `useProjectsTableColumns.tsx`, `ListProjectsArea.tsx`
+- **Filter projects by name** · Sirius Web · minor · Grasp: no — filter the project list by name; Grasp has no project list. Sources: `ListProjectsArea.tsx`, `useProjects.ts`
+- **Cursor-based pagination control** · Sirius Web · minor · Grasp: no — page through the project list; Grasp has no project list. Sources: `CursorBasedPagination.tsx`, `useProjects.ts`, `ProjectStyleCustomizationsTable.tsx`
+- **Project row actions menu** · Sirius Web, experimental · minor · Grasp: no — rename, duplicate, download or delete a project from its row; Grasp has no project list. Sources: `ProjectActionButton.tsx`, `ProjectContextMenuExtensionPoints.tsx`, `Projects.ts`
+- **Projects table refresh after menu actions** · Sirius Web · minor · Grasp: no — the list refreshes after a rename or delete; Grasp has no project list. Sources: `ProjectActionButton.tsx`, `useProjects.ts`, `DuplicateProjectMenuItem.tsx`
+- **Editor project actions menu** · Sirius Web, experimental · useful · Grasp: no — a menu beside the project name for rename, share, duplicate, download, settings and delete; Grasp has no model menu. Sources: `EditProjectNavbarContextMenu.tsx`, `EditProjectNavbarMenuExtensionPoints.tsx`, `editor.adoc`
+- **Project name in the editor navigation bar** · Sirius Web · useful · Grasp: no — the open project's name sits in the top bar; Grasp's header shows 'Grasp' and the active view, not the model's name. Sources: `EditProjectNavbar.tsx`, `NavigationBar.tsx`, `CHANGELOG.adoc` v2026.7.0
+- **Rename a project** · Sirius Web, experimental · minor · Grasp: no — rename the project in a dialog; Grasp's model name is not shown or renamed this way. Sources: `RenameProjectModal.tsx`, `RenameProjectMenuItem.tsx`, `project-management.adoc`
+- **Project name rules** · Sirius Web, experimental · minor · Grasp: no — project names of 3 to 1024 characters; Grasp's model has no project name. Sources: `project-management.adoc`, `NewProjectView.tsx`, `RenameProjectModal.tsx`
+- **Duplicate a project** · Sirius Web · minor · Grasp: no — copy a whole project as '<name> - Copy'; Grasp cannot duplicate its model. Sources: `DuplicateProjectMenuItem.tsx`, `useDuplicateProject.ts`, `CHANGELOG.adoc` v2025.12.0
+- **Download (export) a project** · Sirius Web, experimental · useful · Grasp: partly — download the project as an archive that uploads again; Grasp's Download state does this in local mode only. Sources: `DownloadProjectMenuItem.tsx`, `project-management.adoc`, `CHANGELOG.adoc`
+- **Delete a project** · Sirius Web, experimental · minor · Grasp: no — delete a project after a warning; Grasp holds one model and cannot delete it. Sources: `DeleteProjectModal.tsx`, `DeleteProjectMenuItem.tsx`, `project-management.adoc`
+- **Share a project by URL** · dropped: collaboration — sharing a project by link
+- **Download projects as a backup before upgrading** · dropped: admin — backups before server upgrades
+- **Project list query** · dropped: api — GraphQL project list query
+- **Single project query** · dropped: api — GraphQL single project query
+- **Project templates query (browser cards vs. modal)** · dropped: api — GraphQL template query
+- **All project templates query** · dropped: api — GraphQL all-templates query
+- **Templates hidden when required libraries are missing** · dropped: internal — server hides templates whose libraries are missing
+- **Project template images** · dropped: internal — server path for template images
+- **createProject mutation and lifecycle** · dropped: api — GraphQL createProject mutation
+- **renameProject mutation** · dropped: api — GraphQL renameProject mutation
+- **deleteProject mutation with cleanup** · dropped: api — GraphQL deleteProject mutation and cleanup
+- **duplicateProject mutation** · dropped: api — GraphQL duplicateProject mutation
+- **Project download endpoint and archive manifest** · dropped: api — download endpoint and archive layout
+- **uploadProject mutation** · dropped: api — GraphQL uploadProject mutation
+- **Project import preserves diagram state** · Sirius Web · useful · Grasp: yes — an uploaded project keeps its diagram layout and appearance; Grasp's saved state keeps each view's layout. Sources: `CHANGELOG.adoc` v2025.6.0, v2025.8.0, v2026.5.0
+- **Upload pipeline: new ids, reference rewriting, representation re-creation** · dropped: internal — how the server re-creates an uploaded project
+- **What project archives leave out** · Sirius Web · minor · Grasp: unclear — an archive omits images and style settings, so a modeller knows what is lost; what Grasp's saved state omits besides notes is not stated. Sources: `ProjectExportService.java`, `ProjectDuplicationApplicationService.java`, `ProjectImageDeletionService.java`
+- **SysML standard libraries excluded from archives** · SysON · minor · Grasp: no — standard library elements stay out of an archive and resolve again on upload; Grasp has no standard library. Sources: `SysMLv2EditingContextPersistenceFilter.java`, `SysMLv2RewriteProxiesResourcesFilter.java`
+- **Project archive extension API** · dropped: internal — archive extension points
+- **Project natures** · dropped: internal — project natures
+- **Project data model and domain events** · dropped: internal — project record and domain events
+- **Project access and activity logging** · dropped: admin — server activity logging
+- **Project semantic data ('main' editing context)** · dropped: internal — the project's 'main' editing context
+- **Project and viewer capabilities in GraphQL** · dropped: api — GraphQL capabilities
+- **Project template extension API** · dropped: internal — template extension points
+- **Model (document) types query** · dropped: api — GraphQL model types query
+- **Blank project naming pop-up** · dropped: removed — replaced by the New project page
+- **`createProjectFromTemplate` mutation** · dropped: removed — removed in 2026.1.0
+- **Automatic opening of a template's initial representation** · dropped: removed — removed in 2026.1.0
+- **Natures in the creation input and on templates in GraphQL** · dropped: removed — removed in 2026.1.0
+- **`IProjectTemplateInitializer`** · dropped: removed — renamed in 2026.1.0
+- **`ProjectTemplateCard` component** · dropped: removed — removed in 2026.1.0
+- **Frontend-contributed Blank, Upload and Browse-all cards** · dropped: removed — replaced by backend cards in 2025.8.0
+- **Download entries as menu extension contributions** · dropped: removed — replaced by standard entries in 2025.8.0
+- **`projectActionButtonMenuItemExtensionPoint`** · dropped: removed — removed in 2024.11.0
+- **`editProjectNavbarSubtitleExtensionPoint`** · dropped: removed — removed in 2025.2.0
+- **`editProjectViewReadOnlyPredicateExtensionPoint` and the navbar `readonly` prop** · dropped: removed — removed in 2025.8.0
+- **Disabled Rename and Delete on read-only projects** · dropped: removed — entries now hidden instead
+- **Earlier projects list** · dropped: removed — rebuilt in 2025.4.0
+- **`RenameProjectSuccessPayload` and `DeletedProjectSuccessPayload`** · dropped: removed — replaced by SuccessPayload
+- **Project id used as editing context id** · dropped: removed — replaced in 2025.2.0
+- **`IProjectApplicationService`** · dropped: removed — split in 2026.3.0
+
+## Project settings & customization (23)
+
+- **Open project settings** · Sirius Web, experimental · minor · Grasp: no — a settings page reached from the project menu; Grasp has no settings page. Sources: `ProjectSettingsMenuItem.tsx`, `project-management.adoc`, `EditProjectNavbarContextMenu.tsx`
+- **Project settings page layout** · Sirius Web · minor · Grasp: no — vertical tabs of settings beside their content; Grasp has no settings page. Sources: `ProjectSettingsView.tsx`, `useProjectAndProjectSettingTabCapabilities.tsx`
+- **Settings tab in the URL** · Sirius Web · minor · Grasp: no — each settings tab has its own address; Grasp has no settings page. Sources: `DefaultExtensionRegistry.tsx`, `ProjectSettingsView.tsx`, `CHANGELOG.adoc`
+- **Settings tabs: General, Images, Appearances** · Sirius Web · minor · Grasp: no — General, Images and Appearances settings; Grasp has no settings page. Sources: `DefaultExtensionRegistry.tsx`, `ProjectSettingsViewExtensionPoints.tsx`, `ProjectSettings.ts`
+- **Empty settings page** · dropped: collaboration — shown when permissions hide every tab
+- **Enable confirmation dialogs (per project, per browser)** · Sirius Web · minor · Grasp: no — a per-project switch for deletion prompts; Grasp has no prompts or settings. Sources: `ProjectGeneralSettingsView.tsx`, `useConfirmationDialogSettings.tsx`, `delete-dialog.spec.ts`
+- **Project Images tab** · Sirius Web · minor · Grasp: no — upload images to show in forms or on nodes; Grasp has no project images. Sources: `ProjectImagesSettings.tsx`, `useProjectImages.ts`, `CHANGELOG.adoc` v2023.1.0
+- **Project images table** · Sirius Web · minor · Grasp: no — lists uploaded images with their ids; Grasp has no project images. Sources: `ImageTable.tsx`, `ImageRow.tsx`, `ProjectImagesDataFetcher.java`
+- **Copy image ID to clipboard** · Sirius Web · minor · Grasp: no — copy an image's id for use elsewhere; Grasp has no project images. Sources: `ImageRow.tsx`
+- **Image preview tooltip** · Sirius Web · minor · Grasp: no — hover to preview an image; Grasp has no project images. Sources: `ImageRow.tsx`
+- **Upload image** · Sirius Web · minor · Grasp: no — upload an image with a label; Grasp has no project images. Sources: `UploadImageModal.tsx`, `ProjectImageCreationService.java`, `image.graphqls`
+- **Rename image** · Sirius Web · minor · Grasp: no — rename an uploaded image; Grasp has no project images. Sources: `ImageRow.tsx`, `RenameImageModal.tsx`, `ProjectImageUpdateService.java`
+- **Delete image** · Sirius Web · minor · Grasp: no — delete an uploaded image after a warning; Grasp has no project images. Sources: `DeleteImageModal.tsx`, `ProjectImageDeletionService.java`
+- **Project image API and storage** · dropped: api — GraphQL image API and storage
+- **Image serving endpoint** · dropped: api — HTTP image endpoint
+- **Project images offered as custom images** · dropped: studio — images offered to View model styles
+- **Appearances tab: style customizations table** · Sirius Web · useful · Grasp: no — a list of style customizations to switch on per project, such as SysON's theme; Grasp has no appearance settings. Sources: `ProjectAppearancesSettingsView.tsx`, `ProjectStyleCustomizationsTable.tsx`, `ProjectStyleCustomizationSearchApplicationService.java`
+- **Toggle a style customization** · Sirius Web · minor · Grasp: no — switch one customization on or off and keep the choice; Grasp has no appearance settings. Sources: `ProjectStyleCustomizationsCheckbox.tsx`, `ProjectStyleCustomizationApplicationService.java`, `style-customizations.spec.ts`
+- **Read-only style customizations** · dropped: collaboration — checkboxes disabled without the permission
+- **Style customization extension API** · dropped: internal — style customization extension API
+- **SysON standard diagrams theme** · SysON, experimental · useful · Grasp: no — colours General View nodes by SysML family, structure, behaviour and so on; Grasp draws every kind in the same colours. Sources: `SDVStyleCustomizationDescriptionProvider.java`, `SDVNodeStyleCustomizer.java`, `manage-elements-diagram.adoc`
+- **Images-only settings page** · dropped: removed — replaced by the three-tab page
+- **'images' tab capability type** · dropped: removed — capability type renamed in 2025.10.0
+
+## Workbench layout & panels (73)
+
+- **Workbench four-region layout** · Sirius Web · core · Grasp: partly — the frame every SysON screen sits in; Grasp lacks editor tabs and a side Explorer panel. Sources: `workbench.adoc`, `editor.adoc`
+- **Structured editors: graphical, form-based and tables** · SysON · core · Grasp: yes — diagrams, property forms and tables as the three ways to edit; Grasp has views, the details panel and the grid. Sources: `what-is.adoc`
+- **Edit-project page layout** · Sirius Web · minor · Grasp: yes — the editor fills the window under a top bar; Grasp's page is a header above a full-window plane. Sources: `EditProjectView.tsx`, `DefaultExtensionRegistry.tsx`
+- **Three-zone resizable panel group** · Sirius Web · useful · Grasp: partly — side panels and the editor in one row the modeller can resize; Grasp's panel can be hidden but not resized. Sources: `Panels.tsx`, `Workbench.tsx`, `SidePanel.tsx`
+- **Resize and collapse side panels by dragging separators** · Sirius Web · useful · Grasp: partly — drag a divider to widen or collapse a panel; Grasp hides and shows its panel with a button only. Sources: `SidePanel.tsx`, `Panels.tsx`, `CHANGELOG.adoc`
+- **Denser UI** · Sirius Web · minor · Grasp: unclear — compact headers, tabs and dividers leave more room for diagrams; how dense Grasp's chrome is compared with SysON's is not settled. Sources: `CHANGELOG.adoc`
+- **Wider Explorer panel by default** · Sirius Web · minor · Grasp: no — the Explorer opens at a quarter of the width; Grasp has no side Explorer. Sources: `CHANGELOG.adoc`
+- **Read-only workbench** · dropped: collaboration — read-only when the viewer lacks edit permission
+- **Library display workbench** · Sirius Web · minor · Grasp: no — browse a published library in the same layout, read-only; Grasp has no libraries. Sources: `DisplayLibraryView.tsx`, `DisplayLibraryNavbar.tsx`, `DefaultExtensionRegistry.tsx`
+- **Left panel: project-level views** · Sirius Web · core · Grasp: partly — the left panel holds Explorer, Views, Validation and Search; Grasp has Validation on the left, its tree is a Browser view frame. Sources: `DefaultWorkbenchConfigurationProvider.java`, `user-interface-navigation.adoc`, `workbench.adoc`
+- **Right panel: selection-dependent views** · Sirius Web · core · Grasp: partly — the right panel holds Details, Query and related views; Grasp's panel shows details only. Sources: `DefaultWorkbenchConfigurationProvider.java`, `user-interface-navigation.adoc`, `workbench.adoc`
+- **Sidebar view selector icon strips** · Sirius Web · useful · Grasp: no — icon strips on both edges switch views on and off; Grasp toggles its Validation view with a header button. Sources: `Sidebar.tsx`, `user-interface-navigation.adoc`, `site.cy.ts`
+- **Registered workbench views (ids, titles, icons)** · Sirius Web · useful · Grasp: partly — eight named views, each with its icon; Grasp has Details and Validation, and its Browser and Grid are view frames. Sources: `DefaultExtensionRegistry.tsx`
+- **Toggle views on and off; several views stacked in one panel** · Sirius Web · useful · Grasp: partly — several views shown at once, stacked in one panel; Grasp shows one view per side. Sources: `SidePanel.tsx`, `site.cy.ts`, `CHANGELOG.adoc`
+- **Collapse/expand a side panel from the active view's icon** · Sirius Web · useful · Grasp: partly — click a view's icon to fold its panel away; Grasp folds its panel with Hide panel and Panel buttons. Sources: `SidePanel.tsx`, `user-interface-navigation.adoc`, `site.cy.ts`
+- **Resizable stacked views within a panel** · Sirius Web · minor · Grasp: no — drag between stacked views to share the height; Grasp stacks no views. Sources: `SidePanel.tsx`
+- **Collapsible view header (view accordion) with merged toolbar** · Sirius Web · useful · Grasp: no — each view has a slim header that folds it, with its tools on the right; Grasp's panels have no folding headers. Sources: `ViewAccordion.tsx`, `2026.11.0.adoc`, `CHANGELOG.adoc`
+- **Collapsed views keep their state** · Sirius Web · minor · Grasp: no — a folded view keeps its tree and scroll position; Grasp has no folding views. Sources: `ViewAccordion.tsx`, `SidePanel.tsx`
+- **Backend-driven view placement and preserved order** · dropped: internal — server config decides view placement
+- **View headers hidden outside side panels** · dropped: internal — headers hidden when a view is embedded elsewhere
+- **Selected element label in right view headers** · Sirius Web · minor · Grasp: no — the related views name the element they show in their header, planned and not confirmed shipped; Grasp has no such views. Sources: `CHANGELOG.adoc`, `229_add_the_selected_element_label_to_the_header_of_the_right_views.adoc`
+- **Empty states of selection-driven views** · Sirius Web · minor · Grasp: unclear — selection views say 'No object selected' when nothing is chosen; what Grasp's panel shows then is not stated. Sources: `sirius-web-application.json`, `DetailsView.tsx`, `CHANGELOG.adoc` v2024.9.0
+- **Form-based views share one form renderer** · dropped: internal — views share one form renderer
+- **Representation/view loading indicator** · Sirius Web · minor · Grasp: unclear — a thin bar while a view or diagram loads; how Grasp shows its loading mode is not stated. Sources: `RepresentationLoadingIndicator.tsx`, `DetailsView.tsx`, `DiagramSubscriptionProvider.tsx`
+- **Default panel layout** · Sirius Web · useful · Grasp: partly — opens with Explorer on the left, Details on the right and no diagram; Grasp opens on the plane with the panel on the right. Sources: `DefaultWorkbenchConfigurationProvider.java`, `workbench-configuration.cy.ts`, `site.cy.ts`
+- **Server-provided workbench configuration** · dropped: internal — server supplies the layout config
+- **Studio workbench default layout** · dropped: studio — studio workbench layout
+- **Workbench state capture and restore** · Sirius Web · minor · Grasp: partly — the open tabs and panels can be captured and restored; Grasp keeps only the camera and the model between visits. Sources: `Workbench.tsx`, `Workbench.types.ts`, `useSynchronizeRepresentationWithWorkbenchConfiguration.tsx`
+- **Per-view state in the workbench configuration** · Sirius Web · minor · Grasp: partly — the Details tab, search text and filters are kept with the layout; Grasp keeps the Details tab while selecting but not across visits. Sources: `useExplorerViewHandle.ts`, `useDetailsViewHandle.ts`, `useSearchViewHandle.ts`
+- **Browser-stored workbench state** · Sirius Web · minor · Grasp: partly — some preferences are kept in the browser; Grasp keeps the camera and its local model in browser storage. Sources: `useConfirmationDialogSettings.tsx`, `WorkbenchOmnibox.tsx`, `useSearchQuery.ts`
+- **Editor area with multiple representation editors** · Sirius Web · core · Grasp: partly — open many diagrams and switch between them; Grasp shows all its views at once as frames on one plane. Sources: `workbench.adoc`, `editor.adoc`
+- **Representation tabs** · Sirius Web · core · Grasp: no — tabs above the editor for open diagrams; Grasp has frame tabs on the plane but no editor tab bar. Sources: `RepresentationNavigation.tsx`, `Workbench.tsx`, `explorer.adoc`
+- **Tab labels follow representation renames** · Sirius Web · minor · Grasp: yes — a tab's title follows a rename of its diagram; Grasp's frame tab shows the view's current name. Sources: `useEditingContextEventSubscription.tsx`, `Workbench.tsx`
+- **Deleted representation's tab closes automatically** · Sirius Web · minor · Grasp: yes — a deleted diagram's tab closes; deleting a view in Grasp removes its frame. Sources: `2026.11.0.adoc`, `DiagramSubscriptionProvider.tsx`, `Workbench.tsx`
+- **Representation editor chosen by kind** · dropped: internal — editor picked by representation kind
+- **Deck, Gantt and Portal renderers bundled** · dropped: internal — deck, Gantt and portal renderers SysON never uses
+- **Onboard area** · Sirius Web · useful · Grasp: no — an empty editor offers to create a model, create a diagram or open one; Grasp starts on an empty plane with a hint. Sources: `OnboardArea.tsx`, `DefaultExtensionRegistry.tsx`, `Workbench.tsx`
+- **Create a new Model card** · Sirius Web · useful · Grasp: no — create a new model from the empty editor; Grasp holds one model. Sources: `NewDocumentArea.tsx`, `sirius-web-application.json`
+- **'Others...' create-model action (empty document)** · Sirius Web · minor · Grasp: no — an 'Others...' entry adds an empty non-SysML document; Grasp has one SysML model only. Sources: `DefaultEditingContextActionProvider.java`, `DefaultEditingContextActionHandler.java`, `Studio.ts`
+- **SysON 'Create a new Model' actions: SysMLv2 and SysMLv2-Library** · SysON · useful · Grasp: no — add a SysML model or library model to the project in one click; Grasp holds one model. Sources: `SysMLv2EditingContextActionProvider.java`, `SysMLv2EditingContextActionHandler.java`, `NewDocumentArea.tsx`
+- **Create a new Representation card** · Sirius Web · useful · Grasp: partly — lists the diagrams that can be made on the selection; Grasp's New view adds a frame of the picked kind. Sources: `NewRepresentationArea.tsx`, `sirius-web-application.json`
+- **Open an existing Representation card** · Sirius Web · useful · Grasp: partly — lists the project's diagrams to open one; Grasp shows every view on the plane, and Fit brings them back. Sources: `RepresentationsArea.tsx`, `flashlight.adoc`, `CHANGELOG.adoc` v2025.6.0
+- **Single global selection** · Sirius Web · core · Grasp: partly — one selection drives every view; Grasp's single selection drives its panel but cannot hold several elements. Sources: `SelectionContext.tsx`, `Workbench.tsx`, `explorer.adoc`
+- **Explicit cross-view synchronization** · Sirius Web · useful · Grasp: unclear — selecting in a diagram does not select in the Explorer, except through explicit commands; whether Grasp marks a selection in every view is not stated. Sources: `selection.spec.ts`, `CHANGELOG.adoc` v2025.10.0
+- **Selection applied to views** · Sirius Web · useful · Grasp: unclear — a selection sent to the tree expands it and selects the items; whether Grasp's Browser follows a selection is not stated. Sources: `ExplorerSelectionContext.tsx`, `ViewsExplorerView.tsx`, `useSearchViewHandle.ts`
+- **Diagram selection published to the workbench** · Sirius Web · core · Grasp: partly — the elements behind every selected node become the selection; Grasp selects one box or line at a time. Sources: `useDiagramSelection.ts`, `selection.spec.ts`
+- **Workbench selection applied to the diagram** · Sirius Web · useful · Grasp: unclear — a selection sent to a diagram selects and reveals its nodes; whether Grasp scrolls to an element selected elsewhere is not stated. Sources: `useApplySelection.ts`, `DiagramRepresentation.tsx`, `CHANGELOG.adoc`
+- **Reveal selected elements in diagram (toolbar button)** · Sirius Web · useful · Grasp: no — a toolbar button shows the Explorer's selection on the diagram; Grasp has no reveal command. Sources: `RevealSelectionInDiagramButton.tsx`, `sirius-components-diagrams.json`, `manage-toolbar-diagram.adoc`
+- **Pin/unpin a view to the selection (synchronization button)** · Sirius Web · minor · Grasp: no — pin a view to keep showing one element while selecting others; Grasp's panel always follows the selection. Sources: `SynchronizationButton.tsx`, `DetailsView.tsx`, `sirius-web-application.json`
+- **'Show in' selection targets** · Sirius Web · minor · Grasp: no — send a selection to a chosen view; Grasp has no Show in command. Sources: `useSelectionTargets.tsx`, `ShowInSection.tsx`, `CHANGELOG.adoc`
+- **Explorer tree item palette 'Show in' section** · Sirius Web · minor · Grasp: no — Show in from the tree's palette; Grasp has no Show in command. Sources: `ShowInSection.tsx`, `TreeItemPalette.tsx`, `PlaywrightExplorer.ts`
+- **Explorer context menu 'Show in <target>'** · Sirius Web · minor · Grasp: no — Show in from the tree's context menu; Grasp has no context menus. Sources: `TreeItemContextMenu.tsx`, `sirius-components-trees.json`
+- **Diagram palette 'Show in' section** · Sirius Web · minor · Grasp: no — Show in from the diagram palette; Grasp has no Show in command. Sources: `ShowInSection.tsx`, `sirius-web-application.json`, `CHANGELOG.adoc`
+- **New diagram element selected and ready to rename** · SysON · core · Grasp: yes — a new element is selected and typing names it; Grasp selects a placed element and focuses its name in the panel. Sources: `diagram-selection.spec.ts`
+- **Table cell click selects the cell's target object** · Sirius Web · useful · Grasp: yes — clicking a table cell selects its element; clicking a Grasp grid row selects the element. Sources: `Cell.tsx`
+- **Tree widget node click selects the element** · Sirius Web · minor · Grasp: no — clicking a tree widget node in a form selects its element; Grasp's panel has no tree widget. Sources: `TreePropertySection.tsx`
+- **Reference widget chip click selects the referenced element** · Sirius Web · useful · Grasp: unclear — clicking a reference in Details jumps to the referenced element; whether Grasp's typed-by field selects its definition is not stated. Sources: `ReferencePropertySection.tsx`, `ValuedReferenceAutocomplete.tsx`
+- **Application routes** · Sirius Web · minor · Grasp: no — separate pages for projects, settings and libraries; Grasp is one page. Sources: `DefaultExtensionRegistry.tsx`, `Router.tsx`, `DisplayLibraryView.tsx`
+- **Edit-project route** · Sirius Web · minor · Grasp: no — a project opens at its own address; Grasp is one page. Sources: `EditProjectView.tsx`, `Project.ts`
+- **Named editing context in the project URL (projectId@name)** · dropped: internal — named editing contexts in the URL
+- **Unknown routes and forbidden pages redirect to 404** · Sirius Web · minor · Grasp: no — unknown addresses lead to a 404 page; Grasp has no routes. Sources: `Router.tsx`, `ProjectBrowserView.tsx`
+- **Unknown project redirects to 404** · Sirius Web · minor · Grasp: no — an unknown project leads to a 404 page; Grasp has no projects. Sources: `EditProjectView.tsx`, `useProjectAndRepresentationMetadata.ts`
+- **Open a representation from its URL** · Sirius Web · useful · Grasp: no — a link opens a given diagram; Grasp's page cannot open on a named view. Sources: `useProjectAndRepresentationMetadata.ts`, `EditProjectView.tsx`
+- **URL follows the displayed representation** · Sirius Web · minor · Grasp: no — the address names the diagram shown; Grasp's address does not change. Sources: `useSynchronizeSelectionAndURL.ts`, `Workbench.tsx`, `EditProjectView.tsx`
+- **Selection stored in the URL (?selection=)** · Sirius Web · minor · Grasp: no — the address records the selection; Grasp's address does not change. Sources: `SelectionSynchronizer.tsx`, `EditProjectView.tsx`, `palette.spec.ts`
+- **Workbench configuration URL parameter (?workbenchConfiguration=)** · Sirius Web · minor · Grasp: no — a link can carry the open tabs and panels; Grasp's address carries no layout. Sources: `useInitialWorkbenchConfiguration.ts`, `workbench-configuration.cy.ts`, `workbench-configuration.data.ts`
+- **Browser back/forward in the workbench** · Sirius Web · minor · Grasp: no — browser Back and Forward move between diagrams; Grasp keeps no history entries. Sources: `2026.7.0.adoc`, `CHANGELOG.adoc`
+- **Single-page-app routing on the server** · dropped: admin — server serves the page for deep links
+- **?mode=png-viewer / ?mode=svg-viewer diagram URLs** · Sirius Web · minor · Grasp: no — a link opens a diagram as a PNG or SVG picture; Grasp exports text only. Sources: `ExportImageButton.tsx`, `CHANGELOG.adoc` v2025.2.0
+- **?showIcons=false URL parameter** · SysON · minor · Grasp: no — a link opens a diagram without icons for screenshots; Grasp draws no element icons. Sources: `ShowHideDiagramsIcons.tsx`, `SysONDiagramPanelMenu.tsx`
+- **Share project link** · dropped: collaboration — sharing the workbench by link
+- **Shareable link dialog for representations (diagram, deck, Gantt, portal)** · dropped: collaboration — sharing a diagram by link
+- **Automatic diagram/explorer selection synchronization** · dropped: removed — replaced by explicit reveal and Show in in 2025.10.0
+
+## Omnibox, commands & keyboard shortcuts (51)
+
+- **Ctrl+K / Cmd+K toggles the omnibox** · Sirius Web · useful · Grasp: no — one shortcut opens a palette to run commands and find elements; Grasp has no command palette. Sources: `OmniboxProvider.tsx`, `workbench.adoc`, `2025.1.0.adoc`
+- **'Run commands...' omnibox button in the navigation bar** · Sirius Web · useful · Grasp: no — a 'Run commands...' button with its key hint in the top bar; Grasp has no command palette. Sources: `OmniboxButton.tsx`, `DefaultExtensionRegistry.tsx`, `sirius-components-core.json`
+- **Omnibox command dialog** · Sirius Web · useful · Grasp: no — a large input with results below, near the top of the screen; Grasp has no command palette. Sources: `Omnibox.tsx`, `sirius-components-core.json`
+- **Omnibox query and keyboard behavior** · Sirius Web · minor · Grasp: no — the palette lists commands at once and arrows move through results; Grasp has no command palette. Sources: `Omnibox.tsx`, `OmniboxCommandList.tsx`, `omnibox.cy.ts`
+- **Omnibox result list states** · Sirius Web · minor · Grasp: no — 'Fetching results...' and 'No result' rows; Grasp has no command palette. Sources: `OmniboxCommandList.tsx`, `sirius-components-core.json`, `omnibox.cy.ts`
+- **Context-aware command mode** · Sirius Web · useful · Grasp: no — commands offered depend on the project and the selection; Grasp has no command palette. Sources: `WorkbenchOmnibox.tsx`, `workbench-omnibox.graphqls`, `workbench.adoc`
+- **Frontend command overrides (commands that open a dialog)** · dropped: internal — frontend overrides for omnibox commands
+- **Command filtering and ordering** · Sirius Web · minor · Grasp: no — commands narrow to those whose name contains the text; Grasp has no command palette. Sources: `WorkbenchOmniboxCommandSearchService.java`, `ComposedOmniboxCommandOrderer.java`, `CHANGELOG.adoc` v2026.9.0
+- **Omnibox command execution** · Sirius Web · minor · Grasp: no — a chosen command runs and can select its result; Grasp has no command palette. Sources: `useExecuteWorkbenchOmniboxCommand.ts`, `WorkbenchOmniboxCommandExecutor.java`, `WorkbenchOmnibox.tsx`
+- **'Search' command and element search mode** · Sirius Web · core · Grasp: no — find any element by part of its name and jump to it; Grasp has no search, only the Browser and the Grid's sort. Sources: `WorkbenchOmnibox.tsx`, `WorkbenchOmniboxSearchEventHandler.java`, `omnibox.cy.ts`
+- **Omnibox search history** · Sirius Web · minor · Grasp: no — the last ten searches are offered again; Grasp has no search. Sources: `WorkbenchOmnibox.tsx`, `omnibox.cy.ts`, `CHANGELOG.adoc`
+- **Omnibox command: Publish SysML project contents as library** · SysON · minor · Grasp: no — publish the model as a library other projects reference; Grasp has no libraries. Sources: `SysONOmniboxCommandProvider.java`, `PublishProjectSysMLContentsAsLibraryCommand.tsx`, `publication.adoc`
+- **Omnibox command: Import published library** · SysON · useful · Grasp: no — bring a published library into the project by reference or by copy; Grasp has no libraries. Sources: `SysONOmniboxCommandProvider.java`, `ImportLibraryCommand.tsx`, `library-import.adoc`
+- **Studio omnibox commands: Publish Studio and Import studio libraries** · dropped: studio — studio omnibox commands
+- **Omnibox command sets per project kind** · SysON · minor · Grasp: no — a SysML project offers search, publish and import commands; Grasp has no command palette. Sources: `OmniboxControllerIntegrationTests.java`, `SysONOmniboxCommandProvider.java`
+- **Faster omnibox command listing** · dropped: internal — performance of command listing
+- **Project browser command palette** · Sirius Web · minor · Grasp: no — a command palette on the project list; Grasp has no project list. Sources: `ProjectBrowserOmnibox.tsx`, `ProjectsOmniboxCommandSearchService.java`, `homepage.adoc`
+- **'Blank project' command** · Sirius Web · minor · Grasp: no — a command to start a blank project; Grasp has no new-model action. Sources: `NewProjectCommandProvider.java`, `projects-omnibox.graphqls`, `projectBrowserOmnibox.cy.ts`
+- **'Search across projects' command** · Sirius Web · minor · Grasp: no — find elements across every project on the server; Grasp holds one model. Sources: `ProjectsOmniboxSearchCommandProvider.java`, `ViewerProjectsOmniboxSearchDataFetcher.java`, `cross-project-search.adoc`
+- **Del deletes the selection** · Sirius Web · core · Grasp: partly — Del removes the selected elements from the model; Grasp's Delete removes one selection, with no prompt and no multi-select. Sources: `keyboard-shortcuts.adoc`, `model-management.adoc`, `useDiagramKeyBinding.ts`
+- **F2 or type-to-rename** · Sirius Web · core · Grasp: yes — F2 or simply typing starts editing the selected label in SysML syntax; Grasp does both, with SysON's label text. Sources: `keyboard-shortcuts.adoc`, `batmobile.adoc`, `manage-labels-diagram.adoc`
+- **Diagram tool key bindings** · Sirius Web · minor · Grasp: no — a key combination runs a palette tool, though SysON's own tools declare none; Grasp's tools have no shortcuts. Sources: `useDiagramKeyBinding.ts`, `key-bindings.spec.ts`, `CHANGELOG.adoc` v2026.3.0
+- **Tool key binding display in the palette** · Sirius Web · minor · Grasp: no — the palette shows each tool's shortcut; Grasp's tools have no shortcuts. Sources: `KeyBinding.tsx`, `Palette.types.ts`, `tool.spec.ts`
+- **Key binding conflict error (diagram)** · Sirius Web · minor · Grasp: no — clashing shortcuts are refused with a message; Grasp's tools have no shortcuts. Sources: `useDiagramKeyBinding.ts`
+- **Escape closes the palette** · Sirius Web · minor · Grasp: partly — Escape closes the open palette; Grasp's Escape puts a tool down, as it has no pop-up palette. Sources: `DiagramPalette.tsx`
+- **Escape closes the connector palette** · Sirius Web · minor · Grasp: no — Escape cancels the palette shown after drawing a connection; Grasp has no connector palette. Sources: `ConnectorPalette.tsx`
+- **Alt held disables node dragging (Alt + drag pans)** · Sirius Web · useful · Grasp: partly — holding Alt lets a drag pan instead of moving nodes; Grasp pans by dragging the empty plane or scrolling, with no Alt mode. Sources: `useNodesDraggable.ts`, `keyboard-shortcuts.adoc`
+- **Modifier keys with right-click and connection release** · Sirius Web · minor · Grasp: no — modifier clicks open the browser's menu or suppress the connector palette; Grasp has no right-click palette. Sources: `useOnClickElement.ts`, `useConnector.tsx`
+- **Mouse selection gestures listed as shortcuts** · Sirius Web · core · Grasp: partly — click selects, Ctrl+click adds, Shift+drag draws a selection rectangle; Grasp selects one thing by click and has no rectangle. Sources: `keyboard-shortcuts.adoc`, `diagram.adoc`, `selection.spec.ts`
+- **Keyboard navigation of palette search results** · Sirius Web · minor · Grasp: no — arrow keys move through palette search results; Grasp's palette has no search. Sources: `PaletteSearchResult.tsx`
+- **Redo shortcuts** · Sirius Web · core · Grasp: no — Ctrl+Shift+Z or Ctrl+Y redoes what was undone; Grasp has no redo. Sources: `CHANGELOG.adoc` v2025.2.0, `UndoRedo.tsx`
+- **Ctrl/Cmd+Z undo in the project editor** · Sirius Web · core · Grasp: partly — Ctrl/Cmd+Z undoes anywhere in the editor; Grasp undoes with Ctrl/Cmd+Z and a button but cannot redo. Sources: `UndoRedo.tsx`, `ApolloLinkUndoRedoStack.tsx`, `2025.2.0.adoc`
+- **Ctrl+d for Duplicate Element (release-note claim)** · SysON · minor · Grasp: no — the release notes claim Ctrl+D duplicates diagram nodes, though no binding exists; Grasp has no duplicate. Sources: `2026.5.0.adoc`, `AbstractNodeDescriptionProvider.java`, `DuplicateObjectKeyboardShortcut.tsx`
+- **Declaring tool key bindings (view DSL)** · dropped: studio — defining tool key bindings in the view DSL
+- **Built-in studio shortcuts (Domain diagram and domain tree)** · dropped: studio — studio Domain diagram shortcuts
+- **Ctrl/Cmd+D duplicates the selected explorer element** · Sirius Web · useful · Grasp: no — Ctrl/Cmd+D duplicates the selected element from the Explorer; Grasp cannot duplicate elements. Sources: `DuplicateObjectKeyboardShortcut.tsx`, `ExplorerTreeRenderer.tsx`
+- **Ctrl/Cmd+F opens the tree filter bar** · Sirius Web · useful · Grasp: no — Ctrl/Cmd+F opens a filter bar over the tree; Grasp's Browser has no filter. Sources: `FilterBarContext.tsx`, `filter-bar.spec.ts`, `keyboard-shortcuts.adoc`
+- **Arrow-key tree navigation** · Sirius Web · useful · Grasp: no — arrow keys move, expand and fold through the tree; Grasp's arrow keys pan the plane, not the Browser. Sources: `Tree.tsx`
+- **Keyboard shortcuts for tree context-menu entries** · Sirius Web · minor · Grasp: no — shortcuts run tree menu entries; Grasp has no tree menus. Sources: `useTreeKeyBinding.ts`, `key-bindings.spec.ts`, `CHANGELOG.adoc`
+- **Explorer modifier clicks** · Sirius Web · useful · Grasp: no — Ctrl, Shift and Ctrl+Shift clicks select several tree items, for example to drag them onto a diagram; Grasp selects one item. Sources: `useTreeSelection.tsx`, `selection.spec.ts`, `flashlight.adoc`
+- **Key binding hints in the tree context menu** · Sirius Web · minor · Grasp: no — tree menu entries show their shortcuts; Grasp has no tree menus. Sources: `DefaultMenuItem.tsx`
+- **Ctrl/Cmd+F opens the Views explorer filter bar** · Sirius Web · minor · Grasp: no — Ctrl/Cmd+F filters the list of diagrams; Grasp has no views list. Sources: `ViewsExplorerView.tsx`
+- **Enter commits, Escape cancels in direct edit** · Sirius Web · core · Grasp: yes — Enter keeps a label edit, Escape drops it, clicking away keeps it; Grasp's label box behaves the same. Sources: `DiagramDirectEditInput.tsx`, `TreeItemDirectEditInput.tsx`
+- **Enter commits form text fields and table text cells** · Sirius Web · useful · Grasp: unclear — Enter commits a Details field or a table cell; how Grasp's panel fields commit beyond change events is not stated. Sources: `TextfieldPropertySection.tsx`, `TextfieldCell.tsx`, `DateTimeWidgetPropertySection.tsx`
+- **Delete key in the form description editor** · dropped: studio — form description editor key
+- **Deck card and lane keys** · dropped: internal — deck keys; SysON ships no decks
+- **Ctrl + mouse wheel zooms a Gantt chart** · dropped: internal — Gantt zoom; SysON ships no Gantt charts
+- **Ctrl/Cmd+Enter launches a search (Search view)** · Sirius Web · minor · Grasp: no — Ctrl/Cmd+Enter runs a search in the Search view; Grasp has no Search view. Sources: `SearchQueryInput.tsx`, `sirius-web-application.json`
+- **Ctrl/Cmd+Enter executes a query (Query view)** · Sirius Web · minor · Grasp: no — Ctrl/Cmd+Enter runs a query in the Query view; Grasp has no Query view. Sources: `QueryView.tsx`, `sirius-web-application.json`
+- **Ctrl+Enter validates an expression** · SysON · minor · Grasp: no — Ctrl+Enter applies a SysML expression in its dialog; Grasp has no expression editor. Sources: `EditSysMLExpressionModal.tsx`, `expressions.adoc`
+- **Dialogs keep keystrokes to themselves** · Sirius Web · minor · Grasp: unclear — typing in a dialog cannot trigger the menu behind it; Grasp has few dialogs and the README does not say. Sources: `RenameProjectModal.tsx`, `DuplicateObjectModal.tsx`, `InsertTextualSysMLv2Modal.tsx`
+
+## Collaboration, undo/redo & change safety (63)
+
+- **Concurrent authoring without locks** · dropped: collaboration — several users editing at once
+- **Share link** · dropped: collaboration — sharing the workbench by link
+- **Share representation link** · dropped: collaboration — sharing a diagram by link
+- **No built-in version control** · dropped: collaboration — version control of a shared project
+- **Real-time diagram subscription** · dropped: collaboration — live diagram updates from other users
+- **Diagram refresh merging** · dropped: internal — how pushed diagram refreshes merge
+- **Real-time tree refresh** · dropped: collaboration — live tree updates
+- **Real-time table synchronization** · dropped: collaboration — live table updates
+- **Live form synchronization** · dropped: collaboration — live form updates
+- **Text fields keep local edits during remote refresh** · dropped: collaboration — keeping typing during another user's refresh
+- **Live project rename** · dropped: collaboration — live project rename
+- **Live representation rename (editing context events)** · dropped: collaboration — live diagram rename
+- **One-at-a-time processing of every user's changes** · dropped: collaboration — serialising every user's changes
+- **Automatic save after every change** · Sirius Web · useful · Grasp: yes — every change is saved at once, with no save command; Grasp saves its model as changes pause. Sources: `EditingContextSaver.java`
+- **Project loaded on demand, unloaded when idle** · dropped: internal — server loads and unloads projects
+- **Open representation closed when deleted elsewhere** · Sirius Web · minor · Grasp: unclear — a diagram whose element is deleted goes away and its tab closes; whether a Grasp view goes when what it exposes is deleted is not stated. Sources: `EditingContextEventProcessorCleaner.java`, `DiagramSubscriptionProvider.tsx`, `Workbench.tsx`
+- **Undo/redo keyboard shortcuts** · Sirius Web · core · Grasp: partly — keyboard undo and redo while editing; Grasp undoes with Ctrl/⌘+Z but has no redo. Sources: `UndoRedo.tsx`, `2025.2.0.adoc`, `CHANGELOG.adoc` v2025.2.0
+- **Undo and redo mutations** · dropped: api — GraphQL undo and redo mutations
+- **Client-side undo/redo stacks** · Sirius Web · minor · Grasp: partly — history lasts for the tab and has no size limit; Grasp keeps a hundred steps and has no redo stack. Sources: `ApolloLinkUndoRedoStack.tsx`, `UndoRedo.tsx`, `DefaultExtensionRegistry.tsx`
+- **Layout changes are undoable** · Sirius Web · useful · Grasp: yes — moving and resizing on a diagram can be undone; Grasp undoes moves of elements and views. Sources: `useSynchronizeLayoutData.ts`, `CHANGELOG.adoc`
+- **Diagram-state undo/redo** · Sirius Web · useful · Grasp: partly — undo also reverses hiding, folding, appearance and removal from a diagram; Grasp undoes folds and view changes but has no hiding or appearance. Sources: `DeleteFromDiagramChangeRecorder.java`, `ViewRequestChangeRecorder.java`, `DiagramLayoutChangeRecorder.java`
+- **Undo of a deleted diagram node** · SysON · useful · Grasp: yes — undoing a deletion brings the node back where it was; Grasp's Undo restores deleted elements. Sources: `GVUndoTests.java`, `2025.12.0.adoc`, `CHANGELOG.adoc` v2025.12.0
+- **Operations excluded from undo history** · dropped: internal — inputs left out of undo recording
+- **Undo/redo marked as partial support** · SysON · minor · Grasp: partly — SysON calls its undo partial in diagrams; Grasp undoes model and layout changes but cannot redo. Sources: `key-features.adoc`, `keyboard-shortcuts.adoc`
+- **Portal layout undo/redo (proposal only)** · dropped: internal — portal undo, only a proposal
+- **Deletion confirmation dialog** · Sirius Web · useful · Grasp: no — asks 'Are you sure?' before a deletion; Grasp deletes at once and relies on Undo. Sources: `ConfirmationDialog.tsx`, `useConfirmationDialog.tsx`, `delete-dialog.spec.ts`
+- **'Disable this confirmation dialog' checkbox** · Sirius Web · minor · Grasp: no — a checkbox turns the prompt off for the project; Grasp has no prompt. Sources: `ConfirmationDialogContext.tsx`, `useConfirmationDialogSettings.tsx`, `manage-elements-diagram.adoc`
+- **Project settings 'Enable confirmation dialogs'** · Sirius Web · minor · Grasp: no — a project setting turns deletion prompts back on; Grasp has no prompt or settings. Sources: `ProjectGeneralSettingsView.tsx`, `sirius-web-application.json`, `EditProjectView.tsx`
+- **Palette tools with deletion confirmation** · Sirius Web · minor · Grasp: no — palette delete asks first and works on a multi-selection; Grasp deletes one selection without asking. Sources: `useSingleClickTool.tsx`, `PaletteDefaultToolsProvider.java`, `Palette.types.ts`
+- **Deletion confirmation on destructive form actions** · Sirius Web · minor · Grasp: no — removing a list item or containment reference in a form asks first; Grasp's panel deletes nothing this way. Sources: `ListPropertySection.tsx`, `ReferencePropertySection.tsx`, `WidgetEntry.tsx`
+- **Delete project dialog** · Sirius Web · minor · Grasp: no — deleting a whole project asks first; Grasp cannot delete its model. Sources: `DeleteProjectModal.tsx`, `useDeleteProject.ts`, `EditProjectNavbarContextMenu.tsx`
+- **Impact analysis dialog** · Sirius Web · useful · Grasp: no — shows what a change will add, delete and modify before it runs; Grasp has no preview of a change. Sources: `ImpactAnalysisDialog.tsx`, `ImpactAnalysisDialogContext.tsx`, `sirius-components-core.json`
+- **Impact analysis report structure** · Sirius Web · minor · Grasp: no — the preview tree colours additions green and deletions red with old -> new values; Grasp has no change preview. Sources: `core.graphqls`, `DefaultChangeDescriptionDataTreeProvider.java`, `useDiagramImpactAnalysis.ts`
+- **Diagram tool impact analysis** · dropped: studio — impact analysis for studio diagram tools
+- **Tree menu entry / palette tool impact analysis** · Sirius Web · minor · Grasp: no — a library update or removal previews its effect first; Grasp has no libraries. Sources: `useInvokeSingleClickContextMenuEntry.ts`, `useTreeImpactAnalysis.ts`, `2026.9.0.adoc`
+- **SysON impact analysis tree** · SysON · minor · Grasp: no — the preview shows each changed element under its path, with SysON's Explorer filters; Grasp has no change preview. Sources: `SysONChangeDescriptionDataTreeProvider.java`, `2026.1.0.adoc`
+- **SysON impact tree: added/removed documents** · SysON · minor · Grasp: no — the preview shows added and removed models and library versions; Grasp has no change preview. Sources: `SysONChangeDescriptionDataTreeProvider.java`, `FeatureAddition.svg`, `FeatureDeletion.svg`
+- **SysON impact tree: feature changes** · SysON · minor · Grasp: no — the preview lists each feature added, removed or changed; Grasp has no change preview. Sources: `SysONChangeDescriptionDataTreeProvider.java`, `ChangeMarker.svg`, `FeatureModification.svg`
+- **Editing context snapshot and restore** · dropped: internal — snapshot and rollback for dry runs
+- **Read-only workbench from project capabilities** · dropped: collaboration — read-only workbench from permissions
+- **Server-side refusal of edits on read-only widgets** · dropped: internal — server refuses edits to read-only widgets
+- **SysON extensions honor read-only** · SysON · minor · Grasp: no — expression and rotate tools are withheld on read-only content; Grasp has no expression or rotate tools. Sources: `InsertTextualSysMLv2MenuContribution.tsx`, `DeleteExpressionExplorerToolOverriddenContribution.tsx`, `RotateNodeToolOverriddenContribution.tsx`
+- **Edit-access gating of creation areas** · dropped: collaboration — messages for viewers without edit rights
+- **Read-only forms from capabilities** · dropped: collaboration — forms read-only by permission
+- **Read-only reference widgets stay navigable** · Sirius Web · minor · Grasp: unclear — a reference on a read-only element can still be clicked through; whether Grasp's panel links to referenced elements is not stated. Sources: `ValuedReferenceAutocomplete.tsx`, `CHANGELOG.adoc` v2025.1.0
+- **Read-only list widgets keep selection** · Sirius Web · minor · Grasp: unclear — list items on read-only content still select; how Grasp's panel lists behave in its look-only mode is not stated. Sources: `ListPropertySection.tsx`, `CHANGELOG.adoc` v2024.11.0
+- **Project actions menus filtered by capabilities** · dropped: collaboration — project menus filtered by permission
+- **Read-only Details widgets for read-only elements** · SysON · useful · Grasp: partly — library elements and derived features show as read-only, and Is Parallel locks once a state has transitions; Grasp locks Is Parallel but has no library elements. Sources: `WidgetReadOnlyProvider.java`, `ReferenceWidgetPropertiesConverter.java`, `FormQueryElementService.java`
+- **View-based form widgets read-only on read-only objects** · dropped: internal — read-only rules for View DSL forms
+- **Read-only rich text widget** · Sirius Web · minor · Grasp: no — read-only documentation shows without its formatting toolbar; Grasp's documentation is plain text. Sources: `MarkdownRenderer.tsx`, `RichTextPropertySection.tsx`, `ToolbarPlugin.tsx`
+- **Read-only portals** · dropped: internal — read-only portals; SysON ships no portals
+- **Read-only trees** · Sirius Web · minor · Grasp: unclear — a read-only tree still navigates and filters but cannot rename or delete; how Grasp's Browser behaves in look-only mode is not stated. Sources: `TreeItem.tsx`, `DefaultMenuItem.tsx`, `explorer.spec.ts`
+- **Read-only tables** · Sirius Web · minor · Grasp: unclear — a read-only table still sorts and filters but cannot edit cells; how Grasp's Grid behaves in look-only mode is not stated. Sources: `TableContent.tsx`, `ResizeRowHandler.tsx`, `RowContextMenuContent.tsx`
+- **Read-only diagram toolbar** · Sirius Web · minor · Grasp: partly — a read-only diagram keeps zoom, fit and export but disables arranging and revealing; Grasp keeps zoom and Fit in look-only mode. Sources: `DiagramToolbar.tsx`, `DiagramFilter.tsx`
+- **Read-only diagram interaction lock** · Sirius Web · minor · Grasp: yes — a read-only diagram cannot be dragged, edited or drawn on, but selection works; Grasp's look-only mode blocks moves, tools and edits. Sources: `useFilterReadOnlyChanges.ts`, `DiagramRenderer.tsx`, `useDiagramKeyBinding.ts`
+- **Upload a model as read-only** · Sirius Web, experimental · minor · Grasp: no — upload a model as read-only so it cannot be changed; Grasp has no model upload. Sources: `UploadDocumentModal.tsx`, `model-management.adoc`, `CHANGELOG.adoc`
+- **Read-only models: no rename or edit, but deletable** · Sirius Web, experimental · minor · Grasp: no — a read-only model cannot be renamed or edited but can be deleted; Grasp has no read-only models. Sources: `model-management.adoc`, `SysONDefaultExplorerServices.java`, `SysONExplorerTreeItemContextMenuEntryProvider.java`
+- **Read-only document flag and persistence** · dropped: internal — read-only documents never written back
+- **Moves and reconnects into read-only elements blocked** · SysON · minor · Grasp: no — moving elements into or out of read-only elements is refused with a reason; Grasp has no read-only elements. Sources: `SysMLMoveElementCheckerService.java`, `GVForbiddenMoveTests.java`, `DiagramMutationToolServiceTest.java`
+- **Duplicate targets exclude read-only documents** · SysON · minor · Grasp: no — duplicates cannot land in a library or read-only model; Grasp has no duplicate or libraries. Sources: `SysONDuplicateTargetBrowserTreeDescriptionProvider.java`
+- **Capability voters (permission model)** · dropped: collaboration — permission voters
+- **'demo' profile: view-only server** · dropped: admin — demo server profile
+- **Server-side enforcement of view and edit rights** · dropped: collaboration — server enforcement of permissions

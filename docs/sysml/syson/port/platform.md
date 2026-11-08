@@ -1,0 +1,316 @@
+# SysON features for Grasp: APIs, data, and administration
+
+From `docs/sysml/syson/features/platform.md`: 304 features. Kept 27 (core 5, useful 6, minor 16); dropped 277 (api 91, collaboration 11, tracking 0, studio 6, admin 95, internal 67, removed 7). Grasp: yes 6, partly 9, no 10, unclear 2.
+
+## APIs & integrations (108)
+
+- **SysML v2 REST API (OMG Systems Modeling API subset)** · dropped: api — partial OMG Systems Modeling REST API
+- **Swagger UI and OpenAPI document** · dropped: api — interactive API documentation
+- **List projects (keyset pagination)** · dropped: api — REST project listing
+- **Get project by id** · dropped: api — REST project lookup
+- **Create project** · dropped: api — REST project creation
+- **Rename project (update)** · dropped: api — REST project rename
+- **Delete project** · dropped: api — REST project deletion
+- **List commits (single implicit commit)** · dropped: api — REST commit listing
+- **Get commit by id** · dropped: api — REST commit lookup
+- **Create commit (create, update and delete elements)** · dropped: api — REST commits that edit elements
+- **Commit payload semantics (partial, additive)** · dropped: api — REST commit payload rules
+- **REST recipe: create an element through two membership commits** · dropped: api — REST recipe for creating an element
+- **List commit changes** · dropped: api — REST listing of commit changes
+- **Get one commit change by id** · dropped: api — REST lookup of one change
+- **List branches (single default branch)** · dropped: api — REST branch listing
+- **Get branch by id** · dropped: api — REST branch lookup
+- **Create branch (not supported)** · dropped: api — REST branch creation, unsupported
+- **Delete branch (no-op in SysON)** · dropped: api — REST branch deletion, a no-op
+- **Get all elements** · dropped: api — REST element listing
+- **Get element by id** · dropped: api — REST element lookup
+- **Get relationships of an element by direction** · dropped: api — REST relationship query
+- **Get root elements** · dropped: api — REST root elements
+- **SysML v2 JSON serialization of elements** · dropped: api — JSON serialization of REST responses
+- **Date serialization fix (successive calls no longer crash)** · dropped: api — server fix for REST date serialization
+- **Cookbook setup** · dropped: api — setup of the Python API cookbook
+- **Recipe: fetch projects** · dropped: api — Python script listing projects
+- **Recipe: create project** · dropped: api — Python script creating a project
+- **Recipe: fetch commits / latest commit** · dropped: api — Python script listing commits
+- **Recipe: fetch elements** · dropped: api — Python script listing elements
+- **Recipe: owned elements (immediate and recursive)** · dropped: api — Python script walking owned elements
+- **Script: parts, behaviors and requirements trees** · dropped: api — Python script printing feature trees
+- **Recipe: delete an element and verify** · dropped: api — Python script deleting an element
+- **Recipe: import a .sysml file (GraphQL upload)** · dropped: api — Python script uploading a .sysml file
+- **Recipe: new objects from text (insertTextualSysMLv2)** · dropped: api — Python script inserting text
+- **Recipe: download a document as a .sysml file** · dropped: api — Python script downloading a document
+- **Recipe: retrieve project documents** · dropped: api — Python script listing documents
+- **API troubleshooting guidance** · dropped: api — troubleshooting for API scripts
+- **Document download with content negotiation** · dropped: api — HTTP endpoint behind the Explorer's Download; the user action is "Download a model"
+- **Project archive download** · Sirius Web · minor · Grasp: yes — one download holds the whole project, model and diagrams together; Grasp's Download state saves model, views and notes in one JSON file. Sources: `ProjectDownloadController.java`, `DownloadProjectMenuItem.tsx`, `retrieve_project_documents.py`
+- **Export selected objects (e.g. CSV)** · dropped: api — HTTP endpoint exporting objects as CSV
+- **Locale bundle endpoint** · dropped: api — HTTP endpoint serving translation files
+- **GraphQL API endpoint** · dropped: api — the GraphQL endpoint itself
+- **GraphQL introspection and usage practice** · dropped: api — GraphQL introspection practice
+- **GraphQL upload endpoint** · dropped: api — GraphQL multipart upload endpoint
+- **HTTP GraphQL responses and error logging** · dropped: api — GraphQL HTTP responses and logging
+- **GraphQL over WebSocket (subscriptions)** · dropped: api — GraphQL over WebSocket protocol
+- **Standard API error messages** · Sirius Web · minor · Grasp: partly — plain-words refusals such as an upper-bound cardinality or a missing containment feature; Grasp refuses in its status line but lacks SysON's fixed message set and toasts. Sources: `messages.properties`, `sirius-components-collaborative.properties`, `sirius-components-emf.properties`
+- **Viewer root and editing context lookup** · dropped: api — GraphQL viewer and editing-context lookup
+- **Object lookup queries** · dropped: api — GraphQL object lookup
+- **Object labels lookup** · dropped: api — GraphQL label lookup
+- **Query-based (AQL) fields** · dropped: api — GraphQL AQL query fields
+- **Single representation description lookup** · dropped: api — GraphQL representation description lookup
+- **Representation description fields for clients** · dropped: api — GraphQL description fields for clients
+- **GraphQL project listing (cursor pagination)** · dropped: api — GraphQL project paging
+- **GraphQL createProject** · dropped: api — GraphQL createProject
+- **GraphQL deleteProject** · dropped: api — GraphQL deleteProject
+- **GraphQL library lookup** · dropped: api — GraphQL library lookup
+- **GraphQL createDocument** · dropped: api — GraphQL createDocument
+- **GraphQL representation creation** · dropped: api — GraphQL representation creation
+- **GraphQL diagram operations** · dropped: api — GraphQL diagram mutations
+- **Diagram payload contents** · dropped: api — GraphQL diagram payload shape
+- **Collapse / expand state mutation** · dropped: api — GraphQL collapse mutation; the palette tool has its own bullets
+- **Omnibox GraphQL API** · dropped: api — GraphQL omnibox queries
+- **Reference widget backend operations** · dropped: api — GraphQL reference widget mutations
+- **Form widget edit operations** · dropped: api — GraphQL form widget mutations
+- **Help text and completion queries** · dropped: api — GraphQL help text and completion queries
+- **Deck GraphQL API** · dropped: api — GraphQL API of a studio-built deck
+- **Gantt GraphQL API** · dropped: api — GraphQL API of a studio-built Gantt
+- **Portal GraphQL API** · dropped: api — GraphQL API of the portal
+- **Project and representation management operations** · dropped: api — GraphQL project and representation operations
+- **Model document and object operations** · dropped: api — GraphQL document and object operations
+- **Tree and Explorer operations** · dropped: api — GraphQL tree and Explorer operations
+- **Diagram appearance operations** · dropped: api — GraphQL appearance mutations
+- **Table operations** · dropped: api — GraphQL table mutations
+- **View subscriptions** · dropped: api — GraphQL view subscriptions
+- **Library operations** · dropped: api — GraphQL library operations
+- **Search, query and workbench operations** · dropped: api — GraphQL search, query and workbench operations
+- **Studio fork operation** · dropped: studio — forking a studio from a representation
+- **Selection dialog and validation GraphQL types** · dropped: api — GraphQL selection dialog and validation types
+- **insertTextualSysMLv2 mutation** · dropped: api — mutation behind the New objects from text dialog
+- **createExpression mutation** · dropped: api — mutation behind the Create Expression dialog
+- **editExpression mutation** · dropped: api — mutation behind the Edit Expression dialog
+- **deleteExpression mutation** · dropped: api — mutation behind the Delete Expression tools
+- **expressionTextualRepresentation query** · dropped: api — query that prefills the expression editor
+- **Diagram display flags queries** · dropped: api — queries behind the Diagrams Options checkboxes
+- **Diagram display toggle mutations** · dropped: api — mutations behind the Diagrams Options checkboxes
+- **Custom node style GraphQL types** · dropped: api — GraphQL types of custom node styles
+- **editSysML\*NodeAppearance mutations** · dropped: api — mutations behind the Appearance sections
+- **Interoperability support matrix (project/model exchange)** · SysON · useful · Grasp: partly — tells a modeller which formats go in and out; Grasp exports SysML v2 text and its own JSON state but cannot read SysML text in. Sources: `key-features.adoc`, `interoperability.adoc`, `collaboration.adoc`
+- **Model sharing with other SysML v2 tools** · SysON · useful · Grasp: partly — the textual notation as the bridge to other vendors' tools; Grasp writes text that other tools accept but cannot read their text back. Sources: `faq.adoc`
+- **SysML v2 textual export format** · SysON · core · Grasp: partly — export text that reads cleanly: quoted non-basic names and keywords, `*/` written `* /`; Grasp does both but gives no warning, and whether it writes shortest resolvable names was not checked. Sources: `SysMLv2DocumentExporter.java`, `NameHelper.java`, `CHANGELOG.adoc` v2026.9.0
+- **SysML v2 API and Services for cross-domain linking and traceability** · dropped: api — REST APIs for linking with other tools
+- **Integration foundations for linking with other models** · dropped: api — linking to other tools through APIs
+- **Office documents via M2Doc** · SysON · minor · Grasp: no — Word reports kept in step with the model through an outside tool; unverified in SysON's code and far from Grasp's page, kept because a modeller would use it. Sources: `faq.adoc`, `index.adoc`
+- **Capella integration (envisioned)** · dropped: internal — envisioned Capella integration, not implemented
+- **Papyrus and Capella positioning** · dropped: internal — positioning statement, not a feature
+- **VS Code extension (Sirius Web client)** · Sirius Web, unclear in SysON · minor · Grasp: no — Explorer, diagrams and Details inside VS Code in its theme colours; kept as a modeller-facing host, though Grasp is a single web page. Sources: `package.json`, `README.md`, `CHANGELOG.adoc` v2026.11.0
+- **Embedding the collaborative runtime (editing contexts, inputs and handlers)** · dropped: internal — embedding the collaborative runtime
+- **Reusable backend stack and per-representation GraphQL schemas** · dropped: internal — backend stack and schema modules
+- **GraphQL server customization hooks** · dropped: internal — GraphQL server hooks for integrators
+- **Subscription flux customizers and delivery scheduler** · dropped: internal — subscription stream customizers
+- **REST API service delegates** · dropped: api — replaceable REST API services
+- **Project-creation lifecycle events** · dropped: internal — project-creation events
+- **exposeRequirements and createRequirement GraphQL mutations** · dropped: removed — requirements table mutations, replaced by table tools
+- **deleteFromDiagram GraphQL mutation** · dropped: removed — deleteFromDiagram mutation, replaced by delete tools
+- **createProjectFromTemplate GraphQL mutation** · dropped: removed — createProjectFromTemplate mutation
+- **DiagramDescription.connectorTools GraphQL field** · dropped: removed — connectorTools field, replaced by connectorPalette
+- **GraphiQL and GraphQL Voyager pages** · dropped: removed — bundled GraphiQL and Voyager pages
+
+## Versioning, migration & data management (57)
+
+- **No built-in version control or configuration management** · dropped: admin — no built-in version control; external CM expected
+- **Versioning through downloaded project archives** · dropped: admin — keeping versions as archives in Git
+- **No project data versioning (single commit and branch)** · dropped: api — the REST API's single commit and branch
+- **Published library versions (immutable snapshots)** · SysON · useful · Grasp: no — reuse a finished model as a read-only, versioned library in other models, refusing a duplicate version; Grasp has no user libraries. Sources: `SysONSysMLLibraryPublisher.java`, `libraries.graphqls`, `03-add-library-table.xml`
+- **In-memory change history (undo/redo)** · Sirius Web · core · Grasp: partly — undo and redo of model and layout changes, one step per action; Grasp undoes up to a hundred changes but has no redo. Sources: `UndoEventHandler.java`, `ApolloLinkUndoRedoStack.tsx`, `UndoRedoIgnoreInputPredicate.java`
+- **Multiple named semantic data per project** · dropped: internal — named semantic data inside a project
+- **Upload a model (XMI / JSON)** · Sirius Web · core · Grasp: partly — open a .sysml/.kerml text file, or XMI or the tool's JSON, as a new model, optionally read-only; Grasp's Import state reads only its own JSON. Sources: `model-management.adoc`, `UploadDocumentModal.tsx`, `UploadDocumentReport.tsx`
+- **Model upload JSON format restriction** · Sirius Web · minor · Grasp: yes — only the tool's own JSON round-trips, not arbitrary JSON; Grasp's Import state likewise accepts only its own state files. Sources: `model-management.adoc`
+- **Upload format detection and sanitization** · Sirius Web · useful · Grasp: no — text files parsed on upload with a report of what did not resolve, such as "[ERR] Reference of X not found"; Grasp parses no SysML text. Sources: `DocumentSanitizedJsonContentProvider.java`, `XMIExternalResourceLoaderService.java`, `SysMLExternalResourceLoaderService.java`
+- **Upload a project archive (ZIP)** · Sirius Web · minor · Grasp: partly — start from an archived project in one step; Grasp's Import state reopens a saved file but has no project browser or upload page. Sources: `UploadProjectView.tsx`, `ProjectUploadApplicationService.java`, `ProjectZipContentProvider.java`
+- **Duplicate a project through an archive round-trip** · Sirius Web · minor · Grasp: no — a copy of the whole project, "<name> - Copy", to try changes safely; Grasp has one model and no duplicate command. Sources: `ProjectDuplicationApplicationService.java`, `DuplicateProjectMenuItem.tsx`, `MutationDuplicateProjectDataFetcher.java`
+- **Download a model** · Sirius Web · core · Grasp: partly — save the model as a .sysml text file named after it; Grasp's Export SysML copies the text to the clipboard but downloads no file. Sources: `model-management.adoc`, `DownloadDocumentTreeItemContextMenuContribution.tsx`, `DocumentDownloadController.java`
+- **Project archive format** · dropped: internal — layout of the project zip
+- **Project import re-identifies content and rebuilds representations** · Sirius Web · minor · Grasp: yes — an imported project keeps its diagrams' layout, hidden state and appearance; Grasp's Import state restores the views as they were saved. Sources: `SemanticDataProjectContentImportParticipant.java`, `RepresentationProjectContentImportParticipant.java`, `DiagramImporterUpdateService.java`
+- **Custom node styles kept on project import** · SysON · minor · Grasp: no — customised package, note and view-frame colours and borders survive an import; Grasp has no per-node styling to keep. Sources: `DiagramImporterSysMLPackageNodeStyleAppearanceChangeHandler.java`, `DiagramImporterSysMLViewFrameNodeStyleAppearanceChangeHandler.java`, `CHANGELOG.adoc`
+- **Relative references from uploaded folders fixed** · SysON · minor · Grasp: no — a model split across files in folders keeps its cross-file links on upload; Grasp holds one model and reads no folders. Sources: `SysONJsonResourceProcessor.java`
+- **Standard libraries excluded from proxy rewriting** · dropped: internal — proxy rewriting skips standard libraries
+- **No SysML v1 support or v1/v2 transformation** · dropped: internal — SysML v1 is not supported; nothing to port
+- **Studio domains stored as structured JSON** · dropped: studio — how studio domains are stored
+- **Stored model document format (EMF JSON)** · dropped: internal — stored EMF JSON document format
+- **Model persistence (automatic save)** · Sirius Web · core · Grasp: yes — no Save button, every change is kept; Grasp saves each change automatically to the browser or the shared store. Sources: `EditingContextPersistenceService.java`, `EditingContextSaver.java`, `SysMLv2EditingContextPersistenceFilter.java`
+- **Document loading with migrations and the read-only flag** · dropped: internal — how documents load
+- **Read-only documents and standard library elements** · SysON · useful · Grasp: no — standard library elements and read-only uploads cannot be edited by mistake; Grasp shows no library elements and has no read-only models. Sources: `SysONReadOnlyObjectPredicateDelegate.java`, `EditingContextPersistenceService.java`
+- **Stable identities of standard library elements** · dropped: internal — stable ids of library elements
+- **Database schema** · dropped: admin — server database schema
+- **Loading and saving models that reference standard library elements** · SysON · minor · Grasp: unclear — references to library elements such as `ScalarValues::String` survive save and reload; Grasp names library elements only in its export, so unclear. Sources: `2025.8.0.adoc`, `CHANGELOG.adoc` v2025.8.0
+- **Layout persistence (layoutDiagram mutation)** · Sirius Web · useful · Grasp: partly — every manual move, resize, label move and bend point is kept; Grasp keeps box and view positions but has no resizing, bend points or label positions. Sources: `useSynchronizeLayoutData.ts`, `useSynchronizeLayoutData.types.ts`
+- **Representation content saved after each refresh and layout** · dropped: internal — when representation content is saved
+- **Editing-context snapshots for impact analysis** · dropped: internal — snapshots behind impact analysis
+- **Aggregate persistence with Spring Data JDBC and domain events** · dropped: internal — server persistence architecture
+- **Migrations apply to all projects** · dropped: internal — migration predicate
+- **New documents stamped with the latest migration version** · dropped: internal — new documents stamped with a migration version
+- **Migration 2025.4.0: Annotation annotatingElement no longer serialized** · dropped: internal — stored-data migration
+- **Migration 2025.4.0: ConnectorAsUsage source/target derived** · dropped: internal — stored-data migration
+- **Migration 2025.6.0: diagrams moved onto ViewUsages** · dropped: internal — stored-data migration onto ViewUsages
+- **Migration 2025.6.0: ViewUsage exposedElement derived** · dropped: internal — stored-data migration
+- **Migration 2025.8.0: model references to the standard libraries use elementId** · dropped: internal — stored-data migration of library references
+- **Migration 2025.8.0: diagram elements targeting library elements use elementId** · dropped: internal — stored-data migration of diagram targets
+- **Bundled map of old library ids to elementIds** · dropped: internal — id map for library migrations
+- **Migration 2025.10.0: one merged standard-diagram description** · dropped: internal — migration to one diagram description
+- **Extra control nodes hidden in old diagrams** · dropped: internal — migration that keeps old diagrams looking the same
+- **Migration 2026.7.0: start, done and control node description ids** · dropped: internal — stored-data migration of node description ids
+- **Migration of stored models and representations** · dropped: internal — platform migrations of stored data
+- **Semantic data migration with last-migration tracking** · dropped: internal — migration version tracking
+- **Representation migration on load and import** · dropped: internal — representation migration
+- **No domain migration for studios** · dropped: studio — studio domain versions are not migrated
+- **Automatic project migration on upgrade to a new SysML spec** · dropped: admin — migration on server upgrade
+- **2024.11.0: metamodel aligned with SysML/KerML Beta 2.2** · SysON · minor · Grasp: yes — the metamodel revision sets defaults such as private import visibility; Grasp's metamodel comes from a later Pilot release that already includes them. Sources: `2024.11.0.adoc`, `CHANGELOG.adoc` v2024.11.0
+- **2024.9.0: metamodel aligned with SysML/KerML Beta 2 (manual fixes)** · dropped: admin — upgrade notes for 2024.9.0
+- **Upgrade procedure: back up before migrating** · dropped: admin — back up before upgrading
+- **Releases needing no migration** · dropped: admin — releases needing no migration
+- **2026.9.0: Liquibase downgraded for licensing** · dropped: admin — database migration library downgrade
+- **2025.10.0: Docker image moved to PostgreSQL 15 (manual DB upgrade)** · dropped: admin — database version upgrade
+- **2024.5.0: requirement-view diagrams deleted** · dropped: admin — upgrade note on deleted diagram kind
+- **2024.7.0: database reset required** · dropped: admin — database reset on upgrade
+- **2024.3.0: diagrams had to be recreated** · dropped: admin — diagrams recreated on upgrade
+- **Downstream upgrade checklist** · dropped: admin — upgrade checklist for integrators
+
+## Administration, deployment, security & performance (139)
+
+- **Client-server architecture** · dropped: admin — client-server deployment
+- **Fully browser-based, no local installation** · Sirius Web · minor · Grasp: yes — nothing to install, the editor opens in a browser; Grasp is likewise one web page. Sources: `overview.adoc`
+- **No additional software required** · dropped: admin — no other software needed on the server
+- **Documented installation patterns** · dropped: admin — installation patterns
+- **Deploy with Docker Compose** · dropped: admin — Docker Compose deployment
+- **Choose a SysON version for Docker (IMAGE_TAG)** · dropped: admin — choosing the Docker image version
+- **Persist the Docker database with a volume** · dropped: admin — Docker database volume
+- **Multi-platform Docker images (amd64/arm64)** · dropped: admin — multi-platform images
+- **Docker image contents** · dropped: admin — Docker image contents
+- **Docker image build and publication (CI)** · dropped: admin — image build in CI
+- **Software bill of materials (SBOM)** · dropped: admin — software bill of materials
+- **Technology stack of the release** · dropped: internal — libraries the release is built on
+- **Release process** · dropped: admin — release process
+- **Frontend bundled into the server JAR** · dropped: admin — frontend served by the server JAR
+- **Maven and npm package publication** · dropped: internal — publishing build artifacts
+- **Development database reset script** · dropped: internal — developer database script
+- **Manual install: executable JAR** · dropped: admin — installing the JAR
+- **Ecosystem-only setup (PostgreSQL in Docker plus JAR)** · dropped: admin — database in Docker plus JAR
+- **HTTPS with a self-signed certificate (testing)** · dropped: admin — self-signed HTTPS
+- **Multi-user local test setup** · dropped: admin — multi-user test install
+- **Production-grade deployment** · dropped: admin — production deployment
+- **Stable releases and version numbering** · dropped: admin — release numbering and stability
+- **Sirius Web Docker image** · dropped: admin — Sirius Web Docker image
+- **Smaller JAR without EMF CodeGen** · dropped: admin — smaller server JAR
+- **Server entry point and syson-starter (embedding SysON)** · dropped: internal — embedding SysON in another application
+- **Build and run SysON from source** · dropped: internal — building from source
+- **Runtime add-ons** · dropped: admin — server add-ons
+- **Frontend override from an add-on** · dropped: admin — frontend override by add-on
+- **Extending through additional Spring Boot JARs** · dropped: admin — extra JARs on the server
+- **Deploying a studio to end users** · dropped: studio — deploying a studio-built editor
+- **Quick start with the Sirius Web sample application** · dropped: admin — Sirius Web sample install
+- **Server hardware requirements and sizing** · dropped: admin — server sizing
+- **Server OS and database requirements** · dropped: admin — server OS and database
+- **Client-side requirements** · SysON · minor · Grasp: unclear — supported desktop browsers and a 1024 x 768 minimum screen; Grasp states no browser or screen-size support. Sources: `requirements.adoc`
+- **Java 21 requirement** · dropped: admin — Java version
+- **Node.js requirement for textual import** · dropped: admin — Node.js on the server
+- **Network deployment recommendations** · dropped: admin — network recommendations
+- **Antivirus configuration guidance** · dropped: admin — antivirus settings
+- **Secure context requirement (HTTPS or localhost)** · dropped: admin — HTTPS or localhost required
+- **Scaling limit: model size about 10 MB** · dropped: admin — server model-size limit
+- **Scaling limit: 150,000 semantic elements** · dropped: admin — server element-count limit
+- **Scaling limit: 2,000 representations per project** · dropped: admin — representations per project limit
+- **Scaling limit: 1,000 elements per representation** · dropped: admin — elements per representation limit
+- **Scaling limit: 1,000 concurrent projects per server** · dropped: admin — projects per server limit
+- **Scaling limit: 80 concurrent users per server** · dropped: admin — users per server limit
+- **Scaling recommendations** · dropped: admin — scaling advice
+- **Limits on number of projects and models (FAQ)** · dropped: admin — FAQ on project limits
+- **Maximum node nesting depth of 13** · dropped: internal — client fetch depth limit, not a feature to port
+- **No built-in security mechanisms** · dropped: admin — no built-in security
+- **No authentication or user accounts** · dropped: admin — no authentication
+- **Vulnerability reporting and security policy** · dropped: admin — vulnerability reporting
+- **Projects are public; sharing by URL** · dropped: collaboration — projects visible to all, shared by URL
+- **Capability-based authorization model** · dropped: collaboration — capability-based permissions
+- **Server-side access enforcement on every request** · dropped: collaboration — server-side permission checks
+- **Capability checks on REST and download endpoints** · dropped: collaboration — permission checks on endpoints
+- **Unauthorized operation handling** · dropped: collaboration — what a refused permission returns
+- **Viewer and project capability queries** · dropped: collaboration — capability queries for the UI
+- **Projects collection capabilities gate the project browser** · dropped: collaboration — permissions gating the project browser
+- **Individual project capabilities** · dropped: collaboration — per-project permissions and read-only mode
+- **Style customization capabilities** · dropped: collaboration — permission to toggle style customizations
+- **Library capabilities** · dropped: collaboration — library permissions
+- **Project settings view and tab capabilities** · dropped: collaboration — project settings permissions
+- **Demo profile (read-only server)** · dropped: admin — read-only demo server profile
+- **CSRF token on file uploads** · dropped: admin — CSRF token
+- **CORS configuration** · dropped: admin — CORS settings
+- **Datasource and port configuration** · dropped: admin — database and port settings
+- **Database: PostgreSQL with a Liquibase-managed schema** · dropped: admin — database schema management
+- **Developer profile (application-dev.properties)** · dropped: admin — developer profile
+- **Upload size limit (256 MB)** · dropped: admin — server upload size limit
+- **Diagram display default properties** · SysON · minor · Grasp: no — defaults for the diagram display options: icons and inherited members shown, library-inherited members hidden; Grasp has no such display options. Sources: `ShowDiagramsIconsService.java`, `ShowDiagramsInheritedMembersService.java`, `ShowDiagramsIconsEventHandler.java`
+- **SysIDE CLI parser (Node.js) and its configuration** · dropped: admin — server-side text parser settings
+- **Elasticsearch connection properties** · dropped: admin — Elasticsearch connection
+- **Logging and path-matching defaults** · dropped: admin — logging and path matching
+- **Feature switches sirius.web.enabled / sirius.web.disabled** · dropped: admin — server feature switches
+- **Portal feature flag** · dropped: admin — server portal flag
+- **Studio feature flag** · dropped: studio — server flag for studio templates
+- **Tree palette setting (sirius.web.tree.new-palette.enabled)** · dropped: admin — server flag for tree menus
+- **Upload resource set reuse (sirius.web.upload.reuseActiveResourceSet)** · dropped: admin — upload resource-set setting
+- **Editing context unload delay (sirius.components.editingContext.disposeDelay)** · dropped: admin — unload delay setting
+- **GraphQL tracing (sirius.web.graphql.tracing)** · dropped: admin — GraphQL tracing
+- **Diagram debug mode (sirius.components.diagram.debug)** · dropped: admin — diagram debug panel switched on by a server property
+- **Configurable frontend static locations** · dropped: admin — frontend static locations
+- **Frontend backend-origin configuration (Vite env vars)** · dropped: admin — frontend backend-origin settings
+- **Server language (spring.mvc.locale)** · dropped: admin — server language setting
+- **Test-only standard library cache (org.eclipse.syson.test.cacheStandardLibraries)** · dropped: internal — test-only cache
+- **Startup banner** · dropped: admin — startup banner
+- **Set up a development Elasticsearch/Kibana** · dropped: admin — Elasticsearch and Kibana setup
+- **Debug indexing with Kibana** · dropped: admin — debugging the index in Kibana
+- **Platform Elasticsearch indexing of project content** · dropped: admin — search indexing on the server
+- **SysML-specific index creation** · dropped: admin — index creation
+- **SysML index entry structure** · SysON · minor · Grasp: no — query syntax for cross-project search, such as `name:Batmo*` or `owner.name:Package1`; Grasp holds one model and has no search. Sources: `elasticsearch-integration.adoc`, `cross-project-search.adoc`, `IndexEntrySwitch.java`
+- **Index update on model change (standard libraries excluded)** · dropped: internal — search index refresh
+- **Index query** · dropped: internal — search index query
+- **Standard libraries loaded once at server start** · dropped: internal — library loading at startup
+- **Standard library loading into SysML editing contexts** · dropped: internal — library copy per project
+- **Per-project cache of SysML elements by metaclass** · dropped: internal — element cache by metaclass
+- **Reachable-element search without standard libraries** · dropped: internal — faster candidate search
+- **getAllReachable performance improvement** · dropped: internal — faster reachable-element lookup
+- **Fast deletion skipping derived references** · dropped: internal — faster deletion
+- **Faster "Become nested part"** · dropped: internal — faster edge tool
+- **Membership cache during textual export** · dropped: internal — cache during textual export
+- **Explorer rendering cache of representations** · dropped: internal — Explorer rendering cache
+- **Editing context loading with dependencies** · dropped: internal — project loading with dependencies
+- **Resources unloaded when an editing context is disposed** · dropped: internal — memory freed on unload
+- **Project load and save performance mechanisms** · dropped: internal — load and save speed-ups
+- **Diagram rendering performance mechanisms** · dropped: internal — diagram rendering speed-ups
+- **Server-driven lazy tree expansion** · dropped: internal — lazy tree fetching
+- **index.html not cached; single-page routing** · dropped: admin — index.html caching and routing
+- **semanticElementIds optimization for unsynchronized nodes** · dropped: studio — variable for studio node expressions
+- **REST request timeout (20 seconds)** · dropped: api — timeout of REST requests
+- **Request timeout fallback (5 seconds)** · dropped: internal — server timeout fallback
+- **SysON event-handler usage metrics** · dropped: admin — usage metrics
+- **Platform operational metrics** · dropped: admin — operational metrics
+- **Spring Boot Actuator and build info in the SysON server** · dropped: admin — Actuator endpoints
+- **Performance logging** · dropped: admin — performance logging
+- **Access and project operation logging** · dropped: admin — access logging
+- **Event processor trace logging** · dropped: admin — trace logging
+- **Standard library loading log messages** · dropped: admin — library loading logs
+- **Logging policy** · dropped: admin — logging policy
+- **Troubleshooting: connection refused at startup** · dropped: admin — startup database error
+- **Troubleshooting: changelog not found** · dropped: admin — changelog not found
+- **Troubleshooting: empty page when accessed remotely (HTTPS required)** · dropped: admin — HTTPS needed for remote access
+- **Troubleshooting: non-standard container runtimes (Podman)** · dropped: admin — Podman containers
+- **Known issue: NetworkError on document download** · dropped: internal — a known download bug; nothing to port
+- **Debugging persistence problems** · dropped: admin — debugging the database
+- **Professional support and maintenance policy** · dropped: admin — support policy
+- **Image server endpoint** · dropped: api — HTTP endpoint serving images
+- **SysON image paths served by the application** · dropped: internal — image paths in the server
+- **Developer environment setup (SysON)** · dropped: internal — developer IDE setup
+- **Workstation requirements (Sirius Web)** · dropped: internal — developer workstation
+- **Contribution workflow and commit format** · dropped: internal — contribution workflow
+- **Backend services organization and ServiceMethod** · dropped: internal — backend service organisation
+- **Testing strategy** · dropped: internal — testing strategy
+- **SysON integration-test infrastructure** · dropped: internal — integration-test setup
+- **End-to-end test suites** · dropped: internal — end-to-end test suites
+- **Documentation site build (Antora in Docker)** · dropped: internal — documentation build
+- **GraphQL test runners for downstream applications** · dropped: internal — test runners for integrators
+- **Custom images pattern properties** · dropped: removed — custom image pattern properties that nothing reads
+- **sirius.web.graphql.websocket.allowed.origins property** · dropped: removed — renamed WebSocket origins property
