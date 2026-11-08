@@ -1,0 +1,526 @@
+# SysON features for Grasp: Tables, trees, and other representations
+
+From `docs/sysml/syson/features/representations.md`: 511 features. Kept 136 (core 5, useful 58, minor 73); dropped 375 (api 9, collaboration 3, tracking 0, studio 324, admin 0, internal 25, removed 14). Grasp: yes 8, partly 29, no 97, unclear 2.
+
+## Requirements & tables (137)
+
+- **Create a Requirements Table View** · SysON · useful · Grasp: no — a table of a package's requirements, made from the Explorer; Grasp has no requirement kinds and no requirements table. Sources: `RTVTableDescriptionProvider.java`, `CreateRepresentationInputProcessor.java`, `CHANGELOG.adoc` v2025.10.0
+- **One requirements table per ViewUsage** · SysON · minor · Grasp: no — keeps one table per view, with no duplicate entry; matters only once Grasp has a requirements table. Sources: `SysONExplorerTreeItemContextMenuEntryProvider.java`
+- **Table content is the ViewUsage's exposed elements** · SysON · useful · Grasp: partly — the table's rows are the view's exposes, kept in the model; Grasp's views expose elements, but no requirements table does. Sources: `RTVQueryServices.java`, `RTVMutationServices.java`
+- **Requirements table rows** · SysON · useful · Grasp: partly — one row per requirement, children after parents; Grasp's grid has a row per element but no requirement rows or row icons. Sources: `RTVTableDescriptionProvider.java`, `RTVQueryServices.java`, `table.ecore`
+- **Requirements table registration** · dropped: internal — view id and AQL chain behind the table
+- **Hierarchical requirements (sub-rows)** · SysON · useful · Grasp: no — nested requirements indent under their parent with an expander; Grasp's grid rows are flat. Sources: `RTVQueryServices.java`, `RTVTableDescriptionProvider.java`, `2026.9.0.adoc`
+- **Requirements table columns** · SysON · useful · Grasp: partly — name, ReqId and documentation side by side; Grasp's grid has name and doc but no ReqId, resizing or filters. Sources: `RTVTableDescriptionProvider.java`, `ColumnDescriptionConverter.java`, `2025.10.0.adoc`
+- **Edit name and ReqId in cells** · SysON · useful · Grasp: no — typing a name or id straight into a row is fast bulk editing; Grasp's grid cells are read-only, edits go through the panel. Sources: `RTVTableDescriptionProvider.java`, `TextfieldCell.tsx`, `requirement-management.adoc`
+- **Edit documentation in cell** · SysON · useful · Grasp: no — writes a requirement's text in place, creating its documentation if missing; Grasp edits doc only in the panel. Sources: `RTVTableDescriptionProvider.java`, `RTVMutationServices.java`, `TextareaCell.tsx`
+- **ReqId mirrors the declared short name** · SysON · useful · Grasp: no — one value serves as requirement id and `<short name>`, in table, details and labels; Grasp keeps no short names. Sources: `RequirementUsageImplTest.java`, `2026.3.0.adoc`, `2025.10.0.adoc`
+- **Create requirement** · SysON · useful · Grasp: no — adds a named requirement straight from the table and shows it as a row; Grasp has no requirements. Sources: `RTVTableToolMenuEntriesProvider.java`, `RTVTableCreateRequirementToolExecutor.java`, `RTVMutationServices.java`
+- **Import all existing requirements** · SysON · useful · Grasp: partly — fills an empty table with the namespace's requirements; Grasp's grid has Show all and Show kind, but no requirements. Sources: `RTVTableImportExistingRequirementsToolExecutor.java`, `RTVTableToolMenuEntriesProvider.java`, `requirement-management.adoc`
+- **Delete from table** · SysON · useful · Grasp: partly — takes a row out of the table but keeps the element; Grasp has Remove from view, but no per-row actions menu. Sources: `RTVTableDescriptionProvider.java`, `RTVMutationServices.java`, `RequirementsTableControllerIntegrationTests.java`
+- **Delete from model** · SysON · useful · Grasp: partly — deletes the element from a table row; Grasp's Delete does this from the panel, with no row menu. Sources: `RTVTableDescriptionProvider.java`, `RowContextMenuContent.tsx`, `requirement-management.adoc`
+- **New Nested Requirement** · SysON · useful · Grasp: no — builds a requirement hierarchy from the table rows; Grasp has no requirements or nested rows. Sources: `RTVTableDescriptionProvider.java`, `RTVMutationServices.java`, `2026.9.0.adoc`
+- **Requirements column sort** · SysON · useful · Grasp: partly — sorts rows by any column, several at once; Grasp's grid sorts by one column at a time. Sources: `RTVQueryServices.java`
+- **Requirements column filters** · SysON · useful · Grasp: no — narrows long requirement lists by text per column; Grasp's grid has no filters. Sources: `RTVQueryServices.java`, `TableComponent.java`
+- **Requirements global filter** · SysON · useful · Grasp: no — one search box across name, id and text finds a requirement quickly; Grasp's grid has no search. Sources: `RTVQueryServices.java`
+- **Requirements table pagination** · SysON · minor · Grasp: no — pages of 10, 20 or 50 rows; Grasp draws the whole grid on the plane, so paging matters little. Sources: `RTVTableDescriptionProvider.java`, `CursorBasedNavigationServices.java`, `2026.9.0.adoc`
+- **Requirements table striped rows** · SysON · minor · Grasp: yes — alternating row backgrounds aid reading; Grasp's grid rows already have a zebra fill. Sources: `RTVTableDescriptionProvider.java`
+- **Requirement nodes on the General View** · SysON · core · Grasp: no — requirement definitions and usages drawn as boxes are basic SysML v2 notation; Grasp's general view has no requirement kinds. Sources: `requirement-management.adoc`, `2024.7.0.adoc`, `2026.3.0.adoc`
+- **Concern Definition and Concern Usage nodes** · SysON · useful · Grasp: no — concerns and their stakeholders on the general view; Grasp has no concern kinds. Sources: `2025.2.0.adoc`
+- **Satisfy Requirement Usage nodes** · SysON · useful · Grasp: no — shows which parts satisfy which requirements, also in interconnection views; Grasp has no satisfy. Sources: `2025.4.0.adoc`, `2026.1.0.adoc`
+- **Requirements and concerns compartments on parts** · SysON · useful · Grasp: no — a part box lists its requirements and concerns; Grasp's part boxes have no such compartments. Sources: `2026.9.0.adoc`
+- **Actors and subjects on requirement nodes** · SysON · useful · Grasp: no — a requirement's actors and subject shown in compartments or as nodes; Grasp has no requirements. Sources: `2024.9.0.adoc`, `2026.3.0.adoc`
+- **Inherited elements in requirement compartments** · SysON · useful · Grasp: no — compartments also list what a requirement inherits from its supertypes; Grasp has no requirement compartments. Sources: `2026.9.0.adoc`
+- **Compartment item labels for concerns and constraints** · SysON · minor · Grasp: no — items read `name ::> subsetted`, as the textual notation does; Grasp has no such compartments. Sources: `2026.7.0.adoc`
+- **New Stakeholder** · SysON · useful · Grasp: no — adds a stakeholder to a requirement or concern, optionally typed or subsetting an existing one; Grasp has no requirements. Sources: `StakeholdersCompartmentNodeToolProvider.java`, `DiagramMutationToolService.java`
+- **New Satisfy** · SysON · useful · Grasp: no — a part tool for `satisfy req by part`, picking an existing requirement; Grasp has no satisfy relationship. Sources: `SatisfyNodeToolProvider.java`, `SDVNodeToolSectionSwitch.java`, `CHANGELOG.adoc` v2026.3.0
+- **New Satisfy Requirement (node tool)** · SysON · useful · Grasp: no — creates a satisfy requirement with the part as subject, typed or subsetting a pick; Grasp lacks it. Sources: `SatisfyRequirementNodeToolProvider.java`, `ModelMutationElementService.java`
+- **New Framed Concern (node tool)** · SysON · useful · Grasp: no — frames a concern in a requirement, new or referencing an existing one; Grasp has no concerns. Sources: `FramedConcernNodeToolProvider.java`, `ModelMutationElementService.java`
+- **New Require constraint** · SysON · useful · Grasp: no — adds a require constraint to a requirement, the core of a requirement's meaning; Grasp has no constraints. Sources: `RequireConstraintNodeToolProvider.java`, `ModelMutationElementService.java`
+- **New Assume constraint** · SysON · useful · Grasp: no — adds an assumed constraint to a requirement; Grasp has no constraints. Sources: `AssumeConstraintNodeToolProvider.java`, `ModelMutationElementService.java`
+- **Objective, subject, actor and stakeholder creation** · SysON · useful · Grasp: no — palette tools fill cases and requirements with typed or subsetting objectives, subjects, actors and stakeholders; Grasp has none. Sources: `DiagramMutationToolService.java`, `DiagramQueryToolService.java`, `GVSubNodeRequirementCreationTests.java`
+- **Empty objective check and objective documentation** · SysON · minor · Grasp: no — gates objective tools and seeds objective documentation; Grasp has no cases or objectives. Sources: `UtilService.java`, `MetamodelMutationElementService.java`, `GVObjectiveDocumentationTests.java`
+- **Requirement compartments redesign** · SysON · useful · Grasp: no — requirement boxes laid out like the specification's examples (subject, constraints, actors, stakeholders); Grasp has no requirement boxes. Sources: `2024.5.0.adoc`, `CHANGELOG.adoc` v2024.5.0, `RequirementUsageSubjectCompartmentNodeDescriptionProvider.java`
+- **Assume constraints compartment** · SysON · useful · Grasp: no — lists assumed constraints as `name { expression }`, editing the name only; Grasp has no requirement compartments. Sources: `AssumeConstraintCompartmentNodeDescription.java`, `AssumeConstraintCompartmentItemNodeDescription.java`, `ExpressionsControllersIntegrationTests.java`
+- **Require constraints compartment** · SysON · useful · Grasp: no — lists a requirement's required constraints, inherited ones too; Grasp lacks it. Sources: `RequireConstraintCompartmentNodeDescription.java`, `RequireConstraintCompartmentItemNodeDescription.java`
+- **Frames compartment** · SysON · useful · Grasp: no — lists the concerns a requirement frames; Grasp has no concerns. Sources: `FramedConcernCompartmentNodeDescription.java`, `FramedConcernCompartmentItemNodeDescription.java`
+- **Satisfy requirements compartment** · SysON · useful · Grasp: no — a part box lists the requirements it satisfies; Grasp has no satisfy. Sources: `SatisfyRequirementCompartmentNodeDescription.java`, `SatisfyRequirementInheritedCompartmentItemNodeDescription.java`
+- **Drop into subject compartment** · SysON · minor · Grasp: no — drag an element in to make it a requirement's or case's subject; Grasp has no subjects. Sources: `DiagramMutationDndService.java`
+- **Drop into objective compartment** · SysON · minor · Grasp: no — drag a requirement in as a case's objective; Grasp has no cases. Sources: `DiagramMutationDndService.java`
+- **Drop constraints into assume/require compartments** · SysON · minor · Grasp: no — re-owns dragged constraints as assumed or required; Grasp has no constraints. Sources: `DiagramMutationDndService.java`, `DiagramMutationMoveService.java`
+- **Become objectiveRequirement edge tool** · SysON · minor · Grasp: no — a drawn line makes a requirement a use case's objective; Grasp has no use cases. Sources: `ViewEdgeToolService.java`, `DiagramMutationToolService.java`
+- **New Satisfy Requirement edge tool** · SysON · useful · Grasp: no — drawing from a feature to a requirement creates a satisfy; Grasp has no satisfy line. Sources: `ViewEdgeToolService.java`
+- **New Derived Requirement edge tool** · SysON · useful · Grasp: no — draws a requirement derivation, adding the library import it needs; Grasp has no requirements. Sources: `ViewEdgeToolService.java`, `ModelMutationElementService.java`, `CHANGELOG.adoc` v2026.9.0
+- **Derivation («derive») edge display** · SysON · useful · Grasp: no — dashed «derive» lines appear between requirements on the diagram; Grasp lacks requirement derivation. Sources: `2026.9.0.adoc`
+- **New Framed Concern / New Assume Constraint / New Require Constraint edge tools** · SysON · useful · Grasp: no — frame, assume and require lines drawn from a requirement; Grasp has none of these. Sources: `ViewEdgeToolService.java`, `2026.7.0.adoc`
+- **Framed concern and requirement constraint edge targets** · SysON · minor · Grasp: no — a frame or constraint line points at the referenced concern or constraint; Grasp lacks them. Sources: `MetamodelQueryElementService.java`
+- **Satisfy edge label** · SysON · useful · Grasp: no — satisfy lines read «satisfy», telling them apart from other lines; Grasp has no satisfy. Sources: `DiagramQueryLabelService.java`
+- **Reconnect satisfy edge** · SysON · minor · Grasp: no — dragging a satisfy line's end changes its subject or requirement, with clear refusals; Grasp has no satisfy. Sources: `DiagramMutationElementService.java`
+- **Reconnect actor / stakeholder / subject edges** · SysON · minor · Grasp: no — dragging these lines moves the membership to another owner, with warnings; Grasp has none of them. Sources: `DiagramMutationToolService.java`
+- **Table representation** · Sirius Web, experimental · useful · Grasp: partly — model elements as editable rows and properties as columns; Grasp's grid lists elements but its cells can't be edited. Sources: `table.adoc`, `key-features.adoc`
+- **Table column value types** · Sirius Web · minor · Grasp: partly — columns can hold numbers, booleans and enumerations; Grasp's grid columns are all text. Sources: `table.adoc`
+- **Table representation editor** · Sirius Web · minor · Grasp: partly — a sticky header and horizontal scrolling in an editor tab; Grasp's grid is a frame on the plane with no sticky header. Sources: `TableRepresentation.tsx`, `TableContent.tsx`, `table.spec.ts`
+- **Table toolbar layout** · Sirius Web · useful · Grasp: partly — Tools, search, filters, column chooser and full screen above the table; Grasp's grid options sit in the panel, with no search or filters. Sources: `TableContent.tsx`, `table-description.adoc`, `table.adoc`
+- **Table representation icon** · Sirius Web · minor · Grasp: no — tables are marked with a table icon where views are listed; Grasp lists views without icons. Sources: `TableImageProvider.java`, `TableImagePathService.java`
+- **Table feature switches** · dropped: internal — per-feature flags of the table component
+- **Tools menu** · Sirius Web · useful · Grasp: no — a menu holding CSV export and the table's create and import tools; Grasp's grid has no such menu. Sources: `ToolsButton.tsx`, `ToolsMenuEntries.tsx`, `CHANGELOG.adoc` v2025.12.0
+- **Export page data as CSV** · Sirius Web · useful · Grasp: no — takes table rows into a spreadsheet; Grasp exports only SysML text. Sources: `ExportDataButton.tsx`, `CHANGELOG.adoc` v2025.4.0, `CHANGELOG.adoc` v2025.12.0
+- **Global search** · Sirius Web · useful · Grasp: no — one search box filters rows across all visible columns; Grasp's grid has no search. Sources: `useGlobalFilter.ts`, `global-filter.spec.ts`, `CHANGELOG.adoc` v2025.1.0
+- **Per-column filters** · Sirius Web · useful · Grasp: no — stacked filters under the headers narrow large tables; Grasp's grid has no filters. Sources: `useTableColumnFiltering.ts`, `table.adoc`, `CHANGELOG.adoc` v2025.1.0
+- **Column filter variants** · Sirius Web · minor · Grasp: no — filters fit the column, such as range, select or date; Grasp has no filters. Sources: `TableContent.types.ts`, `useTableColumns.tsx`
+- **Column filter modes** · Sirius Web · minor · Grasp: no — contains, starts with, equals, between and similar modes per filter; Grasp has no filters. Sources: `useTableTranslation.tsx`, `sirius-components-tables.json`
+- **Row filters menu** · dropped: studio — quick filters defined only in studio table descriptions
+- **Show/Hide columns (column management menu)** · Sirius Web · useful · Grasp: partly — hide, show, reorder and pin columns from one menu; Grasp's panel ticks grid columns but can't reorder or pin them. Sources: `useTableColumnVisibility.ts`, `table.adoc`, `CHANGELOG.adoc` v2025.1.0
+- **Reset Row Heights** · Sirius Web · minor · Grasp: no — puts resized rows back to their default height; Grasp's grid rows can't be resized. Sources: `useResetRows.ts`, `TableContent.tsx`, `CHANGELOG.adoc` v2025.4.0
+- **Toggle full screen** · Sirius Web · minor · Grasp: no — expands the table to the whole window; Grasp zooms and fits frames instead. Sources: `TableContent.tsx`, `table.adoc`
+- **Share table** · dropped: collaboration — sharing a table with other people
+- **Column header** · Sirius Web · minor · Grasp: partly — headers carry an index line, icon and label; Grasp's grid headers show the label and sort mark only. Sources: `ColumnHeader.tsx`, `CHANGELOG.adoc` v2025.1.0
+- **Column actions menu** · Sirius Web · minor · Grasp: no — a per-column menu to sort, filter, pin or hide; Grasp's grid headers only sort on click. Sources: `useTableTranslation.tsx`, `table.adoc`
+- **Server-side multi-column sorting** · Sirius Web · useful · Grasp: partly — clicking headers sorts by several columns at once; Grasp's grid sorts by one column, cycling up, down and off. Sources: `useTableColumnSorting.ts`, `useTableColumns.tsx`, `CHANGELOG.adoc` v2025.4.0
+- **Column resizing** · Sirius Web · useful · Grasp: no — dragging a header edge widens a column, and the width is kept; Grasp's grid column widths are fixed. Sources: `useTableColumnSizing.ts`, `TableContent.tsx`, `CHANGELOG.adoc` v2025.1.0
+- **Column reordering by drag** · Sirius Web · minor · Grasp: no — drag headers to reorder columns, kept with the table; Grasp's grid uses a fixed column order. Sources: `useTableColumnOrdering.ts`, `CHANGELOG.adoc` v2025.1.0
+- **Column pinning** · Sirius Web · minor · Grasp: no — key columns stay visible while scrolling sideways; Grasp's grid doesn't scroll on its own. Sources: `TableContent.tsx`, `useTableTranslation.tsx`, `table.adoc`
+- **Row header column and selection** · Sirius Web · useful · Grasp: partly — clicking a row selects its element everywhere; Grasp's grid rows select too, but there is no row header with icon or index. Sources: `RowHeader.tsx`, `useTableColumns.tsx`, `table.adoc`
+- **Row height resizing** · Sirius Web · minor · Grasp: no — drag a row's bottom edge to make room for long text; Grasp's grid rows have a fixed height. Sources: `ResizeRowHandler.tsx`, `CHANGELOG.adoc` v2025.1.0
+- **Hierarchical sub-rows with expand column** · Sirius Web · useful · Grasp: no — tree-shaped rows with chevrons let a table show a subtree; Grasp's grid rows are flat. Sources: `RowExpandHeader.tsx`, `TableRepresentation.tsx`, `CHANGELOG.adoc` v2025.4.0
+- **Expand all / collapse all rows** · Sirius Web · minor · Grasp: no — one toggle opens every nested row; Grasp's grid has no nested rows. Sources: `ExpandAllColumnHeader.tsx`, `TableRepresentation.tsx`, `CHANGELOG.adoc` v2026.1.0
+- **Row actions menu** · Sirius Web · useful · Grasp: no — a "…" menu per row with commands such as delete, run at once; Grasp's grid rows have no menu. Sources: `RowAction.tsx`, `RowContextMenuContent.tsx`, `useInvokeRowContextMenuEntry.ts`
+- **Striped rows** · Sirius Web · minor · Grasp: yes — alternating light grey rows; Grasp's grid already draws a zebra fill. Sources: `TableContent.tsx`, `CHANGELOG.adoc` v2025.1.0
+- **Virtualized rows** · Sirius Web · minor · Grasp: yes — big tables stay fast by drawing only visible rows; Grasp already draws only what the window shows. Sources: `CHANGELOG.adoc` v2025.4.0, `CHANGELOG.adoc` v2025.1.0
+- **Table selection highlighting** · Sirius Web · useful · Grasp: partly — rows of selected elements are marked, and a selected cell target gets a dashed border; Grasp marks rows but has no cell targets. Sources: `TableContent.tsx`
+- **Tables are not selection targets** · Sirius Web · minor · Grasp: unclear — a table doesn't scroll or page to an element selected elsewhere; whether Grasp's grid follows outside selection isn't documented. Sources: `TableRepresentation.tsx`, `useSelectionTargets.tsx`
+- **Inline cell editing** · Sirius Web · useful · Grasp: no — type, pick or toggle values right in the table; Grasp's grid cells are read-only. Sources: `Cell.tsx`, `EditCellEventHandler.java`, `table.adoc`
+- **Tab / Shift+Tab cell navigation** · Sirius Web · minor · Grasp: no — moves between editable cells from the keyboard; Grasp's grid has no editable cells. Sources: `table.adoc`
+- **Cell selection** · Sirius Web · minor · Grasp: no — clicking a cell can select an element other than the row's; Grasp's grid selects by row only. Sources: `CHANGELOG.adoc` v2025.2.0, `CHANGELOG.adoc` v2025.4.0, `CHANGELOG.adoc` v2025.12.0
+- **Text field cell** · Sirius Web · minor · Grasp: no — borderless one-line editor saving on Enter or blur; Grasp's grid cells can't be edited. Sources: `TextfieldCell.tsx`, `useEditTextfieldCell.tsx`
+- **Text area cell** · Sirius Web · minor · Grasp: no — multi-line editor for documentation, saving on blur; Grasp's grid cells can't be edited. Sources: `TextareaCell.tsx`, `useEditTextareaCell.tsx`
+- **Select cell** · Sirius Web · minor · Grasp: no — pick a value from a dropdown in the cell; Grasp's grid cells can't be edited. Sources: `SelectCell.tsx`, `useEditSelectCell.tsx`
+- **Multi-select cell** · Sirius Web · minor · Grasp: no — pick several values with checkboxes in the cell; Grasp's grid cells can't be edited. Sources: `MultiSelectCell.tsx`, `useEditMultiSelectCell.tsx`
+- **Icon + label cell** · Sirius Web · minor · Grasp: no — a read-only cell with icons before its text; Grasp's grid cells hold text only. Sources: `IconLabelCell.tsx`
+- **Checkbox cell** · Sirius Web · minor · Grasp: no — toggle a boolean in place; SysON itself makes none, and Grasp's grid cells can't be edited. Sources: `CheckboxCell.tsx`, `useEditCheckboxCell.tsx`, `CheckboxCellDescription.java`
+- **Cell tooltips** · Sirius Web · minor · Grasp: no — hovering a cell shows extra text; SysON's requirements table sets none, and Grasp's grid cells have none. Sources: `Cell.tsx`, `useTableSubscription.ts`, `CHANGELOG.adoc` v2025.6.0
+- **Custom cell types (table cell extension point)** · dropped: internal — frontend extension point for new cell kinds
+- **Cursor-based pagination** · Sirius Web · minor · Grasp: no — Rows per page with previous and next arrows for large tables; Grasp draws every row on the plane. Sources: `CursorBasedPagination.tsx`, `pagination.spec.ts`, `CHANGELOG.adoc` v2025.4.0
+- **Filtering or sorting resets to the first page** · Sirius Web · minor · Grasp: no — new filters or sorts start from page one; Grasp's grid has no pages. Sources: `TableRepresentation.tsx`
+- **Persisted table configuration** · Sirius Web · minor · Grasp: partly — a table reopens with its search, filters, sort and page size; Grasp's grid keeps its columns and sort, having no filters. Sources: `useTableConfiguration.ts`, `table.graphqls`
+- **Shared vs per-viewer table state** · dropped: collaboration — which table settings are shared with other viewers
+- **Table view state encoded in the representation id** · dropped: internal — subscription id carrying the view query
+- **Table refresh policy and layout replay** · dropped: internal — server re-render and layout event replay
+- **Stable row, column and cell ids** · dropped: internal — id scheme keeping saved sizes across refreshes
+- **Filter and sort ids mapped to column targets** · dropped: internal — server-side id translation
+- **Cursor pagination AQL services** · dropped: studio — AQL paging services for table descriptions
+- **Table backend extension APIs** · dropped: internal — backend interfaces for table tools and cells
+- **Table subscription with shared filter and sort** · dropped: api — GraphQL table subscription
+- **Table column and row model and mutations** · dropped: api — GraphQL table model and mutations
+- **Table cell kinds API** · dropped: api — GraphQL cell kinds and edit mutations
+- **Row context menu, row filters and tool menu queries** · dropped: api — GraphQL queries for table menus
+- **Table backend error messages** · dropped: internal — server handler error strings
+- **Non-synchronized tables** · Sirius Web, unclear in SysON · minor · Grasp: unclear — the changelog names it without saying how such tables behave, so its value can't be judged. Sources: `CHANGELOG.adoc` v2025.2.0
+- **Table representation lifecycle** · dropped: internal — disposal and lifecycle fixes
+- **Pagination and empty-state labels** · Sirius Web · minor · Grasp: no — wording such as "No records to display" for empty tables; Grasp's grid has no paging or such message. Sources: `sirius-components-tables.json`, `useTableTranslation.tsx`
+- **Miscellaneous table labels** · Sirius Web · minor · Grasp: no — the table's wording for actions, expand and selection; Grasp's grid has few such controls. Sources: `sirius-components-tables.json`, `useTableTranslation.tsx`
+- **Table widget inside forms** · Sirius Web, unclear in SysON · minor · Grasp: no — a stripped-down table inside a form or details page; unclear whether SysON's Details view uses one, and Grasp's panel has no tables. Sources: `TableWidgetPropertySection.tsx`, `DefaultExtensionRegistry.tsx`, `CHANGELOG.adoc` v2025.4.0
+- **Table description** · dropped: studio — authoring a table in a View model
+- **Striped rows expression** · dropped: studio — description setting for row stripes
+- **Sub-rows option** · dropped: studio — description setting for nested rows
+- **Page size options** · dropped: studio — description setting for page sizes
+- **Column description** · dropped: studio — authoring table columns
+- **Row description** · dropped: studio — authoring table rows
+- **Pagination and filter variables** · dropped: studio — variables for row expressions
+- **Cell description** · dropped: studio — authoring table cells
+- **Cell widgets: label, text field, text area** · dropped: studio — authoring cell widgets
+- **Row context menu entries** · dropped: studio — authoring row actions
+- **Row filter descriptions** · dropped: studio — authoring row filters
+- **Table styling** · dropped: studio — styling expressions for tables
+- **Fork the studio behind a table** · dropped: studio — forking a table's View model
+- **Cell custom target object** · dropped: studio — description setting for cell targets
+- **Table description defaults** · dropped: studio — fallbacks for table description expressions
+- **Dynamic columns and table variables** · dropped: studio — computed columns in descriptions
+- **Cell edit operations context** · dropped: studio — variables for cell edit operations
+- **hasChildrenExpression required with sub-rows** · dropped: studio — description rule for sub-rows
+- **Requirement View diagram** · dropped: removed — deleted in v2024.5.0
+- **exposeRequirements / createRequirement GraphQL mutations** · dropped: removed — replaced by table tool entries
+- **Table "Settings" menu** · dropped: removed — renamed Tools
+- **"Fork Table View Model" settings entry** · dropped: removed — replaced by a generic fork menu
+
+## Tree representations (35)
+
+- **Tree representation** · Sirius Web, unclear in SysON, experimental · minor · Grasp: partly — a navigable outline of the model as its own view; Grasp's browser view is one, but SysON ships no such tree beyond the Explorer. Sources: `tree.adoc`, `tree-description.adoc`, `key-features.adoc`
+- **Tree representation in the editor area** · dropped: studio — trees built from studio descriptions
+- **Domain Tree representation (studio)** · dropped: studio — tree of a studio Domain
+- **Tree filters** · Sirius Web · useful · Grasp: no — Explorer switches such as Hide Memberships and Hide Standard Libraries keep the tree readable; Grasp's browser only picks its roots. Sources: `tree.graphqls`, `TreeFiltersMenu.tsx`, `SysONTreeFilterProvider.java`
+- **Tree item tooltip** · Sirius Web · minor · Grasp: partly — hovering an Explorer item shows a tooltip after half a second; Grasp's browser has tooltips on its disclosure triangles only. Sources: `TreeItem.tsx`, `tree.graphqls`, `CHANGELOG.adoc` v2026.3.0
+- **Tree context menu and palette entries** · dropped: api — GraphQL queries behind tree menus; the menus have their own records
+- **Styled tree labels** · Sirius Web · minor · Grasp: partly — tree labels mix bold, italic, colours and borders per fragment; Grasp's browser sets the keyword apart but has no per-fragment styles. Sources: `tree.graphqls`, `CHANGELOG.adoc` v2026.5.0
+- **Non-selectable tree items and single-selection trees** · Sirius Web · minor · Grasp: no — some items are greyed and ignore clicks, as in picker dialogs; Grasp's browser rows are all selectable. Sources: `CHANGELOG.adoc` v2023.8.0, `TreeItem.tsx`
+- **Tree item row** · Sirius Web · core · Grasp: partly — the Explorer's compact rows with chevrons, hover and selection backgrounds and scroll-into-view; Grasp's browser rows lack double-click toggling, ellipsis and a focus border. Sources: `TreeItem.tsx`, `TreeItemArrow.tsx`, `CHANGELOG.adoc` v2026.1.0
+- **Tree multi-selection (click, Ctrl+click, Shift+click)** · Sirius Web · useful · Grasp: no — select ranges or sets of elements in the Explorer to act on together; Grasp selects one thing at a time. Sources: `useTreeSelection.tsx`, `TreeRepresentation.tsx`
+- **Tree keyboard navigation** · Sirius Web · useful · Grasp: no — arrow keys walk, open and close the model tree; Grasp's arrow keys pan the plane instead. Sources: `Tree.tsx`
+- **Tree item rename (direct edit)** · Sirius Web · core · Grasp: yes — typing on an item or choosing Rename edits its name in place; Grasp's browser renames a row the same way. Sources: `TreeItemDirectEditInput.tsx`, `TreeItem.tsx`, `sirius-components-trees.json`
+- **Tree item context menu** · Sirius Web · core · Grasp: partly — each Explorer item's menu holds create, Show in, Rename and Delete; Grasp offers Rename and Delete in the panel, with no per-row menu. Sources: `TreeItemContextMenu.tsx`, `DeleteMenuItem.tsx`, `RenameMenuItem.tsx`
+- **Tree item palette** · Sirius Web · useful · Grasp: no — the Explorer's "⋮" opens the diagram palette with search and last used tool; Grasp's browser rows have no palette. Sources: `TreeItemPalette.tsx`, `ShowInSection.tsx`, `CHANGELOG.adoc` v2026.7.0
+- **Tree context menu key bindings** · Sirius Web · minor · Grasp: no — keyboard shortcuts run an Explorer item's menu entries; Grasp's browser has only typing to rename. Sources: `useTreeKeyBinding.ts`, `CHANGELOG.adoc` v2026.3.0
+- **Tree drag and drop** · Sirius Web · useful · Grasp: no — drag Explorer items to move them in the model or onto diagrams; Grasp's browser rows can't be dragged. Sources: `TreeItem.tsx`, `tree.graphqls`, `CHANGELOG.adoc` v2024.11.0
+- **Generic tree representation subscription** · dropped: api — GraphQL tree subscriptions
+- **Expanded state and tree paths** · dropped: internal — how expanded ids and reveal paths reach the server
+- **Tree mutations and queries** · dropped: api — GraphQL tree mutations and queries
+- **Tree palette providers and post-processors** · dropped: internal — backend palette providers
+- **Tree refresh policy** · dropped: internal — server re-render rules
+- **Tree backend extension APIs** · dropped: internal — backend interfaces for trees
+- **Tree converters (frontend)** · dropped: internal — frontend tree rewriting extension point
+- **Tree item context menu extension point** · dropped: internal — frontend menu extension point
+- **Tree palette tool overrides, last used tool and search** · dropped: internal — extension props for palette tools; search and last used tool have their own records
+- **Render variable customizers** · dropped: internal — backend render variables
+- **Tree representations in the View DSL** · dropped: studio — authoring trees in a View model
+- **Tree description: structure expressions** · dropped: studio — tree description expressions
+- **Tree description: item identity, kind, icon and tooltip** · dropped: studio — tree description expressions
+- **Tree description: editable, selectable, deletable** · dropped: studio — tree description flags
+- **Tree description: identity, title and variables** · dropped: studio — tree description naming and variables
+- **Tree item labels from styled fragments** · dropped: studio — authoring styled labels
+- **Tree context menu entry: single click** · dropped: studio — authoring menu entries
+- **Tree context menu entry: fetch** · dropped: studio — authoring fetch entries
+- **Tree context menu entry: custom frontend contribution** · dropped: studio — authoring contributed entries
+
+## Other representations: deck, gantt, portal, charts, forms (103)
+
+- **Deck representation (Kanban board of cards in lanes)** · dropped: studio — Kanban board that needs a studio description; SysON ships none
+- **Deck end-user layout** · dropped: studio — layout of a studio-defined deck
+- **Deck toolbar** · dropped: studio — toolbar of a studio-defined deck
+- **Deck full-screen toggle** · dropped: studio — deck toolbar button
+- **Deck fit to screen** · dropped: studio — deck toolbar button
+- **Deck zoom in / zoom out** · dropped: studio — deck toolbar buttons
+- **Deck reset zoom** · dropped: studio — deck toolbar button
+- **Deck share link** · dropped: studio — deck sharing dialog
+- **Deck live refresh via subscription** · dropped: studio — deck subscription
+- **Deck loading indicator** · dropped: studio — deck loading state
+- **Deck deleted state message** · dropped: studio — deck deleted state
+- **Deck styling from the description** · dropped: studio — deck styles from descriptions
+- **Deck selection highlight synchronized with the workbench** · dropped: studio — deck selection border
+- **Deck card click selects element** · dropped: studio — deck card selection
+- **Deck card layout** · dropped: studio — deck card look
+- **Deck card tags (not wired)** · dropped: studio — unused deck tag chips
+- **Deck card in-place editing** · dropped: studio — deck card editing
+- **Deck inline input keyboard behavior** · dropped: studio — deck field keys
+- **Deck F2 to edit card title** · dropped: studio — deck card shortcut
+- **Deck edit card (save)** · dropped: studio — deck card save
+- **Deck delete card button** · dropped: studio — deck card delete
+- **Deck add card to a lane** · dropped: studio — deck card creation
+- **Deck: no add-lane or delete-lane controls** · dropped: studio — deck lane limits
+- **Deck drag a card within or across lanes** · dropped: studio — deck card drag
+- **Deck: same card in several lanes** · dropped: studio — deck card duplication
+- **Deck lane header** · dropped: studio — deck lane look
+- **Deck lane click selects element** · dropped: studio — deck lane selection
+- **Deck lane title direct edit (rename)** · dropped: studio — deck lane rename
+- **Deck reorder lanes by drag and drop** · dropped: studio — deck lane drag
+- **Deck lane collapse / expand** · dropped: studio — deck lane folding
+- **Deck lane 'Visible cards' menu (hide/reveal cards)** · dropped: studio — deck card visibility menu
+- **Deck lane and card identity across refreshes** · dropped: studio — deck id stability
+- **Deck sample descriptions: OKR and Kanban (Task template)** · dropped: studio — Sirius Web sample decks
+- **Gantt representation (task table plus timeline)** · dropped: studio — Gantt chart that needs a studio description; SysON ships none
+- **Gantt toolbar** · dropped: studio — Gantt toolbar
+- **Gantt full-screen toggle** · dropped: studio — Gantt toolbar button
+- **Gantt zoom level selector** · dropped: studio — Gantt time scale
+- **Gantt zoom in / zoom out** · dropped: studio — Gantt time scale steps
+- **Gantt Ctrl+mouse wheel zoom** · dropped: studio — Gantt wheel zoom
+- **Gantt fit to screen (automatic scale)** · dropped: studio — Gantt auto scale
+- **Gantt share link** · dropped: studio — Gantt sharing dialog
+- **Gantt live refresh via subscription** · dropped: studio — Gantt subscription
+- **Gantt loading and deleted states** · dropped: studio — Gantt states
+- **Gantt show/hide task list table** · dropped: studio — Gantt table toggle
+- **Gantt table column chooser** · dropped: studio — Gantt columns
+- **Gantt column resize (persisted width)** · dropped: studio — Gantt column widths
+- **Gantt table layout and cell formats** · dropped: studio — Gantt table look
+- **Gantt expand / collapse group tasks (persisted)** · dropped: studio — Gantt task folding
+- **Gantt reorder / reparent tasks by drag and drop in the table** · dropped: studio — Gantt task drag
+- **Gantt task kinds: basic, group (project), milestone, empty** · dropped: studio — Gantt task kinds
+- **Gantt group tasks with computed dates** · dropped: studio — Gantt group dates
+- **Gantt Date vs DateTime tasks** · dropped: studio — Gantt date types
+- **Gantt task click / right-click selects element** · dropped: studio — Gantt selection
+- **Gantt hover details** · dropped: studio — Gantt bar details
+- **Gantt move and resize task bars (reschedule)** · dropped: studio — Gantt rescheduling
+- **Gantt drag progress** · dropped: studio — Gantt progress handle
+- **Gantt edit keeps the task description** · dropped: studio — Gantt edit detail
+- **Gantt date rounding / snapping** · dropped: studio — Gantt date snapping
+- **Gantt weekends as non-working days** · dropped: studio — Gantt calendar rule
+- **Gantt custom non-working days (proposed)** · dropped: studio — proposed Gantt calendar setting
+- **Gantt task styles (not applied)** · dropped: studio — unused Gantt styles
+- **Gantt task contextual palette: Create task** · dropped: studio — Gantt task creation
+- **Gantt task contextual palette: Delete task** · dropped: studio — Gantt task deletion
+- **Gantt task details in the Details view** · dropped: studio — Details widgets for Gantt tasks
+- **Gantt dependency arrows** · dropped: studio — Gantt dependency drawing
+- **Gantt create dependency by dragging** · dropped: studio — Gantt dependency creation
+- **Gantt dependency contextual palette: Delete task dependency** · dropped: studio — Gantt dependency deletion
+- **Gantt example in the Task project template** · dropped: studio — Sirius Web sample Gantt
+- **Portal representation** · Sirius Web, unclear in SysON, experimental · minor · Grasp: partly — a dashboard of several views side by side, not offered in SysON by default; Grasp's plane already lays views out as frames. Sources: `portal.adoc`, `PortalDescriptionProvider.java`, `CHANGELOG.adoc` v2024.1.0
+- **Create a portal** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — a named dashboard made from the Explorer; Grasp has one plane and no separate dashboards. Sources: `portal.adoc`, `CHANGELOG.adoc`
+- **Portal toolbar** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — full screen, share and mode buttons above the dashboard; Grasp's plane has no such toolbar. Sources: `PortalToolbar.tsx`, `sirius-components-portals.json`, `portal.adoc`
+- **Portal full-screen toggle** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — the dashboard fills the screen; Grasp has no full-screen button. Sources: `PortalToolbar.tsx`, `useFullScreen.ts`
+- **Portal share link** · dropped: collaboration — shareable link to a portal
+- **Portal modes: edit (portal edition), direct (representation edition), read-only** · Sirius Web, unclear in SysON, experimental · minor · Grasp: partly — separates arranging frames from editing inside them; Grasp moves frames by their tab while they stay editable. Sources: `PortalRepresentation.tsx`, `RepresentationFrame.tsx`, `portal.adoc`
+- **'Edit portal configuration' button** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — switches the dashboard to layout mode; Grasp has no modes. Sources: `PortalToolbar.tsx`
+- **'Edit representations' button** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — switches the dashboard to editing its views; Grasp has no modes. Sources: `PortalToolbar.tsx`
+- **Empty portal drop area** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — an empty dashboard invites dropping views from the Explorer; Grasp starts with a blank model instead. Sources: `PortalRepresentation.tsx`, `CHANGELOG.adoc`
+- **Add a representation by drag and drop from the Explorer** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — drag a view onto the dashboard to show it there; Grasp adds frames with New view. Sources: `PortalRepresentation.tsx`, `usePortalMutations.ts`, `portal.adoc`
+- **Portal drop error messages** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — refuses duplicate or self-embedding drops in words; Grasp has no portal drops. Sources: `PortalRepresentation.tsx`, `AddPortalViewEventHandler.java`, `PortalServices.java`
+- **Portal cannot embed itself** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — a dashboard never shows itself as a frame; Grasp has no nested dashboards. Sources: `PortalRepresentation.tsx`, `CHANGELOG.adoc`
+- **Move and resize portal frames** · Sirius Web, unclear in SysON, experimental · minor · Grasp: partly — drag frames by their header and resize them on a grid; Grasp moves frames by their tab, but frames size to their content. Sources: `PortalRepresentation.tsx`, `usePortalMutations.ts`
+- **Remove a representation from a portal** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — closes a frame without deleting its view; in Grasp a frame goes only when its view is deleted. Sources: `RepresentationFrame.tsx`, `usePortalMutations.ts`, `CHANGELOG.adoc`
+- **Portal representation frame** · Sirius Web, unclear in SysON, experimental · minor · Grasp: partly — a bordered frame with a sticky title header; Grasp's frames have a tab naming the view, but don't scroll. Sources: `RepresentationFrame.tsx`, `CHANGELOG.adoc`
+- **Embedded representations are fully interactive and independently subscribed** · Sirius Web, unclear in SysON, experimental · minor · Grasp: yes — several live, editable views side by side; every frame on Grasp's plane is already live and editable. Sources: `RepresentationFrame.tsx`, `DefaultExtensionRegistry.tsx`, `CHANGELOG.adoc`
+- **Unknown representation kind message** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — a frame says when it can't draw a view kind; Grasp draws only its eight kinds. Sources: `RepresentationFrame.tsx`, `sirius-components-portals.json`
+- **Portal tolerates removed embedded representations** · Sirius Web, unclear in SysON, experimental · minor · Grasp: yes — deleting an embedded view leaves the rest intact; deleting a view in Grasp takes only its frame off the plane. Sources: `PortalRepresentation.tsx`, `PortalEventProcessor.java`, `PortalServices.java`
+- **Portal refresh on rename** · Sirius Web, unclear in SysON, experimental · minor · Grasp: yes — frame titles follow renamed views at once; Grasp's frame tabs show a view's current name. Sources: `PortalEventProcessor.java`
+- **Portal loading and unavailable states** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — a message replaces a deleted dashboard; Grasp has no separate dashboards to lose. Sources: `PortalRepresentation.tsx`
+- **Portal live refresh via subscription** · dropped: api — GraphQL portal subscription
+- **Portal contents in the Related views panel** · Sirius Web, unclear in SysON, experimental · minor · Grasp: no — lists a dashboard's embedded views in a side panel; Grasp has no dashboards or Related views panel. Sources: `RelatedViewsFormDescriptionProvider.java`, `CHANGELOG.adoc`
+- **Portal undo / redo (proposed, not implemented)** · Sirius Web, unclear in SysON · minor · Grasp: yes — only proposed in SysON, undoing dashboard layout changes; Grasp's Undo already covers adding, moving and deleting views. Sources: `176_add_support_for_undo_redo_on_portal_representation.adoc`, `UndoRedoRecorder.java`, `CHANGELOG.adoc`
+- **Bar chart widget** · dropped: studio — chart widget for studio forms
+- **Pie chart widget** · dropped: studio — chart widget for studio forms
+- **Bar and pie chart representations, hierarchy representation** · dropped: studio — chart representations from descriptions
+- **Form representation** · dropped: studio — forms built from studio descriptions
+- **Form representation editor states and pages** · dropped: studio — states of studio-defined forms
+- **Form representation subscription** · dropped: studio — subscription for studio-defined forms
+- **Data tree (read-only hierarchical report)** · Sirius Web · minor · Grasp: no — a read-only tree showing what an action would change before it runs; Grasp has no impact analysis dialog. Sources: `DataTree.tsx`, `DataTreeItem.tsx`, `ImpactAnalysisDialog.tsx`
+- **Deck GraphQL operations** · dropped: studio — deck mutations
+- **Gantt GraphQL operations** · dropped: studio — Gantt mutations
+- **Deck and Gantt operation errors and defaults** · dropped: studio — deck and Gantt error messages
+- **English and French labels for deck, Gantt, portal and form description editor** · Sirius Web · minor · Grasp: no — French translations of these views' wording; Grasp is in English only, and most of these views are out of scope. Sources: `sirius-components-gantt.json`, `sirius-components-deck.json`, `sirius-components-collaborative-portals_fr.properties`
+- **Portal GraphQL operations** · dropped: api — GraphQL portal mutations
+
+## Studio: language & representation authoring (236)
+
+- **Web Studio: in-browser language and representation authoring** · dropped: studio — authoring languages and editors in the browser
+- **Studio anatomy: Domain and View models** · dropped: studio — what a studio holds
+- **Studio and Blank Studio project templates** · dropped: studio — studio project templates
+- **Studio template sample content** · dropped: studio — sample studio content
+- **Studio template auto-creates the domain diagram** · dropped: studio — studio template setup
+- **Studio-capable editing contexts** · dropped: studio — which projects count as studios
+- **New model stereotypes 'Domain' and 'View'** · dropped: studio — studio model kinds
+- **Studio onboarding actions 'Domain' and 'View'** · dropped: studio — studio onboarding actions
+- **Studio workbench layout** · dropped: studio — studio panel layout
+- **Server-wide loading of domains and views** · dropped: studio — loading studio models on the server
+- **Publish Studio omnibox command** · dropped: studio — publishing studios as libraries
+- **Import studio libraries omnibox command** · dropped: studio — importing studio libraries
+- **Instantiate a studio domain in another project** · dropped: studio — using a studio domain elsewhere
+- **Studio project layout rules** · dropped: studio — studio project advice
+- **No migration between domain versions** · dropped: studio — domain evolution limits
+- **Deploying and sharing a studio** · dropped: studio — packaging and shipping a studio
+- **Reloading a changed domain or view in instance projects** · dropped: studio — reloading studio changes
+- **Live testing loop for view descriptions** · dropped: studio — testing view descriptions
+- **Live update of representation descriptions** · dropped: studio — hot reload of descriptions
+- **Custom-code studio approach (Java descriptions / View builder)** · dropped: studio — describing editors in Java
+- **Papaya sample project templates** · dropped: studio — Sirius Web sample templates
+- **Domain editor** · dropped: studio — authoring domain metamodels
+- **Domain Tree explorer** · dropped: studio — tree of a studio Domain
+- **'Domain explorer' tree description and Explorer selector order** · dropped: studio — studio domain explorer
+- **'Domain explorer by DSL' tree (View-DSL sample explorer)** · dropped: studio — sample View-DSL explorer
+- **Domain package** · dropped: studio — domain metamodel container
+- **Domain entity** · dropped: studio — domain metamodel classes
+- **Domain attribute** · dropped: studio — domain metamodel attributes
+- **Domain relation (containment or reference)** · dropped: studio — domain metamodel references
+- **Domain cardinality** · dropped: studio — domain metamodel multiplicities
+- **Domain DSL capabilities** · dropped: studio — domain language features
+- **Domain name must be unique on the server** · dropped: studio — domain naming rule
+- **Domain limitations: no eOpposite, no custom data types** · dropped: studio — domain language limits
+- **Domain enumeration (documented, not authorable)** · dropped: studio — documented domain enumerations
+- **Export domain as .ecore (documented, not found)** · dropped: studio — documented domain export
+- **Ecore meta-models: no direct import, package in code** · dropped: studio — packaging Ecore metamodels
+- **Domain diagram tools** · dropped: studio — tools of the domain diagram
+- **Domain diagram description ('Domain')** · dropped: studio — the domain diagram editor
+- **View model (representation description container)** · dropped: studio — View model of editor descriptions
+- **Descriptions: what, where and how to display** · dropped: studio — description concept
+- **Common representation description properties** · dropped: studio — shared description properties
+- **Documentation field on View elements** · dropped: studio — documentation on descriptions
+- **Details view field color coding** · dropped: studio — colours of studio Details fields
+- **Studio Details view for View elements** · dropped: studio — Details page for View elements
+- **Expression and domain-type auto-completion (Ctrl+Space)** · dropped: studio — completion in studio expression fields
+- **Color palettes and text style palettes** · dropped: studio — authoring colour palettes
+- **Built-in studio color palettes** · dropped: studio — studio colour palettes
+- **Studio creation defaults** · dropped: studio — defaults of new studio elements
+- **New Object defaults for View descriptions** · dropped: studio — defaults of new descriptions
+- **New Object child defaults inside View descriptions** · dropped: studio — defaults of new description children
+- **AQL (Acceleo Query Language) in descriptions** · dropped: studio — expression language for descriptions
+- **AQL evaluation context** · dropped: studio — AQL variables
+- **AQL syntax patterns** · dropped: studio — AQL syntax
+- **Custom Java services in View expressions** · dropped: studio — Java services for expressions
+- **Environment variable in expressions** · dropped: studio — environment variable for tools
+- **diagramServices: expand, collapse, hide, reveal, fade, unfade** · dropped: studio — diagram services for tool expressions
+- **Built-in Java services in every View's AQL interpreter** · dropped: studio — built-in expression services
+- **Cursor-based pagination services for tables** · dropped: studio — table paging services
+- **diagramServices.deleteViews: remove several nodes from the diagram** · dropped: studio — view deletion service
+- **AQL debugging workflow** · dropped: studio — debugging expressions
+- **Render variable customizers** · dropped: studio — backend render variables
+- **SysON AQL service organization** · dropped: internal — how SysON's service code is organised
+- **SysON ServiceMethod: type-safe AQL call builder** · dropped: internal — Java helper for AQL strings
+- **Tools concept** · dropped: studio — tool concept for authors
+- **Shared operation language** · dropped: studio — operations in tool bodies
+- **Operation execution semantics** · dropped: studio — how tool operations run
+- **Edge reconnection tool variables** · dropped: studio — reconnection tool variables
+- **Let bindings visible to elements to select** · dropped: studio — tool selection expression
+- **Node tool options** · dropped: studio — authoring node tools
+- **Selection dialog description** · dropped: studio — authoring selection dialogs
+- **Selection dialog description fields and defaults** · dropped: studio — selection dialog fields
+- **Diagram operations: Create View and Delete View** · dropped: studio — view operations in tools
+- **Drop node tool (graphical drop)** · dropped: studio — authoring drop tools
+- **Default tools only for low-code studios** · dropped: studio — default tools for studio diagrams
+- **Default palette tools added to View-based diagrams** · Sirius Web · core · Grasp: partly — the Edit, Delete from model, Hide, Fade, Pin, Adjust size and reset tools on every SysON palette; Grasp has Edit label, Delete and Remove from view, but no pin, fade, adjust size or resets. Sources: `PaletteDefaultToolsProvider.java`, `GroupPaletteDefaultToolsProvider.java`, `sirius-components-view-emf.properties`
+- **Studio default tools factory** · dropped: studio — default tools of studio descriptions
+- **Tool execution label and failure message** · Sirius Web · minor · Grasp: partly — a failed tool says so by name, and each change carries a label; Grasp says refusals in the status line, but its undo steps have no labels. Sources: `ToolExecutionLabelProvider.java`, `ToolExecutor.java`, `ActionExecutor.java`
+- **Behaviors disabled when no tool is configured** · dropped: studio — description rule for missing tools
+- **Palette tool icon fallback** · dropped: studio — icons for unconfigured tools
+- **Diagram tool body variables** · dropped: studio — tool variables
+- **Programmatic palette customizers** · dropped: studio — palette customizer beans
+- **Diagram description** · dropped: studio — authoring diagrams
+- **Diagram style and conditional diagram styles** · dropped: studio — diagram background styles
+- **Decorator descriptions** · dropped: studio — authoring decorators
+- **Diagram toolbar configuration** · dropped: studio — diagram toolbar setting
+- **Diagram palette (right-click on background)** · dropped: studio — defines the background palette, not the one users see
+- **Diagram label fallback and label edit variables** · dropped: studio — diagram label defaults
+- **Group palette (multi-selection)** · dropped: studio — defines the group palette, not the one users see
+- **Quick access tools in palettes** · dropped: studio — palette quick access setting
+- **Palette tool precondition variables** · dropped: studio — tool precondition variables
+- **Diagram layout option (automatic layout)** · dropped: studio — auto layout setting
+- **Arrange layout direction** · dropped: studio — layout direction setting
+- **Minimap visibility setting** · dropped: studio — minimap setting
+- **Debug panel with node info** · dropped: studio — debug panel for description authors
+- **Node description identity** · dropped: studio — node description naming
+- **Node semanticCandidatesExpression** · dropped: studio — node candidates expression
+- **Node domainType and preconditionExpression filters** · dropped: studio — node filters
+- **Synchronization policy (synchronized vs unsynchronized elements)** · dropped: studio — node sync setting
+- **Inside label description** · dropped: studio — authoring inside labels
+- **Outside label descriptions** · dropped: studio — authoring outside labels
+- **Child and border nodes** · dropped: studio — authoring child and border nodes
+- **Reused child and border node descriptions** · dropped: studio — reusing node descriptions
+- **Border node initial position** · dropped: studio — border node placement setting
+- **Node style expressions** · dropped: studio — node style expressions
+- **Node size, resizing and initial state options** · dropped: studio — node size settings
+- **Node style kinds** · dropped: studio — node style kinds
+- **Node border style** · dropped: studio — node border settings
+- **Image node style: shape picker and preview** · dropped: studio — image node style
+- **Children layout strategy: free-form or list** · dropped: studio — children layout setting
+- **Label placement, overflow and styling options** · dropped: studio — label style settings
+- **Custom diagram node types (developer recipe)** · dropped: studio — adding node shapes in code
+- **SysON custom node style descriptions** · dropped: internal — View DSL classes behind SysON's package, note and view-frame shapes
+- **Node palette (right-click on a node)** · dropped: studio — defines the node palette, not the one users see
+- **Edge tools declared on node descriptions** · dropped: studio — authoring connection tools
+- **Node actions (hover icons)** · dropped: studio — authoring hover actions
+- **Edge description identity** · dropped: studio — edge description naming
+- **Edge source and target descriptions** · dropped: studio — edge end descriptions
+- **Domain-based vs reference-based edges** · dropped: studio — edge kinds
+- **Reference-based edge rendering** · dropped: studio — edge rendering steps
+- **Domain-based edge rendering** · dropped: studio — edge rendering steps
+- **DiagramRenderingCache** · dropped: studio — rendering cache variable
+- **Edge style options** · dropped: studio — edge style settings
+- **Edge palette (right-click on an edge)** · dropped: studio — defines a palette in the studio, not the palette users see
+- **Palette contents by kind** · dropped: studio — palette description contents
+- **Edge label and end expressions defaults** · dropped: studio — edge label defaults
+- **Edge tools on edge descriptions** · dropped: studio — authoring edge-to-edge tools
+- **Form description and form variables** · dropped: studio — authoring forms
+- **Form page description** · dropped: studio — authoring form pages
+- **Form group description** · dropped: studio — authoring form groups
+- **Form flow control: For and If** · dropped: studio — form flow control
+- **Common widget properties** · dropped: studio — widget description properties
+- **Widget diagnostics expression** · dropped: studio — widget diagnostics setting
+- **Flexbox container** · dropped: studio — form layout container
+- **Container border style** · dropped: studio — form border style
+- **Widget grid layout** · dropped: studio — form grid layout
+- **Widget styles and conditional styles** · dropped: studio — widget styles
+- **Bar chart widget description** · dropped: studio — chart widget description
+- **Pie chart widget description** · dropped: studio — chart widget description
+- **Text widget descriptions: Textfield, Text Area, Label, Link, Rich Text** · dropped: studio — text widget descriptions
+- **Choice widget descriptions: Select, MultiSelect, Radio, Checkbox** · dropped: studio — choice widget descriptions
+- **Button and split button descriptions** · dropped: studio — button widget descriptions
+- **List widget description** · dropped: studio — list widget description
+- **Tree widget description** · dropped: studio — tree widget description
+- **Image, Slider and DateTime descriptions** · dropped: studio — other widget descriptions
+- **Widget enablement and read-only rule** · dropped: studio — widget enablement setting
+- **Custom form widgets (widget contribution extension point)** · dropped: studio — adding widget kinds
+- **Custom widget developer recipe (Slider example)** · dropped: studio — adding a widget in code
+- **Widget label decorators extension point** · dropped: internal — frontend extension point for widget labels
+- **Sharing a View form description with the Details view** · dropped: studio — reusing form descriptions
+- **Table widget in forms** · dropped: studio — table widget description
+- **Invalid widget descriptions ignored** · dropped: studio — skipping bad widget descriptions
+- **Reference widget description core properties** · dropped: studio — reference widget description
+- **Reference widget rendering variables** · dropped: studio — reference widget variables
+- **Reference widget operation variables** · dropped: studio — reference widget variables
+- **Reference widget add / set behaviors** · dropped: studio — reference widget behaviours
+- **Reference widget create button** · dropped: studio — reference widget create setting
+- **Reference widget clear button** · dropped: studio — reference widget clear setting
+- **Reference widget remove behavior** · dropped: studio — reference widget remove setting
+- **Reference widget authoring workflow** · dropped: studio — authoring reference widgets
+- **Reference widget handler APIs for programmatic forms** · dropped: studio — reference widget handler beans
+- **Form Description Editor (visual form builder)** · dropped: studio — visual form builder
+- **Read-only mode** · dropped: studio — form builder read-only mode
+- **Palette: Pages, Groups, Controls** · dropped: studio — form builder palette
+- **Palette: Widgets** · dropped: studio — form builder palette
+- **Add a page** · dropped: studio — form builder pages
+- **Reorder pages** · dropped: studio — form builder pages
+- **Select and delete a page** · dropped: studio — form builder pages
+- **External selection reveals the right page** · dropped: studio — form builder selection
+- **Page tab strip** · dropped: studio — form builder tabs
+- **Add and reorder groups** · dropped: studio — form builder groups
+- **Select and delete a group** · dropped: studio — form builder groups
+- **Group preview frame** · dropped: studio — form builder preview
+- **Add and move widgets** · dropped: studio — form builder widgets
+- **Select and delete a widget** · dropped: studio — form builder widgets
+- **Drop-target highlighting** · dropped: studio — form builder drop zones
+- **Flexbox Container preview and drop** · dropped: studio — form builder preview
+- **If and For control previews** · dropped: studio — form builder preview
+- **Split Button actions** · dropped: studio — form builder buttons
+- **Toolbar actions editing** · dropped: studio — form builder toolbar actions
+- **Button label preview rules** · dropped: studio — form builder preview
+- **Text input previews** · dropped: studio — form builder preview
+- **Choice widget previews** · dropped: studio — form builder preview
+- **List, tree and table previews** · dropped: studio — form builder preview
+- **Rich text preview** · dropped: studio — form builder preview
+- **Chart previews** · dropped: studio — form builder preview
+- **Other widget previews** · dropped: studio — form builder preview
+- **Preview follows selection focus** · dropped: studio — form builder focus
+- **Live style preview** · dropped: studio — form builder styles
+- **Widget creation defaults in the editor** · dropped: studio — form builder defaults
+- **Form description editor operations** · dropped: studio — form builder mutations
+- **Table representation description** · dropped: studio — authoring tables
+- **Table column descriptions** · dropped: studio — authoring table columns
+- **Table row description** · dropped: studio — authoring table rows
+- **Table cell descriptions and cell widgets** · dropped: studio — authoring table cells
+- **Table row context menu entries** · dropped: studio — authoring row actions
+- **Table row filters** · dropped: studio — authoring row filters
+- **Tree representation description** · dropped: studio — authoring trees
+- **Tree item labels built from fragments** · dropped: studio — authoring tree labels
+- **Tree item context menu entries** · dropped: studio — authoring tree menus
+- **Tree item entries need a precondition; their variables** · dropped: studio — tree menu entry rules
+- **Tree item tool labels and execution** · dropped: studio — tree tool labels
+- **Deck description** · dropped: studio — authoring decks
+- **Deck board style** · dropped: studio — deck style
+- **Lane description** · dropped: studio — authoring deck lanes
+- **Card description** · dropped: studio — authoring deck cards
+- **Lane and card styles** · dropped: studio — deck styles
+- **Card tools: create, edit, delete** · dropped: studio — deck card tools
+- **Edit lane tool** · dropped: studio — deck lane tool
+- **Card drop tool** · dropped: studio — deck drop tool
+- **Lane drop tool** · dropped: studio — deck drop tool
+- **Deck tool variables** · dropped: studio — deck tool variables
+- **Named and styled deck descriptions** · dropped: studio — deck description naming
+- **Gantt description** · dropped: studio — authoring Gantt charts
+- **Date Rounding Expression** · dropped: studio — Gantt rounding setting
+- **Task description** · dropped: studio — authoring Gantt tasks
+- **Sub-tasks and reused task descriptions** · dropped: studio — Gantt task hierarchy
+- **Create and delete task tools** · dropped: studio — Gantt task tools
+- **Edit task tool** · dropped: studio — Gantt task tool
+- **Drop task tool** · dropped: studio — Gantt task tool
+- **Task dependency tools** · dropped: studio — Gantt dependency tools
+- **Fork View Model** · dropped: studio — forking a representation's View model
+- **Domain and View validation rules** · dropped: studio — validation of studio models
+- **Studio projects excluded from SysON behavior** · dropped: internal — server setup of studio projects
+- **Standard diagram description invariants** · SysON · useful · Grasp: partly — every SysON line can be reconnected and every labelled box and line edited and deleted; Grasp edits and deletes, but its README names no dragging a line's end to reconnect it. Sources: `SDVDiagramDescriptionTests.java`
+- **Customization through source and modules** · dropped: internal — customising SysON by forking and building
+- **Extending SysON through Sirius Web** · dropped: internal — extending SysON with the low-code platform
+- **Default children-visibility tools for programmatic diagrams** · dropped: removed — tools removed from programmatic diagrams
+- **Sirius Desktop .odesign compatibility layer** · dropped: removed — replaced by the View DSL
+- **Auto-generated Delete from diagram for unsynchronized nodes** · dropped: removed — no longer generated
+- **In-memory View-based representations (InMemoryViewRegistry)** · dropped: removed — class gone
+- **Node sizeComputationExpression** · dropped: removed — replaced by width and height expressions
+- **Modelers** · dropped: removed — removed in v0.4.0
+- **Connector tools in palettes / tool sections** · dropped: removed — replaced by edgeTools
+- **Selection dialog selectionMessage / noSelectionLabel** · dropped: removed — replaced by new expressions
+- **Reference widget 'body' in the View DSL** · dropped: removed — replaced by add and set children
+- **Edge tool variable 'nodeDescription'** · dropped: removed — renamed diagramElementDescription
