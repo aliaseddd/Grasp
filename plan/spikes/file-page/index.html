@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8">
+<script src="classic.js"></script>
+<link rel="stylesheet" href="style.css">
+<script type="module" src="module.js"></script>
+</head><body>
+<img id="img" src="pixel.svg" alt="">
+<script>
+window.results = {};
+const R = window.results;
+R.origin = String(location.origin);
+R.isSecureContext = window.isSecureContext;
+R.showDirectoryPicker = typeof window.showDirectoryPicker;
+R.showOpenFilePicker = typeof window.showOpenFilePicker;
+R.showSaveFilePicker = typeof window.showSaveFilePicker;
+R.classicScript = window.CLASSIC_LOADED === true;
+fetch('data.json').then(r => r.json()).then(j => { R.fetchSibling = 'ok:' + JSON.stringify(j); }).catch(e => { R.fetchSibling = 'fail:' + e.message; });
+try { const w = new Worker('worker.js'); w.onmessage = () => { R.fileWorker = 'ok'; }; w.onerror = e => { R.fileWorker = 'error:' + e.message; }; } catch (e) { R.fileWorker = 'throw:' + e.message; }
+try { const b = new Blob(['postMessage("hi")'], { type: 'text/javascript' }); const w2 = new Worker(URL.createObjectURL(b)); w2.onmessage = () => { R.blobWorker = 'ok'; }; w2.onerror = e => { R.blobWorker = 'error:' + e.message; }; } catch (e) { R.blobWorker = 'throw:' + e.message; }
+try { const r = indexedDB.open('t'); r.onsuccess = () => { R.indexedDB = 'ok'; }; r.onerror = () => { R.indexedDB = 'error'; }; } catch (e) { R.indexedDB = 'throw:' + e.message; }
+try { localStorage.setItem('a', 'b'); R.localStorage = localStorage.getItem('a'); } catch (e) { R.localStorage = 'throw:' + e.message; }
+try { const x = new XMLHttpRequest(); x.open('GET', 'data.json'); x.onload = () => { R.xhr = 'ok:' + x.status + ':' + x.responseText.trim(); }; x.onerror = () => { R.xhr = 'error'; }; x.send(); } catch (e) { R.xhr = 'throw:' + e.message; }
+import('./module.js').then(() => { R.dynamicImport = 'ok'; }).catch(e => { R.dynamicImport = 'fail:' + e.message; });
+document.getElementById('img').onload = () => { R.image = 'ok'; };
+document.getElementById('img').onerror = () => { R.image = 'error'; };
+fetch('https://api.github.com/').then(r => { R.corsApi = 'status:' + r.status; }).catch(e => { R.corsApi = 'fail:' + e.message; });
+</script></body></html>
