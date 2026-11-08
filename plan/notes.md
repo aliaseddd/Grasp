@@ -1059,3 +1059,211 @@ What a user can notice: the page is called Grasp and opens blank, and the Strong
   `openCanvas(browser, { file })`.
 - Noticed, outside this step: Fit on the blank model's empty frame zooms to 221%, so the first element is placed large.
 - `docs/REPO_MAP.md` still shows the old single file and the old helper (`PAGE_URL`).
+
+## Session 11, November 7, 2026: step 10, Features from SysON
+
+Damon asked to hear what step 10 is before it started, approved it with three choices made SysON's way (the zoom keys
+type while something editable is selected; what the canvas can't hold yet is named as not kept; the keyword isn't
+part of the text edited), and asked for the whole step. SysON's user manual was read from its repository at the map's
+commit (`git` sparse checkout of `doc/content` into the session's scratchpad), never its code; the inventory in
+`docs/sysml/syson/features/` is the rest of the spec.
+
+### Label editing (done)
+
+Two commits, each with every test passing: the library's part, then the page's.
+
+Where it is (`canvas/src/labels/`, the feature's folder; `src/README.md` and `canvas/README.md` say what it does):
+
+- `lib.js`: `readLabel(text)` reads a text as SysON's node rule (keywords, `ref`, `<short>`, the name, `[m]` before or
+  after the type, `: Type` with `~`, `:>`, `:>>`, a bare operator that takes its part away when it comes first, a value,
+  `ordered`/`nonunique`, what can't be read). `labelText(model, target)` is the text the box starts from, SysON's
+  initial text: `wheels[4] : Wheel`, `api : ~App`, `ServerHost :> Host`, an interface's `: Def`; a reference whose
+  name would end a reference is quoted, and one a simple name wouldn't find is a path from the package.
+  `applyLabel(model, target, text, make)` makes it, in place, inside the page's `edit()`, and returns `{ done,
+  created, notKept, unread, refused }`; `labelWords` and `labelLeftOut` give the words. `labelEditable` and
+  `renamable` say what has a label to edit and what a browser row can rename. All on `SysMLModel` through `EXTRA`.
+- `page.js`: the box (`.label-editor`, a textarea in `.stage`, outside `#canvas`), `editTarget()` (the selection, in
+  the active view, which must draw it), `openLabelEditor(typed)`, `labelKey(event)` (pointing.js asks it first, so a
+  printable key opens the box and the zoom keys don't zoom while something editable is selected), F2 on the document,
+  the panel's `#edit-label` button (`renderLabelButton`, which panel.js calls; Rename in a browser view), and
+  `placeLabelEditor` (camera.js calls it, so the box follows the camera).
+- Each drawn label is marked `data-label` by `asLabel` (drawing.js) in the eight places a name or a line's label is
+  drawn (box, border item, line, behavior header, control node, item, event, footprint tspan, browser row tspan); the
+  box opens over its bounding box, or, when none is drawn, over a place from the layout.
+
+How it follows SysON, and where it doesn't:
+
+- SysON's grammar has a list-item rule (compartment rows, with `in`/`out`/`inout`); the canvas draws no compartment
+  rows, so every label is read with the node rule, and a border item's `in x` stays in the name, as SysON's border
+  nodes do. Direction stays the panel's.
+- A definition's `abstract` and typing part are left aside, as SysON does; the usages' keywords, short names, `ref`,
+  redefinitions, values, `ordered`/`nonunique`, and a multiplicity on what has none are "not kept", said in the status.
+- The manual lists `=` among what ends a name (SysON's grammar at v2026.11.0 doesn't); the canvas follows the manual,
+  since a value is not kept anyway.
+- Resolution is SysON's scoping (own members, each owner going out, the package, then anywhere), filtered to what the
+  canvas's rules accept (the usage's definition kind; the same kind, and for a usage the same box), and never the
+  element itself. A simple name nothing in scope has makes a definition at the top of the package (definitions here
+  are never nested) or, for `:>` on a usage, a usage beside it (SysON puts it in the package; the canvas's rule wants
+  it in the same box). Nothing is made beside an element with the same name. A qualified name or a `~` never makes.
+- A refused part (a definition of another kind, a circle, a usage in another box) is refused with the canvas's own
+  rule sentence (`RELATIONSHIPS[kind].ends`), and the other parts are still made.
+- SysON keeps a typed line break in a label (Shift+Enter); the canvas's labels are one line, so it is read as a space.
+- A click on the drawing commits the box and then selects what it is on, which clears the status line (as any
+  selection does); leaving the box any other way leaves the status's words up.
+
+How it was checked:
+
+- Tests: 201 of 201 pass, the 179 from session 10 and 22 in `test/labels.test.mjs` (13 Node: reading, starting text,
+  what a text changes, lines, a property test that every label of the example and the fixtures edited to its own
+  starting text changes nothing; 9 browser: F2, a key, the button, Enter, Escape, leaving the box, undo, the log and
+  the save, the zoom keys, a grid, a start node, a page that can't be changed, lines, a transition, the browser's
+  rename, and the box over the label in a general, sequence and geometry view).
+- Faults put in one at a time, each failing a test: no typed key, no focus back, a new typing drawn as a line, a late
+  bare operator taking its part away, `=` read into the name, the keywords not named, F2 renaming a browser row, a
+  grid opening a box.
+- Exports: the saved model and the example print their pinned texts. The example, `interconnection.json` and
+  `behavior-actions.json`, each changed through labels in Node (new definitions, a subsetting, renamed lines, an
+  interface retyped, a conjugation), export with no problems, and `canvas/check.sh` accepts all three (the example
+  with a warning that a subsetting feature's upper bound, 2..*, is larger than the subsetted one's, 1, which the edit
+  asked for).
+
+### Details view (done)
+
+One commit, every test passing (211 of 211), every export unchanged.
+
+Where it is (`canvas/src/details/`; `src/README.md`, "The panel's fields", says how a field is placed):
+
+- `lib.js`: `detailsOf(model, type, item)` gives `{ metaclass, title, core, advanced }`: the title ("Part Properties":
+  the metaclass in words, a usage's without "Usage"); `core`, SysON's core features of the metaclass in its order
+  (`coreFeatures`, after SysON's `CoreFeaturesSwitch` as the inventory describes it); `advanced`, every other
+  single-valued attribute of the metaclass from `METAMODEL`, supertypes' first. A row is `{ field }` (a field of the
+  kind holds the attribute: `FIELDS[f].attribute`), `{ value }` (what the canvas knows: `elementId`, `name`,
+  `qualifiedName`, `isLibraryElement` false, a view's exposed elements, a specialization's or typing's ends), or
+  `{ held: false }`. It adds two FIELDS rows, `specializes` (definitions) and `subsets` (usages), `stored: false`,
+  the first `Specialization` line an element starts (`firstGeneral`), with the choices its rule allows (`generals`).
+  `conforms` (model.js) is now on the library's shared object.
+- `page.js`: `renderDetails(s)`, which panel.js calls after it fills the fields: it moves each field's label to the
+  tab and place its attribute has, adds the rows, titles the groups, shows the tab `S.detailsTab` names (kept as the
+  selection changes), and hides a group with nothing shown in it. The tabs' buttons (`#tab-core`, `#tab-advanced`,
+  and `#v-tab-…` in a view's panel) have their own listeners; no field does. The hooks of `specializes`, `subsets`
+  (retarget the line, keeping its notes; nothing takes it away) and `parallel` (`locked` while a state holds
+  transitions: the new hook says why, and the panel disables the input and puts the reason on its label's title).
+- The panel's markup (`core/page.html`): `#fields` holds the tabs, `#page-core` with `#g-main` (title, body),
+  `#g-typing`, `#g-general` and `#g-geometry`, and `#page-advanced`; `#view-fields` the same with `v-` ids. The labels
+  are SysON's where the field is a SysON feature (Declared Name, Qualified Name, Typed by, Documentation, Is Abstract,
+  Is Parallel, Specializes, Subsets). The heading is Details, and the empty panel says "No object selected".
+- A choice (an `enum` field: direction, the kind of action, the kind under a state, a footprint's shape and unit) is
+  now radio buttons, a `fieldset.radios`; panel.js reads and writes them (`choiceOf`, `setChoice`, `inputOf`).
+
+How it follows SysON, and where it doesn't:
+
+- SysON's Advanced tab shows a widget for every attribute; values the canvas can't know (an `isComposite` the parser
+  works out, which the ecore's default, false, would misstate) are shown as "not held yet", never as a default.
+- SysON repeats a Specializes or Subsets group per line; the canvas shows the first line's, as Typed by shows the
+  first typing; the others stay lines on the drawing. Like SysON's, the group is there only while a line is.
+- SysON has no multiplicity widget (it is edited by direct edit); the canvas keeps its Multiplicity field on Core,
+  among its own fields, and its other fields (payload, target, guard, trigger, effect, order, item, the geometry) too.
+- References on Advanced: SysON shows the changeable ones; the canvas edits its references as lines and as Typed by,
+  Specializes and Subsets, so Advanced lists attributes only.
+
+How it was checked:
+
+- Tests: `test/details.test.mjs`, 10 (5 Node: titles, core features per metaclass, a part's and a definition's rows,
+  every kind and line and view of the example and the fixtures with each attribute field in one tab once, a view's
+  and a line's values and Specializes' choices; 5 browser: the tabs and their order and the tab kept, Is Abstract on
+  Advanced as one step, Specializes and Subsets retargeting and taking the line away and Undo, radio buttons with
+  unset and Is Parallel locked, a view's and a line's details and a page that can't be changed).
+- Tests changed, assertions kept: the six that picked a choice from a select now pick a radio button (`choose`,
+  `chosen` in `helpers.mjs`); two open the Advanced tab to find Is Abstract (`detailsTab`); `fields.test.mjs` opens
+  the tab a field is on, picks radio buttons, reads Specializes and Subsets from the line, skips a field locked now
+  (it is changed on another element of its kind), and its merged model gives the first element of each kind that
+  lists Specializes or Subsets a line, made to another of its kind (made beside it when none is), so every such
+  field is changed through the panel as before.
+- Faults put in one at a time, each failing a test: no lock, isIndividual on a port, Advanced fields left on Core,
+  the tab reset on each selection, Specializes making a new line, radio buttons not set, a circle among the choices,
+  empty groups shown.
+
+### Validation rules (done)
+
+One commit, every test passing (221 of 221), every export unchanged.
+
+How many there are: the specification's validation rules are the constraints of its metamodel. The pilot
+implementation's `org.omg.sysml/model/SysML.uml`, at the release the canvas's metamodel comes from (`2026-09.1`),
+holds 388: 180 `validate…` and 208 `check…`. SysON 2026.11.0 runs 383, its `SysMLValidationRule` enumeration, which
+its own unit test holds to that number (`docs/sysml/syson/features/model.md`). The 204 that `docs/sysml/syson/README.md`
+gave, and the plan repeated, was wrong; that README now says 383. `SysML.uml` was read in the scratchpad (fetched from
+the pilot's repository at the release's commit), never committed; the canvas's messages are its own words.
+
+Which ones the canvas checks, and why only those:
+
+- The 208 check rules ask for what the SysML parser adds to any text (the library's specializations, binding
+  connectors, redefinitions): any text the canvas writes gets them, so they hold by construction.
+- Of the 180 validate rules, most are about what the canvas doesn't make (variations, individuals, portions,
+  expressions, requirements, cases, metadata, views' renderings) or hold for anything it writes (a connector's two
+  ends, a port def's conjugated port def, a directed usage being referential). Each candidate was tried by writing a
+  text that breaks it and running `docs/sysml/check.sh` on it (`*.sysml` in the session's scratchpad,
+  `rules-probe/`): the pilot reports the parallel state's transitions, a trigger out of an action and a redefined
+  parameter's direction as errors, an end's multiplicity and duplicate names as warnings, and leaves the successions
+  on control nodes unchecked (as the canvas's own checks say); a negative bound doesn't parse.
+- The 15 the canvas checks, `SPEC_RULES` in `validation/lib.js`: validateNamespaceDistinguishibility,
+  validateFeatureEndMultiplicity, validateMultiplicityRangeBoundResultTypes, validateTransitionUsageTriggerActions,
+  validateStateUsageParallelSubactions, validateStateDefinitionParallelSubactions, validateStateUsageStateSubactionKind,
+  validateStateDefinitionStateSubactionKind, validateControlNodeOwningType, validateForkNodeIncomingSuccessions,
+  validateDecisionNodeIncomingSuccessions, validateJoinNodeOutgoingSuccessions, validateMergeNodeOutgoingSuccessions,
+  validateSendActionUsagePayloadArgument, validateRedefinitionDirectionConformance. Several overlap the canvas's own
+  checks, which stay as they were: those are the canvas's problems on the drawing; these are SysON's warnings in its
+  Validation view, under the specification's names.
+
+Where it is (`canvas/src/validation/`; `src/README.md`, "The specification's rules", says how to add one):
+
+- `lib.js`: the rules, `{ name, metaclass, check }`; `validateSpec(model)` checks every element and line against the
+  rules on its metaclass in the text or a class it is a kind of (an action that sends is a `SendActionUsage`), and the
+  package as a namespace; a diagnostic is `{ rule, metaclass, type, id, path, message, severity: 'warning', text }`,
+  sorted by rule then path, `text` in SysON's form (`#rule·····[document/path]·····Constraint on type
+  'sysml:Metaclass' is not respected: message`, the document being the package; an unnamed line's path is
+  `<ID: id>`). Two rules on what the canvas keeps on the element (a multiplicity, a parameter's redefinition) are
+  checked on the element (`of`).
+- `page.js`: `checkRules()`, which `check()` in `render.js` calls first, keeps `S.diagnostics` and draws the view
+  again when they change; the view (`#validation-panel`, opened by `#validation` in the bar, closed by
+  `#close-validation`) groups them by kind in `<details>` sections, folded at first, with their count; the sections
+  opened stay open. "No diagnostic available" when there are none.
+
+How it follows SysON, and where it doesn't:
+
+- Namespace distinguishability is the specification's (`isDistinguishableFrom`): two members are alike only when one's
+  metaclass is a kind of the other's, so a part and a port of one name, or a view and a part def, pass, though the
+  pilot warns about any duplicate name (see below). Inherited members aren't compared; the canvas's own check for a
+  usage named like an inherited feature of another kind stays.
+- SysON's subject for a multiplicity or a redefinition rule is the MultiplicityRange or the Redefinition, which have no
+  qualified name; the canvas names the element that holds them.
+- The view sits on the left of the plane, as SysON's left panel does, opened from the bar, since the canvas has no
+  side bar of views. It shows no Error or Info sections, as SysON shows none: all its rules are warnings.
+
+How it was checked:
+
+- Tests: `test/validation.test.mjs`, 9 (8 Node: the rule list; the example and every fixture keep every rule; each
+  rule on a model that breaks it and on what is near it but keeps it; SysON's label and the unnamed line's path; 1
+  browser: the button, the view on the left, none, a folded Warning section with its count, the diagnostic's label,
+  the count following a change after the pause, the section kept open, Undo, Close).
+  `test/scale-checks.test.mjs` gains a case: the rules under 100 ms at 10,000 elements (measured: about 9 ms in the
+  page, beside about 27 ms for the canvas's own checks).
+- Faults put in one at a time, each failing a test: any same name clashing, two successions allowed, the rules not run
+  with the checks, an opened section not kept, an end's multiplicity unchecked, a trigger out of a state flagged, an
+  inout redefinition unchecked, the diagnostics unsorted.
+- Exports: unchanged (the saved model `a8423a94…`, the example `9825ca06…`, every fixture its pinned text), and
+  `canvas/check.sh` accepts the saved model and the example.
+
+### For the next session
+
+- Step 10's listed features are done, and its status says so. To go on, add the next of SysON's features to
+  `features` in `plan/status.json` and set step 10 back to open; the inventory's areas (`docs/sysml/syson/features/
+  README.md`) are where to choose from.
+- The details view's "not held yet" rows are a list of what the canvas could hold next: short names, `ref`
+  (isComposite), variations, individuals, portion kinds, `ordered`/`nonunique`, `end`, `derived`, `constant`; label
+  editing already names each of them as not kept when typed.
+- The canvas draws a usage's name line as `name : Type [m]`; SysON draws `name[m] : Type`, with a definition's
+  `:> General` on it too ("Node labels" in the inventory's direct-edit section). Drawing labels as SysON does would be
+  a feature of its own; the label editor already starts from SysON's text.
+- Noticed, outside this step: the pilot warns ("Duplicate of other owned member name") about a view named like an
+  element of the package, which neither the canvas's checks nor the specification's rule catch.
+- The published page (https://claude.ai/artifact/V7Fw94cGMbtPnwmyDNmnjU) was not published again this session.

@@ -258,6 +258,7 @@
 
   canvas.addEventListener('keydown', (event) => {
     canvas.classList.remove('is-pointer');
+    if (C.labelKey(event)) return;   // a printable key types into the selection's label (labels/page.js)
     const step = 80 / S.camera.k;
     let handled = true;
     if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) { undo(); event.preventDefault(); return; }

@@ -374,6 +374,68 @@ textarea.text[readonly] { resize: none; background: transparent; }
 .code-link .code-remove { padding: 6px 8px; font-size: 12px; color: var(--fg-2); border-color: var(--line); }
 .code-link .code-remove:hover { color: var(--danger); border-color: var(--danger); }
 .code-link .code-static { margin: 0; font: 400 12px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* ==== src/labels/style.css */
+/* Label editing: the box typed into over a label, as the panel's inputs are drawn; labels/page.js sets its place,
+   width, font and size from the label and the camera's zoom. */
+.label-editor {
+  position: absolute; z-index: 2; margin: 0; padding: 1px 5px; box-sizing: border-box;
+  min-height: 0; overflow: hidden; resize: none; white-space: pre-wrap; line-height: 1.3;
+  color: var(--fg); background: var(--card); border: 1px solid var(--accent); border-radius: 4px; box-shadow: var(--shadow);
+}
+.label-editor::placeholder { color: var(--fg-2); }
+.label-editor:focus-visible { outline: none; }
+/* ==== src/details/style.css */
+/* The details view, as SysON's: the Core and Advanced tabs, the groups, the rows the canvas knows or doesn't hold yet,
+   and a choice drawn as radio buttons; in the panel's own colors and type. */
+.fields .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); }
+.fields .tab-button {
+  border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; margin-bottom: -1px;
+  padding: 6px 12px; font: 500 12px/1 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2);
+}
+.fields .tab-button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.fields .tab-button:hover { color: var(--fg); border-color: transparent; border-bottom-color: var(--line-strong); }
+.fields .tab-button[aria-selected="true"]:hover { border-bottom-color: var(--accent); }
+.fields .details-page, .fields .group, .fields .group-body { display: grid; gap: 10px; }
+.fields .details-page[hidden], .fields .group[hidden] { display: none; }
+.fields .group + .group { padding-top: 10px; border-top: 1px solid var(--line); }
+.fields .group-title { margin: 0; font: 600 13px/1.3 var(--sans); color: var(--fg); }
+.fields .detail { margin: 0; display: grid; gap: 4px; }
+.fields .detail-label { font: 500 11px/1.2 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); }
+.fields .detail-value { font: 400 13px/1.35 var(--sans); color: var(--fg); overflow-wrap: anywhere; }
+.fields .detail-value input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.fields .detail.not-held .detail-value { font-style: italic; color: var(--fg-2); }
+.fields .radio-field { display: grid; gap: 4px; }
+.fields .radio-field[hidden] { display: none; }
+.fields .radio-label { font: 500 11px/1.2 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-2); }
+.fields fieldset.radios { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.fields fieldset.radios label {
+  display: inline-flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; font: 400 13px/1.3 var(--sans); color: var(--fg);
+}
+.fields fieldset.radios input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+/* ==== src/validation/style.css */
+/* The Validation view, on the left of the plane as SysON's is: a section per kind of diagnostic, folded at first,
+   with its count, and the diagnostics as plain lines between dividers. */
+.validation-panel {
+  left: max(12px, env(safe-area-inset-left, 0px)); top: 12px; z-index: 2;
+  width: min(460px, calc(100% - 24px)); max-height: calc(100% - 120px); overflow: auto;
+  display: grid; gap: 10px; padding: 14px;
+}
+.validation-panel[hidden] { display: none; }
+.validation-panel h2 { margin: 0; font: 600 15px/1.3 var(--sans); }
+.validation-kinds { display: grid; gap: 6px; }
+.validation-kind { border: 1px solid var(--line); border-radius: 6px; background: var(--card); }
+.validation-kind > summary {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 8px; align-items: baseline;
+  padding: 8px 10px; cursor: pointer; font: 600 13px/1.3 var(--sans); color: var(--fg);
+}
+.validation-count { font: 400 12px/1.3 var(--mono); color: var(--fg-2); }
+.validation-kind ul { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.validation-kind li { padding: 8px 10px; font: 400 12px/1.45 var(--mono); color: var(--fg); overflow-wrap: anywhere; }
+.validation-kind li + li { border-top: 1px solid var(--line); }
+#validation.is-active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+@media (max-width: 720px) {
+  .validation-panel { top: 64px; max-height: 50%; }
+}
 /* ==== src/core/style-end.css */
 @media (max-width: 720px) {
   /* On a phone the palette is one row that scrolls sideways, so the bar stays short. */
@@ -410,6 +472,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       <button type="button" id="new-view">New view</button>
       <select id="new-view-kind" aria-label="The kind of the new view"></select>
       <button type="button" id="export">Export SysML</button>
+      <button type="button" id="validation" aria-controls="validation-panel" aria-expanded="false">Validation</button>
       <button type="button" id="download-state" hidden>Download state</button>
       <button type="button" id="import-state" hidden>Import state</button>
       <input type="file" id="import-file" accept="application/json,.json" hidden>
@@ -417,7 +480,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   </header>
 
   <div class="stage">
-    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing, Escape puts a tool down, Delete removes the selection, Ctrl+Z undoes.">
+    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing, Escape puts a tool down, Delete removes the selection, Ctrl+Z undoes. With a box, a port or a line selected, F2 or typing edits its label, and the keys type into it.">
       <svg id="drawing" class="sysml" viewBox="0 0 1200 800" role="img" aria-label="SysML v2 views on a plane"></svg>
     </div>
 
@@ -438,54 +501,82 @@ textarea.text[readonly] { resize: none; background: transparent; }
     <aside class="float panel" id="panel" aria-label="Selection and notes">
       <section id="inspector" aria-labelledby="inspector-title">
         <div class="panel-head">
-          <h2 id="inspector-title">Selection</h2>
+          <h2 id="inspector-title">Details</h2>
           <button type="button" class="hide" id="hide-panel">Hide</button>
         </div>
-        <p class="empty" id="inspector-empty">Nothing selected. Click a box, a port, or a line.</p>
+        <p class="empty" id="inspector-empty">No object selected. Click a box, a port, or a line.</p>
         <div class="fields" id="fields" hidden>
           <p class="kind" id="f-kind"></p>
-          <!-- Every field: <label id="l-<field>">… <input id="f-<field>"></label>, one per row of FIELDS, which the panel
-               shows for the kinds that list it. -->
-          <label id="l-name">Name <input type="text" id="f-name" autocomplete="off" spellcheck="false"></label>
-          <label class="check" id="l-abstract"><input type="checkbox" id="f-abstract"> abstract</label>
-          <label id="l-type">Defined by <select id="f-type"></select></label>
-          <label class="check" id="l-typeLine"><input type="checkbox" id="f-typeLine"> draw the defined-by line</label>
-          <label id="l-multiplicity">Multiplicity <input type="text" id="f-multiplicity" autocomplete="off" spellcheck="false" placeholder="1, 0..1, or 1..*"></label>
-          <label class="check" id="l-conjugated"><input type="checkbox" id="f-conjugated"> conjugated (~), the other side of the port</label>
-          <label id="l-doc">Doc <textarea id="f-doc" rows="2" spellcheck="true"></textarea></label>
-          <label id="l-direction">Direction <select id="f-direction"><option value="">undirected</option><option value="in">in</option><option value="out">out</option><option value="inout">inout</option></select></label>
-          <label id="l-item">Item (the payload) <select id="f-item"></select></label>
-          <!-- The features' fields. -->
-          <label id="l-interfaceDef">Interface def <select id="f-interfaceDef"></select></label>
-          <label id="l-actionKind">Kind of action <select id="f-actionKind"><option value="plain">plain</option><option value="send">send</option><option value="accept">accept</option></select></label>
-          <label id="l-payload">Payload <input type="text" id="f-payload" autocomplete="off" spellcheck="false" placeholder="new Alert() to send; x : Type or after 10 [SI::s] to accept"></label>
-          <label id="l-target">Target (via a port, to anything else) <input type="text" id="f-target" autocomplete="off" spellcheck="false" placeholder="a port, a part or an action"></label>
-          <label id="l-role">Role under a state <select id="f-role"><option value="">none</option><option value="entry">entry</option><option value="do">do</option><option value="exit">exit</option></select></label>
-          <label id="l-guard">Guard <input type="text" id="f-guard" autocomplete="off" spellcheck="false" placeholder="a Boolean expression, or else"></label>
-          <label id="l-trigger">Trigger (the accept part) <input type="text" id="f-trigger" autocomplete="off" spellcheck="false" placeholder="StartSignal · x : Sig via port · after 48 [SI::h] · when ready"></label>
-          <label id="l-effect">Effect <input type="text" id="f-effect" autocomplete="off" spellcheck="false" placeholder="action name, send new X() to y, assign a := b"></label>
-          <label class="check" id="l-parallel"><input type="checkbox" id="f-parallel"> parallel: its regions run at the same time</label>
-          <label id="l-order">Order (the message's place in time, top to bottom) <input type="text" id="f-order" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="1, 2, 3…"></label>
-          <!-- The spatial fields of a part drawn in a geometry view: its shape and unit, the dimensions its shape has (in
-               that unit), and the position of its origin in its owner's frame. -->
-          <div class="geo-row">
-            <label id="l-shape">Shape <select id="f-shape"><option value="">none</option><option value="Box">Box</option><option value="Rectangle">Rectangle</option><option value="CircularCylinder">CircularCylinder</option><option value="Sphere">Sphere</option><option value="CircularCone">CircularCone</option></select></label>
-            <label id="l-unit">Unit <select id="f-unit"><option value="m">m</option><option value="mm">mm</option><option value="cm">cm</option><option value="km">km</option><option value="ft">ft</option><option value="in">in</option></select></label>
+          <!-- SysON's Details view: a Core tab and an Advanced tab (details/page.js). Every field is a
+               <label id="l-<field>"> holding its input, <… id="f-<field>">, one per row of FIELDS, which the panel shows
+               for the kinds that list it; a choice is a fieldset of radios, id="f-<field>". -->
+          <div class="tabs" role="tablist" aria-label="Details">
+            <button type="button" role="tab" class="tab-button" id="tab-core" data-tab="Core" aria-controls="page-core" aria-selected="true">Core</button>
+            <button type="button" role="tab" class="tab-button" id="tab-advanced" data-tab="Advanced" aria-controls="page-advanced" aria-selected="false">Advanced</button>
           </div>
-          <div class="geo-row">
-            <label id="l-length">Length <input type="text" id="f-length" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-width">Width <input type="text" id="f-width" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-height">Height <input type="text" id="f-height" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-radius">Radius <input type="text" id="f-radius" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          <div class="details-page" id="page-core" role="tabpanel" aria-labelledby="tab-core" data-tab="Core">
+            <div class="group" id="g-main">
+              <h3 class="group-title" id="g-main-title"></h3>
+              <!-- SysON's core features first, in its order, then the canvas's own fields in this order, then the
+                   documentation; details/page.js puts them there. -->
+              <div class="group-body" id="g-main-body">
+                <label id="l-name">Declared Name <input type="text" id="f-name" autocomplete="off" spellcheck="false"></label>
+                <p class="detail" id="d-qualifiedName"><span class="detail-label">Qualified Name</span><span class="detail-value" id="f-path"></span></p>
+                <div class="radio-field" id="l-direction"><span class="radio-label">Direction</span><fieldset class="radios" id="f-direction"><label><input type="radio" name="f-direction" value=""> unset</label><label><input type="radio" name="f-direction" value="in"> in</label><label><input type="radio" name="f-direction" value="out"> out</label><label><input type="radio" name="f-direction" value="inout"> inout</label></fieldset></div>
+                <label class="check" id="l-parallel"><input type="checkbox" id="f-parallel"> Is Parallel: its regions run at the same time</label>
+                <label class="check" id="l-abstract"><input type="checkbox" id="f-abstract"> Is Abstract</label>
+                <label id="l-multiplicity">Multiplicity <input type="text" id="f-multiplicity" autocomplete="off" spellcheck="false" placeholder="1, 0..1, or 1..*"></label>
+                <label id="l-item">Item (the payload) <select id="f-item"></select></label>
+                <div class="radio-field" id="l-actionKind"><span class="radio-label">Kind of action</span><fieldset class="radios" id="f-actionKind"><label><input type="radio" name="f-actionKind" value="plain"> plain</label><label><input type="radio" name="f-actionKind" value="send"> send</label><label><input type="radio" name="f-actionKind" value="accept"> accept</label></fieldset></div>
+                <label id="l-payload">Payload <input type="text" id="f-payload" autocomplete="off" spellcheck="false" placeholder="new Alert() to send; x : Type or after 10 [SI::s] to accept"></label>
+                <label id="l-target">Target (via a port, to anything else) <input type="text" id="f-target" autocomplete="off" spellcheck="false" placeholder="a port, a part or an action"></label>
+                <div class="radio-field" id="l-role"><span class="radio-label">Kind under a state</span><fieldset class="radios" id="f-role"><label><input type="radio" name="f-role" value=""> unset</label><label><input type="radio" name="f-role" value="entry"> entry</label><label><input type="radio" name="f-role" value="do"> do</label><label><input type="radio" name="f-role" value="exit"> exit</label></fieldset></div>
+                <label id="l-guard">Guard <input type="text" id="f-guard" autocomplete="off" spellcheck="false" placeholder="a Boolean expression, or else"></label>
+                <label id="l-trigger">Trigger (the accept part) <input type="text" id="f-trigger" autocomplete="off" spellcheck="false" placeholder="StartSignal · x : Sig via port · after 48 [SI::h] · when ready"></label>
+                <label id="l-effect">Effect <input type="text" id="f-effect" autocomplete="off" spellcheck="false" placeholder="action name, send new X() to y, assign a := b"></label>
+                <label id="l-order">Order (the message's place in time, top to bottom) <input type="text" id="f-order" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="1, 2, 3…"></label>
+                <label id="l-doc">Documentation <textarea id="f-doc" rows="2" spellcheck="true"></textarea></label>
+              </div>
+            </div>
+            <!-- SysON's untitled groups: what the element is typed by, and what it specializes or subsets. -->
+            <div class="group" id="g-typing">
+              <label id="l-type">Typed by <select id="f-type"></select></label>
+              <label id="l-interfaceDef">Typed by <select id="f-interfaceDef"></select></label>
+              <label class="check" id="l-typeLine"><input type="checkbox" id="f-typeLine"> draw the defined-by line</label>
+              <label class="check" id="l-conjugated"><input type="checkbox" id="f-conjugated"> conjugated (~), the other side of the port</label>
+            </div>
+            <div class="group" id="g-general">
+              <label id="l-specializes">Specializes <select id="f-specializes"></select></label>
+              <label id="l-subsets">Subsets <select id="f-subsets"></select></label>
+            </div>
+            <!-- The spatial fields of a part drawn in a geometry view: its shape and unit, the dimensions its shape has
+                 (in that unit), and the position of its origin in its owner's frame. -->
+            <div class="group" id="g-geometry">
+              <div class="radio-field" id="l-shape"><span class="radio-label">Shape</span><fieldset class="radios" id="f-shape"><label><input type="radio" name="f-shape" value=""> none</label><label><input type="radio" name="f-shape" value="Box"> Box</label><label><input type="radio" name="f-shape" value="Rectangle"> Rectangle</label><label><input type="radio" name="f-shape" value="CircularCylinder"> CircularCylinder</label><label><input type="radio" name="f-shape" value="Sphere"> Sphere</label><label><input type="radio" name="f-shape" value="CircularCone"> CircularCone</label></fieldset></div>
+              <div class="radio-field" id="l-unit"><span class="radio-label">Unit</span><fieldset class="radios" id="f-unit"><label><input type="radio" name="f-unit" value="m"> m</label><label><input type="radio" name="f-unit" value="mm"> mm</label><label><input type="radio" name="f-unit" value="cm"> cm</label><label><input type="radio" name="f-unit" value="km"> km</label><label><input type="radio" name="f-unit" value="ft"> ft</label><label><input type="radio" name="f-unit" value="in"> in</label></fieldset></div>
+              <div class="geo-row">
+                <label id="l-length">Length <input type="text" id="f-length" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-width">Width <input type="text" id="f-width" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-height">Height <input type="text" id="f-height" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-radius">Radius <input type="text" id="f-radius" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+              </div>
+              <div class="geo-row">
+                <label id="l-posX">Position x <input type="text" id="f-posX" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-posY">Position y <input type="text" id="f-posY" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-posZ">Position z <input type="text" id="f-posZ" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+              </div>
+            </div>
           </div>
-          <div class="geo-row">
-            <label id="l-posX">Position x <input type="text" id="f-posX" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-posY">Position y <input type="text" id="f-posY" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-posZ">Position z <input type="text" id="f-posZ" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          <div class="details-page" id="page-advanced" role="tabpanel" aria-labelledby="tab-advanced" data-tab="Advanced" hidden>
+            <div class="group">
+              <h3 class="group-title" id="g-advanced-title"></h3>
+              <!-- Every other attribute of the element's metaclass, in the metamodel's order (details/page.js). -->
+              <div class="group-body" id="g-advanced-body"></div>
+            </div>
           </div>
-          <p class="meta" id="f-path"></p>
           <p class="meta" id="f-views"></p>
           <div class="row">
+            <button type="button" id="edit-label">Edit label</button>
             <button type="button" id="add-note">Add note</button>
             <button type="button" id="remove-from-view" title="Take it out of this view. It stays in the model and in the other views.">Remove from view</button>
             <button type="button" class="danger" id="delete-selected">Delete</button>
@@ -493,8 +584,26 @@ textarea.text[readonly] { resize: none; background: transparent; }
         </div>
         <div class="fields" id="view-fields" hidden>
           <p class="kind" id="v-kind"></p>
-          <label id="l-v-name">Name <input type="text" id="v-name" autocomplete="off" spellcheck="false"></label>
-          <label id="l-v-doc">Doc <textarea id="v-doc" rows="2" spellcheck="true"></textarea></label>
+          <div class="tabs" role="tablist" aria-label="Details of the view">
+            <button type="button" role="tab" class="tab-button" id="v-tab-core" data-tab="Core" aria-controls="v-page-core" aria-selected="true">Core</button>
+            <button type="button" role="tab" class="tab-button" id="v-tab-advanced" data-tab="Advanced" aria-controls="v-page-advanced" aria-selected="false">Advanced</button>
+          </div>
+          <div class="details-page" id="v-page-core" role="tabpanel" aria-labelledby="v-tab-core" data-tab="Core">
+            <div class="group">
+              <h3 class="group-title" id="v-g-main-title"></h3>
+              <div class="group-body" id="v-g-main-body">
+                <label id="l-v-name">Declared Name <input type="text" id="v-name" autocomplete="off" spellcheck="false"></label>
+                <p class="detail" id="v-d-qualifiedName"><span class="detail-label">Qualified Name</span><span class="detail-value" id="v-path"></span></p>
+                <label id="l-v-doc">Documentation <textarea id="v-doc" rows="2" spellcheck="true"></textarea></label>
+              </div>
+            </div>
+          </div>
+          <div class="details-page" id="v-page-advanced" role="tabpanel" aria-labelledby="v-tab-advanced" data-tab="Advanced" hidden>
+            <div class="group">
+              <h3 class="group-title" id="v-g-advanced-title"></h3>
+              <div class="group-body" id="v-g-advanced-body"></div>
+            </div>
+          </div>
           <label id="l-v-show">Show in this view <select id="v-show"></select></label>
           <p class="meta" id="v-meta"></p>
           <!-- Each kind's options, in <div class="view-options" data-view-kind="GridView" hidden>, shown for a view of the kind. -->
@@ -568,6 +677,16 @@ textarea.text[readonly] { resize: none; background: transparent; }
       </section>
     </aside>
 
+    <!-- The Validation view (validation/page.js): the specification's rules' diagnostics, by kind. -->
+    <div class="float validation-panel" id="validation-panel" hidden aria-labelledby="validation-title">
+      <div class="panel-head">
+        <h2 id="validation-title">Validation</h2>
+        <button type="button" class="hide" id="close-validation">Close</button>
+      </div>
+      <p class="meta" id="validation-about"></p>
+      <div class="validation-kinds" id="validation-kinds"></div>
+      <p class="empty" id="validation-empty">No diagnostic available</p>
+    </div>
     <div class="float export-panel" id="export-panel" hidden aria-labelledby="export-title">
       <div class="panel-head">
         <h2 id="export-title">Textual SysML v2</h2>
@@ -2729,7 +2848,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   Object.assign(lib, {
     VERSION, FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, NAME, MULTIPLICITY, str, isObject,
-    addKinds, addRelationships, attributeField,
+    conforms, addKinds, addRelationships, attributeField,
     canContain, admits, hasTrait, textName, blank, placement, versionOf, upgrade, normalize, index, relIndex, viewIndex,
     lookups, reading, perReading, idsOf, elementsOfKind, linesOfKind, linesFrom, linesTo, linesAt,
     shownIn, chain, childrenOf, descendants, typingOf, inUsage, specializes, commonOwner, acrossDefinitions,
@@ -4109,6 +4228,854 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   Object.assign(lib, { noteRecords, noteStatements });
 })(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/labels/lib.js
+// Label editing in the model library: what a label's text says (readLabel), the text a label's editor starts from
+// (labelText), and what that text changes in the model (applyLabel). It is SysON's direct edit, taken from SysON's user
+// manual (model-management.adoc, "Direct edit tool and shortcuts"; manage-labels-diagram.adoc) and from the inventory
+// in docs/sysml/syson/features/sysml-views.md ("Direct edit & label syntax"). The canvas draws no compartment rows, so
+// every label it edits is read the way SysON reads a node's label: prefix keywords, ref, a short name in <>, the name,
+// a multiplicity in [], then : Type, :> General and :>> Redefined, each with a multiplicity after it or not.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const { KINDS, RELATIONSHIPS, str, textName, idsOf, chain, childrenOf, linesFrom, typingOf, describe, describeRel, an, EXTRA } = lib;
+
+  // ---- Reading what was typed.
+
+  // The keywords a node's label may open with, each followed by white space, in any order (SysON's node rule), and
+  // ref after them. A keyword with no white space after it is the start of a name: abstractPart.
+  const PREFIX = /^(abstract|variation|variant|timeslice|snapshot)\s+/;
+  const REF = /^ref\s+/;
+  // The words that end a name or a reference when white space comes before them; what follows them is not read as the
+  // name. default opens a value; ordered and nonunique are a feature's suffixes, which a node's label doesn't take.
+  const CLOSING = /^\s(default|ordered|nonunique)(?![A-Za-z0-9_])/;
+  const MULTIPLICITY = /^(-?\d+|\*)(?:\s*\.\.\s*(-?\d+|\*))?$/;
+
+  // Where the name that starts at i ends: at a colon (:, :>, :>>, ::, :=), a bracket, an equals sign, or a closing word.
+  // The manual lists = among what a name can't hold, since it opens a value.
+  function nameEnd(text, i) {
+    for (let j = i; j < text.length; j++) {
+      const c = text[j];
+      if (c === ':' || c === '[' || c === '=') return j;
+      if (/\s/.test(c) && CLOSING.test(text.slice(j))) return j;
+    }
+    return text.length;
+  }
+  // Where a step of a reference that isn't quoted ends: as a name does, and at the :: before the next step.
+  const stepEnd = nameEnd;
+  // The quoted name that opens at i, as { name, end } (end just past the closing quote), or null when no quote closes
+  // it. The text writes \' for a quote inside it and \\ for a backslash.
+  function quoted(text, i) {
+    let name = '';
+    for (let j = i + 1; j < text.length; j++) {
+      const c = text[j];
+      if (c === '\\' && j + 1 < text.length) { name += text[++j]; continue; }
+      if (c === '\'') return { name: name, end: j + 1 };
+      name += c;
+    }
+    return null;
+  }
+  function skipSpace(text, i) {
+    while (i < text.length && /\s/.test(text[i])) i++;
+    return i;
+  }
+  // The reference that starts at i, after an operator: { steps, conjugated, end }. A step is a name, quoted or not; an
+  // unquoted one keeps its inner spaces (: My Type names My Type); :: goes from one step to the next. steps is null when
+  // nothing follows the operator, and bad is true when a step is empty (A::, ::B).
+  function readReference(text, i, tilde) {
+    let j = skipSpace(text, i);
+    let conjugated = false;
+    if (tilde && text[j] === '~') { conjugated = true; j = skipSpace(text, j + 1); }
+    const steps = [];
+    for (;;) {
+      j = skipSpace(text, j);
+      const q = text[j] === '\'' ? quoted(text, j) : null;
+      if (q) { steps.push(q.name); j = q.end; }
+      else { const e = stepEnd(text, j); steps.push(text.slice(j, e).trim()); j = e; }
+      const k = skipSpace(text, j);
+      if (text.startsWith('::', k) && text[k + 2] !== '>') { j = k + 2; continue; }
+      break;
+    }
+    if (steps.length === 1 && steps[0] === '') return { steps: null, conjugated: conjugated, end: j };
+    return { steps: steps, conjugated: conjugated, end: j, bad: steps.some((s) => s === '') };
+  }
+  // A reference as it was typed, for the words that say what wasn't kept.
+  function referenceText(steps) { return steps.map((s) => (/[\s:'[\]=]/.test(s) ? '\'' + s.replace(/\\/g, '\\\\').replace(/'/g, '\\\'') + '\'' : s)).join('::'); }
+
+  // What a label's text says, part by part, the way SysON's direct edit reads a node's label. Each part is there only
+  // when the text has it:
+  // - prefixes: the keywords before the name (abstract, variation, variant, timeslice, snapshot); ref: true after them;
+  // - short: the short name in <> before the name ('' for <>);
+  // - name: the name, its inner spaces kept and its ends trimmed; absent when the text starts with another part;
+  // - multiplicity: { text } with the bounds as the canvas writes them ('1..*'), '' for [], which takes it away;
+  // - typing (:), subsets (:>) and redefines (:>>): { steps, conjugated } for a reference (conjugated: the typing had ~),
+  //   or { remove: true } for an operator with nothing after it, which takes that part away when it is the first part
+  //   after the name, as in SysON;
+  // - value: what follows =, := or default, which a label never sets; suffixes: ordered or nonunique, which only a
+  //   compartment row takes;
+  // - unread: what couldn't be read (a multiplicity like [a], a second typing, a step after ::), as typed.
+  // blank is true when the text is nothing but white space, which takes the name away.
+  function readLabel(text) {
+    const s = str(text);
+    const out = { prefixes: [], ref: false, suffixes: [], unread: [], blank: s.trim() === '' };
+    if (out.blank) return out;
+    let i = skipSpace(s, 0);
+    for (let m = PREFIX.exec(s.slice(i)); m; m = PREFIX.exec(s.slice(i))) { out.prefixes.push(m[1]); i += m[0].length; }
+    const ref = REF.exec(s.slice(i));
+    if (ref) { out.ref = true; i += ref[0].length; }
+    const short = /^<([^>]*)>/.exec(s.slice(i));
+    if (short) { out.short = short[1].trim(); i += short[0].length; }
+    const end = nameEnd(s, i);
+    const name = s.slice(i, end).trim();
+    if (name) out.name = name;
+    i = end;
+    let first = true;   // no typing, subsetting or redefinition read yet
+    while ((i = skipSpace(s, i)) < s.length) {
+      const rest = s.slice(i);
+      if (rest[0] === '[') {
+        const close = s.indexOf(']', i);
+        if (close < 0) { out.unread.push(rest.trim()); break; }
+        const inner = s.slice(i + 1, close).trim();
+        const m = MULTIPLICITY.exec(inner);
+        if (out.multiplicity || (inner && !m)) out.unread.push('[' + inner + ']');
+        else out.multiplicity = { text: !inner ? '' : m[2] === undefined ? m[1] : m[1] + '..' + m[2] };
+        i = close + 1;
+        continue;
+      }
+      if (rest.startsWith(':=') || rest[0] === '=' || /^default(?![A-Za-z0-9_])/.test(rest)) { out.value = rest.trim(); break; }
+      const word = /^(ordered|nonunique)(?![A-Za-z0-9_])/.exec(rest);
+      if (word) { out.suffixes.push(word[1]); i += word[0].length; continue; }
+      const op = /^(::>|::|:>>|:>|:)/.exec(rest);
+      if (op) {
+        const r = readReference(s, i + op[1].length, op[1] === ':');
+        const typed = s.slice(i, r.end).trim();
+        i = r.end;
+        const part = op[1] === ':' ? 'typing' : op[1] === ':>' ? 'subsets' : op[1] === ':>>' ? 'redefines' : null;
+        // A reference subsetting (::>) and a bare :: have no rule in a node's label, and only one of :> and :>> is read.
+        const taken = part === 'typing' ? out.typing : out.subsets || out.redefines;
+        if (!part || r.bad || taken || (!r.steps && (!first || r.conjugated))) { out.unread.push(typed); first = false; continue; }
+        out[part] = r.steps ? { steps: r.steps, conjugated: r.conjugated } : { remove: true };
+        first = false;
+        continue;
+      }
+      // Anything else: up to where a name would end, or one character.
+      const e = Math.max(nameEnd(s, i + 1), i + 1);
+      out.unread.push(s.slice(i, e).trim());
+      i = e;
+    }
+    return out;
+  }
+
+  // ---- Finding what a reference names.
+
+  // The elements a simple name may mean, seen from an element (null: the package), nearest first, as SysON looks: the
+  // element's own members, then those of each owner going out, then the package's, then anywhere in the model. found is
+  // the first that accept(e) takes; near is the first element with the name, in scope, that it refuses, which says why
+  // nothing in scope fits. The element looked from is never one of them: SysON keeps a usage from finding itself.
+  function lookUp(model, from, steps, accept) {
+    const ids = idsOf(model);
+    if (steps.length > 1) {
+      // A qualified name is a path from the package: its first step the package's name, or an element at the top.
+      let path = steps.slice();
+      if (path[0] === str(model.package && model.package.name).trim() && path.length > 1) path = path.slice(1);
+      let at = null;
+      for (const step of path) {
+        at = childrenOf(model, at ? at.id : null).find((c) => textName(c) === step) || null;
+        if (!at) return { found: null, near: null };
+      }
+      return accept(at) ? { found: at, near: null } : { found: null, near: at };
+    }
+    const name = steps[0];
+    const scopes = from ? chain(model, from, ids).reverse().map((e) => e.id) : [];
+    scopes.push(null);
+    let near = null;
+    for (const scope of scopes) {
+      for (const c of childrenOf(model, scope)) {
+        if (textName(c) !== name || (from && c.id === from.id)) continue;
+        if (accept(c)) return { found: c, near: null };
+        if (!near) near = c;
+      }
+    }
+    const anywhere = model.elements.find((e) => textName(e) === name && (!from || e.id !== from.id) && accept(e));
+    return { found: anywhere || null, near: anywhere ? null : near };
+  }
+  // A name as a step of a reference in a label: as it is, when reading it back gives it whole; else quoted.
+  function stepText(name) {
+    const plain = name !== '' && name === name.trim() && name[0] !== '\'' && name[0] !== '~' && name[0] !== '<' &&
+      nameEnd(name, 0) === name.length && name.indexOf('::') < 0;
+    return plain ? name : '\'' + name.replace(/\\/g, '\\\\').replace(/'/g, '\\\'') + '\'';
+  }
+  // How a label names target, seen from an element: by its name when that finds it, else by its path from the package.
+  // null when the target, or something it is in, has no name to give.
+  function reference(model, from, target, accept) {
+    const name = textName(target);
+    if (!name) return null;
+    if (lookUp(model, from, [name], accept).found === target) return stepText(name);
+    const steps = chain(model, target).map(textName);
+    if (steps.some((s) => !s)) return null;
+    return [str(model.package && model.package.name).trim() || 'Model'].concat(steps).map(stepText).join('::');
+  }
+
+  // ---- The text an editor starts from.
+
+  // The lines whose label can be edited, and how much of it: SysON edits a binding's, a flow's, an interface's and a
+  // connection's name, typing and multiplicity only (restricted), and a succession's with the whole rule. A message is
+  // a flow too. A transition's label (trigger [guard] / effect) is not edited, and neither are the specialization and
+  // defined-by lines, which have none.
+  const LINE_LABELS = {
+    ConnectionUsage: 'restricted', InterfaceUsage: 'restricted', FlowConnectionUsage: 'restricted',
+    BindingConnectorAsUsage: 'restricted', Message: 'restricted', SuccessionAsUsage: 'whole'
+  };
+  // Whether an element's or a line's label can be edited: an element with a name in the text (not a start, a done or
+  // an initial node), a line of LINE_LABELS. type is 'el' or 'rel'.
+  function labelEditable(type, item) {
+    if (!item) return false;
+    if (type === 'el') return !!KINDS[item.kind] && textName(item) !== null;
+    return type === 'rel' && !!LINE_LABELS[item.kind];
+  }
+  // Whether a browser row can be renamed: an element with a name in the text, or a line with a name.
+  function renamable(type, item) {
+    if (!item) return false;
+    if (type === 'el') return !!KINDS[item.kind] && textName(item) !== null;
+    return type === 'rel' && !!RELATIONSHIPS[item.kind] && RELATIONSHIPS[item.kind].fields.indexOf('name') >= 0;
+  }
+  // The element a line is declared in (null: the package), which its references are looked up from.
+  function lineHome(model, rel) {
+    const ids = idsOf(model);
+    const owner = RELATIONSHIPS[rel.kind].owner ? RELATIONSHIPS[rel.kind].owner(model, rel, ids) : null;
+    return owner ? ids.get(owner) || null : null;
+  }
+  // What a usage's typing may end on, and what an element may specialize: an element of the kind the usage is defined
+  // by; an element of its own kind, never itself, and for a usage one in the same box.
+  function typeTaker(el) { return (e) => e.kind === KINDS[el.kind].definedBy; }
+  function generalTaker(el) {
+    const usage = KINDS[el.kind].usage;
+    return (e) => e !== el && e.id !== el.id && e.kind === el.kind && (!usage || e.owner === el.owner);
+  }
+  // The text a label's editor starts from, as SysON's: the name, the multiplicity right after it, then : Type (with ~
+  // for a conjugated port) and :> General. A definition's label has no keyword before its name: SysON's starts with the
+  // prefixes a usage has set (abstract, ref…), and a usage here holds none. A line's is its name, and an interface's
+  // : Def after it. target is { type: 'el' or 'rel', item }.
+  function labelText(model, target) {
+    const item = target.item;
+    const ids = idsOf(model);
+    if (target.type === 'rel') {
+      let s = str(item.name).trim();
+      const def = item.kind === 'InterfaceUsage' && item.interfaceDef ? ids.get(item.interfaceDef) : null;
+      const ref = def ? reference(model, lineHome(model, item), def, (e) => e.kind === 'InterfaceDefinition') : null;
+      if (ref) s += ' : ' + ref;
+      return s.trim();
+    }
+    const el = item;
+    const kind = KINDS[el.kind];
+    let s = textName(el) || '';
+    if (kind.fields.indexOf('multiplicity') >= 0 && str(el.multiplicity).trim()) s += '[' + str(el.multiplicity).trim() + ']';
+    if (kind.usage) {
+      const typing = typingOf(model, el);
+      const def = typing ? ids.get(typing.to) : null;
+      const ref = def ? reference(model, el, def, typeTaker(el)) : null;
+      if (ref) s += ' : ' + (el.conjugated && kind.fields.indexOf('conjugated') >= 0 ? '~' : '') + ref;
+    }
+    const general = linesFrom(model, el.id, 'Specialization').map((r) => ids.get(r.to)).find(Boolean);
+    const ref = general ? reference(model, el, general, generalTaker(el)) : null;
+    if (ref) s += ' :> ' + ref;
+    return s.trim();
+  }
+
+  // ---- What a label's text changes.
+
+  // Makes what a label's text says in the model, in place: the page calls it inside edit(). target is { type: 'el' or
+  // 'rel', item } and text what was typed. make gives a new element or line the page's way: make.element(kind, name,
+  // owner) and make.line(kind, from, to) return a new plain object, with its id and its fields at their starting values.
+  // Returns what happened:
+  // - done: what it changed, in words ("renamed it engine", "defined it by Wheel, a new part def"); nothing changed
+  //   when it is empty;
+  // - created: the elements it made, as the model holds them;
+  // - notKept: the parts of the text the canvas doesn't hold yet (a short name, ref, a redefinition, a value…), as
+  //   typed;
+  // - unread: what couldn't be read, as typed;
+  // - refused: sentences saying why a part wasn't made (a definition of another kind, a circle).
+  // As in SysON, a part the text leaves out stays as it was (a name alone keeps the type), and a part that can't be
+  // made leaves the others to be made. Keywords a usage here can't hold (abstract, variation, ref…) are not kept;
+  // on a definition, SysON leaves them aside, and its abstract stays as it is.
+  function applyLabel(model, target, text, make) {
+    const parts = readLabel(text);
+    const item = target.item;
+    const res = { done: [], created: [], notKept: [], unread: parts.unread.slice(), refused: [] };
+    const line = target.type === 'rel';
+    if (!labelEditable(target.type, item)) return res;
+    const restricted = line && LINE_LABELS[item.kind] === 'restricted';
+    const kind = line ? null : KINDS[item.kind];
+    const has = (fld) => (line ? RELATIONSHIPS[item.kind].fields : kind.fields).indexOf(fld) >= 0;
+    const usage = line || kind.usage;   // a connector is a usage too
+    // The name: the whole text blank takes it away; a text without one keeps it.
+    if (parts.blank) {
+      if (str(item.name) !== '') { item.name = ''; res.done.push('took its name away'); }
+      return res;
+    }
+    if (parts.name !== undefined && parts.name !== str(item.name)) { item.name = parts.name; res.done.push('renamed it ' + parts.name); }
+    // What the canvas doesn't hold yet: a usage's keywords (a definition's are left aside, as SysON does), a short name.
+    parts.prefixes.forEach((p) => { if (usage && p !== 'variant') res.notKept.push(p); });
+    if (parts.ref && usage) res.notKept.push('ref');
+    if (parts.short) res.notKept.push('<' + parts.short + '>');
+    // The multiplicity, on what has one.
+    if (parts.multiplicity) {
+      const m = parts.multiplicity.text;
+      if (has('multiplicity')) {
+        if (str(item.multiplicity) !== m) { item.multiplicity = m; res.done.push(m ? 'set its multiplicity to ' + m : 'took its multiplicity away'); }
+      } else if (m) res.notKept.push('[' + m + ']');
+    }
+    if (parts.typing) applyTyping(model, target, parts.typing, make, res);
+    if (parts.subsets) {
+      if (line) { if (!restricted && !parts.subsets.remove) res.notKept.push(':> ' + referenceText(parts.subsets.steps)); }
+      else applySpecialization(model, item, parts.subsets, make, res);
+    }
+    if (parts.redefines && !parts.redefines.remove && !restricted) res.notKept.push(':>> ' + referenceText(parts.redefines.steps));
+    if (parts.value) res.notKept.push(parts.value);
+    parts.suffixes.forEach((s) => res.notKept.push(s));
+    return res;
+  }
+  // A new element, as the model holds it.
+  function addElement(model, make, kind, name, owner) {
+    const el = make.element(kind, name, owner);
+    if (owner === undefined || owner === null) delete el.owner; else el.owner = owner;
+    model.elements.push(el);
+    return model.elements[model.elements.length - 1];
+  }
+  function addLine(model, make, kind, from, to) {
+    const rel = make.line(kind, from, to);
+    model.relationships.push(rel);
+    return model.relationships[model.relationships.length - 1];
+  }
+  // The definition a reference names, or a new one when a simple name names nothing in scope, as SysON makes the
+  // definition a typing names when it finds none: of kind, at the top of the package (definitions here are never
+  // inside anything), or in owner. refuse(near) gives the sentence when something in scope has the name but can't be
+  // it. Nothing is made beside something with the same name (the element edited, say: x :> x), which the checks would
+  // refuse. Returns { el, created } or null when refused.
+  function resolveOrMake(model, from, part, accept, kind, make, res, refuse, nothingThere, owner) {
+    const look = lookUp(model, from, part.steps, accept);
+    if (look.found) return { el: look.found, created: false };
+    if (look.near) { res.refused.push(refuse(look.near)); return null; }
+    if (part.steps.length > 1 || part.conjugated || !kind) { res.refused.push(nothingThere()); return null; }
+    const taken = childrenOf(model, owner === undefined ? null : owner).find((c) => textName(c) === part.steps[0]);
+    if (taken) {
+      res.refused.push(taken === from || (from && taken.id === from.id)
+        ? describe(model, taken) + ' can\'t be ' + (KINDS[kind].definition ? 'defined by' : 'made to ' + (KINDS[taken.kind].usage ? 'subset' : 'specialize')) + ' itself.'
+        : describe(model, taken) + ' already has the name ' + part.steps[0] + ' there, so no ' + KINDS[kind].label + ' of that name is made.');
+      return null;
+    }
+    const el = addElement(model, make, kind, part.steps[0], owner);
+    res.created.push(el);
+    return { el: el, created: true };
+  }
+  // : Type. A usage is defined by the definition it names (made when none has the name), its typing taking the new end
+  // so the notes on it stay; ~ conjugates a port. An interface is defined by an interface def. A definition's typing is
+  // left aside, as SysON does; what can't be defined by anything here isn't kept. A lone : takes the typing away.
+  function applyTyping(model, target, typing, make, res) {
+    const item = target.item;
+    const ids = idsOf(model);
+    if (target.type === 'rel') {
+      if (item.kind !== 'InterfaceUsage') { if (!typing.remove) res.notKept.push(': ' + (typing.conjugated ? '~' : '') + referenceText(typing.steps)); return; }
+      if (typing.remove) { if (item.interfaceDef) { item.interfaceDef = ''; res.done.push('took its interface def away'); } return; }
+      if (typing.conjugated) { res.refused.push('Only a port\'s definition is conjugated with ~; an interface isn\'t.'); return; }
+      const got = resolveOrMake(model, lineHome(model, item), typing, (e) => e.kind === 'InterfaceDefinition', 'InterfaceDefinition', make, res,
+        (near) => 'The interface ' + (str(item.name).trim() || '(unnamed)') + ' can only be defined by an interface def; ' + describe(model, near, ids) + ' isn\'t one.',
+        () => 'There is no interface def ' + referenceText(typing.steps) + ' to define the interface by.');
+      if (got && item.interfaceDef !== got.el.id) {
+        item.interfaceDef = got.el.id;
+        res.done.push('defined it by ' + textName(got.el) + (got.created ? ', a new interface def' : ''));
+      }
+      return;
+    }
+    const el = item;
+    const kind = KINDS[el.kind];
+    if (kind.definition) return;
+    const conj = kind.fields.indexOf('conjugated') >= 0;
+    if (!kind.definedBy || kind.fields.indexOf('type') < 0) {
+      if (!typing.remove) res.notKept.push(': ' + (typing.conjugated ? '~' : '') + referenceText(typing.steps));
+      return;
+    }
+    const current = typingOf(model, el);
+    if (typing.remove) {
+      if (current) { model.relationships.splice(model.relationships.indexOf(current), 1); res.done.push('took its definition away'); }
+      if (conj && el.conjugated) { el.conjugated = false; if (!current) res.done.push('unconjugated it'); }
+      return;
+    }
+    if (typing.conjugated && !conj) { res.refused.push(an(kind.label, true) + ' isn\'t conjugated with ~; only a port is.'); return; }
+    const defLabel = KINDS[kind.definedBy] ? KINDS[kind.definedBy].label : kind.definedBy;
+    const got = resolveOrMake(model, el, typing, typeTaker(el), kind.definedBy, make, res,
+      (near) => RELATIONSHIPS.FeatureTyping.ends(model, el, near, ids) || describe(model, el, ids) + ' can only be defined by ' + an(defLabel) + '.',
+      () => typing.conjugated && typing.steps.length === 1
+        ? 'There is no ' + defLabel + ' ' + referenceText(typing.steps) + ' to conjugate.'
+        : 'There is no ' + defLabel + ' at ' + referenceText(typing.steps) + ' to define ' + describe(model, el, ids) + ' by.');
+    if (!got) return;
+    const def = got.el;
+    let retyped = false;
+    if (!current) {
+      const rel = addLine(model, make, 'FeatureTyping', el.id, def.id);
+      rel.hidden = true;   // a new typing shows as text, as one picked in the panel does
+      retyped = true;
+    } else if (current.to !== def.id) { current.to = def.id; retyped = true; }
+    const flipped = conj && !!el.conjugated !== !!typing.conjugated;
+    if (flipped) el.conjugated = !!typing.conjugated;
+    if (retyped) res.done.push('defined it by ' + (typing.conjugated ? '~' : '') + textName(def) + (got.created ? ', a new ' + defLabel : ''));
+    else if (flipped) res.done.push(typing.conjugated ? 'conjugated it' : 'unconjugated it');
+  }
+  // :> General. A definition specializes the definition it names, a usage subsets the usage it names in the same box
+  // (the canvas's one line for both); the first such line takes the new end, or a new line is drawn. A simple name
+  // that names nothing in scope makes the general one, as SysON does: a definition at the top of the package, a usage
+  // beside the one that subsets it (SysON puts it in the package; here a subsetted usage must sit in the same box). The
+  // canvas's rules for the line stand (same kind, same box, no circle). A lone :> takes the first line away.
+  function applySpecialization(model, el, part, make, res) {
+    const ids = idsOf(model);
+    const kind = KINDS[el.kind];
+    const first = linesFrom(model, el.id, 'Specialization')[0] || null;
+    const verb = kind.usage ? 'subset' : 'specialize';
+    if (part.remove) {
+      if (first) { model.relationships.splice(model.relationships.indexOf(first), 1); res.done.push('took its ' + (kind.usage ? 'subsetting' : 'specialization') + ' away'); }
+      return;
+    }
+    const got = resolveOrMake(model, el, part, generalTaker(el), el.kind, make, res,
+      (near) => RELATIONSHIPS.Specialization.ends(model, el, near, ids) || describe(model, el, ids) + ' can\'t ' + verb + ' ' + describe(model, near, ids) + '.',
+      () => 'There is no ' + kind.label + ' at ' + referenceText(part.steps) + ' for ' + describe(model, el, ids) + ' to ' + verb + '.',
+      kind.usage ? el.owner : undefined);
+    if (!got) return;
+    const general = got.el;
+    if (linesFrom(model, el.id, 'Specialization').some((r) => r.to === general.id)) return;
+    const problem = RELATIONSHIPS.Specialization.ends(model, el, general, idsOf(model));
+    if (problem) { res.refused.push(problem); return; }
+    if (first) first.to = general.id; else addLine(model, make, 'Specialization', el.id, general.id);
+    res.done.push((kind.usage ? 'made it subset ' : 'made it specialize ') + textName(general) + (got.created ? ', a new ' + kind.label : ''));
+  }
+
+  // What a label edit says: { what, log } for edit() (the Undo button's words, and the log's), from what applyLabel
+  // returned; null when it changed nothing. target is the item after the change.
+  function labelWords(model, target, res) {
+    if (!res.done.length) return null;
+    const what = 'Edited the label of ' + (target.type === 'rel' ? 'the ' + describeRel(model, target.item) : describe(model, target.item));
+    return { what: what, log: what + ': ' + res.done.join(', ') };
+  }
+  // The status line's sentences for what a label edit couldn't make: the refusals, what isn't kept, what wasn't read.
+  function labelLeftOut(res) {
+    const out = res.refused.slice();
+    if (res.notKept.length) out.push('Not kept, as the canvas doesn\'t hold it yet: ' + res.notKept.join(', ') + '.');
+    if (res.unread.length) out.push('Couldn\'t read: ' + res.unread.join(', ') + '.');
+    return out.join(' ');
+  }
+
+  EXTRA.readLabel = readLabel;
+  EXTRA.labelText = labelText;
+  EXTRA.applyLabel = applyLabel;
+  EXTRA.labelEditable = labelEditable;
+  EXTRA.renamable = renamable;
+  EXTRA.labelWords = labelWords;
+  EXTRA.labelLeftOut = labelLeftOut;
+  EXTRA.LINE_LABELS = LINE_LABELS;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/details/lib.js
+// The details view in the model library, as SysON's: what its two tabs hold for an element, a line or a view, from the
+// metaclass it stands on. SysON's Details view (its user manual's details.adoc; docs/sysml/syson/features/views.md,
+// "Details view & property forms") shows a Core tab, a group titled "<Metaclass> Properties" with the metaclass's core
+// features (the declared name, the qualified name, the declared short name, a feature's direction, isIndividual,
+// isParallel…) and then untitled groups (Typed by, Specializes, Subsets…); and an Advanced tab, the same title over
+// every other attribute of the metaclass, in the metamodel's order, inherited first. The canvas holds some of those
+// attributes as fields, can say the value of a few more (an element's id, its name), and can't set the rest yet; each
+// row says which. The Specializes and Subsets fields are here too: the first specialization line an element starts,
+// which the panel retargets or takes away, as SysON's widgets edit an element's Subclassification and Subsetting.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const {
+    METAMODEL, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, conforms, textName, idsOf, chain, childrenOf, linesFrom, specializes,
+    elementsOfKind, quote, qualified, describe, EXTRA
+  } = lib;
+
+  // ---- Specializes and Subsets.
+
+  // What an element's first specialization line may end on: an element of its own kind, never itself, never one that
+  // specializes it already (a circle), and for a usage one in the same box, as the line's rule says.
+  function generals(model, el) {
+    const usage = KINDS[el.kind].usage;
+    return elementsOfKind(model, el.kind).filter((e) => e.id !== el.id && (!usage || e.owner === el.owner) && !specializes(model, e, el));
+  }
+  Object.assign(FIELDS, {
+    // A definition's first Specialization line (SysON's Subclassification: Specializes), and a usage's (its
+    // Subsetting: Subsets). Not a value of the element but the line, as the definition is the usage's typing: the
+    // panel shows it while the element has such a line, and picking nothing takes the line away.
+    specializes: { type: 'ref', label: 'specialization', stored: false, options: generals },
+    subsets: { type: 'ref', label: 'subsetting', stored: false, options: generals },
+  });
+  // Every kind with a name in the text lists the one that fits it.
+  Object.keys(KINDS).forEach((kind) => {
+    if (textName({ kind: kind }) === null) return;
+    KINDS[kind].fields.push(KINDS[kind].definition ? 'specializes' : 'subsets');
+  });
+  // The first Specialization line an element starts, or null.
+  function firstGeneral(model, el) { return linesFrom(model, el.id, 'Specialization')[0] || null; }
+
+  // ---- The tabs.
+
+  // A name of the metamodel in words, as EMF shows a feature's: declaredName is Declared Name, elementId Element Id.
+  function words(name) {
+    return name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
+  }
+  // The groups' title: the metaclass in words, a usage's without "Usage", then "Properties" (Part Properties, Part
+  // Definition Properties).
+  function detailsTitle(metaclass) { return words(metaclass).replace(/ Usage$/, '') + ' Properties'; }
+  // The class an item stands on: its kind's, its relationship kind's, or a view's, ViewUsage. type is 'el', 'rel' or
+  // 'view'.
+  function metaclassOf(type, item) {
+    return type === 'el' ? KINDS[item.kind].metaclass : type === 'rel' ? RELATIONSHIPS[item.kind].metaclass : 'ViewUsage';
+  }
+  // SysON's core features of a class, in its order: every element's names; a feature's direction; isIndividual on an
+  // occurrence usage (not a port, a state or a view, which show a feature's set only) and on an occurrence definition,
+  // where it takes isAbstract's place; isAbstract on any other type that isn't a feature; isParallel on a state; a view's
+  // exposed elements; a specialization's general and specific ends, and a typing's type and typed feature.
+  function coreFeatures(metaclass) {
+    const is = (c) => conforms(metaclass, c);
+    const out = ['declaredName', 'qualifiedName', 'declaredShortName'];
+    if (is('Specialization')) {
+      out.push('general', 'specific');
+      if (is('FeatureTyping')) out.push('type', 'typedFeature');
+      return out;
+    }
+    if (is('Feature')) out.push('direction');
+    const featureSet = is('PortUsage') || is('StateUsage') || is('ViewUsage') || is('RequirementUsage');
+    if (is('OccurrenceUsage') && !featureSet) out.push('isIndividual');
+    if (is('Type') && !is('Feature') && !is('OccurrenceDefinition')) out.push('isAbstract');
+    if (is('OccurrenceDefinition')) out.push('isIndividual');
+    if (is('StateUsage') || is('StateDefinition')) out.push('isParallel');
+    if (is('ViewUsage')) out.push('exposedElement');
+    return out;
+  }
+  // Every feature of a class, its own and those it has from its supertypes, supertypes first, in the metamodel's order,
+  // each once: { feature, of }.
+  function allFeatures(metaclass) {
+    const out = [];
+    const seen = new Set();
+    const names = new Set();
+    (function walk(name) {
+      if (seen.has(name) || !METAMODEL[name]) return;
+      seen.add(name);
+      (METAMODEL[name].general || []).forEach(walk);
+      (METAMODEL[name].fields || []).forEach((f) => { if (!names.has(f.name)) { names.add(f.name); out.push({ feature: f, of: name }); } });
+    })(metaclass);
+    return out;
+  }
+  // Whether a feature is an attribute SysON's tabs show a widget for: one value, of a primitive type or an enumeration.
+  // A list (aliasIds) and a reference get none here; SysON shows the changeable references, which the canvas edits as
+  // its lines and its Typed by, Specializes and Subsets.
+  function shownAttribute(f) {
+    const primitive = ['Boolean', 'String', 'Integer', 'Real'].indexOf(f.type) >= 0 || !!(METAMODEL[f.type] && METAMODEL[f.type].literals);
+    return primitive && f.upper !== '*';
+  }
+  // The fields an item's kind lists, by the attribute each holds.
+  function heldFields(type, item) {
+    const table = type === 'el' ? KINDS : type === 'rel' ? RELATIONSHIPS : null;
+    const list = table ? table[item.kind].fields : VIEW_KINDS[item.kind].fields;
+    const out = {};
+    list.forEach((fld) => { if (FIELDS[fld] && FIELDS[fld].attribute) out[FIELDS[fld].attribute] = fld; });
+    return out;
+  }
+  // The qualified name of a line: the path of the element it is declared in, or the package, and its name; '' while
+  // it has none.
+  function lineQualified(model, rel, ids) {
+    const name = String(rel.name || '').trim();
+    if (!name) return '';
+    const owner = RELATIONSHIPS[rel.kind].owner ? RELATIONSHIPS[rel.kind].owner(model, rel, ids) : null;
+    const home = owner ? ids.get(owner) : null;
+    return (home ? qualified(model, home, ids) : quote(model.package.name)) + '::' + quote(name);
+  }
+  // The value the canvas knows for an attribute or end it doesn't keep as a field, or undefined when it can't say: the
+  // element's id; its name, as it is written; its qualified name; that it is not a library's; a line's ends.
+  function knownValue(model, type, item, name, ids) {
+    if (name === 'elementId') return item.id;
+    if (name === 'isLibraryElement') return false;
+    if (name === 'name') {
+      // An element whose kind has no name in the text (a start node) has none to give; an unnamed one's is empty.
+      if (type === 'el') { const n = textName(item); return n === null ? undefined : n; }
+      return type === 'view' || RELATIONSHIPS[item.kind].fields.indexOf('name') >= 0 ? String(item.name || '').trim() : undefined;
+    }
+    if (type === 'view' && name === 'exposedElement') {
+      // What the view shows: a browser view every element under its roots; any other view what its layout holds.
+      if (VIEW_KINDS[item.kind].renderer === 'browser') return 'every element under its roots';
+      const shown = Object.keys(item.layout || {}).map((id) => ids.get(id)).filter(Boolean)
+        .map((e) => (textName(e) === null ? KINDS[e.kind].label : textName(e) || '(unnamed)'));
+      return shown.length ? shown.slice(0, 6).join(', ') + (shown.length > 6 ? ' and ' + (shown.length - 6) + ' more' : '') : 'nothing yet';
+    }
+    if (name === 'qualifiedName') {
+      if (type === 'el') return qualified(model, item, ids);
+      if (type === 'view') return quote(model.package.name) + '::' + quote(String(item.name || '').trim() || 'unnamed');
+      return lineQualified(model, item, ids);
+    }
+    if (type === 'rel' && (name === 'general' || name === 'type' || name === 'specific' || name === 'typedFeature')) {
+      const end = ids.get(name === 'general' || name === 'type' ? item.to : item.from);
+      return end ? describe(model, end, ids) : undefined;
+    }
+    return undefined;
+  }
+  // What the details view shows for an item (type 'el', 'rel' or 'view'): { metaclass, title, core, advanced }. core
+  // is a row per core feature, in SysON's order; advanced a row per other attribute of the metaclass, supertypes'
+  // first. A row is { name, label, field } when a field of the item's kind holds it (the panel's own input), { name,
+  // label, value } when the canvas knows its value (shown, not edited), or { name, label, held: false } when the canvas
+  // can't set it yet.
+  function detailsOf(model, type, item) {
+    const ids = idsOf(model);
+    const metaclass = metaclassOf(type, item);
+    const held = heldFields(type, item);
+    const row = (name) => {
+      const label = words(name);
+      if (held[name]) return { name: name, label: label, field: held[name] };
+      const value = knownValue(model, type, item, name, ids);
+      return value === undefined ? { name: name, label: label, held: false } : { name: name, label: label, value: value };
+    };
+    const core = coreFeatures(metaclass);
+    const advanced = allFeatures(metaclass).filter((x) => shownAttribute(x.feature) && core.indexOf(x.feature.name) < 0).map((x) => row(x.feature.name));
+    return { metaclass: metaclass, title: detailsTitle(metaclass), core: core.map(row), advanced: advanced };
+  }
+
+  EXTRA.detailsOf = detailsOf;
+  EXTRA.detailsTitle = detailsTitle;
+  EXTRA.coreFeatures = coreFeatures;
+  EXTRA.firstGeneral = firstGeneral;
+  EXTRA.generals = generals;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
+// ==== src/validation/lib.js
+// The SysML v2 specification's validation rules in the model library, as SysON runs them (docs/sysml/syson/features/
+// model.md, "Validation & model checks"; its user manual's validation.adoc): each rule has the name the specification
+// gives it (validate<Metaclass>…), a metaclass, and a check; every element of that metaclass or a subclass is checked
+// against it, and each one that breaks it gives a diagnostic, a warning, as all of SysON's are. The specification has
+// 388 such rules (the pilot implementation's SysML.uml at the release the canvas's metamodel comes from: 180 validate
+// rules and 208 check rules); SysON 2026.11.0 runs 383. The check rules ask for what the SysML parser adds to any text
+// (the library's specializations, binding connectors, redefinitions), so the canvas's text meets them; most validate
+// rules are about what the canvas doesn't make (variations, individuals, expressions, requirements). These are the ones
+// what the canvas holds can break, each written from the specification's constraint, in the canvas's words.
+(function (root) {
+  'use strict';
+  const lib = root.SysMLModelLib;
+  const {
+    KINDS, RELATIONSHIPS, conforms, str, textName, idsOf, reading, childrenOf, linesOfKind, linesFrom, linesTo, typingOf,
+    describe, describeRel, qualified, quote, EXTRA
+  } = lib;
+
+  // The metaclass an element or a line has in the text: its kind's, or for an action that sends or accepts something,
+  // SendActionUsage or AcceptActionUsage, as the text writes it.
+  function textMetaclass(type, item) {
+    if (type === 'rel') return RELATIONSHIPS[item.kind].metaclass;
+    if (item.kind === 'ActionUsage' && item.actionKind === 'send' && (str(item.payload).trim() || str(item.target).trim())) return 'SendActionUsage';
+    if (item.kind === 'ActionUsage' && item.actionKind === 'accept' && str(item.payload).trim()) return 'AcceptActionUsage';
+    return KINDS[item.kind].metaclass;
+  }
+  const isState = (el) => !!el && conforms(KINDS[el.kind].metaclass, 'StateUsage');
+  const isStateOwner = (el) => !!el && (conforms(KINDS[el.kind].metaclass, 'StateUsage') || conforms(KINDS[el.kind].metaclass, 'StateDefinition'));
+  const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
+  // A multiplicity's bounds, as the canvas writes them (4, 1..*), each a string; null for none.
+  function bounds(m) {
+    const s = str(m).trim();
+    return s ? s.split('..').map((b) => b.trim()) : null;
+  }
+  // The members of each namespace, by its id ('' for the package), grouped by name: its elements, the named lines
+  // declared in it, and the package's views, each { item, name, metaclass }; the members with no name are left out,
+  // since a name is what could make two of them alike.
+  function membersOf(model, ids) {
+    const out = new Map();
+    const add = (home, item, name, metaclass) => {
+      if (!name) return;
+      if (!out.has(home)) out.set(home, new Map());
+      const byName = out.get(home);
+      if (!byName.has(name)) byName.set(name, []);
+      byName.get(name).push({ item: item, name: name, metaclass: metaclass });
+    };
+    model.elements.forEach((e) => add(e.owner === undefined ? '' : e.owner, e, textName(e), textMetaclass('el', e)));
+    model.relationships.forEach((r) => {
+      const kind = RELATIONSHIPS[r.kind];
+      if (kind.fields.indexOf('name') < 0 || !str(r.name).trim()) return;
+      const owner = kind.owner ? kind.owner(model, r, ids) : null;
+      add(owner || '', r, str(r.name).trim(), textMetaclass('rel', r));
+    });
+    model.views.forEach((v) => add('', v, str(v.name).trim(), 'ViewUsage'));
+    return out;
+  }
+
+  // The rules. check(model, item, ctx) returns null when the item keeps the rule, or the sentence saying how it breaks
+  // it; ctx holds ids, the model's element index, and members, each namespace's members.
+  const RULES = [
+    { name: 'validateNamespaceDistinguishibility', metaclass: 'Namespace',
+      // Two members can't be told apart when they have the same name and one's metaclass is the other's or a kind of
+      // it (the specification's isDistinguishableFrom); a part and a port of one name can be.
+      check: function (model, item, ctx) {
+        const byName = ctx.members.get(item === null ? '' : item.id);
+        if (!byName) return null;
+        for (const members of byName.values()) {
+          for (let i = 0; i < members.length; i++) {
+            for (let j = i + 1; j < members.length; j++) {
+              const a = members[i];
+              const b = members[j];
+              if (!(conforms(a.metaclass, b.metaclass) || conforms(b.metaclass, a.metaclass))) continue;
+              return 'Its members ' + say(model, a.item, ctx) + ' and ' + say(model, b.item, ctx) + ' have the same name, and one is a kind of the other, so they can\'t be told apart.';
+            }
+          }
+        }
+        return null;
+      } },
+    { name: 'validateFeatureEndMultiplicity', metaclass: 'Feature',
+      // An end feature's multiplicity is 1..1. The canvas's ends are the ports of an interface def.
+      check: function (model, el, ctx) {
+        const owner = el.owner !== undefined ? ctx.ids.get(el.owner) : null;
+        if (el.kind !== 'PortUsage' || !owner || owner.kind !== 'InterfaceDefinition') return null;
+        const b = bounds(el.multiplicity);
+        if (!b || (b.every((x) => x === '1'))) return null;
+        return 'An end of an interface def has the multiplicity 1..1; ' + describe(model, el, ctx.ids) + ' has [' + str(el.multiplicity).trim() + '].';
+      } },
+    { name: 'validateMultiplicityRangeBoundResultTypes', metaclass: 'MultiplicityRange', of: 'multiplicity',
+      // The bounds of a multiplicity are integers, none of them below 0 (* is the unbounded one).
+      check: function (model, el, ctx) {
+        const b = bounds(el.multiplicity);
+        if (!b || b.every((x) => x === '*' || /^\d+$/.test(x))) return null;
+        return 'A multiplicity\'s bounds are whole numbers, 0 or more, or *; ' + describe(model, el, ctx.ids) + ' has [' + str(el.multiplicity).trim() + '].';
+      } },
+    { name: 'validateTransitionUsageTriggerActions', metaclass: 'TransitionUsage',
+      // Only a transition out of a state has a trigger.
+      check: function (model, rel, ctx) {
+        const source = ctx.ids.get(rel.from);
+        if (!source || isState(source) || !str(rel.trigger).trim()) return null;
+        return 'Only a transition out of a state has a trigger; the ' + describeRel(model, rel, ctx.ids) + ' leaves ' + describe(model, source, ctx.ids) + ' and has the trigger ' + str(rel.trigger).trim() + '.';
+      } },
+    { name: 'validateStateUsageParallelSubactions', metaclass: 'StateUsage', check: parallelSubactions },
+    { name: 'validateStateDefinitionParallelSubactions', metaclass: 'StateDefinition', check: parallelSubactions },
+    { name: 'validateStateUsageStateSubactionKind', metaclass: 'StateUsage', check: subactionKinds },
+    { name: 'validateStateDefinitionStateSubactionKind', metaclass: 'StateDefinition', check: subactionKinds },
+    { name: 'validateControlNodeOwningType', metaclass: 'ControlNode',
+      // A control node is owned by an action def or an action.
+      check: function (model, el, ctx) {
+        const owner = el.owner !== undefined ? ctx.ids.get(el.owner) : null;
+        const mc = owner ? KINDS[owner.kind].metaclass : null;
+        if (mc && (conforms(mc, 'ActionDefinition') || conforms(mc, 'ActionUsage'))) return null;
+        return 'A control node belongs to an action def or an action; ' + describe(model, el, ctx.ids) + (owner ? ' is in ' + describe(model, owner, ctx.ids) : ' is on its own') + '.';
+      } },
+    { name: 'validateForkNodeIncomingSuccessions', metaclass: 'ForkNode', check: successions('into', 'fork') },
+    { name: 'validateDecisionNodeIncomingSuccessions', metaclass: 'DecisionNode', check: successions('into', 'decision') },
+    { name: 'validateJoinNodeOutgoingSuccessions', metaclass: 'JoinNode', check: successions('outOf', 'join') },
+    { name: 'validateMergeNodeOutgoingSuccessions', metaclass: 'MergeNode', check: successions('outOf', 'merge') },
+    { name: 'validateSendActionUsagePayloadArgument', metaclass: 'SendActionUsage',
+      // A send action that is a state's entry, do or exit action has a payload.
+      check: function (model, el, ctx) {
+        const owner = el.owner !== undefined ? ctx.ids.get(el.owner) : null;
+        if (!el.role || !isStateOwner(owner) || str(el.payload).trim()) return null;
+        return 'A send action that is a state\'s ' + el.role + ' action says what it sends; ' + describe(model, el, ctx.ids) + ' has no payload.';
+      } },
+    { name: 'validateRedefinitionDirectionConformance', metaclass: 'Redefinition', of: 'redefinition',
+      // A parameter of a typed action redefines its definition's parameter of the same name: one that goes in or out
+      // goes the same way, and one that redefines an inout parameter has a direction.
+      check: function (model, el, ctx) {
+        if (el.kind !== 'ParameterUsage') return null;
+        const owner = el.owner !== undefined ? ctx.ids.get(el.owner) : null;
+        const name = textName(el);
+        if (!owner || owner.kind !== 'ActionUsage' || !name) return null;
+        const typing = typingOf(model, owner);
+        const def = typing ? ctx.ids.get(typing.to) : null;
+        const redefined = def ? childrenOf(model, def.id).find((p) => p.kind === 'ParameterUsage' && textName(p) === name) : null;
+        if (!redefined || !redefined.direction) return null;
+        const keeps = redefined.direction === 'inout' ? !!el.direction : el.direction === redefined.direction;
+        if (keeps) return null;
+        return describe(model, el, ctx.ids) + ' redefines the parameter ' + name + ' of ' + describe(model, def, ctx.ids) + ', which goes ' + redefined.direction +
+          (redefined.direction === 'inout' ? ', so it needs a direction; it has none.' : ', so it goes ' + redefined.direction + ' too; it goes ' + (el.direction || 'no way') + '.');
+      } }
+  ];
+  // A parallel state's regions (its actions and states) have no transitions into or out of them.
+  function parallelSubactions(model, el, ctx) {
+    if (el.parallel !== true) return null;
+    for (const child of childrenOf(model, el.id)) {
+      if (!conforms(KINDS[child.kind].metaclass, 'ActionUsage')) continue;
+      const t = linesFrom(model, child.id, 'TransitionUsage')[0] || linesTo(model, child.id, 'TransitionUsage')[0];
+      if (t) return describe(model, el, ctx.ids) + ' is parallel, so its regions have no transitions into or out of them; ' + describe(model, child, ctx.ids) + ' has the ' + describeRel(model, t, ctx.ids) + '.';
+    }
+    return null;
+  }
+  // A state has one entry, one do and one exit action at most.
+  function subactionKinds(model, el, ctx) {
+    for (const role of ['entry', 'do', 'exit']) {
+      const n = childrenOf(model, el.id).filter((c) => c.kind === 'ActionUsage' && c.role === role).length;
+      if (n > 1) return 'A state has one ' + role + ' action at most; ' + describe(model, el, ctx.ids) + ' has ' + n + '.';
+    }
+    return null;
+  }
+  // A fork or a decision has one succession into it at most, a join or a merge one out of it.
+  function successions(way, word) {
+    return function (model, el, ctx) {
+      const lines = way === 'into' ? linesTo(model, el.id, 'SuccessionAsUsage') : linesFrom(model, el.id, 'SuccessionAsUsage');
+      if (lines.length <= 1) return null;
+      return 'A ' + word + ' node has one ' + (way === 'into' ? 'incoming' : 'outgoing') + ' succession at most; ' + describe(model, el, ctx.ids) + ' has ' + lines.length + '.';
+    };
+  }
+  // A line's qualified name: the path of the element it is declared in, or the package, and its name; an unnamed
+  // one has none, and is named by its id, as SysON names an element without a qualified name.
+  function linePath(model, rel, ids) {
+    const name = str(rel.name).trim();
+    if (!name) return '<ID: ' + rel.id + '>';
+    const owner = RELATIONSHIPS[rel.kind].owner ? RELATIONSHIPS[rel.kind].owner(model, rel, ids) : null;
+    const home = owner ? ids.get(owner) : null;
+    return (home ? qualified(model, home, ids) : quote(str(model.package && model.package.name).trim() || 'Model')) + '::' + quote(name);
+  }
+  // An element or a line in a sentence.
+  function say(model, item, ctx) {
+    if (model.views.indexOf(item) >= 0) return 'view ' + str(item.name).trim();
+    return RELATIONSHIPS[item.kind] && item.from !== undefined ? 'the ' + describeRel(model, item, ctx.ids) : describe(model, item, ctx.ids);
+  }
+
+  // Which rules each metaclass is checked against: those on it or on a class it is a kind of, in RULES' order.
+  const applying = new Map();
+  function rulesFor(metaclass) {
+    if (!applying.has(metaclass)) applying.set(metaclass, RULES.filter((r) => r.of ? appliesOf(r, metaclass) : conforms(metaclass, r.metaclass)));
+    return applying.get(metaclass);
+  }
+  // A rule on a relationship or a multiplicity the canvas keeps on the element (its multiplicity, its redefinition of
+  // a parameter) checks the element instead: an element with a multiplicity, a usage.
+  function appliesOf(rule, metaclass) {
+    return rule.of === 'multiplicity' ? conforms(metaclass, 'Type') : conforms(metaclass, 'Usage');
+  }
+
+  // The specification's rules, checked on a model: a diagnostic for each element, line or namespace that breaks one,
+  // { rule, metaclass, type ('el', 'rel', or null for the package), id, path, message, severity, text }, sorted as
+  // SysON sorts them, by rule, then by the qualified name of what breaks it. text is SysON's label for it:
+  // #<rule>·····[<document>/<qualified name>]·····Constraint on type 'sysml:<Metaclass>' is not respected: <message>,
+  // the document here the package, which the canvas's model is.
+  function validateSpec(model) {
+    return reading(model, () => {
+      const ids = idsOf(model);
+      const ctx = { ids: ids, members: membersOf(model, ids) };
+      const out = [];
+      const doc = str(model.package && model.package.name).trim() || 'Model';
+      const add = (rule, type, item, path, message) => out.push({
+        rule: rule.name, metaclass: rule.metaclass, type: type, id: item ? item.id : null, path: path, message: message, severity: 'warning',
+        text: '#' + rule.name + '·····[' + doc + '/' + path + ']·····Constraint on type \'sysml:' + rule.metaclass + '\' is not respected: ' + message
+      });
+      // The package is a namespace too.
+      RULES.filter((r) => r.metaclass === 'Namespace').forEach((rule) => {
+        const message = rule.check(model, null, ctx);
+        if (message) add(rule, null, null, quote(doc), message);
+      });
+      model.elements.forEach((el) => {
+        rulesFor(textMetaclass('el', el)).forEach((rule) => {
+          const message = rule.check(model, el, ctx);
+          if (message) add(rule, 'el', el, qualified(model, el, ids), message);
+        });
+      });
+      model.relationships.forEach((rel) => {
+        rulesFor(textMetaclass('rel', rel)).forEach((rule) => {
+          if (rule.metaclass === 'Namespace') return;   // a line declares nothing in it
+          const message = rule.check(model, rel, ctx);
+          if (message) add(rule, 'rel', rel, linePath(model, rel, ids), message);
+        });
+      });
+      out.sort((a, b) => (a.rule < b.rule ? -1 : a.rule > b.rule ? 1 : a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+      return out;
+    });
+  }
+
+  EXTRA.SPEC_RULES = RULES.map((r) => r.name);
+  EXTRA.validateSpec = validateSpec;
+})(typeof globalThis !== 'undefined' ? globalThis : window);
 // ==== src/core/lib/validate.js
 // The model library's checks: everything validate finds wrong, from the tables' rules and the features' hooks.
 (function (root) {
@@ -4833,7 +5800,8 @@ textarea.text[readonly] { resize: none; background: transparent; }
   // the item's property; none, the words for a ref's empty choice ('nothing' unless said); write(x, value), the change,
   // made inside edit(), in place of setting the item's property; said(x), the words for the change, in place of 'Set
   // the <label> of <what> to <value>'; done(x), what the page does once the change is made, or, for a field that takes
-  // typing, once the field is left. panel.js has the core's; a feature's page.js adds its own.
+  // typing, once the field is left; locked(x), why the field can't be changed now (a sentence), or null. panel.js has
+  // the core's; a feature's page.js adds its own.
   const FIELD_HOOKS = {};
 
   const $ = (id) => document.getElementById(id);
@@ -5310,6 +6278,12 @@ textarea.text[readonly] { resize: none; background: transparent; }
     t.textContent = content;
     return t;
   }
+  // Marks a drawn text (or tspan) as an element's or a line's label: the text label editing opens its box over
+  // (labels/page.js). Each group has at most one of its own.
+  function asLabel(t) {
+    t.setAttribute('data-label', '');
+    return t;
+  }
   // The markers a line may carry at its end or its start (RELATIONSHIPS[kind].line.marker and markerStart): each id
   // and its <marker> markup, put into the drawing's <defs> on every render. The slices add the flow arrow and the rest.
   const MARKERS = {
@@ -5352,7 +6326,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const cx = r.x + r.w / 2;
       g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: radius }, 'outline'));
       g.appendChild(text(cx, r.y + 16, '«' + (el.abstract ? 'abstract ' : '') + kind.keyword + '»', 'kw', 'middle'));
-      g.appendChild(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle'));
+      g.appendChild(asLabel(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle')));
     };
   }
   // Which way the first line drawn from a border item leaves it, as a vector, or null when no drawn line starts or
@@ -5432,7 +6406,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
         }
         // The name sits outside the owner, beside the square, on the side no drawn line heads for (portName).
         const at = portName(p, r, L);
-        g.appendChild(text(at.x, at.y, nameLine(p), 'mono', at.anchor));
+        g.appendChild(asLabel(text(at.x, at.y, nameLine(p), 'mono', at.anchor)));
       },
       compartments: false
     }
@@ -5580,7 +6554,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     g.appendChild(line);
     // The label, below the line's middle by the kind's labelOffset (30 unless said; negative puts it above).
     const label = how.label && !(region && region.far) ? how.label(rel, S.model, S.layout.ids) : '';
-    if (label) g.appendChild(text(e.mid.x, e.mid.y + (typeof how.labelOffset === 'number' ? how.labelOffset : 30), label, 'uname', 'middle'));
+    if (label) g.appendChild(asLabel(text(e.mid.x, e.mid.y + (typeof how.labelOffset === 'number' ? how.labelOffset : 30), label, 'uname', 'middle')));
     return g;
   }
   // A view's frame: the outline, the header tab (with a clear rectangle over it that takes the pointer, to select or
@@ -5877,7 +6851,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   }
 
   Object.assign(C, {
-    node, text, MARKERS, defs, nameLine, portName, SHAPES, COMPARTMENTS, compartmentsOf, ownCompartments, onScreen,
+    node, text, asLabel, MARKERS, defs, nameLine, portName, SHAPES, COMPARTMENTS, compartmentsOf, ownCompartments, onScreen,
     pointsOnScreen, drawBox, drawRel, drawFrame, RENDERERS, freshElement, blankField
   });
 })(window.SysMLCanvas);
@@ -6150,6 +7124,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function check() {
     clearTimeout(S.checkTimer);
     S.checkTimer = null;
+    C.checkRules();   // the specification's rules, for the Validation view (validation/page.js)
     const found = reading(() => M.validate(S.model));
     if (JSON.stringify(found) === JSON.stringify(S.problems)) return;
     S.problemCursor = -1;
@@ -6213,6 +7188,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     // What was drawn is drawn again once the window leaves it, or the zoom asks for other detail; else only the pins
     // and badges, which keep their screen size.
     if (S.layout) { if (covered()) renderPins(); else drawAll(); }
+    C.placeLabelEditor();   // a label's box, while one is open, stays over its label (labels/page.js)
     try { localStorage.setItem(CAMERA_KEY, JSON.stringify(S.camera)); } catch (error) { /* a convenience only */ }
   }
   // Fits every frame into the open part of the window.
@@ -7092,7 +8068,9 @@ textarea.text[readonly] { resize: none; background: transparent; }
     fields.hidden = false;
     renderHead(s, write);
     renderFields(s, write);
+    C.renderDetails(s);   // the Core and Advanced tabs, as SysON's Details view (details/page.js)
     deleteButton.hidden = !write;
+    C.renderLabelButton();   // Edit label, or Rename in a browser view (labels/page.js)
     addNoteButton.hidden = !write || (s.type === 'el' && M.textName(s.item) === null);
   }
   // The lines around the selection's fields: for an element or a line, what it is (its kind and name, or the line in
@@ -7151,9 +8129,11 @@ textarea.text[readonly] { resize: none; background: transparent; }
     return view ? view.kind : null;
   }
   // Fills the selection's fields from the model and shows them: every field's label is hidden, then each field the
-  // selection's kind lists is filled and shown, a bool as a checkbox, an enum as a select of its values, a ref as a
-  // select of the elements its options allow with nothing first, the rest as text. A field with views shows only while
-  // the selection is drawn in a view of one of those kinds, and one with a shown hook only when the hook says so.
+  // selection's kind lists is filled and shown, a bool as a checkbox, an enum as radio buttons, one per value (a
+  // fieldset, as SysON draws an enumeration), a ref as a select of the elements its options allow with nothing first,
+  // the rest as text. A field with views shows only while the selection is drawn in a view of one of those kinds, and
+  // one with a shown hook only when the hook says so. A field its locked hook names a reason for can't be changed, and
+  // its label says why on hover.
   function renderFields(s, write) {
     const place = PLACES[s.type];
     const kind = viewKindShowing(s.item.id);
@@ -7165,6 +8145,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const input = x.input;
       const v = valueOf(x);
       if (x.spec.type === 'bool') input.checked = v === true;
+      else if (input.tagName === 'FIELDSET') setChoice(input, x.spec.values.indexOf(v) >= 0 ? v : x.spec.values[0]);
       else if (x.spec.type === 'ref') {
         while (input.firstChild) input.removeChild(input.firstChild);
         const none = document.createElement('option');
@@ -7180,26 +8161,37 @@ textarea.text[readonly] { resize: none; background: transparent; }
         input.value = typeof v === 'string' ? v : '';
       } else if (x.spec.type === 'enum') input.value = x.spec.values.indexOf(v) >= 0 ? v : x.spec.values[0];
       else input.value = v === undefined || v === null ? '' : String(v);
-      if (input.tagName === 'SELECT' || input.type === 'checkbox') input.disabled = !write; else input.readOnly = !write;
+      const locked = x.hooks.locked ? x.hooks.locked(x) : null;
+      if (input.tagName === 'FIELDSET') input.querySelectorAll('input').forEach((r) => { r.disabled = !write || !!locked; });
+      else if (input.tagName === 'SELECT' || input.type === 'checkbox') input.disabled = !write || !!locked;
+      else input.readOnly = !write || !!locked;
+      if (locked) label.title = locked; else label.removeAttribute('title');
       label.hidden = false;
     });
   }
+  // A choice drawn as radio buttons: the value of the one checked, and checking the one of a value.
+  function choiceOf(fieldset) { const r = fieldset.querySelector('input:checked'); return r ? r.value : ''; }
+  function setChoice(fieldset, v) { fieldset.querySelectorAll('input').forEach((r) => { r.checked = r.value === v; }); }
+  // The input an event in the panel came from, as the fields have them: a radio button's fieldset.
+  function inputOf(target) { return target && target.type === 'radio' && target.closest ? target.closest('fieldset') : target; }
   // The field of the selection an input or change event in the panel is about, or null.
   function fieldOf(event) {
     const s = resolve(S.selection);
-    const input = event.target;
+    const input = inputOf(event.target);
     if (!s || !input || !input.id) return null;
     const prefix = PLACES[s.type].input;
     return input.id.indexOf(prefix) === 0 ? fieldAt(s, input.id.slice(prefix.length), input) : null;
   }
   // Whether an input is that of a field that takes typing, whatever is selected now.
-  function typedInput(input) {
+  function typedInput(target) {
+    const input = inputOf(target);
     const m = input && input.id ? /^[fv]-(.+)$/.exec(input.id) : null;
     return !!m && !!M.FIELDS[m[1]] && typed(M.FIELDS[m[1]]);
   }
   // The value an input holds, as its field's row reads it: a string with its ends off when the row trims.
   function readInput(spec, input) {
     if (spec.type === 'bool') return input.checked;
+    if (input.tagName === 'FIELDSET') return choiceOf(input);
     if (spec.type === 'number') return input.value.trim() !== '' && Number.isFinite(+input.value) ? +input.value : '';
     return spec.trim ? input.value.trim() : input.value;
   }
@@ -7255,6 +8247,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     viewFields.hidden = false;
     renderHead(s, write);
     renderFields(s, write);
+    C.renderDetails(s);   // the Core and Advanced tabs (details/page.js)
     while (vShow.firstChild) vShow.removeChild(vShow.firstChild);
     const candidates = showable(view);
     if (!candidates.length) {
@@ -8414,6 +9407,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 
   canvas.addEventListener('keydown', (event) => {
     canvas.classList.remove('is-pointer');
+    if (C.labelKey(event)) return;   // a printable key types into the selection's label (labels/page.js)
     const step = 80 / S.camera.k;
     let handled = true;
     if ((event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z')) { undo(); event.preventDefault(); return; }
@@ -8481,7 +9475,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
 (function (C) {
   'use strict';
   const S = C.state;
-  const { M, TOOL_TITLE, TOOL_HINT, BASE_NAME, f, node, text, MARKERS, nameLine, SHAPES, RENDERERS } = C;
+  const { M, TOOL_TITLE, TOOL_HINT, BASE_NAME, f, node, text, asLabel, MARKERS, nameLine, SHAPES, RENDERERS } = C;
 
   // ---- Interconnection: the words for its tools, the item's shape, the flow's head, and a direction for an item
   // placed on a port def.
@@ -8511,7 +9505,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const cx = r.x + r.w / 2;
       g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: 10 }, 'outline'));
       g.appendChild(text(cx, r.y + 16, '«' + (el.direction ? el.direction + ' ' : '') + M.KINDS[el.kind].keyword + '»', 'kw', 'middle'));
-      g.appendChild(text(cx, r.y + 32, nameLine(el), 'uname', 'middle'));
+      g.appendChild(asLabel(text(cx, r.y + 32, nameLine(el), 'uname', 'middle')));
     },
     compartments: true,
     radius: 10,
@@ -8536,7 +9530,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const S = C.state;
   const {
-    M, CHILD_TOP, TOOL_TITLE, TOOL_HINT, BASE_NAME, str, say, f, viewLayout, wrap, node, text, MARKERS, nameLine,
+    M, CHILD_TOP, TOOL_TITLE, TOOL_HINT, BASE_NAME, str, say, f, viewLayout, wrap, node, text, asLabel, MARKERS, nameLine,
     SHAPES, COMPARTMENTS, RENDERERS
   } = C;
 
@@ -8585,7 +9579,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const kind = M.KINDS[el.kind];
     const cx = r.x + r.w / 2;
     g.appendChild(text(cx, r.y + 16, keywords, 'kw', 'middle'));
-    g.appendChild(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle'));
+    g.appendChild(asLabel(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle')));
   }
   // An action: a rounded box whose header says «action», «send action», «accept action» or «entry action», with the
   // notation's glyph beside it for a send (a convex pentagon) or an accept (a notched one).
@@ -8614,7 +9608,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   function controlNodeName(el, r, g) {
     const name = M.textName(el);
     if (!name) return;
-    g.appendChild(text(r.x + r.w + 2, r.y + r.h + 9, name, 'mono', 'start'));
+    g.appendChild(asLabel(text(r.x + r.w + 2, r.y + r.h + 9, name, 'mono', 'start')));
   }
   SHAPES.bar = {
     draw: function (el, r, g) {
@@ -8706,7 +9700,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, TOOL_TITLE, TOOL_HINT, BASE_NAME, ACTIONS, VIEW_PANELS, FIELD_HOOKS, $, say, editable, f, relById, viewById,
-    viewLayout, frameAround, ROUTES, endpoints, viewAt, node, text, MARKERS, nameLine, SHAPES, drawBox, drawRel,
+    viewLayout, frameAround, ROUTES, endpoints, viewAt, node, text, asLabel, MARKERS, nameLine, SHAPES, drawBox, drawRel,
     RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
   } = C;
 
@@ -8733,7 +9727,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
       const cy = r.y + r.h / 2;
       g.appendChild(node('circle', { cx: f(cx), cy: f(cy), r: 10 }, 'event-hit'));
       g.appendChild(node('circle', { cx: f(cx), cy: f(cy), r: EVENT_R }, 'outline'));
-      g.appendChild(text(cx + 10, cy - 5, nameLine(el), 'mono', 'start'));
+      g.appendChild(asLabel(text(cx + 10, cy - 5, nameLine(el), 'mono', 'start')));
     },
     compartments: false, cls: 'event'
   };
@@ -9028,7 +10022,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   const S = C.state;
   const {
     M, PAD, VIEW_PANELS, $, say, clamp, editable, f, viewById, viewLayout, frameAround, containerAt, viewAt, node,
-    text, MARKERS, nameLine, RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
+    text, asLabel, MARKERS, nameLine, RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
   } = C;
 
   // The geometry view: a plan of the parts it shows, each drawn as its shape's footprint to scale, x to the right and y
@@ -9147,7 +10141,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
     const head = node('text', { x: f(x), y: f(y), 'text-anchor': anchor });
     const kw = node('tspan', {}, 'kw');
     kw.textContent = '«' + kind.keyword + '» ';
-    const name = node('tspan', {}, 'uname');
+    const name = asLabel(node('tspan', {}, 'uname'));
     name.textContent = nameLine(el);
     head.appendChild(kw);
     head.appendChild(name);
@@ -9595,7 +10589,7 @@ textarea.text[readonly] { resize: none; background: transparent; }
   'use strict';
   const S = C.state;
   const {
-    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, RENDERERS, onScreen, edit,
+    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, viewById, frameAround, node, text, asLabel, RENDERERS, onScreen, edit,
     renderInspector, selectedView
   } = C;
 
@@ -9702,9 +10696,10 @@ textarea.text[readonly] { resize: none; background: transparent; }
         rg.appendChild(node('rect', { x: f(view.x + 1), y: f(top + 1), width: f(L.treeWidth - 2), height: BROWSER_ROW - 2, rx: 3 }, 'outline'));
         if (isEl && row.kids) rg.appendChild(browserToggle(row, x0, top));
         const t = node('text', { x: f(x0 + 18), y: f(top + 16) });
-        const span = (c, s) => { if (!s) return; const ts = node('tspan', {}, c); ts.textContent = s; t.appendChild(ts); };
+        const span = (c, s) => { if (!s) return null; const ts = node('tspan', {}, c); ts.textContent = s; t.appendChild(ts); return ts; };
         span('kw', row.parts.kw);
-        span(isEl ? 'browser-name' : 'browser-rel', row.parts.name);
+        const name = span(isEl ? 'browser-name' : 'browser-rel', row.parts.name);
+        if (name) asLabel(name);
         span('browser-type', row.parts.type);
         span('browser-notes', row.parts.notes);
         rg.appendChild(t);
@@ -10247,6 +11242,466 @@ textarea.text[readonly] { resize: none; background: transparent; }
     leavingNotes, freePin, pinDragStart, movePin, dropPin, archiveButton, renderArchive, listenArchive, replaceArchive,
     renderCodeSection
   });
+})(window.SysMLCanvas);
+// ==== src/labels/page.js
+// Label editing on the page: typing into a label, as SysON's direct edit does. With a box, a border item or a labelled
+// line selected, F2, the panel's Edit label button, or any printable key opens a box over its label in the active view,
+// holding the label's text (M.labelText), all selected, or the key typed, the caret after it. Enter, or leaving the box,
+// makes what the text says (M.applyLabel) as one undo step; Escape puts the box away. In a browser view a row is renamed
+// instead, as SysON's explorer does: typing or Rename opens it, F2 doesn't, and the text becomes the name as it is. A
+// grid's cells are not labels.
+(function (C) {
+  'use strict';
+  const S = C.state;
+  const {
+    M, $, canvas, svg, say, str, editable, newId, viewById, viewLayout, endpoints, freshElement, blankField,
+    showPoint, toDrawing, stageSize, edit, resolve, renderInspector, syncNoteLabels, FIELD_HOOKS
+  } = C;
+
+  const stage = canvas.parentNode;      // .stage: the box floats on the plane beside the drawing, outside #canvas
+  const editButton = $('edit-label');
+  const MIN_WIDTH = 130;                // SysON's box is never narrower than 130 px
+  S.labelEditor = null;                 // the open box: { t, anchor, box }
+
+  // What F2, a key or the button would edit now: the selection, while the page can be changed and the active view
+  // draws it, as { sel, type, item, view, mode }: mode 'label' in a drawing, for what has a label to edit
+  // (M.labelEditable), 'rename' in a browser view, for what has a name (M.renamable). null otherwise: nothing selected,
+  // a view, a grid, or something the active view doesn't draw.
+  function editTarget() {
+    if (!editable() || !S.selection || S.selection.type === 'view') return null;
+    const s = resolve(S.selection);
+    const view = viewById(S.active);
+    if (!s || !view) return null;
+    const renderer = M.VIEW_KINDS[view.kind].renderer;
+    if (renderer === 'grid') return null;
+    const mode = renderer === 'browser' ? 'rename' : 'label';
+    if (mode === 'label' ? !M.labelEditable(s.type, s.item) : !M.renamable(s.type, s.item)) return null;
+    if ((S.layout.where.get(s.item.id) || []).indexOf(view.id) < 0) return null;
+    return { sel: { type: s.type, id: s.item.id }, type: s.type, item: s.item, view: view, mode: mode };
+  }
+
+  // Where the label is on the plane, and how it is written: { x, y, w, h, align, font } in plane units, from the box
+  // of its drawn text (data-label) in the view, or, when none is drawn (far out, an unnamed line or control node), from
+  // the layout. null when the view lays out no place for it.
+  function anchorOf(t) {
+    const g = svg.querySelector('.frame[data-view="' + t.view.id + '"] [data-' + t.type + '="' + t.item.id + '"]');
+    const label = g ? Array.from(g.querySelectorAll('[data-label]')).find((l) => l.closest('[data-el], [data-rel]') === g) : null;
+    if (label) {
+      const b = label.getBoundingClientRect();
+      if (b.width > 0 && b.height > 0) {
+        const p = toDrawing(b.left, b.top);
+        const q = toDrawing(b.right, b.bottom);
+        const holder = label.tagName === 'tspan' ? label.parentNode : label;
+        const anchor = holder.getAttribute('text-anchor');
+        const css = getComputedStyle(label);
+        return {
+          x: p.x, y: p.y, w: q.x - p.x, h: q.y - p.y, align: anchor === 'middle' ? 'center' : anchor === 'end' ? 'right' : 'left',
+          font: { family: css.fontFamily, weight: css.fontWeight, style: css.fontStyle, size: parseFloat(css.fontSize) || 12.5 }
+        };
+      }
+    }
+    const L = viewLayout(t.view.id);
+    if (!L) return null;
+    const sans = { family: getComputedStyle(svg).fontFamily, weight: '500', style: 'normal', size: 12.5 };
+    if (t.type === 'el') {
+      const r = L.rects.get(t.item.id);
+      if (!r) return null;
+      if (r.port) return { x: r.cx + 12, y: r.cy - 18, w: 0, h: 16, align: 'left', font: sans };
+      return { x: r.x, y: Math.min(r.y + 20, r.y + r.h / 2 - 8), w: r.w, h: 16, align: 'center', font: sans };
+    }
+    const e = endpoints(t.item, L);
+    if (!e) return null;
+    const how = M.RELATIONSHIPS[t.item.kind].line || {};
+    const below = typeof how.labelOffset === 'number' ? how.labelOffset : 30;
+    return { x: e.mid.x, y: e.mid.y + below - 13, w: 0, h: 16, align: 'center', font: sans };
+  }
+  // Whether a place on the plane is in the window.
+  function inWindow(a) {
+    const s = stageSize();
+    const k = S.camera.k;
+    const x = (a.x - S.camera.x) * k;
+    const y = (a.y - S.camera.y) * k;
+    return x + a.w * k >= 0 && y + a.h * k >= 0 && x <= s.width && y <= s.height;
+  }
+
+  // Puts the box over its label, at the camera's zoom, as wide as the label or 130 px of the plane, whichever is more;
+  // the camera calls it when it moves (camera.js).
+  function placeLabelEditor() {
+    const ed = S.labelEditor;
+    if (!ed || !S.camera) return;
+    const a = ed.anchor;
+    const k = S.camera.k;
+    const w = Math.max(a.w + 12, MIN_WIDTH);
+    const x = a.align === 'center' ? a.x + a.w / 2 - w / 2 : a.align === 'right' ? a.x + a.w - w : a.x - 6;
+    const box = ed.box;
+    box.style.left = ((x - S.camera.x) * k).toFixed(1) + 'px';
+    box.style.top = ((a.y - 3 - S.camera.y) * k).toFixed(1) + 'px';
+    box.style.width = (w * k).toFixed(1) + 'px';
+    box.style.fontSize = (a.font.size * k).toFixed(2) + 'px';
+    box.style.textAlign = a.align;
+    box.style.height = 'auto';
+    box.style.height = box.scrollHeight + 'px';
+  }
+
+  // Opens the box on what editTarget gives, by F2 or the button (the label's text, all selected) or by a key typed
+  // (that key, the caret after it). Returns whether it opened.
+  function openLabelEditor(typed) {
+    if (S.labelEditor) return false;
+    const t = editTarget();
+    if (!t) return false;
+    let anchor = anchorOf(t);
+    if (!anchor) return false;
+    // A label out of the window is brought into it first, so the box is where the label is drawn.
+    if (!inWindow(anchor)) { showPoint(anchor.x + anchor.w / 2, anchor.y + anchor.h / 2); anchor = anchorOf(t) || anchor; }
+    const box = document.createElement('textarea');
+    box.className = 'label-editor';
+    box.rows = 1;
+    box.spellcheck = false;
+    box.setAttribute('autocomplete', 'off');
+    box.placeholder = 'Enter the new value';
+    box.setAttribute('aria-label', t.mode === 'rename' ? 'New name' : 'Label');
+    box.style.fontFamily = anchor.font.family;
+    box.style.fontWeight = anchor.font.weight;
+    box.style.fontStyle = anchor.font.style;
+    box.value = typed !== undefined ? typed
+      : t.mode === 'rename' ? str(t.item.name).trim()
+        : M.labelText(S.model, { type: t.type, item: t.item });
+    S.labelEditor = { t: t, anchor: anchor, box: box };
+    stage.appendChild(box);
+    placeLabelEditor();
+    box.focus({ preventScroll: true });
+    if (typed !== undefined) box.setSelectionRange(box.value.length, box.value.length);
+    else box.select();
+    box.addEventListener('keydown', onKey);
+    box.addEventListener('input', placeLabelEditor);
+    box.addEventListener('blur', () => finish(true, false));
+    return true;
+  }
+  // The box's keys stay in the box: Enter (without Shift) makes the change, Escape puts the box away, and nothing
+  // reaches the drawing's keys (Delete, the arrows, Ctrl+Z).
+  function onKey(event) {
+    event.stopPropagation();
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); finish(true, true); }
+    else if (event.key === 'Escape') { event.preventDefault(); finish(false, true); }
+  }
+
+  // Makes new elements and lines the page's way, for M.applyLabel.
+  const MAKE = {
+    element: function (kind, name) { return freshElement(kind, name); },
+    line: function (kind, from, to) {
+      const rel = { id: newId('r'), kind: kind, from: from, to: to };
+      M.RELATIONSHIPS[kind].fields.forEach((fld) => blankField(rel, fld));
+      return rel;
+    }
+  };
+  // Closes the box: keep, to make what its text says, as one step through edit(); back, to give the keys back to the
+  // drawing (Enter, Escape; leaving the box by a click leaves the focus where the click put it). The canvas's labels
+  // are one line, so a line break typed with Shift+Enter is read as a space.
+  function finish(keep, back) {
+    const ed = S.labelEditor;
+    if (!ed) return;
+    S.labelEditor = null;
+    const text = ed.box.value.replace(/\r?\n/g, ' ');
+    ed.box.remove();
+    if (back) canvas.focus({ preventScroll: true });
+    if (!keep) return;
+    const s = resolve(ed.t.sel);
+    if (!s) { say('What you were editing is gone, so nothing changed.'); return; }
+    const target = { type: s.type, item: s.item };
+    if (ed.t.mode === 'rename') {
+      // The explorer's rename: the name as typed, no other part read.
+      if (text === str(s.item.name)) return;
+      edit(() => {
+        s.item.name = text;
+        return FIELD_HOOKS.name.said(target);
+      });
+      renderInspector();
+      syncNoteLabels();
+      C.renderNotes();
+      say(FIELD_HOOKS.name.said(target) + '.');
+      return;
+    }
+    let res = null;
+    let words = null;
+    edit(() => {
+      res = M.applyLabel(S.model, target, text, MAKE);
+      words = M.labelWords(S.model, target, res);
+      return words;
+    });
+    if (!res) { say('This page can\'t be changed here, so the label wasn\'t.'); return; }
+    renderInspector();
+    syncNoteLabels();
+    C.renderNotes();
+    // What changed, what is new and where it is, and what the text said that wasn't made.
+    const said = [];
+    if (words) said.push(words.what + '.');
+    res.created.forEach((e) => {
+      const d = M.describe(S.model, e);
+      said.push(d.charAt(0).toUpperCase() + d.slice(1) + ' is new, in no view yet; a view\'s Show list brings it in.');
+    });
+    const left = M.labelLeftOut(res);
+    if (left) said.push(left);
+    if (said.length) say(said.join(' '));
+  }
+
+  // A printable key on the drawing starts editing the selection's label, or renaming its row in a browser view, with
+  // that key; so do the zoom keys (+, -, 0) while such a selection is there, as typing does in SysON. Ctrl or ⌘ with
+  // a key, white space, and the keys that name no character (Escape, Delete, the arrows) do what they did. pointing.js
+  // asks this first and leaves the key alone when it returns true.
+  function labelKey(event) {
+    if (S.labelEditor || event.ctrlKey || event.metaKey || event.isComposing) return false;
+    const key = event.key;
+    if (typeof key !== 'string' || Array.from(key).length !== 1 || /\s/.test(key)) return false;
+    if (!openLabelEditor(key)) return false;
+    event.preventDefault();   // the key is in the box already; the browser mustn't type it again
+    return true;
+  }
+  // F2 edits the selection's label from anywhere on the page, even from another text field, as in SysON; not a row of a
+  // browser view, which SysON's explorer renames by typing or its Rename entry only.
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'F2' || S.labelEditor || event.ctrlKey || event.metaKey || event.altKey) return;
+    const t = editTarget();
+    if (!t || t.mode !== 'label') return;
+    event.preventDefault();
+    openLabelEditor();
+  });
+  // The panel's button: Edit label in a drawing, Rename in a browser view, there while the selection has one.
+  editButton.addEventListener('click', () => openLabelEditor());
+  function renderLabelButton() {
+    const t = editTarget();
+    editButton.hidden = !t;
+    if (!t) return;
+    editButton.textContent = t.mode === 'rename' ? 'Rename' : 'Edit label';
+    editButton.title = t.mode === 'rename' ? 'Rename it here; typing on the row does too' : 'Type into its label; F2 or typing on the drawing does too';
+  }
+
+  Object.assign(C, { placeLabelEditor, openLabelEditor, labelKey, renderLabelButton });
+})(window.SysMLCanvas);
+// ==== src/details/page.js
+// The details view on the page, as SysON's Details view (details/lib.js says what it holds): the panel's two tabs,
+// Core and Advanced, the tab kept by its name as the selection changes; the groups' title, "<Metaclass> Properties";
+// on Core, SysON's core features in its order (the fields that hold them, the values the canvas knows, the ones it
+// doesn't hold yet), then the canvas's own fields, the documentation last, and the untitled groups, each shown only
+// when something in it is; on Advanced, every other attribute of the metaclass. And the hooks of the fields it adds or
+// rules: Specializes and Subsets, which retarget or take away an element's first specialization line, and Is Parallel,
+// locked while a state holds transitions, as SysON locks it.
+(function (C) {
+  'use strict';
+  const S = C.state;
+  const { M, FIELD_HOOKS, $, fields, viewFields, say, renderInspector, syncNoteLabels } = C;
+
+  S.detailsTab = 'Core';   // the tab shown: Core or Advanced
+  // The two panels, an element's or a line's and a view's: where their fields' labels are (by id prefix), their
+  // groups' title and body on each tab, and the qualified name's row. own is what the Core group holds in the markup's
+  // order, the canvas's own fields among SysON's.
+  const PANELS = {
+    el: { box: fields, prefix: 'l-', coreTitle: $('g-main-title'), core: $('g-main-body'), advancedTitle: $('g-advanced-title'), advanced: $('g-advanced-body'), path: $('d-qualifiedName') },
+    view: { box: viewFields, prefix: 'l-v-', coreTitle: $('v-g-main-title'), core: $('v-g-main-body'), advancedTitle: $('v-g-advanced-title'), advanced: $('v-g-advanced-body'), path: $('v-d-qualifiedName') }
+  };
+  Object.keys(PANELS).forEach((k) => { PANELS[k].own = Array.from(PANELS[k].core.children); });
+
+  // A row for what the canvas knows but doesn't keep as a field (a value), or doesn't hold yet: its label and its
+  // value, a Boolean as a checkbox that can't be changed, as SysON shows a derived one.
+  function row(r) {
+    const p = document.createElement('p');
+    p.className = 'detail' + (r.held === false ? ' not-held' : '');
+    p.setAttribute('data-detail', r.name);
+    const label = document.createElement('span');
+    label.className = 'detail-label';
+    label.textContent = r.label;
+    const value = document.createElement('span');
+    value.className = 'detail-value';
+    if (r.held === false) {
+      value.textContent = 'not held yet';
+      p.title = 'The canvas doesn\'t hold ' + r.label + ' yet: the text leaves it as SysML has it.';
+    } else if (typeof r.value === 'boolean') {
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = r.value;
+      box.disabled = true;
+      box.setAttribute('aria-label', r.label);
+      value.appendChild(box);
+    } else value.textContent = r.value === '' ? '(none)' : String(r.value);
+    p.appendChild(label);
+    p.appendChild(value);
+    return p;
+  }
+  // The node a row of the library's is shown by: the field's own label (the panel fills it and shows or hides it),
+  // the qualified name's row, or a new row.
+  function nodeFor(panel, r) {
+    if (r.field) return $(panel.prefix + r.field);
+    if (r.name === 'qualifiedName') {
+      panel.path.querySelector('.detail-value').textContent = r.value === undefined || r.value === '' ? '(none)' : r.value;
+      return panel.path;
+    }
+    return row(r);
+  }
+  // Shows the tab S.detailsTab names in both panels.
+  function showTab() {
+    [fields, viewFields].forEach((box) => {
+      box.querySelectorAll('.tab-button').forEach((b) => b.setAttribute('aria-selected', String(b.getAttribute('data-tab') === S.detailsTab)));
+      box.querySelectorAll('.details-page').forEach((page) => { page.hidden = page.getAttribute('data-tab') !== S.detailsTab; });
+    });
+  }
+  // A group is shown while something in it is: a field's label, or a row.
+  function hideEmptyGroups(box) {
+    box.querySelectorAll('.group').forEach((g) => {
+      g.hidden = !Array.from(g.querySelectorAll('[id^="l-"], .detail')).some((n) => !n.hidden);
+    });
+  }
+  // Puts the selection's details in its panel, after the panel filled its fields: the title; on Core, SysON's core
+  // features in its order, then the canvas's own fields as the markup has them, the documentation last; on Advanced,
+  // the metaclass's other attributes. A field's label moves to the tab its attribute is on.
+  function renderDetails(s) {
+    const panel = s.type === 'view' ? PANELS.view : PANELS.el;
+    const d = M.detailsOf(S.model, s.type, s.item);
+    panel.coreTitle.textContent = d.title;
+    panel.advancedTitle.textContent = d.title;
+    panel.box.querySelectorAll('[data-detail]').forEach((n) => n.remove());
+    const core = d.core.map((r) => nodeFor(panel, r)).filter(Boolean);
+    const doc = $(panel.prefix + 'doc');
+    panel.own.forEach((n) => { if (core.indexOf(n) < 0 && n !== doc && !d.advanced.some((r) => r.field && $(panel.prefix + r.field) === n)) core.push(n); });
+    if (doc) core.push(doc);
+    core.forEach((n) => panel.core.appendChild(n));
+    d.advanced.map((r) => nodeFor(panel, r)).filter(Boolean).forEach((n) => panel.advanced.appendChild(n));
+    showTab();
+    hideEmptyGroups(panel.box);
+  }
+  // The tabs: a click, or the arrow keys between them, shows the other one.
+  [fields, viewFields].forEach((box) => {
+    const buttons = Array.from(box.querySelectorAll('.tab-button'));
+    buttons.forEach((b, i) => {
+      b.addEventListener('click', () => { S.detailsTab = b.getAttribute('data-tab'); showTab(); });
+      b.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        const next = buttons[(i + (event.key === 'ArrowRight' ? 1 : buttons.length - 1)) % buttons.length];
+        S.detailsTab = next.getAttribute('data-tab');
+        showTab();
+        next.focus();
+        event.preventDefault();
+      });
+    });
+  });
+
+  // ---- The fields' hooks.
+
+  // Specializes (a definition's) and Subsets (a usage's): the element's first specialization line, there while it
+  // has one. Picking another element moves the line's end, so the notes on it stay; picking nothing takes the line
+  // away, as SysON's clear button does. The choices are what the line's rule allows (M.generals).
+  function generalHooks(verb, noun) {
+    return {
+      none: 'nothing: take the line away',
+      shown: function (x) { return !!M.firstGeneral(S.model, x.item); },
+      value: function (x) { const r = M.firstGeneral(S.model, x.item); return r ? r.to : ''; },
+      write: function (x, value) {
+        const r = M.firstGeneral(S.model, x.item);
+        if (!r) return;
+        if (!value) { S.model.relationships.splice(S.model.relationships.indexOf(r), 1); return; }
+        r.to = value;
+      },
+      said: function (x) {
+        const r = M.firstGeneral(S.model, x.item);
+        const general = r ? S.model.elements.find((e) => e.id === r.to) : null;
+        return general ? 'Made ' + M.describe(S.model, x.item) + ' ' + verb + ' ' + (M.textName(general) || '(unnamed)')
+          : 'Took away the ' + noun + ' of ' + M.describe(S.model, x.item);
+      },
+      // The panel follows: the field goes with the line; the notes' labels follow the line's end.
+      done: function (x) {
+        renderInspector();
+        syncNoteLabels();
+        C.renderNotes();
+        say(FIELD_HOOKS[x.fld].said(x) + '.');
+      }
+    };
+  }
+  FIELD_HOOKS.specializes = generalHooks('specialize', 'specialization');
+  FIELD_HOOKS.subsets = generalHooks('subset', 'subsetting');
+  // Is Parallel can't be changed while the state holds transitions, as in SysON: its regions would then be joined by
+  // them.
+  FIELD_HOOKS.parallel = Object.assign(FIELD_HOOKS.parallel || {}, {
+    locked: function (x) {
+      const ids = M.idsOf(S.model);
+      const holds = M.linesOfKind(S.model, 'TransitionUsage').some((r) => M.RELATIONSHIPS.TransitionUsage.owner(S.model, r, ids) === x.item.id);
+      return holds ? 'Is Parallel can\'t change while ' + M.describe(S.model, x.item) + ' holds transitions, as in SysON.' : null;
+    }
+  });
+
+  Object.assign(C, { renderDetails });
+})(window.SysMLCanvas);
+// ==== src/validation/page.js
+// The Validation view on the page, as SysON's (validation/lib.js has the rules): the Validation button in the bar
+// opens a panel on the left listing the diagnostics of the SysML v2 specification's rules for the whole model,
+// worked out again whenever the checks run (once the changes pause, and at once for a new model). They are grouped by
+// kind, Warning for all of them as in SysON, each kind a section that starts folded, with its count; a section opened
+// stays open as the list changes. With none, the panel says "No diagnostic available". As in SysON, a diagnostic is
+// plain text, in SysON's form, and the panel follows no selection.
+(function (C) {
+  'use strict';
+  const S = C.state;
+  const { M, $, reading } = C;
+
+  const panel = $('validation-panel');
+  const button = $('validation');
+  const kinds = $('validation-kinds');
+  const empty = $('validation-empty');
+  S.diagnostics = [];
+  const open = new Set();   // the kinds whose section is open, kept as the list is drawn again
+  $('validation-about').textContent = 'The SysML v2 specification\'s validation rules that the canvas can check, as SysON runs them: ' +
+    M.SPEC_RULES.length + ' of its 388. The others are met by any text the canvas writes, or are about what it doesn\'t make.';
+
+  // The rules' diagnostics, worked out again (render.js's check calls this); the panel is drawn again when they changed.
+  function checkRules() {
+    const found = reading(() => M.validateSpec(S.model));
+    if (JSON.stringify(found) === JSON.stringify(S.diagnostics)) return;
+    S.diagnostics = found;
+    if (!panel.hidden) renderValidation();
+  }
+  // The panel: a section per kind, in the order its first diagnostic comes, folded unless it was opened.
+  function renderValidation() {
+    while (kinds.firstChild) kinds.removeChild(kinds.firstChild);
+    empty.hidden = S.diagnostics.length > 0;
+    const groups = new Map();
+    S.diagnostics.forEach((d) => {
+      const kind = d.severity === 'error' ? 'Error' : d.severity === 'info' ? 'Info' : 'Warning';
+      if (!groups.has(kind)) groups.set(kind, []);
+      groups.get(kind).push(d);
+    });
+    groups.forEach((list, kind) => {
+      const section = document.createElement('details');
+      section.className = 'validation-kind';
+      section.setAttribute('data-kind', kind);
+      section.open = open.has(kind);
+      section.addEventListener('toggle', () => { if (section.open) open.add(kind); else open.delete(kind); });
+      const summary = document.createElement('summary');
+      const name = document.createElement('span');
+      name.className = 'validation-kind-name';
+      name.textContent = kind;
+      const count = document.createElement('span');
+      count.className = 'validation-count';
+      count.textContent = list.length + (list.length === 1 ? ' diagnostic' : ' diagnostics');
+      summary.appendChild(name);
+      summary.appendChild(count);
+      section.appendChild(summary);
+      const ul = document.createElement('ul');
+      list.forEach((d) => {
+        const li = document.createElement('li');
+        li.textContent = d.text;
+        ul.appendChild(li);
+      });
+      section.appendChild(ul);
+      kinds.appendChild(section);
+    });
+  }
+  function setValidation(show) {
+    if (show) { C.checkNow(); renderValidation(); }
+    panel.hidden = !show;
+    button.setAttribute('aria-expanded', String(show));
+    button.classList.toggle('is-active', show);
+  }
+  button.addEventListener('click', () => setValidation(panel.hidden));
+  $('close-validation').addEventListener('click', () => setValidation(false));
+
+  Object.assign(C, { checkRules, renderValidation });
 })(window.SysMLCanvas);
 // ==== src/core/page/boot.js
 // The page's last script: it starts the page, once every script before it has registered what it defines.

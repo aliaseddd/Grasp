@@ -93,7 +93,9 @@
     fields.hidden = false;
     renderHead(s, write);
     renderFields(s, write);
+    C.renderDetails(s);   // the Core and Advanced tabs, as SysON's Details view (details/page.js)
     deleteButton.hidden = !write;
+    C.renderLabelButton();   // Edit label, or Rename in a browser view (labels/page.js)
     addNoteButton.hidden = !write || (s.type === 'el' && M.textName(s.item) === null);
   }
   // The lines around the selection's fields: for an element or a line, what it is (its kind and name, or the line in
@@ -152,9 +154,11 @@
     return view ? view.kind : null;
   }
   // Fills the selection's fields from the model and shows them: every field's label is hidden, then each field the
-  // selection's kind lists is filled and shown, a bool as a checkbox, an enum as a select of its values, a ref as a
-  // select of the elements its options allow with nothing first, the rest as text. A field with views shows only while
-  // the selection is drawn in a view of one of those kinds, and one with a shown hook only when the hook says so.
+  // selection's kind lists is filled and shown, a bool as a checkbox, an enum as radio buttons, one per value (a
+  // fieldset, as SysON draws an enumeration), a ref as a select of the elements its options allow with nothing first,
+  // the rest as text. A field with views shows only while the selection is drawn in a view of one of those kinds, and
+  // one with a shown hook only when the hook says so. A field its locked hook names a reason for can't be changed, and
+  // its label says why on hover.
   function renderFields(s, write) {
     const place = PLACES[s.type];
     const kind = viewKindShowing(s.item.id);
@@ -166,6 +170,7 @@
       const input = x.input;
       const v = valueOf(x);
       if (x.spec.type === 'bool') input.checked = v === true;
+      else if (input.tagName === 'FIELDSET') setChoice(input, x.spec.values.indexOf(v) >= 0 ? v : x.spec.values[0]);
       else if (x.spec.type === 'ref') {
         while (input.firstChild) input.removeChild(input.firstChild);
         const none = document.createElement('option');
@@ -181,26 +186,37 @@
         input.value = typeof v === 'string' ? v : '';
       } else if (x.spec.type === 'enum') input.value = x.spec.values.indexOf(v) >= 0 ? v : x.spec.values[0];
       else input.value = v === undefined || v === null ? '' : String(v);
-      if (input.tagName === 'SELECT' || input.type === 'checkbox') input.disabled = !write; else input.readOnly = !write;
+      const locked = x.hooks.locked ? x.hooks.locked(x) : null;
+      if (input.tagName === 'FIELDSET') input.querySelectorAll('input').forEach((r) => { r.disabled = !write || !!locked; });
+      else if (input.tagName === 'SELECT' || input.type === 'checkbox') input.disabled = !write || !!locked;
+      else input.readOnly = !write || !!locked;
+      if (locked) label.title = locked; else label.removeAttribute('title');
       label.hidden = false;
     });
   }
+  // A choice drawn as radio buttons: the value of the one checked, and checking the one of a value.
+  function choiceOf(fieldset) { const r = fieldset.querySelector('input:checked'); return r ? r.value : ''; }
+  function setChoice(fieldset, v) { fieldset.querySelectorAll('input').forEach((r) => { r.checked = r.value === v; }); }
+  // The input an event in the panel came from, as the fields have them: a radio button's fieldset.
+  function inputOf(target) { return target && target.type === 'radio' && target.closest ? target.closest('fieldset') : target; }
   // The field of the selection an input or change event in the panel is about, or null.
   function fieldOf(event) {
     const s = resolve(S.selection);
-    const input = event.target;
+    const input = inputOf(event.target);
     if (!s || !input || !input.id) return null;
     const prefix = PLACES[s.type].input;
     return input.id.indexOf(prefix) === 0 ? fieldAt(s, input.id.slice(prefix.length), input) : null;
   }
   // Whether an input is that of a field that takes typing, whatever is selected now.
-  function typedInput(input) {
+  function typedInput(target) {
+    const input = inputOf(target);
     const m = input && input.id ? /^[fv]-(.+)$/.exec(input.id) : null;
     return !!m && !!M.FIELDS[m[1]] && typed(M.FIELDS[m[1]]);
   }
   // The value an input holds, as its field's row reads it: a string with its ends off when the row trims.
   function readInput(spec, input) {
     if (spec.type === 'bool') return input.checked;
+    if (input.tagName === 'FIELDSET') return choiceOf(input);
     if (spec.type === 'number') return input.value.trim() !== '' && Number.isFinite(+input.value) ? +input.value : '';
     return spec.trim ? input.value.trim() : input.value;
   }
@@ -256,6 +272,7 @@
     viewFields.hidden = false;
     renderHead(s, write);
     renderFields(s, write);
+    C.renderDetails(s);   // the Core and Advanced tabs (details/page.js)
     while (vShow.firstChild) vShow.removeChild(vShow.firstChild);
     const candidates = showable(view);
     if (!candidates.length) {

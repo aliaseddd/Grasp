@@ -2,7 +2,7 @@
 (function (C) {
   'use strict';
   const S = C.state;
-  const { M, TOOL_TITLE, TOOL_HINT, BASE_NAME, f, node, text, MARKERS, nameLine, SHAPES, RENDERERS } = C;
+  const { M, TOOL_TITLE, TOOL_HINT, BASE_NAME, f, node, text, asLabel, MARKERS, nameLine, SHAPES, RENDERERS } = C;
 
   // ---- Interconnection: the words for its tools, the item's shape, the flow's head, and a direction for an item
   // placed on a port def.
@@ -32,7 +32,7 @@
       const cx = r.x + r.w / 2;
       g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: 10 }, 'outline'));
       g.appendChild(text(cx, r.y + 16, '«' + (el.direction ? el.direction + ' ' : '') + M.KINDS[el.kind].keyword + '»', 'kw', 'middle'));
-      g.appendChild(text(cx, r.y + 32, nameLine(el), 'uname', 'middle'));
+      g.appendChild(asLabel(text(cx, r.y + 32, nameLine(el), 'uname', 'middle')));
     },
     compartments: true,
     radius: 10,

@@ -3,7 +3,7 @@
   'use strict';
   const S = C.state;
   const {
-    M, CHILD_TOP, TOOL_TITLE, TOOL_HINT, BASE_NAME, str, say, f, viewLayout, wrap, node, text, MARKERS, nameLine,
+    M, CHILD_TOP, TOOL_TITLE, TOOL_HINT, BASE_NAME, str, say, f, viewLayout, wrap, node, text, asLabel, MARKERS, nameLine,
     SHAPES, COMPARTMENTS, RENDERERS
   } = C;
 
@@ -52,7 +52,7 @@
     const kind = M.KINDS[el.kind];
     const cx = r.x + r.w / 2;
     g.appendChild(text(cx, r.y + 16, keywords, 'kw', 'middle'));
-    g.appendChild(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle'));
+    g.appendChild(asLabel(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle')));
   }
   // An action: a rounded box whose header says «action», «send action», «accept action» or «entry action», with the
   // notation's glyph beside it for a send (a convex pentagon) or an accept (a notched one).
@@ -81,7 +81,7 @@
   function controlNodeName(el, r, g) {
     const name = M.textName(el);
     if (!name) return;
-    g.appendChild(text(r.x + r.w + 2, r.y + r.h + 9, name, 'mono', 'start'));
+    g.appendChild(asLabel(text(r.x + r.w + 2, r.y + r.h + 9, name, 'mono', 'start')));
   }
   SHAPES.bar = {
     draw: function (el, r, g) {

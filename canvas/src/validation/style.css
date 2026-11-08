@@ -1,0 +1,23 @@
+/* The Validation view, on the left of the plane as SysON's is: a section per kind of diagnostic, folded at first,
+   with its count, and the diagnostics as plain lines between dividers. */
+.validation-panel {
+  left: max(12px, env(safe-area-inset-left, 0px)); top: 12px; z-index: 2;
+  width: min(460px, calc(100% - 24px)); max-height: calc(100% - 120px); overflow: auto;
+  display: grid; gap: 10px; padding: 14px;
+}
+.validation-panel[hidden] { display: none; }
+.validation-panel h2 { margin: 0; font: 600 15px/1.3 var(--sans); }
+.validation-kinds { display: grid; gap: 6px; }
+.validation-kind { border: 1px solid var(--line); border-radius: 6px; background: var(--card); }
+.validation-kind > summary {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 8px; align-items: baseline;
+  padding: 8px 10px; cursor: pointer; font: 600 13px/1.3 var(--sans); color: var(--fg);
+}
+.validation-count { font: 400 12px/1.3 var(--mono); color: var(--fg-2); }
+.validation-kind ul { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.validation-kind li { padding: 8px 10px; font: 400 12px/1.45 var(--mono); color: var(--fg); overflow-wrap: anywhere; }
+.validation-kind li + li { border-top: 1px solid var(--line); }
+#validation.is-active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+@media (max-width: 720px) {
+  .validation-panel { top: 64px; max-height: 50%; }
+}

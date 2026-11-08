@@ -970,7 +970,7 @@
 
   Object.assign(lib, {
     VERSION, FORMAT, VIEW_DEF, KINDS, RELATIONSHIPS, VIEW_KINDS, FIELDS, SIDES, NAME, MULTIPLICITY, str, isObject,
-    addKinds, addRelationships, attributeField,
+    conforms, addKinds, addRelationships, attributeField,
     canContain, admits, hasTrait, textName, blank, placement, versionOf, upgrade, normalize, index, relIndex, viewIndex,
     lookups, reading, perReading, idsOf, elementsOfKind, linesOfKind, linesFrom, linesTo, linesAt,
     shownIn, chain, childrenOf, descendants, typingOf, inUsage, specializes, commonOwner, acrossDefinitions,

@@ -32,6 +32,7 @@
       <button type="button" id="new-view">New view</button>
       <select id="new-view-kind" aria-label="The kind of the new view"></select>
       <button type="button" id="export">Export SysML</button>
+      <button type="button" id="validation" aria-controls="validation-panel" aria-expanded="false">Validation</button>
       <button type="button" id="download-state" hidden>Download state</button>
       <button type="button" id="import-state" hidden>Import state</button>
       <input type="file" id="import-file" accept="application/json,.json" hidden>
@@ -39,7 +40,7 @@
   </header>
 
   <div class="stage">
-    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing, Escape puts a tool down, Delete removes the selection, Ctrl+Z undoes.">
+    <div class="canvas" id="canvas" tabindex="0" aria-label="The drawing on a plane. Arrow keys move around, plus and minus zoom, 0 fits the drawing, Escape puts a tool down, Delete removes the selection, Ctrl+Z undoes. With a box, a port or a line selected, F2 or typing edits its label, and the keys type into it.">
       <svg id="drawing" class="sysml" viewBox="0 0 1200 800" role="img" aria-label="SysML v2 views on a plane"></svg>
     </div>
 
@@ -60,54 +61,82 @@
     <aside class="float panel" id="panel" aria-label="Selection and notes">
       <section id="inspector" aria-labelledby="inspector-title">
         <div class="panel-head">
-          <h2 id="inspector-title">Selection</h2>
+          <h2 id="inspector-title">Details</h2>
           <button type="button" class="hide" id="hide-panel">Hide</button>
         </div>
-        <p class="empty" id="inspector-empty">Nothing selected. Click a box, a port, or a line.</p>
+        <p class="empty" id="inspector-empty">No object selected. Click a box, a port, or a line.</p>
         <div class="fields" id="fields" hidden>
           <p class="kind" id="f-kind"></p>
-          <!-- Every field: <label id="l-<field>">… <input id="f-<field>"></label>, one per row of FIELDS, which the panel
-               shows for the kinds that list it. -->
-          <label id="l-name">Name <input type="text" id="f-name" autocomplete="off" spellcheck="false"></label>
-          <label class="check" id="l-abstract"><input type="checkbox" id="f-abstract"> abstract</label>
-          <label id="l-type">Defined by <select id="f-type"></select></label>
-          <label class="check" id="l-typeLine"><input type="checkbox" id="f-typeLine"> draw the defined-by line</label>
-          <label id="l-multiplicity">Multiplicity <input type="text" id="f-multiplicity" autocomplete="off" spellcheck="false" placeholder="1, 0..1, or 1..*"></label>
-          <label class="check" id="l-conjugated"><input type="checkbox" id="f-conjugated"> conjugated (~), the other side of the port</label>
-          <label id="l-doc">Doc <textarea id="f-doc" rows="2" spellcheck="true"></textarea></label>
-          <label id="l-direction">Direction <select id="f-direction"><option value="">undirected</option><option value="in">in</option><option value="out">out</option><option value="inout">inout</option></select></label>
-          <label id="l-item">Item (the payload) <select id="f-item"></select></label>
-          <!-- The features' fields. -->
-          <label id="l-interfaceDef">Interface def <select id="f-interfaceDef"></select></label>
-          <label id="l-actionKind">Kind of action <select id="f-actionKind"><option value="plain">plain</option><option value="send">send</option><option value="accept">accept</option></select></label>
-          <label id="l-payload">Payload <input type="text" id="f-payload" autocomplete="off" spellcheck="false" placeholder="new Alert() to send; x : Type or after 10 [SI::s] to accept"></label>
-          <label id="l-target">Target (via a port, to anything else) <input type="text" id="f-target" autocomplete="off" spellcheck="false" placeholder="a port, a part or an action"></label>
-          <label id="l-role">Role under a state <select id="f-role"><option value="">none</option><option value="entry">entry</option><option value="do">do</option><option value="exit">exit</option></select></label>
-          <label id="l-guard">Guard <input type="text" id="f-guard" autocomplete="off" spellcheck="false" placeholder="a Boolean expression, or else"></label>
-          <label id="l-trigger">Trigger (the accept part) <input type="text" id="f-trigger" autocomplete="off" spellcheck="false" placeholder="StartSignal · x : Sig via port · after 48 [SI::h] · when ready"></label>
-          <label id="l-effect">Effect <input type="text" id="f-effect" autocomplete="off" spellcheck="false" placeholder="action name, send new X() to y, assign a := b"></label>
-          <label class="check" id="l-parallel"><input type="checkbox" id="f-parallel"> parallel: its regions run at the same time</label>
-          <label id="l-order">Order (the message's place in time, top to bottom) <input type="text" id="f-order" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="1, 2, 3…"></label>
-          <!-- The spatial fields of a part drawn in a geometry view: its shape and unit, the dimensions its shape has (in
-               that unit), and the position of its origin in its owner's frame. -->
-          <div class="geo-row">
-            <label id="l-shape">Shape <select id="f-shape"><option value="">none</option><option value="Box">Box</option><option value="Rectangle">Rectangle</option><option value="CircularCylinder">CircularCylinder</option><option value="Sphere">Sphere</option><option value="CircularCone">CircularCone</option></select></label>
-            <label id="l-unit">Unit <select id="f-unit"><option value="m">m</option><option value="mm">mm</option><option value="cm">cm</option><option value="km">km</option><option value="ft">ft</option><option value="in">in</option></select></label>
+          <!-- SysON's Details view: a Core tab and an Advanced tab (details/page.js). Every field is a
+               <label id="l-<field>"> holding its input, <… id="f-<field>">, one per row of FIELDS, which the panel shows
+               for the kinds that list it; a choice is a fieldset of radios, id="f-<field>". -->
+          <div class="tabs" role="tablist" aria-label="Details">
+            <button type="button" role="tab" class="tab-button" id="tab-core" data-tab="Core" aria-controls="page-core" aria-selected="true">Core</button>
+            <button type="button" role="tab" class="tab-button" id="tab-advanced" data-tab="Advanced" aria-controls="page-advanced" aria-selected="false">Advanced</button>
           </div>
-          <div class="geo-row">
-            <label id="l-length">Length <input type="text" id="f-length" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-width">Width <input type="text" id="f-width" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-height">Height <input type="text" id="f-height" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-radius">Radius <input type="text" id="f-radius" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          <div class="details-page" id="page-core" role="tabpanel" aria-labelledby="tab-core" data-tab="Core">
+            <div class="group" id="g-main">
+              <h3 class="group-title" id="g-main-title"></h3>
+              <!-- SysON's core features first, in its order, then the canvas's own fields in this order, then the
+                   documentation; details/page.js puts them there. -->
+              <div class="group-body" id="g-main-body">
+                <label id="l-name">Declared Name <input type="text" id="f-name" autocomplete="off" spellcheck="false"></label>
+                <p class="detail" id="d-qualifiedName"><span class="detail-label">Qualified Name</span><span class="detail-value" id="f-path"></span></p>
+                <div class="radio-field" id="l-direction"><span class="radio-label">Direction</span><fieldset class="radios" id="f-direction"><label><input type="radio" name="f-direction" value=""> unset</label><label><input type="radio" name="f-direction" value="in"> in</label><label><input type="radio" name="f-direction" value="out"> out</label><label><input type="radio" name="f-direction" value="inout"> inout</label></fieldset></div>
+                <label class="check" id="l-parallel"><input type="checkbox" id="f-parallel"> Is Parallel: its regions run at the same time</label>
+                <label class="check" id="l-abstract"><input type="checkbox" id="f-abstract"> Is Abstract</label>
+                <label id="l-multiplicity">Multiplicity <input type="text" id="f-multiplicity" autocomplete="off" spellcheck="false" placeholder="1, 0..1, or 1..*"></label>
+                <label id="l-item">Item (the payload) <select id="f-item"></select></label>
+                <div class="radio-field" id="l-actionKind"><span class="radio-label">Kind of action</span><fieldset class="radios" id="f-actionKind"><label><input type="radio" name="f-actionKind" value="plain"> plain</label><label><input type="radio" name="f-actionKind" value="send"> send</label><label><input type="radio" name="f-actionKind" value="accept"> accept</label></fieldset></div>
+                <label id="l-payload">Payload <input type="text" id="f-payload" autocomplete="off" spellcheck="false" placeholder="new Alert() to send; x : Type or after 10 [SI::s] to accept"></label>
+                <label id="l-target">Target (via a port, to anything else) <input type="text" id="f-target" autocomplete="off" spellcheck="false" placeholder="a port, a part or an action"></label>
+                <div class="radio-field" id="l-role"><span class="radio-label">Kind under a state</span><fieldset class="radios" id="f-role"><label><input type="radio" name="f-role" value=""> unset</label><label><input type="radio" name="f-role" value="entry"> entry</label><label><input type="radio" name="f-role" value="do"> do</label><label><input type="radio" name="f-role" value="exit"> exit</label></fieldset></div>
+                <label id="l-guard">Guard <input type="text" id="f-guard" autocomplete="off" spellcheck="false" placeholder="a Boolean expression, or else"></label>
+                <label id="l-trigger">Trigger (the accept part) <input type="text" id="f-trigger" autocomplete="off" spellcheck="false" placeholder="StartSignal · x : Sig via port · after 48 [SI::h] · when ready"></label>
+                <label id="l-effect">Effect <input type="text" id="f-effect" autocomplete="off" spellcheck="false" placeholder="action name, send new X() to y, assign a := b"></label>
+                <label id="l-order">Order (the message's place in time, top to bottom) <input type="text" id="f-order" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="1, 2, 3…"></label>
+                <label id="l-doc">Documentation <textarea id="f-doc" rows="2" spellcheck="true"></textarea></label>
+              </div>
+            </div>
+            <!-- SysON's untitled groups: what the element is typed by, and what it specializes or subsets. -->
+            <div class="group" id="g-typing">
+              <label id="l-type">Typed by <select id="f-type"></select></label>
+              <label id="l-interfaceDef">Typed by <select id="f-interfaceDef"></select></label>
+              <label class="check" id="l-typeLine"><input type="checkbox" id="f-typeLine"> draw the defined-by line</label>
+              <label class="check" id="l-conjugated"><input type="checkbox" id="f-conjugated"> conjugated (~), the other side of the port</label>
+            </div>
+            <div class="group" id="g-general">
+              <label id="l-specializes">Specializes <select id="f-specializes"></select></label>
+              <label id="l-subsets">Subsets <select id="f-subsets"></select></label>
+            </div>
+            <!-- The spatial fields of a part drawn in a geometry view: its shape and unit, the dimensions its shape has
+                 (in that unit), and the position of its origin in its owner's frame. -->
+            <div class="group" id="g-geometry">
+              <div class="radio-field" id="l-shape"><span class="radio-label">Shape</span><fieldset class="radios" id="f-shape"><label><input type="radio" name="f-shape" value=""> none</label><label><input type="radio" name="f-shape" value="Box"> Box</label><label><input type="radio" name="f-shape" value="Rectangle"> Rectangle</label><label><input type="radio" name="f-shape" value="CircularCylinder"> CircularCylinder</label><label><input type="radio" name="f-shape" value="Sphere"> Sphere</label><label><input type="radio" name="f-shape" value="CircularCone"> CircularCone</label></fieldset></div>
+              <div class="radio-field" id="l-unit"><span class="radio-label">Unit</span><fieldset class="radios" id="f-unit"><label><input type="radio" name="f-unit" value="m"> m</label><label><input type="radio" name="f-unit" value="mm"> mm</label><label><input type="radio" name="f-unit" value="cm"> cm</label><label><input type="radio" name="f-unit" value="km"> km</label><label><input type="radio" name="f-unit" value="ft"> ft</label><label><input type="radio" name="f-unit" value="in"> in</label></fieldset></div>
+              <div class="geo-row">
+                <label id="l-length">Length <input type="text" id="f-length" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-width">Width <input type="text" id="f-width" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-height">Height <input type="text" id="f-height" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-radius">Radius <input type="text" id="f-radius" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+              </div>
+              <div class="geo-row">
+                <label id="l-posX">Position x <input type="text" id="f-posX" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-posY">Position y <input type="text" id="f-posY" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+                <label id="l-posZ">Position z <input type="text" id="f-posZ" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+              </div>
+            </div>
           </div>
-          <div class="geo-row">
-            <label id="l-posX">Position x <input type="text" id="f-posX" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-posY">Position y <input type="text" id="f-posY" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
-            <label id="l-posZ">Position z <input type="text" id="f-posZ" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          <div class="details-page" id="page-advanced" role="tabpanel" aria-labelledby="tab-advanced" data-tab="Advanced" hidden>
+            <div class="group">
+              <h3 class="group-title" id="g-advanced-title"></h3>
+              <!-- Every other attribute of the element's metaclass, in the metamodel's order (details/page.js). -->
+              <div class="group-body" id="g-advanced-body"></div>
+            </div>
           </div>
-          <p class="meta" id="f-path"></p>
           <p class="meta" id="f-views"></p>
           <div class="row">
+            <button type="button" id="edit-label">Edit label</button>
             <button type="button" id="add-note">Add note</button>
             <button type="button" id="remove-from-view" title="Take it out of this view. It stays in the model and in the other views.">Remove from view</button>
             <button type="button" class="danger" id="delete-selected">Delete</button>
@@ -115,8 +144,26 @@
         </div>
         <div class="fields" id="view-fields" hidden>
           <p class="kind" id="v-kind"></p>
-          <label id="l-v-name">Name <input type="text" id="v-name" autocomplete="off" spellcheck="false"></label>
-          <label id="l-v-doc">Doc <textarea id="v-doc" rows="2" spellcheck="true"></textarea></label>
+          <div class="tabs" role="tablist" aria-label="Details of the view">
+            <button type="button" role="tab" class="tab-button" id="v-tab-core" data-tab="Core" aria-controls="v-page-core" aria-selected="true">Core</button>
+            <button type="button" role="tab" class="tab-button" id="v-tab-advanced" data-tab="Advanced" aria-controls="v-page-advanced" aria-selected="false">Advanced</button>
+          </div>
+          <div class="details-page" id="v-page-core" role="tabpanel" aria-labelledby="v-tab-core" data-tab="Core">
+            <div class="group">
+              <h3 class="group-title" id="v-g-main-title"></h3>
+              <div class="group-body" id="v-g-main-body">
+                <label id="l-v-name">Declared Name <input type="text" id="v-name" autocomplete="off" spellcheck="false"></label>
+                <p class="detail" id="v-d-qualifiedName"><span class="detail-label">Qualified Name</span><span class="detail-value" id="v-path"></span></p>
+                <label id="l-v-doc">Documentation <textarea id="v-doc" rows="2" spellcheck="true"></textarea></label>
+              </div>
+            </div>
+          </div>
+          <div class="details-page" id="v-page-advanced" role="tabpanel" aria-labelledby="v-tab-advanced" data-tab="Advanced" hidden>
+            <div class="group">
+              <h3 class="group-title" id="v-g-advanced-title"></h3>
+              <div class="group-body" id="v-g-advanced-body"></div>
+            </div>
+          </div>
           <label id="l-v-show">Show in this view <select id="v-show"></select></label>
           <p class="meta" id="v-meta"></p>
           <!-- Each kind's options, in <div class="view-options" data-view-kind="GridView" hidden>, shown for a view of the kind. -->
@@ -190,6 +237,16 @@
       </section>
     </aside>
 
+    <!-- The Validation view (validation/page.js): the specification's rules' diagnostics, by kind. -->
+    <div class="float validation-panel" id="validation-panel" hidden aria-labelledby="validation-title">
+      <div class="panel-head">
+        <h2 id="validation-title">Validation</h2>
+        <button type="button" class="hide" id="close-validation">Close</button>
+      </div>
+      <p class="meta" id="validation-about"></p>
+      <div class="validation-kinds" id="validation-kinds"></div>
+      <p class="empty" id="validation-empty">No diagnostic available</p>
+    </div>
     <div class="float export-panel" id="export-panel" hidden aria-labelledby="export-title">
       <div class="panel-head">
         <h2 id="export-title">Textual SysML v2</h2>

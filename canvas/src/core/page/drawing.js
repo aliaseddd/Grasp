@@ -21,6 +21,12 @@
     t.textContent = content;
     return t;
   }
+  // Marks a drawn text (or tspan) as an element's or a line's label: the text label editing opens its box over
+  // (labels/page.js). Each group has at most one of its own.
+  function asLabel(t) {
+    t.setAttribute('data-label', '');
+    return t;
+  }
   // The markers a line may carry at its end or its start (RELATIONSHIPS[kind].line.marker and markerStart): each id
   // and its <marker> markup, put into the drawing's <defs> on every render. The slices add the flow arrow and the rest.
   const MARKERS = {
@@ -63,7 +69,7 @@
       const cx = r.x + r.w / 2;
       g.appendChild(node('rect', { x: f(r.x), y: f(r.y), width: f(r.w), height: f(r.h), rx: radius }, 'outline'));
       g.appendChild(text(cx, r.y + 16, '«' + (el.abstract ? 'abstract ' : '') + kind.keyword + '»', 'kw', 'middle'));
-      g.appendChild(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle'));
+      g.appendChild(asLabel(text(cx, r.y + 32, nameLine(el), kind.definition ? 'name' : 'uname', 'middle')));
     };
   }
   // Which way the first line drawn from a border item leaves it, as a vector, or null when no drawn line starts or
@@ -143,7 +149,7 @@
         }
         // The name sits outside the owner, beside the square, on the side no drawn line heads for (portName).
         const at = portName(p, r, L);
-        g.appendChild(text(at.x, at.y, nameLine(p), 'mono', at.anchor));
+        g.appendChild(asLabel(text(at.x, at.y, nameLine(p), 'mono', at.anchor)));
       },
       compartments: false
     }
@@ -291,7 +297,7 @@
     g.appendChild(line);
     // The label, below the line's middle by the kind's labelOffset (30 unless said; negative puts it above).
     const label = how.label && !(region && region.far) ? how.label(rel, S.model, S.layout.ids) : '';
-    if (label) g.appendChild(text(e.mid.x, e.mid.y + (typeof how.labelOffset === 'number' ? how.labelOffset : 30), label, 'uname', 'middle'));
+    if (label) g.appendChild(asLabel(text(e.mid.x, e.mid.y + (typeof how.labelOffset === 'number' ? how.labelOffset : 30), label, 'uname', 'middle')));
     return g;
   }
   // A view's frame: the outline, the header tab (with a clear rectangle over it that takes the pointer, to select or
@@ -588,7 +594,7 @@
   }
 
   Object.assign(C, {
-    node, text, MARKERS, defs, nameLine, portName, SHAPES, COMPARTMENTS, compartmentsOf, ownCompartments, onScreen,
+    node, text, asLabel, MARKERS, defs, nameLine, portName, SHAPES, COMPARTMENTS, compartmentsOf, ownCompartments, onScreen,
     pointsOnScreen, drawBox, drawRel, drawFrame, RENDERERS, freshElement, blankField
   });
 })(window.SysMLCanvas);

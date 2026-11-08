@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import {
-  clickElement, drawRelationship, exportText, finish, launch, openCanvas, placeElement, rename, selectedId, until, zoomLevel,
+  clickElement, detailsTab, drawRelationship, exportText, finish, launch, openCanvas, placeElement, rename, selectedId, until, zoomLevel,
 } from './helpers.mjs';
 
 describe('drawing', () => {
@@ -20,7 +20,9 @@ describe('drawing', () => {
     assert.equal(await page.getAttribute(`g[data-el="${id}"]`, 'data-kind'), 'PartDefinition');
     assert.equal(await selectedId(page), id, 'the new element is selected');
     assert.ok(await page.locator('#inspector #f-name').isVisible(), 'the inspector shows #f-name');
-    assert.ok(await page.locator('#f-abstract').isVisible(), 'the inspector shows #f-abstract for a definition');
+    await detailsTab(page, 'Advanced');
+    assert.ok(await page.locator('#f-abstract').isVisible(), 'the inspector shows #f-abstract for a definition, on the Advanced tab');
+    await detailsTab(page, 'Core');
     assert.match(await page.textContent('#status'), /\S/, '#status reports the placement in words');
     await finish(ctx);
   });

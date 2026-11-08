@@ -4,7 +4,7 @@
   const S = C.state;
   const {
     M, TOOL_TITLE, TOOL_HINT, BASE_NAME, ACTIONS, VIEW_PANELS, FIELD_HOOKS, $, say, editable, f, relById, viewById,
-    viewLayout, frameAround, ROUTES, endpoints, viewAt, node, text, MARKERS, nameLine, SHAPES, drawBox, drawRel,
+    viewLayout, frameAround, ROUTES, endpoints, viewAt, node, text, asLabel, MARKERS, nameLine, SHAPES, drawBox, drawRel,
     RENDERERS, freshElement, edit, endEdit, freeName, renderInspector, selectedView
   } = C;
 
@@ -31,7 +31,7 @@
       const cy = r.y + r.h / 2;
       g.appendChild(node('circle', { cx: f(cx), cy: f(cy), r: 10 }, 'event-hit'));
       g.appendChild(node('circle', { cx: f(cx), cy: f(cy), r: EVENT_R }, 'outline'));
-      g.appendChild(text(cx + 10, cy - 5, nameLine(el), 'mono', 'start'));
+      g.appendChild(asLabel(text(cx + 10, cy - 5, nameLine(el), 'mono', 'start')));
     },
     compartments: false, cls: 'event'
   };
