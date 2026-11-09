@@ -6,3 +6,7 @@ node_modules/
 
 # the spikes' build outputs (plan/spikes/README.md says how to make them)
 plan/spikes/*/dist/
+plan/spikes/opensysml/*.wasm
+plan/spikes/opensysml/wasm_exec.js
+plan/spikes/opensysml/*.json
+plan/spikes/opensysml/*.back.sysml

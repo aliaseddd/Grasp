@@ -25,3 +25,18 @@ node -e "const fs=require('fs');fs.writeFileSync('opensysml/dist/wasm-data.js','
 npx esbuild opensysml/wasm-app.js --bundle --format=iife --minify --define:process.env.NODE_ENV='"production"' --outfile=opensysml/dist/wasm-app.js
 cp opensysml/index.html opensysml/dist/ && node opensysml/wasm-page.cjs   # the module embedded as gzip+base64 in a classic script, decompressed and started in the page: timings of each step
 ```
+
+### The command-line build: text to the standard JSON element form and back
+
+The same npm package ships `sysml-prod.wasm.gz`, the browser build of OpenSysML's command line and REPL, which the typed client does not use. `opensysml/convert.cjs` runs it under Node with a minimal environment (its arguments and environment must stay under about 8 KiB):
+
+```sh
+gunzip -c node_modules/@openmbee/opensysml-wasm/sysml-prod.wasm.gz > opensysml/sysml-prod.wasm   # 64.8 MB
+cp node_modules/@openmbee/opensysml-wasm/wasm_exec.js opensysml/
+cd opensysml
+node convert.cjs -convert api-json ../../../docs/sysml/stronghold-proof.sysml > proof.api.json   # 189 elements, 258 KB, 1.6 s; ids derived from qualified names, identical on every run
+node convert.cjs -from api-json -convert sysml proof.api.json > proof.back.sysml               # 139 lines, comments and documentation kept
+node convert.cjs -convert api-json proof.back.sysml > proof.back.api.json                      # the same 189 elements, type for type and name for name
+```
+
+OpenSysML prints a notice that the conversion is experimental: it covers model structure and the behaviour bodies state, refuses what it cannot write back, and its vocabulary may change without a compatibility path.
