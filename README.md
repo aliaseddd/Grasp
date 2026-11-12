@@ -12,7 +12,7 @@ The canvas was first built here to draw the design of [Stronghold](https://githu
 | `canvas/examples/` | Models to open in the canvas: Stronghold's proof structure, the model the canvas started with. | The canvas: state files, which its Import state opens |
 | `docs/sysml/` | The validator script `check.sh` the canvas exports through, aider's maps of the SysML v2 Pilot Implementation (`docs/sysml/pilot-implementation`) and of Eclipse SysON (`docs/sysml/syson`), an inventory of SysON's features (`docs/sysml/syson/features`), and an example: Stronghold's proof structure in textual SysML v2, with the page it was drawn and annotated on before the canvas existed. | Java 17+ and python3 for `check.sh` |
 | `docs/REPO_MAP.md` | The repo map aider draws of this repository. | aider |
-| `plan/` | The plan the canvas is built to, step by step (`status.json`), and the notes each working session leaves for the next (`notes.md`). | JSON and Markdown |
+| `plan/` | The redesign Grasp is being rebuilt to, in seven slices (`direction.md`), with its map of SysON's features by need (`scope.md`) and the experiments it rests on (`spikes/`); where the work stands (`status.json`); and the notes each working session leaves for the next (`notes.md`). | JSON and Markdown |
 
 The READMEs in `canvas/`, its folders, and `docs/sysml/` say why each is the way it is. The Stronghold examples describe Stronghold's code, so paths in them like `app/src/host/load-app.ts` name files in the Stronghold repository.
 
@@ -57,6 +57,15 @@ These decisions were made for Stronghold's design artifact, so the Stronghold re
 - The saved state lives in `canvas/state.json`: the model, the notes and the archive, as `{ model, notes, archive }`. `canvas/save-state.mjs` writes it and builds the page from it, and it is committed only on request.
 - SysON's features come in one at a time (step 10 of `plan/`), copying SysON's design from its user manual and the inventory in `docs/sysml/syson/features/`, never its code. For editing a label by typing, three choices follow SysON: while something editable is selected, typing goes into its label, so the zoom keys (+, -, 0) zoom only with nothing selected; what SysON's label text can say but the canvas doesn't hold yet (a short name, `ref`, a redefinition, a value) is named in the status line as not kept, until the features that hold it come; and the keyword (`«part»`) isn't part of the text edited.
 
+## Decided on November 8, 2026
+
+`plan/direction.md` holds these decisions in full, with what they rest on.
+
+- What Grasp is for is a mature look and feel, with SysON's workbench as the reference: tabs that are each a plane of their own, panels and boxes that resize, no header palette. SysON's feature set is not the goal.
+- Four needs: read and write textual SysML v2; hold, show and edit every SysML v2 concept, and KerML as far as SysML v2 stands on it; Claude reads and changes the diagrams, not only the model; code lives in GitHub, written by Claude, reviewed by Damon, and linked from the elements it realizes.
+- One HTML file is no longer required, and libraries vendored as files are allowed, since nothing can be installed on the workplace machine but files can be downloaded. The page still opens from the file system in Chromium with no server; it keeps its files in a workspace folder on disk and exchanges them with Claude through GitHub, and the page's store on claude.ai drops out.
+- The page is rebuilt on React Flow, Dockview and Material UI, bundled by esbuild on Claude's side, with OpenSysML's WebAssembly module as the reader, printer and checker of SysML v2 text; the model library and the pilot validator stay.
+
 ## Next
 
-SysON's features, one at a time, in the order of `features` in `plan/status.json`: label editing, the details view and the specification's validation rules are in (`canvas/README.md` says what each does); the next ones are added to that list. The canvas's page on claude.ai, https://claude.ai/artifact/V7Fw94cGMbtPnwmyDNmnjU, shows the model it was last published with until it is published again; then it starts from the blank model, and the Stronghold example opens in it with Import state.
+The redesign, in the seven slices of `plan/direction.md`, starting with the first, the shell and the planes; `plan/status.json` says which slice is next. The new page is built into `canvas/dist/` beside the old one, and the old page in `canvas/` stays, unchanged, until the new one draws everything it draws. Under the redesign the claude.ai page (https://claude.ai/artifact/V7Fw94cGMbtPnwmyDNmnjU) and its store drop out.

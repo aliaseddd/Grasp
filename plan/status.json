@@ -1,4 +1,15 @@
 {
+  "plan": "plan/direction.md",
+  "next": 1,
+  "slices": [
+    { "id": 1, "name": "The shell and the planes", "status": "open" },
+    { "id": 2, "name": "Editing parity", "status": "open" },
+    { "id": 3, "name": "The workspace folder and the loop through GitHub", "status": "open" },
+    { "id": 4, "name": "Every concept, in the standard form", "status": "open" },
+    { "id": 5, "name": "Text in the page", "status": "open" },
+    { "id": 6, "name": "Code links into GitHub", "status": "open" },
+    { "id": 7, "name": "The finish of the look", "status": "open" }
+  ],
   "steps": [
     { "id": 1, "name": "Split the source", "status": "done" },
     { "id": 2, "name": "One edit function", "status": "done" },
