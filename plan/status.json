@@ -4,9 +4,9 @@
   "slices": [
     {
       "id": 1, "name": "The shell and the planes", "status": "in progress",
-      "plan": "plan/slice-1.md", "step": 1,
+      "plan": "plan/slice-1.md", "step": 2,
       "checks": [
-        { "id": 1, "check": "opened from the file system in Chromium with no console error", "test": "shell.test.mjs › from file://, the page opens with no console error", "status": "todo" },
+        { "id": 1, "check": "opened from the file system in Chromium with no console error", "test": "shell.test.mjs › from file://, the page opens with no console error", "status": "pass" },
         { "id": 2, "check": "the example shows its general view on a tab", "test": "shell.test.mjs › the example shows its general view on a tab", "status": "todo" },
         { "id": 3, "check": "no header palette or button row exists", "test": "shell.test.mjs › no header palette or button row exists", "status": "todo" },
         { "id": 4, "check": "a sash drag resizes the Explorer", "test": "shell.test.mjs › a sash drag resizes the Explorer", "status": "todo" },
