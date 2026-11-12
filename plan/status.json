@@ -4,14 +4,14 @@
   "slices": [
     {
       "id": 1, "name": "The shell and the planes", "status": "in progress",
-      "plan": "plan/slice-1.md", "step": 2,
+      "plan": "plan/slice-1.md", "step": 4,
       "checks": [
         { "id": 1, "check": "opened from the file system in Chromium with no console error", "test": "shell.test.mjs › from file://, the page opens with no console error", "status": "pass" },
         { "id": 2, "check": "the example shows its general view on a tab", "test": "shell.test.mjs › the example shows its general view on a tab", "status": "todo" },
         { "id": 3, "check": "no header palette or button row exists", "test": "shell.test.mjs › no header palette or button row exists", "status": "todo" },
         { "id": 4, "check": "a sash drag resizes the Explorer", "test": "shell.test.mjs › a sash drag resizes the Explorer", "status": "todo" },
         { "id": 5, "check": "a box resized by its handles keeps its size after save and reload", "test": "resize.test.mjs › a box resized by its handles keeps its size after save and reload", "status": "todo" },
-        { "id": 6, "check": "the library's Node tests pass unchanged", "test": "unchanged.test.mjs › the library's Node tests pass, and the old page, the library and their tests are byte for byte as the slice found them", "status": "todo" },
+        { "id": 6, "check": "the library's Node tests pass unchanged", "test": "unchanged.test.mjs › the library's Node tests pass, and the old page, the library and their tests are byte for byte as the slice found them", "status": "pass" },
         { "id": 7, "check": "a 5,000-element model opens", "test": "scale.test.mjs › a 5,000-element model opens", "status": "todo" },
         { "id": 8, "check": "a drag step measured inside the handler stays under 16 ms, or the limit is restated with the measurement", "test": "scale.test.mjs › a drag step takes under 16 ms at 5,000 elements in 3 views", "status": "todo" },
         { "id": 9, "check": "a keystroke under 50 ms", "test": "scale.test.mjs › a keystroke in a name takes under 50 ms at 5,000 elements", "status": "todo" },

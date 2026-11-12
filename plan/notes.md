@@ -1424,3 +1424,201 @@ its folder, Roboto included) and `shell.test.mjs` (1: check 1 of the slice). 8 p
 - Step 3 of `plan/slice-1.md`: the remaining "Done when" checks as named tests marked todo, and
   `unchanged.test.mjs` with `unchanged.json`.
 - `npm ci` first: `node_modules/` is not committed.
+
+## Session 15, November 12, 2026: steps 3 and 4 of slice 1, built in parallel
+
+Steps 3 and 4 of `plan/slice-1.md` were built at the same time, on `claude/determined-fermi-2fudi6`, from `4d1d725`.
+They share no source file, so each had a worker of its own, in a git worktree of its own, and a lead reviewed both
+diffs, checked the one place the steps meet, and put the results on the branch as two commits, step 3's and then
+step 4's, as if the steps had been done in order. The lead wrote `plan/status.json` and this entry in place of the
+workers, so that no two wrote the same file. The old suite ran only before the workers started and after both had
+finished: its scale tests time single steps in milliseconds, and other work on the machine can fail them.
+
+The baseline, in this container (Node 22.23.4, 4 processors), at `4d1d725`, before any change:
+
+| Command | Result |
+|---|---|
+| `npm ci` | 119 packages in 13 s |
+| `npm run check` | `canvas/dist is what the sources build.`, and `tsc` silent, in 2.4 s |
+| `npm test` | 8 tests in 3 suites: 8 pass, 0 fail, 0 todo, in 5 s |
+| `npm run test:old` | 221 tests in 47 suites: 221 pass, 0 fail, 0 todo, in 86 s |
+
+Every command passed at its first run.
+
+### Step 3: the "Done when" tests, written first
+
+Each of the slice's ten checks is a test of exactly the name `plan/status.json` gives it. Eight are marked todo and
+fail because what they check is not built: three in `shell.test.mjs`, one in `resize.test.mjs`, four in
+`scale.test.mjs`. `unchanged.test.mjs` passes with no mark, so check 6 is `"pass"`. With step 3 alone, `npm test`
+reports 17 tests: 9 pass, 0 fail, 8 todo, in 12.6 s (5 s before). The eight todo tests take 0.3 to 0.5 s each today;
+`unchanged.test.mjs` takes 7 to 9 s, since the six library test files need about 16 s of processor time.
+
+What each todo test says today:
+
+| Test | Message |
+|---|---|
+| shell › the example shows its general view on a tab | `The page has no Open button (data-testid "open"), so stronghold-proof.json cannot be opened.` |
+| shell › no header palette or button row exists | `The page has no top bar (data-testid "top-bar"): the shell that replaces the old header is not built.` |
+| shell › a sash drag resizes the Explorer | `The page shows no Explorer (data-testid "explorer"), so there is no sash to drag.` |
+| resize › a box resized by its handles keeps its size after save and reload | `The page has no Open button (data-testid "open"), so stronghold-proof.json cannot be opened.` |
+| scale › all four | `The page has no Open button (data-testid "open"), so scale-5000.json cannot be opened.` |
+
+Six of the eight stop at the Open button, the first part missing, so today's page cannot show how they fail further
+on. The worker therefore ran them against a throwaway page on the real `vendor.js` (Dockview, React Flow, MUI), in a
+scratch folder, deleted since. With every part built all eight passed (the scale tests on a 57-element model). With
+one part left out at a time, each failed in 1.3 to 1.9 s with a message naming that part: no file asked for, no file
+name in the bar, no tab, no plane, no nodes, no edges, a bar of two rows, a button with text, no sash, no selection,
+no handle, a resize not written to the model, no download, no fit when a tab is shown, no zoom on Ctrl + wheel, no
+name field, a limit not held.
+
+`unchanged.test.mjs`:
+
+- **`unchanged.json`** pins the SHA-256 of 130 files, hashed from the blobs of `1ab5c53`, where the slice began; the
+  lead hashed the same paths at `1ab5c53` and at `4d1d725` and found the same 130. The test walks the eleven pinned
+  paths on disk and names each file that has changed, is gone or is new. Nothing writes the JSON again.
+- **The six files** (`build`, `lookups`, `metamodel`, `model-lib`, `store-dump`, `stored`) run in a `node --test` of
+  their own with `NODE_TEST_CONTEXT` taken out, and the test compares the runner's summary with 50 tests, 50 pass. A
+  runner that inherits the variable runs nothing and exits 0 (Node 22.23.4); the test was seen to fail with the
+  variable left in, with one file not run (`tests 40`), with a failing old test, and with a changed, new or missing
+  file.
+
+What the tests need of the page is listed at the top of `canvas/app/test/helpers.mjs`, and steps 5 to 10 build to it:
+
+- `data-testid`: `top-bar`; `open`, `save`, `undo`, `redo` and `about`, each on its `<button>` with an `aria-label`;
+  `file-name`; `dock`; `explorer`; `details`; `plane` with `data-view="<view id>"`; `field-name` inside `details`.
+- From the libraries: a tab has the role `tab` and is named `name : kind`; a React Flow node's id is its element's and
+  an edge's is its relationship's; a selected node has the class `selected`; the resize handle is
+  `.react-flow__resize-control.handle.bottom.right`.
+- Gestures: Ctrl + wheel zooms, a drag of the ground pans, and Save downloads under the opened file's name.
+- No test reads `window.Grasp`: each finds what it checks in the document.
+
+What was built otherwise than the plan names, or beyond it:
+
+- **`moveTiming`, a second timing helper.** The plan's step 8 has a drag step "timed as `timing` takes it today".
+  `timing` is copied as the plan asks, and only the keystroke test can use it: React Flow hears drags, pans and
+  resizes through d3, whose `mousemove` listener on the window calls `stopImmediatePropagation`, so
+  `timing(page, 'pointermove', 'mousemove')` waited 60 s for a sample that never came. Chromium handles a mouse move
+  at the start of a frame, in one task with the frame's animation callbacks, so `moveTiming` takes the script's time
+  from the `pointermove` reaching the window to those callbacks, and the frame's time from there to after paint.
+  Listeners busy for exactly 8 ms measured 8.0 to 8.3 ms over 200 moves. A move that a press or a release follows at
+  once is handled before its frame, and `time()` fails on such a sample. Step 8's text and this differ; the plan
+  changes only with Damon's approval, so it stands as written until he says.
+- **`soon(page, check, missing)`** waits by the page's animation frames, not by the clock: it gives up after 60 frames
+  the page had to itself, about 1 s. A page busy for seconds over 5,000 elements is waited for, and a part that is
+  not built is found missing in about a second. With `until` and its 60 s, the scale tests alone would cost four
+  minutes a run between steps 5 and 8. `until` is kept as copied; its failure carries what the page logged, in place
+  of the old page's `#status`.
+- **A gesture is one move of 3 by 2 px, then three of 12 by 6.** The old tests made four of 12 by 6. React Flow takes
+  the first move to tell a drag from a click, so with four equal moves the box went 36 by 18 px for 48 by 24.
+- **The pan test pans each of the three views**, and each must hold the limit. **The open test** times from the page
+  being given the file to three tabs shown and the first plane drawing all its 1,544 elements, against 5 s.
+- **`openPage` also returns `dialogs`** and accepts each, so a `beforeunload` question at a reload is an assertion,
+  not a 30 s hang. **`afterEach` closes the pages** a failed test left open.
+- **`assert.ok` where the message is the whole sentence:** `assert.equal(a, b, message)` in Node 22.23 prints
+  `0 !== 1` after the message.
+
+Found on the throwaway page, for the steps that build the planes:
+
+- **Dockview and `fitView`.** Dockview 8.9.0 mounts a panel's React component when the panel is added, in an element
+  outside the document until its tab is shown. React Flow then measures 0 by 0, and a `fitView` at mount fits
+  nothing: scale 0.01, half the nodes drawn. Step 6 must fit when the plane's container first has a size.
+- **First numbers at 5,000 elements**, plain boxes, every node in the DOM when fitted, no culling: opening 1.5 to
+  2.9 s; a drag step at 100% 10 to 12 ms; a pan step, fitted, 35 to 54 ms in two views and 93 ms in the action flow
+  view; a keystroke 415 ms when the page projects all three views again.
+- **Contention at step 8.** Under `npm test`, `unchanged.test.mjs` keeps three processor-bound processes busy for 7 to
+  9 s while `scale.test.mjs` runs. Today that costs only time; once the scale tests measure for real, step 8 may
+  need `--test-concurrency` or another order.
+- **Sizes within a tolerance.** The resize test allows 2 units on growth and 1 between the plane and the file; a page
+  that snapped sizes to a coarse grid would fail it.
+
+### Step 4: the core, without an interface
+
+`canvas/app/src/core/` holds the history with undo and redo (`history.ts`), the session (`session.ts`), opening and
+saving a state file (`files.ts`) and `index.ts`, in TypeScript with no React, tested in Node. `main.tsx` and
+`canvas/dist/` are as they were: the page starts to use the core in step 5. Each test was written and seen to fail
+before its code (`history.test.mjs` 19 of 19 failing with no core; `files.test.mjs` 21 of 22 with no `openText`);
+cases added afterwards were checked the other way round, by breaking the core in 51 ways, each of which failed a
+test.
+
+With both steps, `npm test` reports 64 tests in 9 suites: 56 pass, 0 fail, 8 todo, in 15 s; `npm run check` passes in
+5 s; `npm run test:old` passes 221 of 221 in 82 s. Step 4 alone: 55 tests, 55 pass, in 6 s.
+
+The tests: `history.test.mjs` (21: the six cases the plan lists, by those names, and the rest of the port),
+`files.test.mjs` (23: the example and each of the nine fixtures, opened and saved with no change, hold the same
+model, notes, archive and code links, and `canvas/export.mjs` prints each one's pinned text from the saved file,
+`format1.sysml` for the example; then the session, and the browser's part played by stand-ins) and
+`history-walk.test.mjs` (3).
+
+What was built otherwise than the plan names, or beyond it:
+
+- **`canvas/app/test/history-walk.test.mjs`**, a file the plan did not list. It runs the old page's
+  `canvas/src/core/page/changes.js` in Node, with stand-ins for the page, beside the new history on 2,889 seeded
+  random changes, and compares what `edit` returned, what was told, the steps, the log and the mistakes after each,
+  and the models every tenth change. It makes each intended difference on both sides. And it walks the new history
+  alone with Redo: 3,465 steps undone and 3,020 redone, the model compared as JSON text each time. The first two
+  tests read `changes.js`, so they go when the old page goes. Scratch runs of the same comparison agreed over
+  200,000 random changes on the ten files.
+- **`history.ts` differs from `changes.js` beyond redo, listeners and the empty history.** Its header lists each:
+  - Undo and Redo put an object's keys back in their order. The old script puts a restored key last, so the JSON
+    text differs after undoing a delete; `canvas/test/fields.test.mjs` compares JSON text after Undo, and step 10
+    ports that walk.
+  - "Nothing changed" is by identity: an equal list or item put in place of another is a change. The old script
+    dropped it when the change said nothing, and Undo then could not take back the step before it.
+  - A change that throws is put back. `edit`, `undo`, `redo` or `endEdit` called inside a change throws.
+  - What was touched is in the model's order even when a place's id names nothing: such an id comes last, where the
+    old comparison gave NaN.
+  - A run that turns out to be no step gives the redo list back.
+  - Whether a place is a line's is asked of the element ids the model had before the change; the old script asked
+    its drawing's layout.
+  - `mark()` is a number naming the model's state. The session's `unsaved` compares it with the mark at the last
+    save, so Undo back to the saved state reads as saved.
+  - Left out: `editable()`, `say`, `updateUndo` and the save and check timers, which are the page's.
+- **What listeners are told:** `{ by: 'edit' | 'undo' | 'redo' | 'end', touched, structure, replaced, views, moved,
+  shown }`, the old `howToDraw` flattened: its `patch` is `moved`, and its `views: null` for a new model is
+  `replaced: true`. `'end'` is sent when a run ends. A change to the package has empty `touched` lists and
+  `views: null`. A listener that throws is reported as a mistake, and the others are still told.
+- **The library is an argument** to whatever opens a file (`openFile(lib)`, `openText(lib, text, { name, handle })`),
+  and the session keeps it; the core reads no global. `VERSION`, `versionOf` and `normalize` are added to
+  `SysMLModelLibrary` by `declare global` in `session.ts`, since `types.d.ts` was not step 4's to change; a later
+  step may move the three lines there.
+- **Three choices the plan left open, for Damon to see.** A file saved in a newer version of the format is refused,
+  because saving would write over it in an older one, and so is a `model` that is not an object (the old page would
+  open a blank model). The saved file's top-level `revision` is the opened file's model revision (the old page wrote
+  its stored model's; nothing reads the field). Notes and the archive pass through as the file has them, as the plan
+  says; the old page tidies them on import, which for the ten files gives the same data.
+- **`saveFile`** ends an open run first, so the log matches the file, and marks the session saved at the state the
+  text was made from, so a change made while the browser writes stays unsaved. A byte order mark at the start of a
+  file is skipped.
+
+Measured: the old page (`canvas/index.html` from `file://`) imported 20 files the core saved, the ten unchanged and
+the ten after a change, and held the same model key for key, the notes, the archive and the log, exported the
+expected text, and logged nothing. At 5,000 elements in Node, a drag move or a keystroke through `edit` takes
+0.004 ms by the median, placing an element 6 ms, a delete with its Undo 10 ms, all as the old script;
+`createHistory` 32 ms, `openText` 90 ms, `stateText` 46 ms.
+
+To know when building on the core: the model's objects are Proxies, so `structuredClone` refuses them (copy through
+JSON); models from `loadLib()` belong to another realm, so tests compare them as JSON (`plain` in `core.mjs`).
+
+### Where the two steps meet: how a state file is opened
+
+Neither side had to move. Step 4's `openFile` uses the picker when `typeof window.showOpenFilePicker` is
+`'function'`; otherwise it appends a hidden `<input type="file" data-testid="file-input">` to the body, clicks it,
+and removes it once a file is chosen or the dialog is closed. Step 3's `openPage(browser, { picker: false })` deletes
+`window.showOpenFilePicker` in an init script (it is an own property of `window`; deleting it from
+`Window.prototype` does nothing), and `openStateFile` starts listening for Playwright's `filechooser` event before it
+clicks Open, then answers the chooser. That order matters: with nobody listening, headless Chromium closes the
+dialog at once and the input is gone, so `setInputFiles` on the input after the click finds nothing. The lead ran
+the one against the other on a scratch page (the core bundled, an Open button calling `openFile`, the name in
+`file-name`): the example opened through the input with no handle, no step and nothing unsaved, no input was left in
+the page, Save came as a download named `stronghold-proof.json` in `grasp/2`, and the page logged nothing. The
+helper does not use the input's `data-testid`; it reaches the input through the chooser.
+
+### For the next session
+
+- Step 5 of `plan/slice-1.md`: the shell (the top bar, the dock with its two strips and the editor group, the
+  empty-editor card, the theme, Roboto). It takes the todo marks off checks 3 and 4, so `# todo` becomes 6.
+- The shell builds to the names at the top of `canvas/app/test/helpers.mjs`, and Open calls the core's `openFile`
+  with `window.SysMLModel`.
+- For Damon: step 8's "timed as `timing` takes it today" against `moveTiming`; `history-walk.test.mjs` beside step
+  4's file list; and the three choices of `session.ts` above.
+- `npm ci` first: `node_modules/` is not committed.
