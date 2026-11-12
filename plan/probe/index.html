@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grasp work-machine probe</title>
+<link rel="stylesheet" href="probe.css">
+<script src="probe.js"></script>
+<script type="module" src="module.js"></script>
+</head><body>
+<h1>Grasp work-machine probe</h1>
+<p>Open this page from disk (<code>file://</code>). It writes nothing outside the folder you pick and sends no token anywhere. Click <b>Run automatic checks</b>, then each button, then <b>Copy report</b> and paste it back into the chat.</p>
+<p class="muted">Not readable by a page, so please check by hand: open <code>edge://policy</code> or <code>chrome://policy</code> and note any policy with &ldquo;FileSystemAccess&rdquo;, &ldquo;AllowFileSelectionDialogs&rdquo;, &ldquo;JavaScriptJitBlockedForSites&rdquo; or &ldquo;DefaultJavaScriptJitSetting&rdquo; in its name; also whether Edge shows &ldquo;Enhanced security&rdquo; as on at <code>edge://settings/privacy</code>.</p>
+<div class="bar">
+  <button id="run">Run automatic checks</button>
+  <button id="copy">Copy report</button>
+  <a href="opensysml/index.html">OpenSysML module check (about 15 MB, separate page)</a>
+</div>
+<h2>Needs a click</h2>
+<div class="bar">
+  <button id="b-dir">1. Pick a folder, write and read a file</button>
+  <button id="b-dir2">2. Re-check remembered folder (after a reload)</button>
+  <button id="b-save">3. Save-file picker</button>
+  <button id="b-open">4. Open-file picker</button>
+  <label class="btn">5. File input <input id="f-input" type="file"></label>
+  <button id="b-dl">6. Download a file</button>
+</div>
+<p class="muted">For 6, tell us whether a file named <code>grasp-probe.txt</code> arrived in your downloads. For 2, reload this page first (F5), then click 2.</p>
+<h2>Results</h2>
+<table id="out"><thead><tr><th>Check</th><th>Result</th></tr></thead><tbody></tbody></table>
+<textarea id="report" readonly rows="10" placeholder="The report appears here."></textarea>
+</body></html>

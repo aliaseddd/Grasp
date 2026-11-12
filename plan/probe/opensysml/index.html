@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grasp OpenSysML module check</title>
+<link rel="stylesheet" href="../probe.css">
+</head><body>
+<h1>OpenSysML module check</h1>
+<p>Decodes, decompresses, compiles and starts OpenSysML's WebAssembly module (about 10 MB gzipped, embedded in a 13 MB script, so the page takes a few seconds to open) and parses a small SysML v2 sample. Wait for &ldquo;Done&rdquo;, then copy the report back into the chat. The reference timing here is about 0.8 s in total on a 4-core server.</p>
+<p id="status" class="muted">Running&hellip;</p>
+<div class="bar"><button id="copy">Copy report</button><a href="../index.html">Back to the main probe</a></div>
+<table><thead><tr><th>Check</th><th>Result</th></tr></thead><tbody id="out"></tbody></table>
+<textarea id="report" readonly rows="10"></textarea>
+<script src="wasm_exec.js"></script>
+<script src="wasm-data.js"></script>
+<script src="wasm-app.js"></script>
+</body></html>
