@@ -1,6 +1,6 @@
 # Slice 1, "The shell and the planes": the plan
 
-November 12, 2026, session 14. Approved by Damon on November 12, with the recommendations of section 7: React Flow's mark hidden on the planes and credited in About and the notices file, a light theme only until slice 7, and relationships drawn by two clicks in this slice.
+November 12, 2026, session 14. Approved by Damon on November 12, with the recommendations of section 7: React Flow's mark hidden on the planes and credited in About and the notices file, a light theme only until slice 7, and relationships drawn by two clicks in this slice. Amended on November 12 in session 16, on Damon's word: step 8 (how a step is timed), step 13 (Damon's own look through the page), section 7 (the open points decided) and section 10 (the success criteria for steps 5 to 12).
 
 ## Context
 
@@ -288,7 +288,7 @@ npm run shots       # the screenshots, from step 5 on
 ### Step 8. The planes at scale
 
 - **What it delivers.** The planes answer what the direction asks of this slice's scale test. The model is `scaleState(5000)` of `canvas/test/scale-model.mjs`.
-- **How a step is timed.** It is timed as `timing` takes it today, inside the page: the script's time from the pointer event reaching the window to the end of its listeners, plus the main thread's work for the frame that follows. A view's store is read through `useSyncExternalStore`, whose updates React renders before the event's task ends, so that measure should hold all of a step's work. The step proves it with a mark at the plane's commit. If the commit falls outside, the measure is widened to reach it.
+- **How a step is timed.** A step of a drag or of a pan is timed inside the page by `moveTiming` in `canvas/app/test/helpers.mjs`: the script's time from the `pointermove` reaching the window to the animation callbacks of the frame that handles it, plus the main thread's work from there until the frame is painted. `timing`, which takes a step on the old page, cannot take a move on a plane: React Flow hears a drag and a pan through d3, whose `mousemove` listener on the window stops the event there, so no test sees the end of its listeners. `timing` still takes the keystroke of step 10. A view's store is read through `useSyncExternalStore`, whose updates React renders before the event's task ends, so that measure should hold all of a step's work. The step proves it with a mark at the plane's commit. If the commit falls outside, the measure is widened to reach it.
 - **Tuning**, in this order, until the limits hold: unchanged nodes kept as the same objects; only what the window shows rendered; below 25% zoom, outlines without ports' names and lines without labels, then no lines; compartment rows as plain text.
 - **If a limit still fails.** The test stays todo with its numbers. I stop and bring you the measurement, where the time goes, and a restated limit to approve, because restating one changes `plan/direction.md`.
 - **Files.** The step changes `canvas/app/test/scale.test.mjs`, and what the measures point at in `canvas/app/src/plane/`. It creates `canvas/app/shots/scale.png`. `plan/notes.md` gets the table of times.
@@ -323,7 +323,7 @@ npm run shots       # the screenshots, from step 5 on
 
 - **What it delivers.** The documents are up to date, and the slice is marked done.
 - **Files.** The step changes `README.md` ("What's here", "Run it", "Next"), `canvas/README.md` (the new page: what it does, and what only the old page does until slice 2), `plan/direction.md` ("What is not settled yet": the scale item answered with its measurements), `plan/status.json` (slice 1 `done`, `next` 2) and `plan/notes.md`. It creates `canvas/app/README.md` (how the application is laid out and how to add to it, as `canvas/src/README.md` does for the old page). It retakes `canvas/app/shots/shell.png`.
-- **Done when.** From a clean clone, `npm ci && npm run build && npm run check && npm test && npm run test:old` passes, with `# todo 0`. `canvas/check.sh` accepts a file saved by the new page. The screenshots are current. Then it is yours to open `canvas/dist/index.html` from the downloaded repository and try the short list in `canvas/README.md`: open the example, drag a sash, collapse a panel, resize a box, save, reload, open the saved file, open About. What you find goes into the notes.
+- **Done when.** From a clean clone, `npm ci && npm run build && npm run check && npm test && npm run test:old` passes, with `# todo 0`. `canvas/check.sh` accepts a file saved by the new page. The screenshots are current. Looking through the page by hand is Damon's own step, done outside this plan, and the slice does not wait for it.
 
 ## 6. The tests, their status, and the state documents
 
@@ -382,7 +382,17 @@ Damon approved the plan on November 12 and took the recommendations on items 1 t
 2. **A dark theme.** The old page follows the system's dark setting. I recommended light only in this slice, with the colours in one file (`theme.ts`), and deciding on a dark set at slice 7, "The finish of the look". **Decided:** light only until slice 7.
 3. **Drawing relationships by two clicks in this slice.** I recommended it, for the reason above. Striking it would have kept slice 1 to the letter of the direction: the Tools view and the palettes would then list element kinds only. **Decided:** relationships are drawn by two clicks in this slice.
 4. **Later, perhaps: a restated limit.** If step 8 or step 10 cannot hold a limit, I bring you the measurement and a proposal, and go on with the steps that do not depend on it. **Open.**
-5. **Still open from session 7: the repository's own licence.** It does not block the slice. Step 2 writes the first notices file, which names `SysML.ecore`'s EPL-2.0 beside the libraries' licences. **Open.**
+5. **Still open from session 7: the repository's own licence.** It does not block the slice. Step 2 writes the first notices file, which names `SysML.ecore`'s EPL-2.0 beside the libraries' licences. **Left open on purpose** (item 11).
+
+In session 16, on November 12, Damon left the points that session 15 had kept for Damon to Claude's judgment ("Do as you see fit for the items waiting on me"), and said that looking through the page by hand is Damon's own step. They are decided so:
+
+6. **Timing a step of a drag or of a pan.** `moveTiming` takes it, and `timing` keeps the keystroke of step 10. React Flow hears a drag through d3, whose `mousemove` listener on the window stops the event, so `timing` never sees a step end. `moveTiming` measures the same thing: listeners busy for 8 ms measured 8.0 to 8.3 ms over 200 moves. Step 8 says so now.
+7. **`canvas/app/test/history-walk.test.mjs`**, a file step 4 did not list, stays. It compares the new history with the old page's on 2,889 random changes. Its first two tests go when the old page goes.
+8. **A file the page could not save faithfully is refused**: one from a newer version of the format, or one whose model is not an object. The old page would open a blank model in its place, and with a file handle Save would then write that blank model over the real file.
+9. **The saved file's top-level `revision`** is the opened file's model revision. Nothing reads the field.
+10. **Notes and the archive pass through as the file has them** until slice 2, which shows notes and tidies them then. Slice 1 neither shows nor changes a note, and the ten files read the same either way.
+11. **The licence** (item 5) is left open on purpose, and no licence file is added. A licence on Damon's code is Damon's to grant, and once granted on a public repository it cannot be taken back from copies already made. Nothing in the slices needs it, and the notices file the build writes is complete. Two facts for whenever Damon decides: `aliaseddd/Grasp` is public, and with no licence file nobody else may use or change Grasp's own code. If one licence is wanted, EPL-2.0 for the whole repository is the simplest fit, because the generated metamodel lists and the file that holds them are bound to it already. That is a reading of the licence, not legal advice.
+12. **Damon's look through the page** is taken out of step 13. It is Damon's own step, and the slice does not wait for it.
 
 ## 8. Each "Done when" check, its step and its test
 
@@ -406,3 +416,73 @@ Against the limits of `plan/direction.md`, the plan holds as follows. The page o
 ## 9. What Damon approved
 
 Damon approved this plan on November 12, 2026, with the recommendations of section 7 on its three choices. The approval lets the working session create and change the files the plan names, commit after each step, and push each commit to the working session's branch. The plan was written on `claude/grasp-slice-1-plan-mmntfd`, which was never pushed; the steps are built on the branch of the session that builds them, which `plan/notes.md` names. No pull request is opened unless Damon asks for one.
+
+## 10. The success criteria for steps 5 to 12
+
+Damon chose these eight on November 12, 2026, in session 16, from two rounds of candidates. They add to each step's "Done when": a step is done when both hold. Three themes were offered and turned down, and are not criteria: what the steps must leave untouched, how the tests are trusted, and properties of the code. The practices of this plan and of the earlier sessions go on as before; they are not measured here.
+
+```xml
+<success_criteria task="Slice 1 of Grasp, steps 5 to 12 of plan/slice-1.md" chosen="2026-11-12">
+
+  <criterion id="1" theme="outcome" name="Every 'Done when' passes">
+    <statement>Every test that steps 5 to 12 of plan/slice-1.md name exists under that name and passes. At the commit that ends step 12, `npm run check` exits 0, `npm test` reports `# fail 0` and `# todo 0`, and all ten checks in plan/status.json read "pass".</statement>
+    <graded_by>The test runner's summary.</graded_by>
+    <checked_at>Each step's own tests at that step's last commit; the whole at the commit that ends step 12.</checked_at>
+  </criterion>
+
+  <criterion id="2" theme="outcome" name="All ten files open">
+    <statement>The example and the nine fixtures each open from file:// with one tab per view, 17 views in all. The 11 graph views draw one node for each placed element and one edge for each shown line; the 6 others show their "not drawn yet" card. 10 of 10 files with no console error or warning.</statement>
+    <graded_by>A Playwright test from file://.</graded_by>
+    <checked_at>From step 6, which draws the planes, to the end of step 12.</checked_at>
+  </criterion>
+
+  <criterion id="3" theme="look" name="Checklist per screenshot">
+    <statement>Each of the six screenshots (shell, example, nodes, scale, palette, about) is checked against its row of the table in section 4 of plan/slice-1.md by a reviewer that did not write the code and sees only the image and the list. Every listed item is marked present or absent, and a step is committed only when all of its items are present.</statement>
+    <graded_by>An independent reviewer, item by item, present or absent.</graded_by>
+    <checked_at>Before the commit of the step that takes each screenshot: 5, 6, 7, 8, 11 and 12.</checked_at>
+  </criterion>
+
+  <criterion id="4" theme="look" name="Rated as a workbench">
+    <statement>The same independent reviewer rates shell.png and example.png from 1 to 5 on four points: alignment and spacing, type and contrast, nothing cut off or overlapping, boxes and lines easy to read. 1 is a broken layout, 3 a working prototype, 5 a finished workbench of SysON's kind. Each point must score 4 or more.</statement>
+    <graded_by>The independent reviewer's eight scores: two screenshots, four points each.</graded_by>
+    <checked_at>At steps 5 and 6, when the two are taken, and again on both as retaken at the end of step 12.</checked_at>
+  </criterion>
+
+  <criterion id="5" theme="speed" name="The four scale limits">
+    <statement>At 5,000 elements in three views, by the median, in 3 runs of `npm test` in a row: the model opens in under 5 s, a drag step takes under 16 ms, a pan step of each fitted view under 16 ms, and a keystroke in a name under 50 ms. A limit that cannot be held is reported with its numbers and where the time goes, and is never passed by loosening its test.</statement>
+    <graded_by>canvas/app/test/scale.test.mjs, timed inside the page.</graded_by>
+    <checked_at>Steps 8 and 10, and three runs in a row at the end of step 12.</checked_at>
+  </criterion>
+
+  <criterion id="6" theme="speed" name="Small models feel instant">
+    <statement>With the 13-element example, from file://: the page is ready in under 500 ms, the view is drawn within 1 s of the file being given, and a drag step and a keystroke in a name each take under 16 ms by the median of 9 samples. A switch between the two tabs of the interconnection fixture takes under 100 ms.</statement>
+    <graded_by>A Playwright test, timed inside the page as the scale tests are.</graded_by>
+    <checked_at>Each part from the step that builds it (6, 7, 10); the whole at the end of step 12.</checked_at>
+  </criterion>
+
+  <criterion id="7" theme="run" name="Every step ends green">
+    <statement>The last commit of each step, 8 of 8, holds its sources, its tests, canvas/dist/ and plan/status.json, and passes `npm ci &amp;&amp; npm run check &amp;&amp; npm test` with `# fail 0` when checked out by itself. In each, status.json names the step, and its count of "todo" checks equals the runner's `# todo`. Every session ends on a pushed commit of this kind, so a session cut short loses at most the step in hand.</statement>
+    <graded_by>The three commands, run at each step's last commit.</graded_by>
+    <checked_at>At every step's commit, and all eight again after step 12.</checked_at>
+  </criterion>
+
+  <criterion id="8" theme="run" name="Notes a stranger can use">
+    <statement>plan/notes.md gains, for each step, what cannot be read from the plan or the code: each measurement with its command, each file built otherwise than the plan names with its reason, each thing tried and dropped. After step 12, a fresh session given only the repository answers 5 questions on the state: what is done, what is next, which limits hold with what numbers, what departs from the plan, what is still open. 5 of 5 right.</statement>
+    <graded_by>The five answers, checked against the repository.</graded_by>
+    <checked_at>The notes at every step's commit; the five questions once, after step 12.</checked_at>
+  </criterion>
+
+  <outside>
+    <item>Step 13 of plan/slice-1.md.</item>
+    <item>Damon's own look through the page: Damon's step, and no part of Claude's work. Nothing is built to stand in for it.</item>
+  </outside>
+</success_criteria>
+```
+
+How the criteria meet the steps as written:
+
+- **Criteria 2 and 6 are tests the steps did not have.** Each is written at the start of the step that makes it pass, and seen to fail there: criterion 2 at step 6; criterion 6 in three parts, at step 6 (the page ready, the view drawn, the switch of tab), step 7 (the drag step) and step 10 (the keystroke). None is committed with a todo mark, so the cross-check of section 6 holds as before: the runner's `# todo` equals the checks still `"todo"` in `plan/status.json`.
+- **Criterion 2 counts places in the model as the page reads it.** `format1.json` is saved in version 1, and its view places its 13 elements only once `M.normalize` has upgraded it.
+- **Criteria 3 and 4 need a reviewer that has not seen the code**: a fresh agent given the screenshot and its list, or the four points with their scale, and nothing else. `shell.png` and `example.png` are retaken at the end of step 12 for the second rating.
+- **A limit of criterion 5 or 6 that cannot be held** goes the way step 8 gives: its test is not loosened, and the measurement comes to Damon with where the time goes.
+- **Criterion 7's run of all eight commits and criterion 8's five questions** are made once step 12 is committed, and their results go into `plan/notes.md`.

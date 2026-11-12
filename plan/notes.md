@@ -1622,3 +1622,83 @@ helper does not use the input's `data-testid`; it reaches the input through the 
 - For Damon: step 8's "timed as `timing` takes it today" against `moveTiming`; `history-walk.test.mjs` beside step
   4's file list; and the three choices of `session.ts` above.
 - `npm ci` first: `node_modules/` is not committed.
+
+## Session 16, November 12, 2026: the open points decided, and success criteria for steps 5 to 12
+
+No code changed. On `claude/determined-volta-6k6awq`, from `d468dd3`, in one commit: `plan/slice-1.md`,
+`plan/status.json` and this entry. Damon left the points that session 15 had kept for Damon to Claude's judgment ("Do
+as you see fit for the items waiting on me"), and chose success criteria for steps 5 to 12 of the slice with the
+prompt-success skill. Step 13 was left out of the criteria.
+
+### The decisions
+
+`plan/slice-1.md`, section 7, items 6 to 12, has them with their reasons. In short:
+
+- `moveTiming` takes a step of a drag or of a pan, and `timing` the keystroke; step 8's text says so now.
+- `canvas/app/test/history-walk.test.mjs` stays.
+- The three choices of `session.ts` stand: a file from a newer version of the format, or one whose model is not an
+  object, is refused; the saved file's top-level `revision` is the opened file's; notes and the archive pass through
+  as the file has them, until slice 2 shows notes.
+- The licence is left open on purpose, and no licence file is added. `aliaseddd/Grasp` is public (asked of GitHub in
+  this session), so with no licence file nobody else may use or change Grasp's own code.
+- Looking through the page by hand is Damon's own step. It is taken out of step 13, and no session builds anything to
+  stand in for it.
+
+### The success criteria
+
+`plan/slice-1.md`, section 10, holds the eight Damon chose, as XML, each with what grades it and when it is checked,
+and then how they meet the steps as written. `plan/status.json` points there from slice 1's entry (`criteria`).
+
+| # | Criterion | What it adds to the plan |
+|---|---|---|
+| 1 | Every "Done when" passes | Nothing: the plan's own measure, counted at the commit that ends step 12 |
+| 2 | All ten files open | A browser test over the example and the nine fixtures, from step 6 |
+| 3 | Checklist per screenshot | The look at each screenshot is made by a reviewer that sees only the image and its list |
+| 4 | Rated as a workbench | Eight scores of 4 or more, for `shell.png` and `example.png` |
+| 5 | The four scale limits | Three runs of `npm test` in a row at the end of step 12 |
+| 6 | Small models feel instant | A timed test on the 13-element example, from step 6 |
+| 7 | Every step ends green | Each step's last commit passes by itself; all eight are run again after step 12 |
+| 8 | Notes a stranger can use | Five questions put to a fresh session after step 12 |
+
+How they were made: Anthropic's page "Define success criteria and build evaluations"
+(platform.claude.com/docs/en/test-and-evaluate/develop-tests) and the skill's own list were read, and 28 candidates in
+eight themes were put to Damon in two rounds. Not chosen, so that no later session offers them again:
+
+- Anything that stands in for Damon's own look through the page: a scripted walkthrough of step 13's list, a random
+  walk of gestures.
+- Three whole themes, which Damon turned down as not Damon's to rule on: what the steps must leave untouched (the old
+  page pinned, bad files refused, nothing asked for outside the page's folder, only the plan's files changed), how the
+  tests are trusted (seen to fail first, deliberate breakages, repeated runs), and properties of the code (every change
+  through `edit()`, components chosen by kind rows, strict types, no new packages). The plan's practices and the
+  earlier sessions' go on as before; they are not criteria.
+- Of the themes Damon did choose from: saved files still exporting after a move and a resize, the three complaints
+  shown gone beyond the plan's cases, text fitting everywhere, three window sizes, the suite staying quick, no
+  questions back, and reports backed by runs.
+
+For a session that puts choices to Damon: offer what is Damon's to decide (what the page does, how it looks, how fast
+it is, what a run leaves behind), not what is Claude's to get right.
+
+The counts in criterion 2 were taken in this session from the ten files as they are on disk: 17 views, of which 11 are
+of the four graph kinds (8 general, 1 interconnection, 1 action flow, 1 state transition) and 6 are not (2 browser, 2
+grid, 1 geometry, 1 sequence). `format1.json` is saved in version 1, where the elements carry their own places: its
+one view places its 13 elements only once `M.normalize` has upgraded it, so the test counts places in the model as
+read.
+
+### The suite, in this container
+
+Node 22.23.4, at `d468dd3` with this session's changes to `plan/` in the working tree:
+
+| Command | Result |
+|---|---|
+| `npm ci` | 16 s |
+| `npm run check` | `canvas/dist is what the sources build.`, and `tsc` silent, in 3 s |
+| `npm test` | 64 tests in 9 suites: 56 pass, 0 fail, 8 todo, in 15 s |
+
+`npm run test:old` was not run: nothing under `canvas/` changed.
+
+### For the next session
+
+- Step 5 of `plan/slice-1.md`: the shell. `npm ci` first.
+- Step 5 answers to criteria 1 (its own tests), 3 and 4 (`shell.png`, its checklist and its four scores, by a
+  reviewer that is given the image and the list and nothing else), 7 and 8.
+- Nothing waits for Damon.
