@@ -1,0 +1,23 @@
+/* Roboto, Latin, in the three weights the page uses, from @fontsource/roboto. Only the .woff2 files are named, so the
+   build copies three font files into canvas/dist/fonts/, not six. */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('@fontsource/roboto/files/roboto-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('@fontsource/roboto/files/roboto-latin-500-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('@fontsource/roboto/files/roboto-latin-700-normal.woff2') format('woff2');
+}

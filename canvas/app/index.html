@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grasp</title>
+<!--
+  Grasp's page. canvas/app/build.mjs copies this file into canvas/dist/ beside what it builds from canvas/app/src/
+  (npm run build). It opens from disk, with no server: everything it loads is a classic script or a stylesheet in its
+  own folder. model-lib.js is the model library, the same text canvas/export.mjs runs; vendor.js holds the libraries,
+  on window.GraspVendor; app.js is Grasp's own code.
+-->
+<link rel="stylesheet" href="vendor.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="root"></div>
+<script src="model-lib.js"></script>
+<script src="vendor.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

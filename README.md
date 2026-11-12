@@ -36,6 +36,18 @@ node --test --test-timeout=120000 canvas/test/*.test.mjs
 
 `canvas/README.md` has the rest: the loop with Claude, the state files, and how the model is written out.
 
+The new page, slice 1 of the redesign (`plan/slice-1.md`), is built from `canvas/app/` into `canvas/dist/`, which is committed:
+
+```sh
+npm ci              # the libraries, at the versions package-lock.json pins
+npm run build       # canvas/app/ → canvas/dist/
+npm run check       # fails when canvas/dist/ isn't what the sources build, or the types don't hold
+npm test            # the new page's tests, in Node and in Chromium from file://
+npm run test:old    # the old page's and the model library's tests, the command above
+```
+
+`canvas/dist/index.html` opens from the downloaded repository with no server. The screenshots (`npm run shots`) come with step 5 of the slice.
+
 ## Decided on November 6, 2026
 
 From the developer log entry on the design artifact:

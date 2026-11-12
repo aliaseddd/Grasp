@@ -1324,3 +1324,103 @@ The probe's branch and pull request were deleted, so the probe is not in the rep
   `canvas/dist/`, beside the old page, which stays untouched until slice 2 retires it kind by kind.
 - At the start of slice 3, make one real write to GitHub from the page with a throwaway token.
 - At the start of slice 4, measure the real OpenSysML module's load and parse times on Damon's machine.
+
+## Session 14, November 12, 2026: slice 1 planned, approved and begun
+
+Slice 1, "The shell and the planes", was planned in one container and begun in another. The plan was written on
+`claude/grasp-slice-1-plan-mmntfd`, which was never pushed; its text reached the next session through Damon's message
+and is committed unchanged as `plan/slice-1.md`, except where it asked for the approval, which it now records. The
+building is done on `claude/gallant-tesla-cs1o59`, from `1ab5c53`.
+
+What Damon decided: he approved the plan and took its three recommendations. React Flow's mark is hidden on the planes
+and credited in About and the notices file; the theme is light only until slice 7; relationships are drawn by two
+clicks in this slice. `plan/direction.md` gains "Decided for slice 1", which gives the plan's additions in short.
+
+The baseline, in this container, before any change:
+
+| Command | Result |
+|---|---|
+| `node --test --test-timeout=120000 canvas/test/*.test.mjs` | 221 tests in 47 suites: 221 pass, 0 fail, 0 todo, in 80 s |
+| `node canvas/build.mjs --check` | `canvas/index.html` is what the sources build |
+| `node canvas/metamodel/generate.mjs --check` | `canvas/src/core/lib/metamodel.js` is what SysML.ecore generates |
+| `node canvas/export.mjs canvas/examples/stronghold-proof.json \| sha256sum` | `9825ca06…`, the bytes of `canvas/test/fixtures/format1.sysml` |
+
+What the planning session tried outside the repository, in its scratchpad (section 1 of the plan has it in full):
+
+- `npm install` of the whole stack took 13 s (118 packages). React 18.3.1, `@xyflow/react` 12.10.2, Dockview,
+  `@mui/material` 7.3.11, `@mui/x-tree-view` 8.29.3 and Roboto bundled with esbuild 0.28.2 in under half a second, as
+  one classic script of 1.08 MB or as two (the libraries on one global, 1.38 MB, and the page's own code).
+- Opened from `file://` in Chromium 153, both forms were ready in 250 to 400 ms with no console error or warning; Roboto
+  loaded from font files beside the stylesheet; a right-click menu opened; a sash drag widened the Explorer from 240 to
+  338 px; a handle drag resized a box from 220 × 96 to 280 × 141.
+- Dockview's edge groups collapse, expand, resize by a sash and are held by `toJSON()`, from `file://`.
+- A port made as a child node stays put when its owner is resized; keeping it on the border is Grasp's to write.
+- TypeScript 6.0.2 checks code against these libraries' types in 2.5 s.
+- Two traps: enabling the CSS domain of Chrome's DevTools protocol makes Chromium log an error on a `file://` page, so
+  the tests must not; and `dockview-react` 8.8.3 now installs `dockview-core` 8.9.0, so all three Dockview packages
+  are pinned at 8.9.0.
+
+What the execution plan checked on npm before step 2: every pinned version exists (react and react-dom 18.3.1,
+@xyflow/react 12.10.2, dockview-react 8.9.0, @mui/material and @mui/icons-material 7.3.11, @mui/x-tree-view 8.29.3,
+@emotion/react 11.14.0, @emotion/styled 11.14.1, @fontsource/roboto 5.3.0, elkjs 0.11.0, esbuild 0.28.2, typescript
+6.0.2, @types/react 18.3.31, @types/react-dom 18.3.7). All are MIT except elkjs (EPL-2.0), Roboto (OFL-1.1) and
+TypeScript (Apache-2.0); their licence files have varied names (Dockview's `LICENCE.md`, clsx's `license`, elkjs's
+`LICENSE.md`). `dockview-react` 8.9.0 asks for `dockview` `^8.9.0`, which asks for `dockview-core` `^8.9.0`, so the
+root `package.json` pins the other two through npm `overrides`.
+
+### Step 2: install, build, check, test
+
+The commands of the plan's step 2 work, and `canvas/dist/index.html` is a page that is empty but real: it loads the
+model library and the libraries, mounts React with MUI's theme, and says Grasp in Roboto, from `file://`, with no
+console error or warning, ready in about 270 ms.
+
+Times in this container: `npm ci` 10 s (119 packages, from `rm -rf node_modules`); `npm run build` 0.5 s; `npm run
+check` 2 s (the build in memory, then `tsc`); `npm test` 4 s (8 tests); `npm run test:old` 221 of 221.
+
+What `canvas/dist/` holds:
+
+| File | Size |
+|---|---|
+| `index.html` | 802 B |
+| `model-lib.js` | 307.4 kB |
+| `vendor.js` | 1354.1 kB |
+| `vendor.css` | 155.1 kB |
+| `app.js` | 3.1 kB |
+| `app.css` | 54 B |
+| `fonts/roboto-latin-{400,500,700}-normal.woff2` | 21.4, 21.7, 21.7 kB |
+| `vendor/elkjs/elk.bundled.js`, `LICENSE.md` | 1589.4 kB, 14.1 kB |
+| `THIRD-PARTY-NOTICES.txt` | 101.4 kB: 52 packages, then elkjs and SysML.ecore |
+
+The licences of the bundled packages: 40 MIT, 8 ISC, 3 BSD-3-Clause, 1 OFL-1.1 (Roboto), and elkjs's and
+SysML.ecore's EPL-2.0. Every package ships a licence file, so no licence text had to be added by hand.
+
+What was built otherwise than the plan names, or beyond it:
+
+- **`canvas/app/src/fonts.css`**, a file the plan did not list: three `@font-face` rules naming only Roboto's
+  `.woff2` files, so the build copies three font files, not six. esbuild resolves the package path inside `url()`
+  (`@fontsource/roboto/files/…`) without help.
+- **The shim.** Each library import in the application's code becomes a CommonJS module whose exports are
+  `window.GraspVendor[path]`, marked `__esModule`. Checked in Chromium: `import React from 'react'`, `import * as`
+  and named imports all give the same functions as one bundle would. An import of a package that `vendor.ts` does
+  not hold fails the build, naming the file, the line and the path.
+- **The notices list every package the build read**, even one the bundler left out entirely (`dockview`, whose
+  file only re-exports `dockview-core`, and `prop-types`); such an entry says it is in none of the page's files.
+  `hoist-non-react-statics`'s licence holds a line of `=`, so the rule between entries is 80 of them.
+- **`overrides`** in `package.json` pin `dockview` and `dockview-core` at 8.9.0 beside `dockview-react`;
+  `npm ls dockview dockview-core` shows both as overridden at 8.9.0.
+- **`build.mjs` exports** `buildFiles()`, `isAllowedLicence()`, `packageOf()` and `difference()` for the tests;
+  writing refuses a folder that holds anything but an earlier build.
+- **`npm run shots`** is not in `package.json` yet: it comes with step 5 and the script it runs.
+
+The tests: `build.test.mjs` (7: `canvas/dist/` is what the sources build; `--check --out` names a changed `app.js`,
+an extra file and a missing font; the page's `model-lib.js` is `libraryCode()` and loads before `vendor.js` and
+`app.js`; every package in the metafiles is in the notices with its version, licence and licence text, and elkjs and
+SysML.ecore have theirs; the licence list; elkjs byte for byte and in no bundle; the page asks for nothing outside
+its folder, Roboto included) and `shell.test.mjs` (1: check 1 of the slice). 8 pass. `plan/status.json` marks check
+1 as passing.
+
+### For the next session
+
+- Step 3 of `plan/slice-1.md`: the remaining "Done when" checks as named tests marked todo, and
+  `unchanged.test.mjs` with `unchanged.json`.
+- `npm ci` first: `node_modules/` is not committed.

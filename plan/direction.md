@@ -83,6 +83,26 @@ Each slice names what Damon gets, what it uses, and the check that says it is do
 
 7. **The finish of the look.** Image export of a view to PNG and SVG; Arrange all with ELK per view kind, in its worker, keeping pinned boxes; align, distribute and same size on a selection; a Search panel over the model and, on request, the libraries; metaclass icons in the Explorer, palettes and node headers; SysON's node colours and default sizes; the keyboard shortcuts under Help; the scale tests re-baselined on the new page; `plan/status.json` and the READMEs brought up to date. Done when: each item has a Playwright test from `file://`; a PNG and an SVG of the example's general view are written into the workspace folder; Arrange all on a 1,000-node view finishes without freezing the page, under a progress indication, in about 3 s on this session's machine.
 
+## Decided for slice 1
+
+Slice 1's plan, `plan/slice-1.md`, approved by Damon on November 12, 2026, settles what this document leaves open for the slice. In short, with the reasons in that plan's section 7:
+
+- **Where the code lives.** The application is in `canvas/app/` (sources in `src/`, tests in `test/`, the build in `build.mjs`), with one `package.json` and its `package-lock.json` at the repository's root. `canvas/src/` stays the old build's.
+- **Three classic scripts.** The build writes `model-lib.js` (the model library, the same text `export.mjs` runs), `vendor.js` (the libraries, on one global) and `app.js` (Grasp's own code) into `canvas/dist/`, which is committed.
+- **Exact, locked versions.** Every package is pinned exactly and installed by `npm ci` from the lockfile.
+- **Edge groups.** The side views sit in Dockview's edge groups, which resize by a sash and collapse to a strip.
+- **Ports as child nodes.** A port is a React Flow node of its own, a child of its owner's node, which Grasp's code keeps on the border.
+- **Stores outside React.** Each view's nodes and edges are kept in a store outside React, read through `useSyncExternalStore`.
+- **What slice 1 draws.** The four graph view kinds (general, interconnection, action flow, state transition) with all 13 shapes; the other four kinds show a card until slice 2; no frame is drawn while a tab holds one view.
+- **Saving.** Slice 1 saves the state file it opened, in `grasp/2`, through its handle or as a download, and remembers no file across a reload.
+- **The look.** Grasp's ink and teal in SysON's proportions, light only, checked by assertions in tests and by screenshots that are looked at, not compared pixel by pixel.
+- **Checks as tests.** The "Done when" checks are tests written first and marked todo, with their status in `plan/status.json`.
+- **Four scale limits.** A 5,000-element model opens; a drag step under 16 ms; a keystroke in a name under 50 ms; a pan step of a fitted view under 16 ms. A limit that fails comes back to Damon with its measurement.
+
+Damon's three choices: React Flow's mark is hidden on the planes and credited in About and the notices file; the theme is light only until slice 7; relationships are drawn by two clicks from the Tools view and the palettes in slice 1, and slice 2 adds drawing by handles.
+
+One departure from "What was checked": Dockview is pinned at 8.9.0, not 8.8.3, for all three of its packages, because `dockview-react` 8.8.3 now installs the 8.9.0 core.
+
 ## What is dropped, and what survives of Grasp
 
 Readers sorted every one of the 620 port entries by the need it serves and by what would most plausibly provide it under this plan; `scope.md` lists them. The counts:
