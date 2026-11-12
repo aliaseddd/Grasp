@@ -1424,3 +1424,109 @@ its folder, Roboto included) and `shell.test.mjs` (1: check 1 of the slice). 8 p
 - Step 3 of `plan/slice-1.md`: the remaining "Done when" checks as named tests marked todo, and
   `unchanged.test.mjs` with `unchanged.json`.
 - `npm ci` first: `node_modules/` is not committed.
+
+## Session 15, November 12, 2026: steps 3 and 4 of slice 1, built in parallel
+
+Steps 3 and 4 of `plan/slice-1.md` were built at the same time, on `claude/determined-fermi-2fudi6`, from `4d1d725`.
+They share no source file, so each had a worker of its own, in a git worktree of its own, and a lead reviewed both
+diffs, checked the one place the steps meet, and put the results on the branch as two commits, step 3's and then
+step 4's, as if the steps had been done in order. The lead wrote `plan/status.json` and this entry in place of the
+workers, so that no two wrote the same file. The old suite ran only before the workers started and after both had
+finished: its scale tests time single steps in milliseconds, and other work on the machine can fail them.
+
+The baseline, in this container (Node 22.23.4, 4 processors), at `4d1d725`, before any change:
+
+| Command | Result |
+|---|---|
+| `npm ci` | 119 packages in 13 s |
+| `npm run check` | `canvas/dist is what the sources build.`, and `tsc` silent, in 2.4 s |
+| `npm test` | 8 tests in 3 suites: 8 pass, 0 fail, 0 todo, in 5 s |
+| `npm run test:old` | 221 tests in 47 suites: 221 pass, 0 fail, 0 todo, in 86 s |
+
+Every command passed at its first run.
+
+### Step 3: the "Done when" tests, written first
+
+Each of the slice's ten checks is a test of exactly the name `plan/status.json` gives it. Eight are marked todo and
+fail because what they check is not built: three in `shell.test.mjs`, one in `resize.test.mjs`, four in
+`scale.test.mjs`. `unchanged.test.mjs` passes with no mark, so check 6 is `"pass"`. With step 3 alone, `npm test`
+reports 17 tests: 9 pass, 0 fail, 8 todo, in 12.6 s (5 s before). The eight todo tests take 0.3 to 0.5 s each today;
+`unchanged.test.mjs` takes 7 to 9 s, since the six library test files need about 16 s of processor time.
+
+What each todo test says today:
+
+| Test | Message |
+|---|---|
+| shell › the example shows its general view on a tab | `The page has no Open button (data-testid "open"), so stronghold-proof.json cannot be opened.` |
+| shell › no header palette or button row exists | `The page has no top bar (data-testid "top-bar"): the shell that replaces the old header is not built.` |
+| shell › a sash drag resizes the Explorer | `The page shows no Explorer (data-testid "explorer"), so there is no sash to drag.` |
+| resize › a box resized by its handles keeps its size after save and reload | `The page has no Open button (data-testid "open"), so stronghold-proof.json cannot be opened.` |
+| scale › all four | `The page has no Open button (data-testid "open"), so scale-5000.json cannot be opened.` |
+
+Six of the eight stop at the Open button, the first part missing, so today's page cannot show how they fail further
+on. The worker therefore ran them against a throwaway page on the real `vendor.js` (Dockview, React Flow, MUI), in a
+scratch folder, deleted since. With every part built all eight passed (the scale tests on a 57-element model). With
+one part left out at a time, each failed in 1.3 to 1.9 s with a message naming that part: no file asked for, no file
+name in the bar, no tab, no plane, no nodes, no edges, a bar of two rows, a button with text, no sash, no selection,
+no handle, a resize not written to the model, no download, no fit when a tab is shown, no zoom on Ctrl + wheel, no
+name field, a limit not held.
+
+`unchanged.test.mjs`:
+
+- **`unchanged.json`** pins the SHA-256 of 130 files, hashed from the blobs of `1ab5c53`, where the slice began; the
+  lead hashed the same paths at `1ab5c53` and at `4d1d725` and found the same 130. The test walks the eleven pinned
+  paths on disk and names each file that has changed, is gone or is new. Nothing writes the JSON again.
+- **The six files** (`build`, `lookups`, `metamodel`, `model-lib`, `store-dump`, `stored`) run in a `node --test` of
+  their own with `NODE_TEST_CONTEXT` taken out, and the test compares the runner's summary with 50 tests, 50 pass. A
+  runner that inherits the variable runs nothing and exits 0 (Node 22.23.4); the test was seen to fail with the
+  variable left in, with one file not run (`tests 40`), with a failing old test, and with a changed, new or missing
+  file.
+
+What the tests need of the page is listed at the top of `canvas/app/test/helpers.mjs`, and steps 5 to 10 build to it:
+
+- `data-testid`: `top-bar`; `open`, `save`, `undo`, `redo` and `about`, each on its `<button>` with an `aria-label`;
+  `file-name`; `dock`; `explorer`; `details`; `plane` with `data-view="<view id>"`; `field-name` inside `details`.
+- From the libraries: a tab has the role `tab` and is named `name : kind`; a React Flow node's id is its element's and
+  an edge's is its relationship's; a selected node has the class `selected`; the resize handle is
+  `.react-flow__resize-control.handle.bottom.right`.
+- Gestures: Ctrl + wheel zooms, a drag of the ground pans, and Save downloads under the opened file's name.
+- No test reads `window.Grasp`: each finds what it checks in the document.
+
+What was built otherwise than the plan names, or beyond it:
+
+- **`moveTiming`, a second timing helper.** The plan's step 8 has a drag step "timed as `timing` takes it today".
+  `timing` is copied as the plan asks, and only the keystroke test can use it: React Flow hears drags, pans and
+  resizes through d3, whose `mousemove` listener on the window calls `stopImmediatePropagation`, so
+  `timing(page, 'pointermove', 'mousemove')` waited 60 s for a sample that never came. Chromium handles a mouse move
+  at the start of a frame, in one task with the frame's animation callbacks, so `moveTiming` takes the script's time
+  from the `pointermove` reaching the window to those callbacks, and the frame's time from there to after paint.
+  Listeners busy for exactly 8 ms measured 8.0 to 8.3 ms over 200 moves. A move that a press or a release follows at
+  once is handled before its frame, and `time()` fails on such a sample. Step 8's text and this differ; the plan
+  changes only with Damon's approval, so it stands as written until he says.
+- **`soon(page, check, missing)`** waits by the page's animation frames, not by the clock: it gives up after 60 frames
+  the page had to itself, about 1 s. A page busy for seconds over 5,000 elements is waited for, and a part that is
+  not built is found missing in about a second. With `until` and its 60 s, the scale tests alone would cost four
+  minutes a run between steps 5 and 8. `until` is kept as copied; its failure carries what the page logged, in place
+  of the old page's `#status`.
+- **A gesture is one move of 3 by 2 px, then three of 12 by 6.** The old tests made four of 12 by 6. React Flow takes
+  the first move to tell a drag from a click, so with four equal moves the box went 36 by 18 px for 48 by 24.
+- **The pan test pans each of the three views**, and each must hold the limit. **The open test** times from the page
+  being given the file to three tabs shown and the first plane drawing all its 1,544 elements, against 5 s.
+- **`openPage` also returns `dialogs`** and accepts each, so a `beforeunload` question at a reload is an assertion,
+  not a 30 s hang. **`afterEach` closes the pages** a failed test left open.
+- **`assert.ok` where the message is the whole sentence:** `assert.equal(a, b, message)` in Node 22.23 prints
+  `0 !== 1` after the message.
+
+Found on the throwaway page, for the steps that build the planes:
+
+- **Dockview and `fitView`.** Dockview 8.9.0 mounts a panel's React component when the panel is added, in an element
+  outside the document until its tab is shown. React Flow then measures 0 by 0, and a `fitView` at mount fits
+  nothing: scale 0.01, half the nodes drawn. Step 6 must fit when the plane's container first has a size.
+- **First numbers at 5,000 elements**, plain boxes, every node in the DOM when fitted, no culling: opening 1.5 to
+  2.9 s; a drag step at 100% 10 to 12 ms; a pan step, fitted, 35 to 54 ms in two views and 93 ms in the action flow
+  view; a keystroke 415 ms when the page projects all three views again.
+- **Contention at step 8.** Under `npm test`, `unchanged.test.mjs` keeps three processor-bound processes busy for 7 to
+  9 s while `scale.test.mjs` runs. Today that costs only time; once the scale tests measure for real, step 8 may
+  need `--test-concurrency` or another order.
+- **Sizes within a tolerance.** The resize test allows 2 units on growth and 1 between the plane and the file; a page
+  that snapped sizes to a coarse grid would fail it.
