@@ -1284,3 +1284,43 @@ What the next session should know:
 - Nothing in `canvas/` changed; the old page and its tests stand until the new page retires them kind by kind. The first slice is the shell and the planes, in a new React application bundled by esbuild into `canvas/dist/`, with the About panel that reports what Damon's machine allows.
 - The Workflow tool runs two agents at a time on this machine, so the readers and the refuters ran as background agents; the Design and Judge phases ran as a workflow, whose synthesis step was first too large (everything inline, 287,000 tokens of context, probes of its own) and then stopped by the usage limit. The drafts and judgments are in the session's scratchpad only; the plan was written by hand from them.
 - Four checks did not complete: the reasoning lenses on the file-page claim, the licence claim and the React Flow scale claim, and the source lens on the release claim; their sibling lenses did, and their findings are in the plan.
+
+## Session 13, November 12, 2026: Damon's machine probed
+
+No code changed. This session answered the unknowns of `plan/direction.md` that only Damon's work machine could
+answer, and brought the state documents (`plan/status.json`, `direction.md`, the README) in line with the redesign.
+
+How it was probed: one self-contained page, `grasp-probe.html`, opened from disk in Chrome 157 on Windows (20 cores,
+16 GB); it was first run in Chromium 153 on Claude's side as a baseline, and the results matched.
+
+| Test | Result |
+|---|---|
+| Today's page (`canvas/index.html`) from the extracted repo | Opens; Download state and Import state work |
+| Secure context and pickers from `file://` | Yes, all three pickers present |
+| Folder pick, write and read back | Works |
+| Remembered folder handle | Survives a reload with permission `granted`, and a full Chrome restart (Damon confirmed) |
+| Save picker, open picker, file input, download | All work (Damon confirmed) |
+| Policies in `chrome://policy` | Nothing blocking (Damon confirmed) |
+| Blob workers, IndexedDB, localStorage | All work |
+| GET to api.github.com, raw.githubusercontent.com, github.com | All reachable |
+| GitHub PUT with an `Authorization` header (invalid token, nothing written) | 401, so the preflight passes |
+| WebAssembly | Not blocked; a 50M-step loop took 39 ms against 277 ms in JavaScript, so it runs compiled |
+
+What it means for the plan: the workspace folder works as decision 7 plans it, with none of its fallbacks needed on
+this machine; Pull and Push through the GitHub API should work once a real token is used; nothing suggests WebAssembly
+or just-in-time compilation is restricted. `direction.md` records this under "What was checked" and narrows "What is
+not settled yet" to match.
+
+Not tested: OpenSysML's real module (about 15 MB) on that machine. The WebAssembly result makes it very likely to
+work; its load and parse times there are unmeasured.
+
+The probe's branch and pull request were deleted, so the probe is not in the repository; the only copy of
+`grasp-probe.html` is the one sent to Damon.
+
+### For the next session
+
+- The objective is the redesign in `plan/direction.md`; `plan/status.json` now lists its seven slices, with `next`
+  naming the one to do. Start slice 1, the shell and the planes: a React application bundled by esbuild into
+  `canvas/dist/`, beside the old page, which stays untouched until slice 2 retires it kind by kind.
+- At the start of slice 3, make one real write to GitHub from the page with a throwaway token.
+- At the start of slice 4, measure the real OpenSysML module's load and parse times on Damon's machine.
