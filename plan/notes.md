@@ -1702,3 +1702,413 @@ Node 22.23.4, at `d468dd3` with this session's changes to `plan/` in the working
 - Step 5 answers to criteria 1 (its own tests), 3 and 4 (`shell.png`, its checklist and its four scores, by a
   reviewer that is given the image and the list and nothing else), 7 and 8.
 - Nothing waits for Damon.
+
+## Session 17, November 12, 2026: steps 5 to 8 of slice 1 designed; nothing built yet
+
+On `claude/inspiring-sagan-fcjr0x`, from `2b80240`. This session loaded the state and designed steps 5 to 8 as one
+architecture, under plan mode, and then ran out of context before any step was begun. No code, test, skeleton or
+`canvas/dist/` file changed; `plan/status.json` is as session 16 left it (`step` 4). This entry is the session's plan
+file, as written and as an independent agent checked it against the plan, the written tests and the libraries'
+sources. Where it says "after approval", read "in the next session".
+
+The baseline, in this container (Node 22.23.4): `npm run check` passes in 3 s; `npm test` gives 64 tests, 56 pass,
+0 fail, 8 todo, in 10 s. `npm ci` was not run; `npm ls` shows every pinned version installed.
+
+### For the next session
+
+- `npm ci`, then start at step 5 as "How each step is built" below describes: outline, outline commit, tests first,
+  implementers, review, checks, screenshot, step commit.
+- The method is an experiment Damon asked for: one model designs, reviews and measures; Sonnet subagents at medium
+  effort write the tests and fill in the skeletons. The notes are to log, per step, the time, the briefs, the rework
+  and whose fault it was, and what the designer wrote.
+- Nothing waits for Damon.
+
+
+### Context
+
+`plan/slice-1.md` is the approved plan for the new page. Steps 1 to 4 are done: the build, the "Done when" checks as
+todo tests, and the core (history with redo, session, state files). This session builds steps 5 (the shell), 6 (the
+adapter and the planes), 7 (moving, resizing, undo, redo, save) and 8 (the planes at scale), each to a pushed commit.
+
+It is also an experiment in method: I design and review, Sonnet subagents write the tests and fill in the code. What I
+hand over is an outline in three parts: the architecture (in `plan/notes.md`), a skeleton (types, signatures and
+contracts in the files a step names), and a test list.
+
+Plan mode held back two things the prompt asked for at once. They come first after approval: `npm ci`, and the
+architecture written into `plan/notes.md` and pushed on its own. The design below is that architecture.
+
+### What loading the state found
+
+- `plan/status.json`: slice 1 in progress, `step` 4, checks 1 and 6 pass, eight are todo. Matches the notes.
+- `npm run check` passes (3 s). `npm test`: 64 tests, **56 pass, 0 fail, 8 todo**, as session 16 left it.
+  `npm ls` shows every pinned version installed. `npm ci` was not run (it rewrites `node_modules/`).
+- The ten files hold 17 views: 11 of the four graph kinds, 6 not (counted again through `M.normalize`).
+- The example's view is 1,176 by 648 units. In a 744 px wide plane (both side panels open) it fits at about 55%.
+  The three views of the 5,000-element model fit at about 6%, 7% and 4.5%.
+
+The design rests on the libraries' own sources. Two agents read them, a third checked the design against them, and I
+opened each passage the design leans on.
+
+**React Flow 12.10.2**
+1. Every store write runs every subscribed selector: one per mounted node, three per mounted edge (one of them works
+   out the edge's position), a scan of all nodes and all edges for what is visible, and the minimap's bounds and one
+   selector per node. A pan step is one store write. So what is mounted decides what a pan step costs.
+2. With `nodes` controlled, a drag step writes nothing to React Flow's store. It calls `onNodesChange`; the store
+   changes when the new `nodes` prop arrives, in a pass over all nodes that reuses a node only when the object given is
+   the same object as before. A step is worked out from the pointer and the gesture's start, so answering it with a
+   clamped or rounded place starts no fight.
+3. A parent that comes after its child in the array is a plain `console.warn`, in production too.
+4. An edge is drawn only when both end nodes have a handle. A measured node's handles are whatever elements with the
+   classes `source` and `target` it holds; a node with none loses its edges. A node that carries `handles` and
+   `measured` in its object counts as initialized without being mounted. A node without them is mounted once just to
+   be measured, even with `onlyRenderVisibleElements`.
+5. The `fitView` prop is used up without fitting when the nodes already carry `measured`. `minZoom` defaults to 0.5,
+   and the first viewport is clamped to it.
+6. `NodeResizer` shows eight controls. React Flow's own warnings are compiled out of a production build.
+7. d3 stops `mousemove` at the window during a drag and a pan (session 15's finding, confirmed). A store's update is
+   rendered in a microtask of the same task, so inside what `moveTiming` measures.
+
+**Dockview 8.9.0**
+1. `api.addEdgeGroup('left' | 'right', { id, initialSize, collapsed })` needs no registration. Panels join it with
+   `position: { referenceGroup }`. Its tab strip is vertical, at the outer side. A click on the name in front
+   collapses the group to the strip; a click on a name opens it. The sash is 4 px with `ew-resize`.
+2. `onDidLayoutChange` does not fire for an edge group's sash or its collapse. The group's own
+   `onDidDimensionsChange` and `onDidCollapsedChange` do.
+3. `addPanel` with no position adds to the active group, which can be an edge group. `api.clear()` empties the edge
+   groups and collapses them.
+4. Without the `theme` prop the edge groups take the dark theme whatever `className` says.
+5. A panel's React component is mounted when the panel is added and stays mounted while its tab is hidden; only its
+   element leaves the document (session 15's finding, confirmed). Panels are portals in the host's React tree, so
+   context reaches them.
+6. By default a side tab can be dragged into the editor, a whole side group dragged by the blank part of its strip,
+   an editor tab dropped into a strip, and any tab floated by Shift + press. Nothing pops a tab out without an API
+   call. With no group in the centre, the `watermarkComponent` shows.
+
+### The architecture
+
+#### Modules and their boundaries
+
+| Module | Owns | Must not know |
+|---|---|---|
+| `core/adapter.ts` | Which view kinds a plane draws. One view projected into nodes and edges (the plan's six rules). Every rule of place and size: growth, border items, the 12 and 48 of a nested box, least sizes, what a gesture's step may give. The routes of lines, as plain geometry. | React, the DOM, React Flow (it writes the node's shape out itself), stores, selection, events |
+| `plane/viewStore.ts` | One view's state outside React: its projection, whether a plane shows it, its camera, far or near, React Flow's own fields (`selected`, `dragging`), what a gesture in progress asks, and the one `edit()` that settles it | React, Dockview, the DOM, how a node looks, any rule of place or size |
+| `plane/Plane.tsx` | A view's tab body: the card for a kind no plane draws, else the gate that mounts React Flow only while the tab is shown, React Flow's props and gestures, ground, zoom buttons, minimap, marker definitions | Dockview, the model's elements, the history, files |
+| `plane/nodes/*`, `edges/*` | Drawing one node or one line from its `data` | The model, the session, the store. `LineEdge` reads its two ends' rectangles from React Flow. |
+| `plane/NotDrawnYet.tsx` | The card itself | |
+| `shell/App.tsx` | The session (open, replace), what went wrong, `window.Grasp` | Dockview, React Flow |
+| `shell/TopBar.tsx` | The bar; from step 7 its actions and their keys | The planes |
+| `shell/Dock.tsx` | Dockview: the two strips, the side panels, the saved layout, one editor tab per view, each showing `Plane` | React Flow, the adapter, how a file is opened |
+| `shell/EmptyCard.tsx`, `theme.ts` | The card (props only). Every colour, the MUI theme, the CSS variables `app.css` reads. | |
+
+The direction of use is the plan's: gesture → store → `history.edit()` → listeners → adapter → store → React.
+
+#### What crosses a boundary
+
+- **`PlaneNode`** (adapter → store → React Flow), in the shape of React Flow's `Node`, which `tsc` checks where
+  `Plane` hands the nodes over:
+  - `id`: the element's id. `type`: the kind row's `shape` (unknown: `rect`, or `port` on a border).
+  - `position`: the box's `x, y`, relative to its parent node; a border item's, from `side`, `at` and its owner's size.
+  - `parentId`: the nearest owner the view shows. Parents come first in the array.
+  - `width`, `height`: the size by `graphLayout`'s rule, whole numbers. `measured`: the same two numbers.
+  - `handles`: one shared constant, so an unmounted node counts as initialized.
+  - `className`: `def` or `usage`, `abstract`, `far`. `data`: what the component draws (below).
+  - `selected`, and `dragging` while a drag lasts: React Flow's own, kept when a node gets a new object.
+- **`NodeData`**, one of three, each a plain record with a `far` flag:
+  - box (`rect`, `rounded`, `item`, `action`, `state`): keyword line, name line, compartments as wrapped lines
+    (`{ head, lines }`), the send or accept glyph, its kind's least size.
+  - border item (`port`, `param`): side, which way its arrow points, name line, where the name sits.
+  - small (`bar`, `diamond`, `dot`, `bullseye`, `entry`, `event`): its name.
+- **`PlaneEdge`**: `id` the relationship's, `source`, `target`, `type: 'line'`, and `data` from the row's `line`:
+  route, markers, class, label (empty when far), label offset, whether each end is a border item.
+- **`Projection`**: `{ view, far, nodes, edges, bounds }` and the adapter's own index. A node or edge that reads the
+  same as in the projection before is the same object.
+- **`Ask`** (store → adapter, step 7): what a gesture's step asks for one node, as React Flow gave it: a move to a
+  point, or a resize to a rectangle from the rectangle the gesture started with.
+- **`ViewSnapshot`** (store → Plane): `{ nodes, edges, far }`, a new object only when something in it changed.
+- React Flow's `NodeChange`, `EdgeChange` and `Viewport` (Plane → store).
+- **`Told`** (history → store), as step 4 built it.
+- **The layout record** (Dock ↔ localStorage `grasp-app:layout:1`): each side's width, whether it is collapsed, and
+  which left view is in front. Not Dockview's own JSON, which would hold the open file's tabs.
+
+Compartment text is wrapped in the adapter by character count, as `graphLayout` does, and drawn one row per line. A
+box's height is then known without the DOM, in Node as in the page, and rows are plain text from the start. The
+adapter's measures (header 40, row 16, and the rest) reach `app.css` as CSS variables that `Plane` sets, so each
+number is written once.
+
+#### Each event, from the gesture to the paint
+
+1. **Open a file.** Open (bar or card) → `openFile(lib)` → a `Session` in App's state and in context. The bar shows
+   the name. `Dock` removes the old view tabs and adds one per view, titled `name : kind`, the first with a
+   direction, the rest against it, the first in front. A file that cannot be opened is said in an alert, in
+   `files.ts`'s own sentence, and the open file stays.
+2. **Show a tab.** Dockview puts the tab's body in the document → `Plane`'s ResizeObserver sees a size → the inner
+   component mounts and reads `viewStoreOf(session, viewId)`. The read projects when the store is stale; subscribing
+   makes it live. `store.camera(width, height)` gives the remembered viewport, or fits the projection's bounds and
+   decides far or near from that zoom, before React Flow mounts. A view with nothing placed opens at 100%. React Flow
+   gets `defaultViewport` and the same zoom limits the store fitted with (2% to 400%), mounts only the nodes in the
+   window, then their lines. The fit button calls the store's fit, so there is one fit.
+3. **Hide a tab.** The body leaves the document → size 0 → the inner component unmounts. The store keeps its nodes,
+   selection and camera, and with no subscriber only marks itself stale when the model changes.
+4. **Pan and zoom.** d3 → React Flow's store, one write → `onViewportChange` → `store.moved(viewport)` remembers it
+   and tells nobody. Crossing 25% projects again, far or near, and tells React.
+5. **Select.** A click → React Flow's `select` changes → the store gives each changed node a new object.
+6. **A drag step** (step 7). d3 `mousemove` → `onNodesChange` → the store keeps what React Flow asks for each dragged
+   node and calls the adapter: `withAsks(projection, asks)` lays the view out as the rules allow. A place is whole
+   numbers; a nested box is never left of 12 or above 48; a border item goes to the nearest point of its owner's
+   border; an owner grows and its ports follow; a port's name keeps clear of its line. Only what changed is a new
+   object. React renders the plane inside the same task.
+7. **A drag's end.** The changes with `dragging: false` → one `history.edit()`, with no key. It writes the places as
+   laid out, not as last asked, into the keys of each place in `view.layout`, so the history says `moved`. Writing
+   nothing returns nothing, which is no step. The words are the old page's ("Moved part def Host"; "Moved 3
+   elements" for several). The history tells its listeners, the store projects from the model, and every object is
+   the one already shown: a gesture's layout is the projection of the model its end writes.
+8. **A resize** (step 7). `NodeResizer` → `dimensions` changes with `resizing` → asks → `withAsks`. A top or left
+   resize keeps the far corner, shifts the boxes inside so they stay put, and stops where one would pass 12 or 48.
+   The children's positions React Flow sends are ignored; the adapter works them out. The end is one `edit()`
+   writing `x, y, w, h` as shown: never under what the box holds, nor under `placement()`.
+9. **What is not a gesture.** A `dimensions` change without `resizing` is a measurement and changes nothing. A
+   `remove` changes nothing. Arrow keys move no node (`disableKeyboardA11y`).
+10. **Undo, redo.** The bar or the key → `history.undo()` or `redo()` → live stores project again, hidden ones go
+    stale.
+11. **Save.** `saveFile(session)`, as step 4 built it. From step 7, with unsaved changes, a reload and opening
+    another file both ask first.
+12. **A sash drag, a collapse.** Dockview → Dock's listeners on each edge group → the layout record. A width is
+    remembered when its sash was dragged, not when the window was resized.
+
+#### What step 8's limits fix about steps 6 and 7
+
+- **Culling from step 6**, not added at step 8: `onlyRenderVisibleElements`, with every node carrying `measured` and
+  `handles`, and one inert element with the classes `source` and `target` in each node. A drag step at 100% then
+  costs the few nodes on screen, and returning to a zoomed-in tab mounts only those.
+- **The far form is nothing but the node's own element.** The outline is CSS on React Flow's node element, chosen by
+  the shape's class. A node's component draws only words and glyphs, and draws none when far. So 2,112 fitted nodes
+  are 2,112 elements with one inert child each. The ground's dots are left out when far, as on the old page.
+- **No per-step work over the whole model in Grasp's code.** A drag step runs the layout pass over plain numbers the
+  projection keeps, and reads nothing through the model's Proxies.
+- **Nothing of Grasp's renders on a viewport change.** The camera is remembered in a field. Node components are
+  memoized on `data`, `selected` and size, not on absolute position, so a dragged owner's children don't render.
+- **Hidden tabs cost nothing per change**: stale, not projected.
+- **Levers kept for step 8's measuring**, in the plan's order: lines without labels below 25%, then no lines. Beyond
+  the plan's list, and only if the measures point there: a lighter minimap of our own that draws the same picture,
+  `contain` on nodes, the viewport promoted to a layer while it pans.
+- **`npm test` runs its files side by side**, so a timed test runs while `unchanged.test.mjs` keeps three processes
+  busy. Step 6, the first step whose commit holds a timed test, measures what that costs and, if it costs a limit,
+  runs the files one at a time from then on.
+
+#### Checked against the plan's rules and session 15
+
+- The tests' contract at the top of `helpers.mjs` holds: every `data-testid`, tabs named `name : kind`, node and edge
+  ids, the class `selected`, `.react-flow__resize-control.handle.bottom.right`, Ctrl + wheel, the ground pans, Save
+  downloads under the file's name. New parts are found by role and text, so `helpers.mjs` gains no name.
+- A fitted view draws a node for every placed element (`untilDrawn`), because fitting shows them all.
+- Sizes are whole numbers with no grid, inside the resize test's tolerance. A bottom-right resize writes one place.
+- History outside React, node components chosen by kind rows, one adapter (decision 9).
+- No frame, no ELK, light only, React Flow's mark hidden, four graph kinds and a card for the rest.
+- Session 15's four findings are each answered: fit when sized; the 5,000-element numbers (culling, the far form, the
+  levers); contention; sizes within a tolerance.
+- One difference from the old page, by React Flow's layering: a line between two top-level boxes passes under any box
+  it crosses. A line with an end inside a box is drawn over that box.
+
+### How each step is built
+
+For each step, in this order. One line to Damon at every change of stage.
+
+1. **Outline.** I refine the design with what the last step taught, and write the skeleton and the test list. A
+   skeleton's new files are not imported yet, so the page is unchanged.
+2. **Outline commit, pushed**: the skeleton, the notes, and `canvas/dist/` as built. It passes by itself with the
+   same `# todo` as the step before, so it is a commit a session could end on, and Damon can read the interfaces
+   while the code is written.
+3. **Tests first.** A Sonnet agent (medium effort) writes the tests from the list, without todo marks. I run them and
+   read each failure against the reason I gave. A test that cannot fail before its code is said so in the notes and
+   checked the other way round, by breaking the code.
+4. **Implementers.** Sonnet, medium effort, each in a git worktree of its own, with `npm ci` there. The worktrees are
+   made from a local commit that adds the tests; it is never pushed and is folded into the step's commit. A brief
+   gives the goal, where to read, the files owned, the tests and commands, what to send back, and the five rules
+   with their reasons. An implementer who finds a signature or a test wrong stops and says why.
+5. **Review.** I read each diff against the outline before its report, then copy the owned files into the main tree.
+6. **Checks, alone.** `npm run build`, `npm run check`, `npm test`, with no agent running when anything is timed.
+7. **Screenshot.** `npm run shots`, then a fresh agent gets the image and its list and nothing else: present or
+   absent per item; for `shell.png` and `example.png` also the four scores, each to be 4 or more.
+8. **Step commit, pushed**: the code, the tests, the todo marks of the step's checks off, `canvas/dist/`,
+   `plan/status.json` (`step`, the checks), the notes. Worktrees and scratch files removed.
+
+Rework goes back as a brief when the outline was right and the code wrong (then at high effort), and into the
+outline when the outline was wrong. A fix smaller than its brief I make myself. The notes log, per step: time, briefs,
+rework and whose fault, what I wrote.
+
+### The four steps
+
+#### Step 5, the shell
+
+- **Skeleton (mine):** `shell/App.tsx`, `TopBar.tsx`, `Dock.tsx`, `EmptyCard.tsx`, `theme.ts`.
+- **Tests** in `shell.test.mjs`, beside the two todo tests it has. Each fails today for want of the strip, the card
+  or the Open button it reads:
+  - a side panel collapses to its strip and opens again
+  - the panels' sizes are remembered across a reload, and a narrow window does not rewrite them
+  - the text is drawn in Roboto, loaded from the page's folder (the bar's, a strip's and the card's)
+  - a file opens from the card, and each of its views gets a tab
+  - a file that cannot be opened says why, and the open file stays
+  - a side view cannot leave its strip (dragged by its name, and by the blank part of the strip)
+  - with every tab closed, the card offers to show the views again
+- **Agents:** one for the tests, `shots.mjs` and the `shots` script; one for the shell.
+- **Set in the outline:** the left strip holds Explorer, Tools, Validation, the right one Details, each an empty
+  state until its step. Explorer is in front and open in a fresh browser, 280 px beside its strip; Details 320 px.
+  Side tabs have no close button. Neither a side tab nor a side group can be dragged out or floated, and the strips
+  take no drop. Save, Undo and Redo are disabled until step 7, About until step 12.
+- **Ends with:** checks 3 and 4 pass, `# todo 6`, `shell.png` reviewed and scored. At this step the fourth score
+  ("boxes and lines easy to read") can only rate the shell's own boxes and lines.
+
+#### Step 6, the adapter and the planes
+
+- **Skeleton:** `core/adapter.ts`, `plane/viewStore.ts`, `Plane.tsx`, `NotDrawnYet.tsx`, `nodes/BoxNode.tsx`,
+  `PortNode.tsx`, `SmallNode.tsx`, `edges/LineEdge.tsx`, `markers.tsx`.
+- **Tests:**
+  - `adapter.test.mjs`, in Node, over the example, the fixtures and the 5,000-element model: the plan's four (parents
+    come first; every placed element is a node and every drawn line an edge; a box holds what is inside it; a port
+    lies on its owner's border), and: the same reading is the same object; far leaves the words out; a line's route.
+  - `plane.test.mjs`: the plan's four (a part sits inside its part def; each line kind has its marker; a definition's
+    corners are square and a usage's round; a sequence view's tab says it is not drawn yet), and: the view is fitted
+    once it has a size; the wheel pans and Ctrl with the wheel zooms; a double click does not zoom; below 25% a box
+    is its outline; the blank model's empty view opens.
+  - Criterion 2: all ten files open, 17 views, no console error or warning.
+  - Criterion 6: the page ready in under 500 ms; the example drawn within 1 s; a switch of tab under 100 ms. The
+    first has passed since step 2, so it cannot be seen to fail; it is checked the other way round.
+  - `shell.test.mjs`: "the example shows its general view on a tab" loses its mark.
+- **Agents:** adapter tests → the adapter, while the plane tests are written → the planes (store, Plane, nodes,
+  edges, styles, wiring) against the real adapter and the real tests.
+- **Ends with:** check 2 passes, `# todo 5`, `example.png` reviewed and scored.
+
+#### Step 7, moving, resizing, undo, redo and save
+
+- **Skeleton:** the gesture half of `viewStore.ts`; `withAsks` and what it needs in `adapter.ts`; the bar's actions
+  and keys in `TopBar.tsx`; the `beforeunload` guard in `files.ts`; `NodeResizer` in `BoxNode.tsx`.
+- **Tests:**
+  - `resize.test.mjs`: the todo test, and a save through a stubbed picker's handle.
+  - `move.test.mjs`: the plan's five (a drag is one undo step, undone and redone; three boxes dragged together are
+    one step; a nested box cannot leave its owner, and the owner grows; a port dragged past a corner changes side; a
+    resize from the top left keeps the opposite corner), and: eight resize controls; a port stays on the border
+    after a resize; a resize never leaves a box smaller than what it holds; the keys; the page asks before a reload
+    or another file loses changes; a drag step of the example moves the box and takes under 16 ms (criterion 6).
+  - `adapter.test.mjs`: a gesture's layout is the projection of the model its end writes.
+  - Backspace and Delete remove nothing: it cannot fail first, so it is checked the other way round.
+- **By hand:** `canvas/check.sh` on a file the page saved.
+- **Ends with:** check 5 passes, `# todo 4`, `nodes.png` reviewed.
+
+#### Step 8, the planes at scale
+
+- **Mine:** the measuring, with nothing else running, and the choice of what to tune. Time is split into script and
+  frame per view, with and without lines and minimap, before anything is changed.
+- **The proof the plan asks for** is taken by a test of its own in `scale.test.mjs`: the moment the dragged node's
+  transform, or the viewport's, changes in the DOM must fall between the `pointermove` and the frame's callbacks.
+  The page carries no mark for it, and `helpers.mjs` does not change. One thing is known to fall outside: React
+  Flow's own `dragging` class on the first step of each drag, rendered a task later. Its cost is measured and noted.
+- **Tuning** in the plan's order, each change kept only if the numbers move. A change larger than its brief goes to
+  an implementer.
+- **Ends with:** checks 7, 8 and 10 pass in three runs of `npm test` in a row, `# todo 1`, `scale.png` reviewed, the
+  table of times in the notes. A limit the plan's tuning cannot hold stays todo and comes to Damon with its numbers.
+
+### Files changed beyond a step's list, known now
+
+Each gets its reason in the notes. The plan's lists leave the wiring out.
+
+- Step 5: `src/vendor.ts` (the five icons, by path, as its header says), `package.json` (the `shots` script).
+- Step 6: `core/index.ts` (exports the adapter, which the Node tests load from there), `shell/Dock.tsx` (a view's tab
+  shows its `Plane`), `shell/App.tsx` (`window.Grasp` gains the views' stores), `app.css` (the planes' rules),
+  `shell.test.mjs` (the todo mark), `shots.mjs` (the new shot).
+- Step 7: `core/adapter.ts` and `adapter.test.mjs` (a gesture is laid out by the adapter's rules, not by a second
+  copy of them in the store), `shell/App.tsx` (the question before another file is opened, which only now can have
+  something to lose), `app.css`, `shots.mjs`.
+- Step 8: `shots.mjs`.
+- `package.json`, at step 6, only if the test files must run one at a time.
+- Library types are declared where they are used (`declare global`), as `session.ts` does, not in `types.d.ts`.
+
+Two choices of mine inside the plan's wording: `shell.png` is taken as the page opens, with no file, since every
+panel is an empty state until its step; `example.png` is taken with both side panels collapsed, so the example fits
+at full size. Both scenarios go in the notes.
+
+### Verification
+
+- At every pushed commit: `npm ci && npm run check && npm test` with `# fail 0`, and `# todo` equal to the todo
+  checks in `plan/status.json`: 6, 5, 4 and 1 at the four steps' last commits.
+- Every new test seen to fail, for the reason listed, before its code; the two that cannot, checked by breaking it.
+- Screenshots looked at by a reviewer that sees only the image and the list.
+- Step 7: `canvas/check.sh` accepts a saved file. Step 8: three runs in a row, medians reported.
+- `unchanged.test.mjs` passes throughout: the old page, the library and their tests are not touched.
+- At the end: a report per step (counts, timings, scores), what departs from the plan, what waits for Damon.
+
+### What stops me
+
+Only what the prompt names: a scale limit the plan's tuning cannot hold, and anything that needs
+`plan/slice-1.md` or `plan/direction.md` to change.
+
+### Appendix: working detail for the skeletons
+
+Not needed to approve the plan. It is here so the detail outlasts this context.
+
+**A skeleton never breaks the page.** New files hold types, signatures, contracts and bodies that throw, and nothing
+imports them yet; the implementer does the wiring (`main.tsx`, a panel's body). So an outline commit builds the page
+the step before left. `npm run build` runs before every commit, and `canvas/dist/` goes in whatever it gives.
+
+**Commits per step.** Outline commit O, pushed. Then a local commit T = O + the tests, from which the worktrees are
+made. At the end `git reset --soft O` and one step commit S, pushed. T is never pushed, so nothing is rewritten on
+the remote.
+
+**Step 5**
+- `theme.ts`: `INK #182630`, `TEAL #176B61`, and the old page's greys (ground `#EEF2F4`, lines `#E2E7EB` and
+  `#CBD3D9`, dots `#B9C3CB`, soft teal `#E7F1EF`, secondary text `#5B6973`); bar 40, tab bar 32, type 13 px;
+  `cssVariables` put on `:root` by `main.tsx`, so `app.css` names no colour.
+- `Dock.tsx`: `LAYOUT_KEY`, `LayoutRecord`, `readLayout(text)` (tolerant), `DockProps { session, onOpen }`,
+  `viewTitle(view)` = `` `${name} : ${kind}` ``. An edge group's `initialSize` counts its strip.
+  - `theme={themeLight}`; edge groups made in `onReady`; side panels with a tab component that hides the close
+    button. Shift + press is cancelled by a native `pointerdown` listener on the tab's own element that calls
+    `preventDefault()`: React's handler would run after Dockview's.
+  - `onWillDragPanel` and `onWillDragGroup` cancel a side tab's and a side group's drag; both edge groups locked
+    against drops.
+  - View panels: id `view:<id>`, component `view`, params `{ viewId }`. The first goes in with
+    `position: { direction }` when the centre is empty, the rest against a view panel. Never `api.clear()`.
+    "Show the views again" adds only views that have no panel: adding a live panel's id throws.
+  - Panel bodies, the watermark and the tab component are module-level components that read a context Dock provides.
+  - Names run up the left strip, first name on top. The strip's name in front is teal.
+  - A size change counts as the user's when the dock's own size did not change with it.
+- `TopBar.tsx`: `[data-testid]` on each `<button>` with a fixed `aria-label`; the tooltip is separate (the child's
+  own `aria-label` wins), and a disabled button sits in a `<span>` under its tooltip. `file-name` holds the name,
+  then a dot while unsaved.
+- `EmptyCard.tsx`: `{ fileName, onOpen, onShowViews }`. Its button is named otherwise than "Open" and carries no
+  `data-testid="open"`, or every test that opens a file fails.
+- Page readiness (criterion 6) is measured by the test's own init script, not by a mark in the application.
+
+**Step 6**
+- `adapter.ts` writes its node and edge types out itself and imports nothing from React Flow. Constants: `HEADER 40`,
+  `HEAD_H 18`, `LEAD 16`, `PAD 12`, `CHILD_TOP 48`, `PORT 16`, `FAR 0.25`, `MIN_ZOOM 0.02`, `MAX_ZOOM 4`, and the
+  width of a character in a 12 px row (about 6.3 px, tuned on `example.png`).
+- `project(lib, model, view, { far, previous?, look? }) → Projection`; `isDrawn(lib, viewKind)`;
+  `route(how, a, b) → { points, mid }` for `straight` and `elbow`, used by `LineEdge` and by a port's name.
+- Ported into the adapter from page scripts: `nameLine`, the three compartments (doc, code, send or accept),
+  `portName`, `portRect`, `graphLayout`'s sizes, `straight`, `elbow`, the glyph hook's default (`inout`).
+- Node order: a box, then the boxes inside it, then its border items. Everything in Roboto; no monospace.
+- `viewStore.ts`: `viewStoreOf(session, viewId)`, one history listener per session; `drawn`, the kind's label for
+  the card, `subscribe`, `getSnapshot` (projects on demand when stale), `camera(width, height)`, `fit(width, height)`,
+  `moved(viewport)`, `nodesChanged`, `edgesChanged`. Step 6 handles `select` only; nodes are not draggable until
+  step 7.
+- `Plane.tsx` props: `nodeTypes` keyed by the 13 shapes, `edgeTypes { line }`, `onlyRenderVisibleElements`,
+  `minZoom`, `maxZoom`, `defaultViewport`, `onViewportChange`, `panOnScroll`, `zoomOnScroll={false}`, `zoomOnPinch`,
+  `zoomOnDoubleClick={false}`, `nodesConnectable={false}`, `nodesFocusable={false}`, `edgesFocusable={false}`,
+  `disableKeyboardA11y`, `proOptions.hideAttribution`. No `fitView`, `width` or `height` prop. Every prop object is
+  stable. Controls without the lock button, its fit button on the store's fit, which never zooms past 100%.
+- Each node holds one inert element with the classes `source` and `target`. Markers are plain `<marker>` elements
+  rendered with the plane and referenced by our own `marker-end`, drawn with `context-stroke`.
+- `NotDrawnYet` says `M.an(label, true) + ' is not drawn yet.'`, and that the old page draws it until slice 2.
+
+**Step 7**
+- `withAsks(lib, model, projection, asks) → Projection` and `placeOf(projection, id) → Place`, in `adapter.ts`.
+  `Ask` is `{ move: { x, y } }` or `{ resize: { x, y, w, h }, from: Rect }`; a border item's move is where React
+  Flow put its square, which the adapter turns into `side` and `at`.
+- `NodeResizer` gets only its kind's least size and no callbacks, so its props never change in mid-gesture.
+- The settle writes keys (`place.x = …`), only those that differ, through `M.placement`'s rounding and limits.
+- Words: "Moved part def Host", "Moved 3 elements", "Moved port api in hosts to the right side", "Resized …".
+- Keys act unless the event comes from a text field; Ctrl + S always. Both questions are the browser's own
+  (`beforeunload`, `confirm`), which the tests' `dialogs` record.
+
+**Step 8**
+- Switches kept in one place in `plane/`: lines below 25%.
+- The 5,000-element views leave free ground above and below when fitted, which the pan test needs.
