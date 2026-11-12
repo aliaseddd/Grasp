@@ -1530,3 +1530,95 @@ Found on the throwaway page, for the steps that build the planes:
   need `--test-concurrency` or another order.
 - **Sizes within a tolerance.** The resize test allows 2 units on growth and 1 between the plane and the file; a page
   that snapped sizes to a coarse grid would fail it.
+
+### Step 4: the core, without an interface
+
+`canvas/app/src/core/` holds the history with undo and redo (`history.ts`), the session (`session.ts`), opening and
+saving a state file (`files.ts`) and `index.ts`, in TypeScript with no React, tested in Node. `main.tsx` and
+`canvas/dist/` are as they were: the page starts to use the core in step 5. Each test was written and seen to fail
+before its code (`history.test.mjs` 19 of 19 failing with no core; `files.test.mjs` 21 of 22 with no `openText`);
+cases added afterwards were checked the other way round, by breaking the core in 51 ways, each of which failed a
+test.
+
+With both steps, `npm test` reports 64 tests in 9 suites: 56 pass, 0 fail, 8 todo, in 15 s; `npm run check` passes in
+5 s; `npm run test:old` passes 221 of 221 in 82 s. Step 4 alone: 55 tests, 55 pass, in 6 s.
+
+The tests: `history.test.mjs` (21: the six cases the plan lists, by those names, and the rest of the port),
+`files.test.mjs` (23: the example and each of the nine fixtures, opened and saved with no change, hold the same
+model, notes, archive and code links, and `canvas/export.mjs` prints each one's pinned text from the saved file,
+`format1.sysml` for the example; then the session, and the browser's part played by stand-ins) and
+`history-walk.test.mjs` (3).
+
+What was built otherwise than the plan names, or beyond it:
+
+- **`canvas/app/test/history-walk.test.mjs`**, a file the plan did not list. It runs the old page's
+  `canvas/src/core/page/changes.js` in Node, with stand-ins for the page, beside the new history on 2,889 seeded
+  random changes, and compares what `edit` returned, what was told, the steps, the log and the mistakes after each,
+  and the models every tenth change. It makes each intended difference on both sides. And it walks the new history
+  alone with Redo: 3,465 steps undone and 3,020 redone, the model compared as JSON text each time. The first two
+  tests read `changes.js`, so they go when the old page goes. Scratch runs of the same comparison agreed over
+  200,000 random changes on the ten files.
+- **`history.ts` differs from `changes.js` beyond redo, listeners and the empty history.** Its header lists each:
+  - Undo and Redo put an object's keys back in their order. The old script puts a restored key last, so the JSON
+    text differs after undoing a delete; `canvas/test/fields.test.mjs` compares JSON text after Undo, and step 10
+    ports that walk.
+  - "Nothing changed" is by identity: an equal list or item put in place of another is a change. The old script
+    dropped it when the change said nothing, and Undo then could not take back the step before it.
+  - A change that throws is put back. `edit`, `undo`, `redo` or `endEdit` called inside a change throws.
+  - What was touched is in the model's order even when a place's id names nothing: such an id comes last, where the
+    old comparison gave NaN.
+  - A run that turns out to be no step gives the redo list back.
+  - Whether a place is a line's is asked of the element ids the model had before the change; the old script asked
+    its drawing's layout.
+  - `mark()` is a number naming the model's state. The session's `unsaved` compares it with the mark at the last
+    save, so Undo back to the saved state reads as saved.
+  - Left out: `editable()`, `say`, `updateUndo` and the save and check timers, which are the page's.
+- **What listeners are told:** `{ by: 'edit' | 'undo' | 'redo' | 'end', touched, structure, replaced, views, moved,
+  shown }`, the old `howToDraw` flattened: its `patch` is `moved`, and its `views: null` for a new model is
+  `replaced: true`. `'end'` is sent when a run ends. A change to the package has empty `touched` lists and
+  `views: null`. A listener that throws is reported as a mistake, and the others are still told.
+- **The library is an argument** to whatever opens a file (`openFile(lib)`, `openText(lib, text, { name, handle })`),
+  and the session keeps it; the core reads no global. `VERSION`, `versionOf` and `normalize` are added to
+  `SysMLModelLibrary` by `declare global` in `session.ts`, since `types.d.ts` was not step 4's to change; a later
+  step may move the three lines there.
+- **Three choices the plan left open, for Damon to see.** A file saved in a newer version of the format is refused,
+  because saving would write over it in an older one, and so is a `model` that is not an object (the old page would
+  open a blank model). The saved file's top-level `revision` is the opened file's model revision (the old page wrote
+  its stored model's; nothing reads the field). Notes and the archive pass through as the file has them, as the plan
+  says; the old page tidies them on import, which for the ten files gives the same data.
+- **`saveFile`** ends an open run first, so the log matches the file, and marks the session saved at the state the
+  text was made from, so a change made while the browser writes stays unsaved. A byte order mark at the start of a
+  file is skipped.
+
+Measured: the old page (`canvas/index.html` from `file://`) imported 20 files the core saved, the ten unchanged and
+the ten after a change, and held the same model key for key, the notes, the archive and the log, exported the
+expected text, and logged nothing. At 5,000 elements in Node, a drag move or a keystroke through `edit` takes
+0.004 ms by the median, placing an element 6 ms, a delete with its Undo 10 ms, all as the old script;
+`createHistory` 32 ms, `openText` 90 ms, `stateText` 46 ms.
+
+To know when building on the core: the model's objects are Proxies, so `structuredClone` refuses them (copy through
+JSON); models from `loadLib()` belong to another realm, so tests compare them as JSON (`plain` in `core.mjs`).
+
+### Where the two steps meet: how a state file is opened
+
+Neither side had to move. Step 4's `openFile` uses the picker when `typeof window.showOpenFilePicker` is
+`'function'`; otherwise it appends a hidden `<input type="file" data-testid="file-input">` to the body, clicks it,
+and removes it once a file is chosen or the dialog is closed. Step 3's `openPage(browser, { picker: false })` deletes
+`window.showOpenFilePicker` in an init script (it is an own property of `window`; deleting it from
+`Window.prototype` does nothing), and `openStateFile` starts listening for Playwright's `filechooser` event before it
+clicks Open, then answers the chooser. That order matters: with nobody listening, headless Chromium closes the
+dialog at once and the input is gone, so `setInputFiles` on the input after the click finds nothing. The lead ran
+the one against the other on a scratch page (the core bundled, an Open button calling `openFile`, the name in
+`file-name`): the example opened through the input with no handle, no step and nothing unsaved, no input was left in
+the page, Save came as a download named `stronghold-proof.json` in `grasp/2`, and the page logged nothing. The
+helper does not use the input's `data-testid`; it reaches the input through the chooser.
+
+### For the next session
+
+- Step 5 of `plan/slice-1.md`: the shell (the top bar, the dock with its two strips and the editor group, the
+  empty-editor card, the theme, Roboto). It takes the todo marks off checks 3 and 4, so `# todo` becomes 6.
+- The shell builds to the names at the top of `canvas/app/test/helpers.mjs`, and Open calls the core's `openFile`
+  with `window.SysMLModel`.
+- For Damon: step 8's "timed as `timing` takes it today" against `moveTiming`; `history-walk.test.mjs` beside step
+  4's file list; and the three choices of `session.ts` above.
+- `npm ci` first: `node_modules/` is not committed.
