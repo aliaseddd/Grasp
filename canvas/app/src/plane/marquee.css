@@ -1,0 +1,5 @@
+/* The marquee: React Flow's rectangle while Shift is held and the pointer dragged, in the theme's teal. */
+.grasp-plane .react-flow__selection {
+  background: color-mix(in srgb, var(--grasp-teal) 8%, transparent);
+  border: 1px dotted var(--grasp-teal);
+}

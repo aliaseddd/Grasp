@@ -1,8 +1,10 @@
 // The planes at scale: the last four of slice 1's "Done when" checks, on the model of 5,000 elements in three views
 // that canvas/test/scale-model.mjs generates, and two tests of what step 8 changes. They were written in step 3,
 // before what they check. Step 8 took the marks off the opening and the drag step. The pan step's mark is back on, with
-// its numbers: with every change of step 8 in, the action flow view's pan step stays over the limit on this machine,
-// and the limit goes to Damon (plan/notes.md, session 25). The keystroke's mark stays until step 10 builds Details.
+// its numbers: with every change of step 8 in, the action flow view's pan step stays over the limit on this machine.
+// The drag step's is back on at step 9's closing: since a drag's first move starts it (session 25), its first drawn
+// step is timed apart, and it is over the limit in some runs. Both limits go to Damon (plan/notes.md, session 25).
+// The keystroke's mark stays until step 10 builds Details.
 //
 // The model is opened through the file input, as a person opens it. A step is timed as the old page's scale tests
 // time it, inside the page: the script's time from the event reaching the window to the end of its listeners, plus
@@ -219,7 +221,11 @@ describe('the planes at scale', () => {
   });
 
   // A box of the general view, at 100%, is dragged three times, there and back and there again, four moves each.
-  test('a drag step takes under 16 ms at 5,000 elements in 3 views', async (t) => {
+  test('a drag step takes under 16 ms at 5,000 elements in 3 views', {
+    todo: 'a step that follows holds (9 to 13 ms), but a drag\'s first drawn step, timed apart since session 25, takes 15 to 27 ms ' +
+      'in the first drag of a page and 7 to 14 in later ones, and its median of three was over 16 ms in 3 of 6 runs alone with steps 8 ' +
+      'and 9 built (1 of 4 with step 8): the limit goes to Damon with the pan step\'s (plan/notes.md, session 25)',
+  }, async (t) => {
     const view = VIEW.definitions;
     const id = SERVICE;
     const opened = await openModel(browser);

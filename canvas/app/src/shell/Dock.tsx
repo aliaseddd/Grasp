@@ -8,6 +8,7 @@ import { DockviewReact, themeLight } from 'dockview-react';
 import type {
   DockviewApi, DockviewGroupPanelApi, DockviewReadyEvent, IDockviewPanelHeaderProps, IDockviewPanelProps, IWatermarkPanelProps,
 } from 'dockview-react';
+import { selectionOf } from '../core';
 import type { ModelView, Session } from '../core';
 import { DetailsPanel } from '../panels/Details';
 import { ExplorerPanel } from '../panels/Explorer';
@@ -154,9 +155,12 @@ export interface DockProps {
  *   to Dockview's state whenever it may have changed: when the effect that follows `api` and `session` starts, at
  *   every `api.onDidActivePanelChange` and at every `api.onDidRemovePanel`. If `api.activePanel` is a view's panel of
  *   this session (its id begins `view:` and its params' session is the session), that view is in front; otherwise the
- *   view that was in front stays while it still has a panel; otherwise none is (null). So a side panel made active
- *   changes nothing, a closed tab hands on to the tab Dockview puts in its place or to none, and the panels of a
- *   file that was open before are passed over while the dock takes them away. Dockview hands a new listener of
+ *   view that was in front stays while it still has a panel; otherwise the view of the active panel of an editor
+ *   group, when that panel is a view's panel of this session, the first such group in Dockview's order (`api.groups`);
+ *   none (null) only when no view of this session has a panel. So a side panel made active changes nothing, a closed
+ *   tab hands on to the tab Dockview puts in its place, and when the group of the view in front is closed (a split
+ *   group, a floating one) to the view shown in the first group that shows one, and the panels of a file that was
+ *   open before are passed over while the dock takes them away. Dockview hands a new listener of
  *   onDidActivePanelChange the last event at once; the rule gives the same answer however often it is asked.
  * - **Step 10** (plan/swarm/step-10.md): a view's tab is titled viewTitle(view) at every moment: when the session's
  *   history tells of a change that touched a view (`told.touched.views`, or `told.views === null`), the panel of each
@@ -171,11 +175,19 @@ export function Dock({ session, onOpen }: DockProps): JSX.Element {
   const showViews = useCallback(() => {
     if (api && session) addViews(api, session);
   }, [api, session]);
+  const showView = useCallback((viewId: string): void => {
+    if (!api || !session) return;
+    const view = session.model.views.find((v) => v.id === viewId);
+    if (!view) return;
+    const panel = api.getPanel(viewPanelId(view.id));
+    if (panel) panel.api.setActive();
+    else addViews(api, session, view);
+  }, [api, session]);
   const context = useMemo<DockState>(() => {
     const closed = api && session ? session.model.views.filter((view) => !api.getPanel(viewPanelId(view.id))).length : 0;
     return { session, onOpen, showViews, closed, showView };
     // `panels` is here for its changes only: a panel added or removed changes what getPanel answers.
-  }, [api, session, onOpen, showViews, panels]);
+  }, [api, session, onOpen, showViews, showView, panels]);
 
   useEffect(() => {
     if (!api) return undefined;
@@ -184,6 +196,35 @@ export function Dock({ session, onOpen }: DockProps): JSX.Element {
     const removed = api.onDidRemovePanel(count);
     return () => { added.dispose(); removed.dispose(); };
   }, [api]);
+
+  // The view in front, told to the session's selection by one rule (see the contract's "Step 9").
+  useEffect(() => {
+    if (!api || !session) return undefined;
+    const selection = selectionOf(session);
+    let front: string | null = selection.view;
+    const apply = (): void => {
+      const active = api.activePanel;
+      const params = active?.params as Partial<ViewParams> | undefined;
+      if (active && active.id.startsWith(VIEW_PREFIX) && params?.session === session && typeof params.viewId === 'string') {
+        front = params.viewId;
+      } else if (front !== null && !api.getPanel(viewPanelId(front))) {
+        front = null;
+        for (const group of api.groups) {
+          const shown = group.activePanel;
+          const shownParams = shown?.params as Partial<ViewParams> | undefined;
+          if (shown && shown.id.startsWith(VIEW_PREFIX) && shownParams?.session === session && typeof shownParams.viewId === 'string') {
+            front = shownParams.viewId;
+            break;
+          }
+        }
+      }
+      selection.front(front);
+    };
+    apply();
+    const changed = api.onDidActivePanelChange(apply);
+    const removed = api.onDidRemovePanel(apply);
+    return () => { changed.dispose(); removed.dispose(); };
+  }, [api, session]);
 
   // A new session: its views replace the old ones.
   useEffect(() => {
@@ -215,11 +256,6 @@ export function Dock({ session, onOpen }: DockProps): JSX.Element {
 
 // ---------------------------------------------------------------------------------------------------------------------
 // What the panels read.
-
-// Step 9 builds it: DockState in dockContext.ts says what it does. Nothing calls it until the Explorer does.
-const showView = (_viewId: string): void => {
-  throw new Error('Dock.showView: step 9 builds it');
-};
 
 const VIEW_PREFIX = 'view:';
 const isSidePanel = (id: string): boolean => (LEFT_PANELS as readonly string[]).includes(id) || (RIGHT_PANELS as readonly string[]).includes(id);
@@ -352,10 +388,10 @@ function setUpSides(api: DockviewApi, root: HTMLElement): void {
  * when it holds none, into a new group of its own. A view floating over the editor is no place to put the others.
  * The first one added is in front.
  */
-function addViews(api: DockviewApi, session: Session): void {
+function addViews(api: DockviewApi, session: Session, only?: ModelView): void {
   const views: readonly ModelView[] = session.model.views;
   const panelOf = (view: ModelView) => api.getPanel(viewPanelId(view.id));
-  const missing = views.filter((view) => !panelOf(view));
+  const missing = views.filter((view) => !panelOf(view) && (!only || view === only));
   let anchor = views.find((view) => panelOf(view)?.group.api.location.type === 'grid');
   let first: ReturnType<DockviewApi['addPanel']> | null = null;
   for (const view of missing) {

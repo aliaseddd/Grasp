@@ -98,34 +98,48 @@ describe('the planes: culling, the pointer and the gate', () => {
     await finish(opened);
   });
 
-  test('Shift with a drag draws no rectangle and leaves nothing over the boxes', async () => {
+  test('Shift with a drag draws its rectangle only while it is drawn, and leaves nothing over the boxes', async () => {
     const opened = await open(EXAMPLE);
     const { page } = opened;
     await showView(page, EX_VIEW);
-    const from = await groundPoint(page, EX_VIEW);
     const plane = await planeBox(page, EX_VIEW);
-    const rectangles = () => page.evaluate((selector) => document.querySelectorAll(`${selector} .react-flow__nodesselection-rect, ${selector} .react-flow__selection, ${selector} .react-flow__nodesselection`).length, planeOf(EX_VIEW.id));
+    const from = { x: plane.x + 6, y: plane.y + 6 };
+    const bare = await page.evaluate(([x, y]) => String(document.elementFromPoint(x, y)?.className ?? ''), [from.x, from.y]);
+    assert.ok(bare.includes('react-flow__pane'), `The plane's top left corner, 6 px in each way, is not bare ground: the page has ${JSON.stringify(bare)} there.`);
+    const count = (selector) => page.evaluate(([plane_, what]) => document.querySelectorAll(`${plane_} ${what}`).length, [planeOf(EX_VIEW.id), selector]);
     const rects = await rectsOf(page, EX_VIEW.id);
-    const crossed = Object.values(rects).filter((r) => r.x + r.width > from.x + 40 && r.y + r.height > from.y + 40 && r.x < from.x + 300 && r.y < from.y + 300).length;
+    const host = rects.Host;
+    assert.ok(host, 'The plane draws no node for Host.');
+    const to = { x: host.x + host.width + 6, y: host.y + host.height + 6 };
+    const inside = Object.entries(rects).filter(([, r]) => r.x >= from.x && r.x + r.width <= to.x && r.y >= from.y && r.y + r.height <= to.y).map(([id]) => id).sort();
+    const crossed = Object.values(rects).filter((r) => r.x + r.width > from.x && r.y + r.height > from.y && r.x < to.x && r.y < to.y).length;
+    const over = () => page.evaluate((selector) => document.querySelectorAll(`${selector} .react-flow__nodesselection, ${selector} .react-flow__nodesselection-rect`).length, planeOf(EX_VIEW.id));
     await page.keyboard.down('Shift');
     try {
       await page.mouse.move(from.x, from.y);
       await page.mouse.down();
-      const to = { x: Math.min(plane.x + plane.width - 30, from.x + 300), y: Math.min(plane.y + plane.height - 30, from.y + 220) };
       for (let step = 1; step <= 8; step++) {
         await page.mouse.move(from.x + ((to.x - from.x) * step) / 8, from.y + ((to.y - from.y) * step) / 8);
         await frame(page);
       }
-      assert.equal(await rectangles(), 0, `With Shift held and the pointer dragged across the plane (over ${crossed} boxes), the plane draws a selection rectangle.`);
+      await soon(page, async () => (await count('.react-flow__selection')) > 0,
+        `With Shift held and the pointer dragged across the plane (over ${crossed} boxes), the plane draws no marquee (.react-flow__selection).`);
+      assert.equal(await count('.react-flow__selection'), 1, 'With Shift held and the pointer dragged across the plane, the plane draws more than one marquee (.react-flow__selection).');
+      assert.equal(await over(), 0, 'While the marquee is drawn the plane has a rectangle over its boxes (.react-flow__nodesselection).');
       await page.mouse.up();
     } finally {
       await page.keyboard.up('Shift');
     }
     for (let i = 0; i < 3; i++) await frame(page);
-    assert.equal(await rectangles(), 0, 'After the release the plane still has a selection rectangle over its boxes.');
-    assert.deepEqual(await selectedIn(page, EX_VIEW), [], 'A drag with Shift held must select no node.');
+    assert.equal(await count('.react-flow__selection'), 0, 'After the release the plane still draws the marquee (.react-flow__selection).');
+    assert.equal(await over(), 0, 'After the release the plane still has a rectangle over its boxes (.react-flow__nodesselection).');
+    assert.deepEqual([...await selectedIn(page, EX_VIEW)].sort(), inside, `The marquee covered ${inside.join(', ')}, and the plane leaves ${(await selectedIn(page, EX_VIEW)).join(', ') || 'nothing'} selected.`);
     await selectBox(page, EX_VIEW, 'Host');
-    assert.deepEqual(await selectedIn(page, EX_VIEW), ['Host'], 'A plain click on a box must select it, after the Shift drag.');
+    await soon(page, async () => (await selectedIn(page, EX_VIEW)).join() === 'Host', async () => `A plain click on Host after the marquee leaves ${(await selectedIn(page, EX_VIEW)).join(', ') || 'nothing'} selected, not Host alone.`);
+    const hosts = headerOf(await boxOf(page, EX_VIEW.id, 'Page.hosts'));
+    await page.mouse.click(hosts.x, hosts.y);
+    await soon(page, async () => (await selectedIn(page, EX_VIEW)).join() === 'Page.hosts', async () => `A click on the header of Page.hosts after the marquee leaves ${(await selectedIn(page, EX_VIEW)).join(', ') || 'nothing'} selected, not Page.hosts alone: something lies over the boxes the marquee covered.`);
+    assert.equal(await over(), 0, 'After the clicks the plane has a rectangle over its boxes (.react-flow__nodesselection).');
     await finish(opened);
   });
 
