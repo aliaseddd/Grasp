@@ -3719,3 +3719,177 @@ proposals stand (`plan/notes.md`, session 25, "The two limits that go to Damon")
 - **Step 13** (`plan/swarm/briefs/13-checks-close.md`): criterion 7 over the eight step commits (5 to 12; step 12's is
   this session's), criterion 8's stranger, the four documents and `plan/direction.md`'s one item. Its documents can be
   written before Damon answers; marking the slice done cannot.
+
+## Session 28, November 13, 2026: step 13, slice 1 closed
+
+On `claude/gifted-hawking-sndj6u`, from `ed8721b` (main, with session 27's pull request merged). Damon's word:
+"Complete the rest of slice 1." Asked first how checks 8 and 10 should be settled, Damon chose **"tune, then
+restate"**: try the levers not yet tried; if a limit then holds in three runs in a row, its test simply passes; if
+not, restate it as session 25 proposed (the 2,112-node view's pan step under 25 ms; a drag's first step under 25 ms,
+the following ones under 16), recorded in `plan/direction.md`. The lead is Claude; agents beside it: one stranger
+(Sonnet, medium) for criterion 8, and two review workflows (ultracode) on the levers.
+
+The baseline is criterion 7's run of step 12's commit, below: 469 tests, 467 pass, 0 fail, 2 todo.
+
+### Criterion 7: every step's last commit, by itself
+
+Each checked out into a new worktree outside the repository's folder, `npm ci && npm run check && npm test`, one after
+another (the script and logs were in the session's scratchpad):
+
+| Step | Commit | Tests | Pass | Fail | Todo | `plan/status.json`'s todo checks |
+|---|---|---|---|---|---|---|
+| 5 | `36f57c5` | 77 | 71 | 0 | 6 | 6 |
+| 6 | `b1f5bba` | 161 | 156 | 0 | 5 | 5 |
+| 7 | `70acc9f` | 215 | 211 | 0 | 4 | 4 |
+| 8 | `5a5f38e` | 245 | 243 | 0 | 2 | 2 |
+| 9 | `857bd90` | 308 | 305 | 0 | 3 | 3 |
+| 10 | `8e32688` | 357 | 355 | 0 | 2 | 2 |
+| 11 | `ef57d40` | 420 | 418 | 0 | 2 | 2 |
+| 12 | `44d2057` | 469 | 467 | 0 | 2 | 2 |
+
+Eight of eight. Step 8's commit **failed once** first (245, 242, 1, 2): its drag test, which has no todo mark at that
+commit, gave "A drag step takes 18.1 ms when it starts a drag", while the lead was running a Node benchmark and the
+type check beside it. Run again alone, it passed (drag 11.2 / 10.5 ms); the first run is recorded all the same. The
+plan's counts of todo (6, 5, 4, 1, 1, 0, 0, 0) are the ideal; the counts the steps had, which the runner matches each
+time, are in the table: steps 8 to 12 kept the two limits' marks until this session.
+
+### Criterion 8: the stranger
+
+One fresh agent (Sonnet, medium), given a clone at `44d2057` and the five questions only. As first answered: **4 of 5
+right**. (1) done: steps 1 to 12, each step's delivery, slice 1 not marked done: right. (2) next: step 13, its brief,
+then slice 2, editing parity: right. (3) limits: the four scale limits with step 12's three runs' medians, and
+criterion 6's five with theirs, checks 8 and 10 todo and why: right. (4) departures: rows 15 apart, the wrap by measured
+widths, the dock's departures, the question before Open as the page's own, the swarm's way of keeping steps 10 to 12
+aside, and `# todo 2`: **incomplete**, missing the shared triangle of `example.png` and `npm test` running its files
+one at a time. (5) open: the two limits, step 13, the repository's licence, the focus after Undo in Validation, the
+screenshot notes kept for slice 7, `plan/direction.md`'s open items and Damon's own look: right. It also noticed that
+`plan/status.json`'s top-level `steps` list is the plan before the redesign; it now has a `steps_about` saying so.
+What the notes lacked for (4) is a list in one place: "What departs from the plan, in one place", below.
+
+### The two limits: the levers tried, and what they gave
+
+1. **A press on a plane starts no text selection's drag.** Session 25 measured that preventing the default of a press
+   on the ground took the `workflows` pan step from about 18 to 10 to 11 ms (Chromium's handling of each move of a
+   pressed mouse as a selection's drag, `MouseEventManager::handleMouseDraggedEvent`, was about 5 ms of a step at
+   2,112 mounted nodes), and set it aside because the press then moves no focus. Built first as: prevent every press's
+   default inside `.react-flow__pane` (not on what takes typing) and move the focus by hand to the press's nearest
+   focusable ancestor (Dockview's content element), or blur. One `npm test`: 469 pass, 0 fail; `workflows` 11.4 / 10.6,
+   the drag 11.5 / 8.7 ms.
+2. **`placesFor` looks up only what it is asked.** At every step of a drag it made a map of all 5,000 elements through
+   the history's Proxy (about 0.7 ms in Node) and worked out the step's words with the library's `describe()` (about
+   0.7 ms), which the store reads only at the gesture's end. Now it finds only the asked elements and the boxes inside
+   one asked to resize (rule 4 places them), stopping once each is found, and the words of one element are a getter,
+   worked out inside a reading when first read. In Node, at 5,000 elements, a `placesFor` step of the general view went
+   from 1.6 to 2.6 ms to 0.4 ms by the median of 30 (the machine was shared with criterion 7's runs: the figures are
+   rough). The minimap's path, made again at each drag step (about 1.7 ms, step 8's review), was not touched: with the
+   two levers in, the drag held.
+
+**The first review** (a workflow: three readers on the press's focus, the press's gestures and `placesFor`; each
+finding put to two refuters; 5 agents, 11 min). `placesFor` and the gestures: nothing. The press's focus, confirmed by
+both refuters: the plane's `focus()` is a script focus, so after the keyboard was used (Tab to a button of the bar) a
+palette opened by a right-click showed its first entry with the keyboard's ring (`:focus-visible`, MUI's
+`Mui-focusVisible`), where the browser's own press, a mouse focus, had left it plain. Test: `palette.test.mjs` › "a
+menu opened by the pointer after the keyboard was used shows no keyboard ring" (two ways: a right-click straight after
+Tab, and a right-click after Tab and a left click on the ground). Failed against lever 1 as built ("shows the keyboard's
+ring (:focus-visible true, Mui-focusVisible true)"); passed against `ed8721b`'s `Plane.tsx`. Tried and not kept:
+`focus({ focusVisible: false })` (no change: Chromium hears a later script focus as the keyboard's unless the last
+focus came from the mouse); leaving other buttons' presses alone (the right-click case passed, the left-click-then-
+right-click case did not). **Kept**: the listener prevents a main-button press's default only when the focus is already
+where the press would put it (the nearest focusable ancestor, or nothing when there is none), and otherwise leaves the
+press to the browser, which moves the focus as the pointer's; the plane focuses nothing by script. So the first press
+on a plane after the focus was elsewhere pays for the selection's drag once (one sample of 17.7 ms, alone), and the
+gestures after it do not. Alone after the rework: `workflows` 11.0 / 10.8, the drag 13.4 / 8.7 ms.
+
+**The second review** (2 readers, 2 refuters; 4 agents, 11 min) of the reworked listener: one finding, refuted by both
+refuters (a click on the ground no longer clearing a Ctrl + A selection: at `ed8721b` d3-zoom cancels the mouseup of
+every press on the ground, so it never did). Nothing to do.
+
+### The three runs, nothing else on the machine
+
+`npm test` three times in a row on the tree with both levers and the drag and pan tests' todo marks off (`8f4cd1c`,
+with the scale test as then): **470 tests, 469 pass, 1 fail, 0 todo each time**, the one failure the pan test's, by
+`workflows` alone. By run, the medians, in ms:
+
+| | Limit | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|---|
+| The 5,000-element model opens | 5,000 | 529.9 | 534.3 | 537.4 |
+| A drag step at 5,000, starting / following | 16 | 11.0 / 9.6 | 10.7 / 8.1 | 12.9 / 12.1 |
+| A pan step, `definitions`, starting / following | 16 | 12.7 / 9.7 | 8.8 / 11.3 | 10.2 / 10.9 |
+| A pan step, `deployment` | 16 | 8.4 / 10.7 | 8.6 / 9.1 | 11.0 / 11.6 |
+| A pan step, `workflows` (2,112 nodes at 4.3%) | 16 | **19.3** / 10.2 | **17.0 / 16.4** | 11.3 / **19.2** |
+| A keystroke at 5,000, opening / joining | 50 | 24.6 / 21.4 | 24.4 / 22.8 | 29.3 / 25.0 |
+| The same, Validation shown with 150 problems | 50 | 25.4 / 25.5 | 23.4 / 22.0 | 29.9 / 24.0 |
+| A keystroke in a name of the example | 16 | 8.1 | 10.2 | 12.5 |
+
+Where the `workflows` step's time now goes: its slow samples are the frame's (12 to 24 ms of frame against 2 to 3 ms of
+script), the layerizing and painting of 2,112 transformed nodes, which the levers do not reach; the script's part fell
+from about 7.7 ms (session 25) to about 2. So, as Damon chose:
+
+- **Check 8, the drag step, passes at 16 ms** without restating: 3 of 3 runs.
+- **Check 10, the pan step, is restated for the 2,112-node view only: under 25 ms**, the other two views under 16.
+  `scale.test.mjs` names the restated limit `FAR_PAN_LIMIT`, and the test is now "a pan step of a fitted view takes
+  under 16 ms at 5,000 elements, under 25 ms for the 2,112-node action flow view"; all three runs' medians are under it
+  (largest 19.3). `plan/direction.md`, "Compartment rows at Grasp's scale", is answered with these numbers, and
+  `plan/status.json`'s check 10 carries a note. Section 10's criterion 5 in `plan/slice-1.md` still says 16 for every
+  view: the plan is not rewritten, and this entry and `plan/direction.md` are where the restated limit is.
+
+### `canvas/check.sh` on a file the new page saved
+
+A probe (in the scratchpad): the example opened through the file input, Host dragged 60 by 30 px, Ctrl + S, the
+download kept. Host went from x 32, y 400 to x 142, y 455 in the file. `canvas/check.sh` on it: `ok ... (Package
+StrongholdProof)`; on `canvas/examples/stronghold-proof.json`: the same.
+
+### The documents
+
+- `README.md`: "What's here" has the new page's row; "Run it" has `npm run shots` and how the page is opened; "Next"
+  is slice 2.
+- `canvas/README.md`: a section, "The new page", with what it does and what only the old page does until slice 2.
+- `canvas/app/README.md`, new: the words, the layout with each file the plan did not name and why, which way a change
+  goes, how to add a side panel, a node shape, a field's hook, a command and a line of About, the rules, the commands
+  and the screenshots.
+- `plan/direction.md`: the one item, as above. `plan/status.json`: slice 1 `done`, `next` 2, `step` 13, checks 8 and
+  10 `pass`. `plan/swarm/tasks.json`: `13-checks-close` done.
+- `shell.png` was not retaken: no change of this session touches what it shows (the page as it opens, with no file).
+
+### What departs from the plan, in one place
+
+What the slice built otherwise than `plan/slice-1.md` says, each with the session that says why:
+
+- **Files the plan did not name** (section 3): `core/checks.ts`, `core/roboto.ts`, `core/index.ts`,
+  `panels/SidePanel.tsx`, `panels/explorerRows.ts`, `panels/fieldHooks.ts`, `plane/MiniMap.tsx`,
+  `plane/edges/markers.tsx`, `shell/dockContext.ts`, the stylesheets beside their components, `test/shots/*.mjs`,
+  `test/old-layout.*`, `test/roboto-widths.mjs`; `canvas/app/README.md` says why each exists.
+- **The dock** (session 18): the first view's tab goes into a group made by `api.addGroup()`, not `position: right`;
+  edge groups collapse to 32 px; icons are imported by path; MUI buttons are not upper-cased.
+- **Rows 15 apart, not 16** (section 4; session 20), as the old page's layouts have them.
+- **Rows wrapped by Roboto's own widths, not by a count of characters** (session 21), on Damon's word.
+- **`example.png`'s item 6**: the three specializations into `Host` end in one shared triangle, which counts (session
+  21, Damon's word).
+- **The question before Open is the page's own dialog**; only the one before leaving is the browser's (session 22).
+- **`npm test` runs its files one at a time** (`--test-concurrency=1`, session 25): beside each other the timed tests
+  fail on four processors.
+- **A drag's first move in the scale test is 6 by 3 px**, so that its first drawn step is timed as a starting one
+  (session 25, step 8's review).
+- **Steps 10 to 12 were built by session 25's swarm and kept aside**, then closed in sessions 26 and 27.
+- **Ctrl + Z in a field of Details is the history's**, not the browser's undo of the field (session 26).
+- **Undo with a Validation entry focused drops the focus to the page**; where it goes is left to slice 2 (session 27).
+- **A press on a plane that need not move the focus has its default prevented** (this session).
+- **The pan step's limit is 25 ms for the 2,112-node action flow view** (this session, Damon's approval).
+
+### What is still open
+
+- **The repository's licence** (section 7): the repository has none; it is Damon's to choose.
+- **Damon's own look through the page**, outside the plan; the slice did not wait for it.
+- **`plan/direction.md`, "What is not settled yet"**: writing to GitHub from a page opened from disk (slice 3); the
+  OpenSysML module's converter, worker, speed and vocabulary (slice 4); sequence and geometry views (slice 2).
+- **Kept for later**: the focus after Undo in Validation (slice 2); the screenshot reviewers' notes that were no items
+  (the strip's teal edge, the double line at the left, the defined-by dots, the minimap's blank blocks; slice 7); the
+  minimap's path made again at each drag step (about 1.7 ms), a lever not needed yet.
+
+### For the next session
+
+- **Slice 2, "Editing parity"** (`plan/direction.md`, "The slices", item 2): what only the old page does yet, listed in
+  `canvas/README.md`, "The new page". Its plan is written first, as `plan/slice-1.md` was, and approved by Damon;
+  `plan/direction.md`, "What is not settled yet", says what slice 2 finds out first (a day's probe per view kind for
+  the sequence and geometry views).
+- `canvas/app/README.md` is where to start reading the application.

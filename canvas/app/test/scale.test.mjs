@@ -1,10 +1,11 @@
 // The planes at scale: the last four of slice 1's "Done when" checks, on the model of 5,000 elements in three views
 // that canvas/test/scale-model.mjs generates, and two tests of what step 8 changes. They were written in step 3,
-// before what they check. Step 8 took the marks off the opening and the drag step. The pan step's mark is back on, with
-// its numbers: with every change of step 8 in, the action flow view's pan step stays over the limit on this machine.
-// The drag step's is back on at step 9's closing: since a drag's first move starts it (session 25), its first drawn
-// step is timed apart, and it is over the limit in some runs. Both limits go to Damon (plan/notes.md, session 25).
-// The keystroke's mark stays until step 10 builds Details.
+// before what they check. Step 8 took the marks off the opening and the drag step; the pan step's and, at step 9's
+// closing, the drag step's came back on, over the limit on this machine in some runs (plan/notes.md, session 25).
+// Step 10 took the keystroke's off. Session 28 took the last two off: a press on a plane that need not move the focus
+// starts no text selection's drag, and a drag step looks up only what it moves; the drag step then held 16 ms in 3 of
+// 3 runs, and the pan step of the 2,112-node action flow view, still over it in 3 of 3, has its limit restated to 25 ms
+// with Damon's approval (FAR_PAN_LIMIT).
 //
 // The model is opened through the file input, as a person opens it. A step is timed as the old page's scale tests
 // time it, inside the page: the script's time from the event reaching the window to the end of its listeners, plus
@@ -41,6 +42,10 @@ const BOX = { [VIEWS.definitions]: SERVICE, [VIEWS.deployment]: `Site${NUMBER}.s
 
 const OPEN_LIMIT = 5000; // ms, from the page being given the file to its first tab drawn
 const STEP_LIMIT = 16;   // ms, a frame: one step of a drag or of a pan
+// ms, a pan step of the fitted action flow view, 2,112 nodes at 4.3%: restated with Damon's approval in session 28,
+// after the levers measured (plan/notes.md, sessions 25 and 28) left it over 16 ms in 3 of 3 runs, by the frame's part
+// more than the script's; the other two views hold STEP_LIMIT (plan/direction.md, "Compartment rows at Grasp's scale")
+const FAR_PAN_LIMIT = { [VIEWS.workflows]: 25 };
 const KEY_LIMIT = 50;    // ms, one keystroke
 const DRAGS = 3;         // drags of a box, and pans of each view
 const MOVES = 4;         // moves in each
@@ -319,7 +324,7 @@ describe('the planes at scale', () => {
 
   // Each view in turn, fitted to its tab as it opens, is panned by its ground three times, there and back and there
   // again, four moves each. Every view must hold the limit: the action flow view has the most boxes and lines.
-  test('a pan step of a fitted view takes under 16 ms at 5,000 elements', async (t) => {
+  test('a pan step of a fitted view takes under 16 ms at 5,000 elements, under 25 ms for the 2,112-node action flow view', async (t) => {
     const opened = await openModel(browser);
     const { page } = opened;
     const time = await moveTiming(page);
@@ -331,8 +336,9 @@ describe('the planes at scale', () => {
       const fitted = await boxOf(page, view.id, id);
       const percent = fitted ? `${(fitted.zoom * 100).toFixed(1)}%` : 'no zoom at all';
       assert.ok(fitted && fitted.zoom < 0.25, `The plane of ${view.name} is not at the far zoom that fits its view as it opens: ${id} is drawn at ${percent}.`);
-      const starting = measure(DRAGS, STEP_LIMIT);
-      const following = measure(DRAGS * (MOVES - 1), STEP_LIMIT);
+      const limit = FAR_PAN_LIMIT[view.id] ?? STEP_LIMIT;
+      const starting = measure(DRAGS, limit);
+      const following = measure(DRAGS * (MOVES - 1), limit);
       for (let pan = 0; pan < DRAGS && !(starting.settled && following.settled); pan++) {
         const ground = await page.evaluate(groundOf, [planeOf(view.id), TAKEN]);
         assert.ok(ground, `The fitted plane of ${view.name} has no bare ground to pan it by.`);
@@ -342,9 +348,9 @@ describe('the planes at scale', () => {
         await moved(page, view, id, was, way,
           (went) => `The ground of ${view.name} was dragged ${px(REACH)}, and the plane did not go with it: ${id} went ${px(went)}.`);
       }
-      held = held && starting.median < STEP_LIMIT && following.median < STEP_LIMIT;
+      held = held && starting.median < limit && following.median < limit;
       said.push(`A pan step of ${view.name}, fitted at ${percent}, takes ${ms(starting.median)} when it starts a pan and ${ms(following.median)} ` +
-        `when it follows one, by the median, against ${STEP_LIMIT} ms.\nStarting, in ms: ${starting}\nFollowing, in ms: ${following}`);
+        `when it follows one, by the median, against ${limit} ms.\nStarting, in ms: ${starting}\nFollowing, in ms: ${following}`);
     }
     hold(t, held, said.join('\n'));
     await finish(opened);
