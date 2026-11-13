@@ -2797,3 +2797,19 @@ page's 15 and differs from `OLD_LOOK` in the title row alone (16 for 18): the th
 `Host` is 137 high (139 on the old page), and no saved layout meets a compartment that the old page kept clear of.
 Section 4 says "16 px apart"; the plan is not rewritten, and this is the place that says the page is built otherwise.
 The adapter's test of the new measures is named for 15, and seven pinned sizes in its fixtures' test follow.
+
+### Step 6: the planes' and the store's tests, each seen to fail with its thing broken
+
+An agent, in a worktree (4.3 min, 39 tool calls), made each breakage the lists name, built the page, ran the test that
+guards it, and put the source back: 17 rows of `plane.test.mjs`, one of `open.test.mjs`, 12 of `viewStore.test.mjs`.
+26 of the 30 named tests failed under their breakage as worded. The four that did not:
+
+| Row | Why the test still passed | What was done |
+|---|---|---|
+| plane 15, the inert handle left out of a far box | The test zoomed out from near, and a node that is already mounted keeps the handles its own object carries; only a node that mounts while far is measured from the DOM without them | The test now holds one `.grasp-node-handle.source.target` in every node, far and near, and leaves `interconnection.json`'s first view far, shows the other, and comes back: every line must still be drawn. Seen to fail with the handle left out of far boxes |
+| store 4, subscribers told before the projection | Reordered literally (`tell(); refresh();`), a listener's own `getSnapshot()` projects the stale store, so it still reads the new snapshot | Nothing: telling before the store is even marked stale fails the test ("getSnapshot() inside the listener must already give the new snapshot"), and that is the fault the row means |
+| store 6, `by: 'end'` treated as a change | The history sends an end with `views: []`, which the store's check of `told.views` already turns away; the line that asks `by === 'end'` is a second lock on the same door | Nothing: the line stays, as the contract's words; an end sent with `views: null` projecting is caught |
+| store 12, a method reading `this` | The bundle the Node tests load runs sloppy, so a bare call's `this` is the global object and reads `undefined` without throwing | Nothing: a method that reads `this.session` fails the test |
+
+Noticed by the agent and left: `camera()` called with no size and nothing remembered gives 100% at the origin without
+remembering it; `nodesChanged` calls its subscribers without asking whether there are any.
