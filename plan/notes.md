@@ -2397,4 +2397,154 @@ holds that the rest of the strip keeps its 1 px line and that no tab is white wh
   side's tab: a tab is "in front" only while its group lacks `dv-edge-collapsed`.
 - Tried and dropped by the agent: a negative margin on the tab (the strip clips it).
 
-`npm test` with it: 79 tests, 73 pass, 0 fail, 6 todo. `shell.png` is retaken; its rating comes with the next commit.
+`npm test` with it: 79 tests, 73 pass, 0 fail, 6 todo. `shell.png` is retaken; its rating is under "`shell.png`, rated again" below.
+
+### What reading the code and the libraries found
+
+Three explorers read the code as step 5 left it, the old page's drawing rules, and React Flow 12.10.2; an architect
+agent then traced eight points of session 17's design through React Flow's and Dockview's sources (27 min, 89 tool
+calls; nothing ran in a browser, so its frame counts are derived). The design holds. What step 6 takes from them, each
+checked in the source it names:
+
+**Where the planes plug in**
+- A view's tab body is `ViewPanel` in `shell/Dock.tsx`, an empty `div.grasp-view-body`. It gets `params.session` and
+  `params.viewId` (`ViewParams`). `window.Grasp` holds only `session`. `vendor.ts` already holds `@xyflow/react` whole,
+  with `dist/style.css`, so it does not change.
+- The library was typed for four members. `core/adapter.ts` declares what the planes read, and `plane/*` reaches the
+  library only through the adapter's exports.
+
+**The old page's rules**
+- Its measures (`canvas/src/core/page/base.js` 22 to 29): `HEADER 40`, `HEAD_H 18`, `LEAD 15`, `PAD 12`,
+  `CHILD_TOP 48`, `PORT 16`. A compartment takes `HEAD_H + LEAD * rows + 6`.
+- Compartments are wrapped by a count of characters to the box's saved width, not its grown one: a doc at
+  `floor((w - 24) / 6.1)`, at least 12; a send or accept at `/ 6.6`, at least 10; a code link is not wrapped but cut
+  to as many characters, at least 8, keeping its tail behind `…`. Their order is doc, send or accept, code.
+- `CHILD_TOP` is no part of sizing: it only holds a box that is placed or dropped. A border item's `at` is never
+  rounded, so its position is a fraction. A view's own `x, y` are added to every rectangle on the old page's one plane.
+- A line's label sits at its middle, `labelOffset ?? 30` below (a connection's name is 30 below its line).
+- The wheel pans by the wheel's own delta, and with Ctrl or ⌘ zooms about the pointer (`pointing.js` 245).
+
+**Roboto in the old page's boxes**, measured in Chromium over the 65 docs of the eleven graph views (115 boxes):
+- Roboto at 12 px averages 5.27 px a character, so every line wrapped at the old page's counts fits its box. Six lines
+  are single words longer than their box, which no wrapping helps: a row clips those with an ellipsis. None of the 105
+  name lines is wider than its box. So the old page's counts are kept, and session 17's "about 6.3 px" is dropped.
+- Roboto at 12 px is 11 above its baseline and 3 below. In the example, `hosts` and `app` sit 104 below `Page`'s top,
+  under `Page`'s three doc lines, which the old page ends 2 px above them. With rows 16 apart and a title row of 18
+  the third line would run into `hosts`; with a title row of 16 it ends 1 px above. So `LOOK` is the old page's
+  measures with `head 16` and `lead 16`, and `OLD_LOOK` has the old `18` and `15`.
+
+**React Flow**
+- A node that carries `width`, `height`, `measured` and `handles` is initialized without being mounted
+  (`isNodeInitialized`), and is then culled by its rectangle. Every mounted node is measured once, forced: no
+  `dimensions` change comes while its size is whole numbers and unchanged, but its `handleBounds` is read again from
+  the DOM, from the elements with the bare classes `source` and `target` in its subtree. A mounted node without them
+  loses its lines, far or near; one element with both classes serves, and it must not carry `react-flow__handle`.
+- `onViewportChange` is called for a viewport that is not controlled. `minZoom` defaults to 0.5 and the first viewport
+  is clamped to it. Ctrl with the wheel zooms under `panOnScroll` with `zoomOnPinch`. `panOnScrollSpeed` defaults to
+  0.5: it is set to 1, the old page's.
+- `Controls` calls React Flow's own `fitView` before `onFitView`, a frame later, with its own padding and zoom limit:
+  the fit button is a `ControlButton` of ours, with `showFitView={false}`.
+- A string given as an edge's `markerEnd` is taken for a marker's id; `LineEdge` sets `marker-end` on its own path. A
+  path with the class `react-flow__edge-path` takes the stylesheet's grey. A node type missing from `nodeTypes` falls
+  back to `default`, with its padding and border, silently.
+- Layers: an edge's z is the larger z of its ends that have a parent, and a child's z is its parent's plus one. A line
+  between two boxes at ground level is under every node; a line with an end inside a box is over that box, and under
+  any node of the same or a higher z. In the example no line passes behind a box. In `behavior-actions.json` two
+  successions pass behind sibling actions for 150 to 170 px, where the old page drew them over the boxes. A label in
+  `EdgeLabelRenderer` would lie under every node, so a line's label is drawn in the edge's own svg.
+- A border item half outside its parent is not clipped, as long as neither `extent: 'parent'` nor `expandParent` is set.
+- Types at the hand-over, probed with `tsc`: a node's `data` must be a type alias, not an interface; `handles` cannot
+  be a readonly array; a handle's `position` is React Flow's enum. So the adapter imports React Flow's types, and only
+  its types: nothing of React Flow runs in the core.
+- Keep stable, or every node renders again: `nodes` and `edges`, each on its own; `nodeTypes` and `edgeTypes`; the
+  three callbacks; `defaultViewport`; and the `subscribe` given to `useSyncExternalStore`.
+
+**Dockview and a switch of tab**
+- A press on a tab opens its panel a frame later (`requestAnimationFrame`, under the HTML5 drag backend, the default
+  for a mouse). The plane's observer fires in that frame; its state update renders from a later task; React Flow's
+  first commit has no node, since its store starts 0 by 0, and the nodes and edges come with the next. So a switch
+  takes two frames at least, 17 to 33 ms of waiting, before any work. `timing` and `moveTiming` take one event and one
+  frame, so the switch's test has a clock of its own, from the press to the painted frame that holds every node.
+
+**Fitting**
+- Fitted into 736 by 828 with 48 px a side, no node of the eleven views or of the 5,000-element model's three is left
+  outside. The parameters' names in `behavior-actions.json` hang 48 out, so 48 is kept: the old frame's `MARGIN`.
+- With both sides collapsed the example would fit at 100% with `DevHost` under React Flow's minimap (200 by 150, 15
+  from the corner). So a fitted view also stays above the band the zoom buttons and the minimap stand in: `FIT_BAND`,
+  180 px. The example then fits at 92.6% with the sides collapsed and at 54.4% with both open.
+- `shots.mjs` hands `take` a page that has the picker, which `openStateFile` refuses: the `example` shot needs a page
+  without it, and the sides collapsed before the file is opened, since a view is fitted once.
+
+### Step 6: the outline, part 1, the adapter
+
+`canvas/app/src/core/adapter.ts` holds the contract: the types, the constants, the rules in `project()`'s comment, and
+bodies that throw. `core/index.ts` exports it, so `loadCore()` gives it to the Node tests; nothing calls it yet, and
+the page is the one step 5 left. Final already: `isDrawn`, `notDrawnText`, `markerId`, the constants.
+
+What it settles beyond session 17's design:
+- **`Look`**, the measures as a value. `project()` and `route()` take one, `LOOK` by default. Given `OLD_LOOK`, the
+  adapter must give the old page's layout exactly, which is now a test (below).
+- **`Projection.rects`**, every node's rectangle from the view's origin, beside the nodes' own positions, which are
+  from their parents. The tests and the fit read it; `LineEdge` reads React Flow's.
+- **`fit(bounds, width, height)`** is the adapter's: one fit, with `FIT_PAD` and `FIT_BAND`, never past 100%.
+- **`project()` returns `previous` itself** when nothing in it reads otherwise, so a store's snapshot stays the same
+  object.
+- **Far** empties the words in `data` and adds `far` to `className`; sizes stay.
+- **A border item's `nameAt`** is worked out by the adapter (the old page's `portName`, which moves a name clear of
+  the port's first line), from the square's corner, as a baseline's start, middle or end.
+
+Where the rules are on the old page, for whoever builds the adapter (paths under `canvas/src/`):
+
+| Rule | File and lines |
+|---|---|
+| The measures | `core/page/base.js` 22-29 |
+| `wrap` | `core/page/layout.js` 12-24 |
+| `portRect` | `core/page/layout.js` 26-34 |
+| `graphLayout`: what is shown 44; a box's parent 47-55; the order of what a box holds 56-58; `size()` 64-88; `place()` 89-96 | `core/page/layout.js` 42-108 |
+| Which lines are drawn | `core/page/layout.js` 189-193 |
+| `straight` 205-226, `elbow` 229-239, the fallback 244, `endpoints` and `mid` 249-260 | `core/page/layout.js` |
+| `nameLine` | `core/page/drawing.js` 47-58 |
+| The keyword line and the header | `core/page/drawing.js` 66-74 |
+| `lineWay` 77-87, `portName` 106-115, a port's arrow 126-149 | `core/page/drawing.js` |
+| The doc compartment and `compartmentsOf` | `core/page/drawing.js` 163-175 |
+| The far form 224-240; a line's label 298-300 | `core/page/drawing.js` |
+| An item's keyword line | `interconnection/page.js` 30-40 |
+| An action's and a state's keyword lines, the send and accept marks, the control nodes and their names | `behavior/page.js` 59-127 |
+| The send or accept compartment | `behavior/page.js` 129-137; `sendWord` in `behavior/lib.js` 489 |
+| The code compartment and `fitPath` | `annotations/page.js` 315-320 |
+| The event | `sequence/page.js` 22, 28-37 |
+| The rows: kinds, lines, view kinds, `placement`, `textName`, `typingOf`, `an`, `reading` | `core/lib/model.js` 103-109, 137, 166, 190, 216, 291, 301, 623, 727, 853; `interconnection/lib.js` 12-30, 57-61, 90-94, 119, 131, 157-161, 202-206; `behavior/lib.js` 13-41, 50, 57, 62-66, 380-383, 452-458; `sequence/lib.js` 12-31, 58-62, 80 |
+
+**The old page's layout as a fixture.** `canvas/app/test/old-layout.json` holds what the old page's `graphLayout` and
+`endpoints` worked out for every graph view of the example and the nine fixtures, from each view's own origin: 153
+rectangles and 58 lines in 11 views, one to a row. For the 5,000-element model it holds a SHA-256 of each of the three
+views' layouts (1,544, 1,344 and 2,112 rectangles; 384, 384 and 1,536 lines). `canvas/app/test/old-layout.mjs` wrote
+it, from `canvas/index.html` opened from `file://` and given each file through Import state (`node
+canvas/app/test/old-layout.mjs`, 20 s); it exports `layoutHash`, which the test uses too. Neither file is in the
+plan's list. The script reads the old page and goes when it goes; the JSON stays, as what "by `graphLayout`'s rule"
+means. An agent first read the same numbers by a script of its own, and the two readings are equal.
+
+The adapter's tests, `adapter.test.mjs`, in Node, over the example, the nine fixtures, the blank model and the
+5,000-element model. Each fails today because `project()`, `route()` or `fit()` throws "is not built yet":
+
+| # | Test | The breakage that must fail it |
+|---|---|---|
+| 1 | parents come first, and a box's parent is its nearest owner that the view shows | a node's parent taken to be its owner, shown or not |
+| 2 | every placed element is a node and every drawn line an edge, and no other | hidden lines made edges too |
+| 3 | a box holds what is inside it | the growth left out of a box's size |
+| 4 | a port lies on its owner's border | `at` measured along the wrong side |
+| 5 | given the old page's measures, the rectangles and the lines' points of the eleven views are the old page's | the rows' distance taken from `LOOK` whatever look is given |
+| 6 | given the old page's measures, the 5,000-element model's three views hash to the old page's | a port's line begun at its square's centre |
+| 7 | with the new measures a compartment's rows are 16 apart under a title row of 16 | the title row left at 18 |
+| 8 | the same reading is the same object | every call making new objects |
+| 9 | a changed element renews its own node and the nodes that name it, and keeps what React Flow set | `selected` dropped from a renewed node |
+| 10 | far leaves the words out and keeps the sizes | `far` ignored |
+| 11 | a line's route: straight, each elbow, a port's end, the middle | an elbow drawn straight |
+| 12 | what the example's boxes and ports say | the `~` of a conjugated port left out |
+| 13 | what an item, an action, a state and a control node say | the send's compartment left out |
+| 14 | a line's marker, class, label and offset come from its row | every line given `m-general` |
+| 15 | a port's name keeps clear of its line | `nameAt` the same on every side |
+| 16 | a view that places nothing, and a view of a kind no plane draws, project to nothing | |
+| 17 | the 5,000-element model's three views project in under 1 s together | the model read outside `lib.reading` |
+| 18 | a fitted view lies inside the window, clear of its sides and of the band, at no more than 100% | the band left out |
+| 19 | `isDrawn` and `notDrawnText` say which kinds a plane draws, and how the card begins | passes today, since both are final: checked by breaking |
