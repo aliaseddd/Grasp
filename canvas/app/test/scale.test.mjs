@@ -251,7 +251,7 @@ describe('the planes at scale', () => {
   });
 
   // Three names of three letters each are typed after the name of a selected box, in the name field of Details.
-  test('a keystroke in a name takes under 50 ms at 5,000 elements', { todo: 'step 10 builds Details' }, async (t) => {
+  test('a keystroke in a name takes under 50 ms at 5,000 elements', async (t) => {
     const view = VIEW.definitions;
     const id = SERVICE;
     const opened = await openModel(browser);

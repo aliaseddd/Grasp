@@ -226,6 +226,15 @@ export function Dock({ session, onOpen }: DockProps): JSX.Element {
     return () => { changed.dispose(); removed.dispose(); };
   }, [api, session]);
 
+  // A view's tab names its view at every moment: a change that touched a view gives each view's panel its title again.
+  useEffect(() => {
+    if (!api || !session) return undefined;
+    return session.history.listen((told) => {
+      if (told.views !== null && told.touched.views.length === 0) return;
+      for (const view of session.model.views) api.getPanel(viewPanelId(view.id))?.api.setTitle(viewTitle(view));
+    });
+  }, [api, session]);
+
   // A new session: its views replace the old ones.
   useEffect(() => {
     if (!api) return;

@@ -9,8 +9,14 @@
 // data, and every change goes through changeField(), so through the history's edit(). This file draws the form,
 // holds what a text field is typed into, and says when a run of typing ends. Its styles are panels/details.css.
 
+import { Autocomplete, Checkbox, FormControl, FormControlLabel, FormLabel, Radio, RadioGroup, Tab, Tabs, TextField } from '@mui/material';
+import { memo, useEffect, useId, useMemo, useState, useSyncExternalStore } from 'react';
+import type { ChangeEvent, KeyboardEvent } from 'react';
+import { selectionOf } from '../core';
 import type { Picked, Session } from '../core';
-import type { Row } from './fieldHooks';
+import { useDock } from '../shell/dockContext';
+import { changeField, endTyping, fieldKey, fieldLibOf, formOf, NOT_HELD, notHeldWhy, optionsOf, readText } from './fieldHooks';
+import type { FieldRow, Option, Row } from './fieldHooks';
 import { SidePanel, SideText } from './SidePanel';
 import './details.css';
 
@@ -43,9 +49,11 @@ export const CHECK_HEIGHT = 28;
  *   one's selection and history, and what was picked in the first file is not shown.
  */
 export function DetailsPanel(): JSX.Element {
+  const { session } = useDock();
+  const [tab, setTab] = useState<DetailsTab>('Core');
   return (
     <SidePanel testId="details" title="Details">
-      <SideText>The selection's fields come in step 10.</SideText>
+      {session ? <PickedForm session={session} tab={tab} onTab={setTab} /> : <SideText>{NO_FILE}</SideText>}
     </SidePanel>
   );
 }
@@ -101,8 +109,43 @@ export interface PickedFormProps {
  * - The panel's root scrolls when the form is higher than the panel (SidePanel's own); nothing is cut off sideways:
  *   every widget is as wide as the panel less 12 px at each side.
  */
-export function PickedForm(_props: PickedFormProps): JSX.Element {
-  throw new Error('PickedForm: step 10 builds it');
+export function PickedForm({ session, tab, onTab }: PickedFormProps): JSX.Element {
+  const selection = selectionOf(session);
+  const items = useSyncExternalStore(selection.listen, () => selection.items);
+  const view = useSyncExternalStore(selection.listen, () => selection.view);
+  const mark = useSyncExternalStore(session.history.listen, session.history.mark);
+  const first = items[0] ?? null;
+  const type = first?.type;
+  const id = first?.id;
+  const picked = useMemo<Picked | null>(() => (type && id !== undefined ? { type, id } : null), [type, id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const form = useMemo(() => (picked ? formOf(session, picked, view) : null), [session, picked, view, mark]);
+  if (!picked || !form) return <SideText>{NOTHING_PICKED}</SideText>;
+  const groups = tab === 'Core' ? form.core.map((g) => ({ name: g.name as string, rows: g.rows })) : [{ name: 'advanced', rows: form.advanced }];
+  const tabSx = { minHeight: FIELD_HEIGHT, height: FIELD_HEIGHT, py: 0, fontSize: 13, textTransform: 'none' } as const;
+  const rowKey = (r: Row): string => (r.row === 'field' ? `field:${r.field}` : `${r.row}:${r.name}`);
+  return (
+    <div className="grasp-details" data-picked={`${picked.type}:${picked.id}`} data-history-keys="" key={`${picked.type}:${picked.id}`}>
+      <div className="grasp-details-what">{form.what}</div>
+      <Tabs
+        value={tab}
+        onChange={(_e, v: DetailsTab) => onTab(v)}
+        aria-label="Details"
+        selectionFollowsFocus
+        sx={{ minHeight: FIELD_HEIGHT, height: FIELD_HEIGHT }}
+      >
+        {TABS.map((t) => <Tab key={t} value={t} label={t} sx={tabSx} />)}
+      </Tabs>
+      <div className="grasp-details-page" role="tabpanel" data-tab={tab}>
+        <div className="grasp-details-title">{form.title}</div>
+        {groups.map((g) => (
+          <div className="grasp-details-group" data-group={g.name} key={g.name}>
+            {g.rows.map((r) => <FormRow key={rowKey(r)} session={session} picked={picked} row={r} />)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export interface FormRowProps {
@@ -180,13 +223,194 @@ export interface FormRowProps {
  *   ends the run by the history's own rule.
  * - Escape does nothing to a field and is not stopped: the text stays, and the run stays open. (In an open picker
  *   Material UI closes the list at Escape, picks nothing, and stops the event.)
- * - Ctrl or ⌘ + Z in a text field is the browser's own undo of the field's text (shell/TopBar.tsx leaves the key
- *   alone there). The browser then sends an input event, which is a keystroke of the same run as any other: the
- *   model follows the text back, and a run that ends where it began is no undo step at all.
+ * - Ctrl or ⌘ + Z, and Ctrl or ⌘ + Y, in a field of a form are the history's Undo and Redo, never the browser's
+ *   own undo of a text (the form's root carries the attribute `data-history-keys`, which shell/TopBar.tsx reads: its
+ *   keys act from a field inside it). The browser keeps one undo stack for the page's text fields, so that its undo,
+ *   pressed in one field after typing in another, made the first field's typing a new change, and in a picker, whose
+ *   input is a text input, it took an earlier typing back and not the pick (review of step 10). From a field the
+ *   history's Undo takes the run of typing the field holds back as the one step it is: the field then shows what the
+ *   model holds again, and keeps the focus.
  * - A number field shows the text as typed while it is typed into; the model holds the number, or '' while the text
  *   is no number, and once the field is left it shows what the model holds, so a text that was no number is gone.
  * - A locked field takes no typing: its input is disabled.
  */
-export function FormRow(_props: FormRowProps): JSX.Element {
-  throw new Error('FormRow: step 10 builds it');
+function FormRowBody({ session, picked, row }: FormRowProps): JSX.Element {
+  if (row.row === 'known') {
+    return (
+      <div className="grasp-detail" data-detail={row.name}>
+        <span className="grasp-detail-label">{row.label}</span>
+        <span className="grasp-detail-value">
+          {typeof row.value === 'boolean'
+            ? <Checkbox size="small" disabled checked={row.value} slotProps={{ input: { 'aria-label': row.label } }} />
+            : row.value === '' ? NONE : row.value}
+        </span>
+      </div>
+    );
+  }
+  if (row.row === 'notHeld') {
+    return (
+      <div className="grasp-detail not-held" data-detail={row.name} title={notHeldWhy(row.label)}>
+        <span className="grasp-detail-label">{row.label}</span>
+        <span className="grasp-detail-value">{NOT_HELD}</span>
+      </div>
+    );
+  }
+  return <FieldBody session={session} picked={picked} row={row} />;
+}
+
+const sameRow = (a: FormRowProps, b: FormRowProps): boolean =>
+  a.session === b.session && a.picked === b.picked && (a.row === b.row || JSON.stringify(a.row) === JSON.stringify(b.row));
+
+export const FormRow = memo(FormRowBody, sameRow);
+
+const boxSx = {
+  '& .MuiInputBase-root': { fontSize: 13, minHeight: FIELD_HEIGHT },
+  '& .MuiInputBase-input': { fontSize: 13 },
+} as const;
+const oneLineSx = { '& .MuiInputBase-root': { fontSize: 13, height: FIELD_HEIGHT }, '& .MuiInputBase-input': { fontSize: 13, py: 0 } } as const;
+
+function FieldBody({ session, picked, row }: { session: Session; picked: Picked; row: FieldRow }): JSX.Element {
+  const id = useId();
+  const disabled = row.locked !== null;
+  const label = <label className="grasp-field-label" htmlFor={id}>{row.label}</label>;
+  let widget: JSX.Element;
+  switch (row.type) {
+    case 'string': case 'number': case 'text':
+      widget = <TextBody session={session} picked={picked} row={row} id={id} label={label} />;
+      break;
+    case 'bool':
+      widget = (
+        <FormControlLabel
+          label={row.label}
+          disabled={disabled}
+          sx={{ height: CHECK_HEIGHT, m: 0, '& .MuiFormControlLabel-label': { fontSize: 13 } }}
+          control={(
+            <Checkbox
+              size="small"
+              sx={{ p: '4px' }}
+              checked={row.value === true}
+              onChange={(e) => changeField(session, picked, row.field, e.target.checked)}
+              slotProps={{ input: { 'data-testid': `field-${row.field}` } as object }}
+            />
+          )}
+        />
+      );
+      break;
+    case 'enum': {
+      const legend = `${id}-legend`;
+      widget = (
+        <FormControl component="fieldset" disabled={disabled}>
+          <FormLabel component="legend" id={legend} focused={false} sx={{ fontSize: 12, color: 'text.secondary', '&.Mui-focused, &.Mui-disabled': { color: 'text.secondary' } }}>{row.label}</FormLabel>
+          <RadioGroup
+            row
+            aria-labelledby={legend}
+            name={`field-${row.field}`}
+            value={String(row.value)}
+            data-testid={`field-${row.field}`}
+            onChange={(e) => changeField(session, picked, row.field, e.target.value)}
+          >
+            {(row.choices ?? []).map((c) => (
+              <FormControlLabel
+                key={c.value}
+                value={c.value}
+                label={c.label}
+                control={<Radio size="small" sx={{ p: '4px' }} />}
+                sx={{ height: CHECK_HEIGHT, '& .MuiFormControlLabel-label': { fontSize: 13 } }}
+              />
+            ))}
+          </RadioGroup>
+        </FormControl>
+      );
+      break;
+    }
+    default:
+      widget = <RefBody session={session} picked={picked} row={row} id={id} label={label} />;
+  }
+  return (
+    <div className={`grasp-field${disabled ? ' locked' : ''}`} data-field={row.field}>
+      {widget}
+      {row.locked ? <div className="grasp-field-why">{row.locked}</div> : null}
+    </div>
+  );
+}
+
+interface WidgetProps { session: Session; picked: Picked; row: FieldRow; id: string; label: JSX.Element }
+
+function TextBody({ session, picked, row, id, label }: WidgetProps): JSX.Element {
+  const spec = fieldLibOf(session.lib).FIELDS[row.field];
+  const key = fieldKey(row.field, picked.id);
+  const [draft, setDraft] = useState<string | null>(null);
+  // The run of typing ends when the row goes while it is open.
+  useEffect(() => () => endTyping(session, key), [session, key]);
+  const held = row.value === '' ? '' : String(row.value);
+  const shown = draft !== null && readText(spec, draft) === row.value ? draft : held;
+  const multiline = row.type === 'text';
+  const end = () => { setDraft(null); endTyping(session, key); };
+  const input = {
+    'data-testid': `field-${row.field}`,
+    spellCheck: false,
+    ...(multiline ? {} : { autoComplete: 'off', ...(row.type === 'number' ? { inputMode: 'decimal' as const } : {}) }),
+  };
+  return (
+    <>
+      {label}
+      <TextField
+        id={id}
+        size="small"
+        fullWidth
+        multiline={multiline}
+        minRows={multiline ? 2 : undefined}
+        disabled={row.locked !== null}
+        placeholder={row.placeholder}
+        value={shown}
+        onChange={(e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+          const text = e.target.value;
+          setDraft(text);
+          changeField(session, picked, row.field, readText(spec, text), key);
+        }}
+        onBlur={end}
+        onKeyDown={multiline ? undefined : (e: KeyboardEvent) => { if (e.key === 'Enter') end(); }}
+        sx={multiline ? boxSx : oneLineSx}
+        slotProps={{ htmlInput: input }}
+      />
+    </>
+  );
+}
+
+function RefBody({ session, picked, row, id, label }: WidgetProps): JSX.Element {
+  const choice = row.choice ?? { id: '', label: '' };
+  const [options, setOptions] = useState<Option[] | null>(null);
+  const list = useMemo(() => options ?? [choice], [options, choice.id, choice.label]); // eslint-disable-line react-hooks/exhaustive-deps
+  const value = useMemo(() => choice, [choice.id, choice.label]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <>
+      {label}
+      <Autocomplete<Option, false, true>
+        id={id}
+        size="small"
+        fullWidth
+        disableClearable
+        disabled={row.locked !== null}
+        options={list}
+        value={value}
+        getOptionLabel={(o) => o.label}
+        getOptionKey={(o) => o.id}
+        isOptionEqualToValue={(a, b) => a.id === b.id}
+        onOpen={() => setOptions(optionsOf(session, picked, row.field))}
+        onClose={() => setOptions(null)}
+        onChange={(_e, o) => { if (o.id !== row.value) changeField(session, picked, row.field, o.id); }}
+        sx={oneLineSx}
+        renderOption={(props, o) => {
+          const { key, ...rest } = props as typeof props & { key: string };
+          return <li key={key} {...rest} data-option={o.id}>{o.label}</li>;
+        }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            slotProps={{ htmlInput: { ...params.inputProps, 'data-testid': `field-${row.field}`, 'data-value': String(row.value) } }}
+          />
+        )}
+      />
+    </>
+  );
 }

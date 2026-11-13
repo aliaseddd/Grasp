@@ -220,9 +220,30 @@ export interface FieldHook {
   locked?(x: FieldOf): string | null;
 }
 
-const later = (name: string): never => {
-  throw new Error(`${name}: step 10 builds it`);
-};
+const bag = (o: object): Record<string, unknown> => o as unknown as Record<string, unknown>;
+const typingOf = (x: FieldOf): ModelRelationship | null => x.lib.typingOf(x.model, x.item as ModelElement);
+
+/** The hooks of Specializes (a definition's) and Subsets (a usage's): the element's first Specialization line. */
+function generalHooks(verb: string, noun: string): FieldHook {
+  const lineOf = (x: FieldOf): ModelRelationship | null => x.lib.firstGeneral(x.model, x.item as ModelElement);
+  return {
+    none: 'nothing: take the line away',
+    shown: (x) => lineOf(x) !== null,
+    value: (x) => lineOf(x)?.to ?? '',
+    write: (x, value) => {
+      const line = lineOf(x);
+      if (!line) return;
+      if (!value) x.model.relationships.splice(x.model.relationships.indexOf(line), 1);
+      else line.to = value as string;
+    },
+    said: (x) => {
+      const line = lineOf(x);
+      const general = line ? x.lib.idsOf(x.model).get(line.to) : undefined;
+      const what = x.lib.describe(x.model, x.item as ModelElement);
+      return general ? `Made ${what} ${verb} ${x.lib.textName(general) || UNNAMED}` : `Took away the ${noun} of ${what}`;
+    },
+  };
+}
 
 /**
  * The hooks, by the field's name. In the words below, `describe` is lib.describe(model, item) ('part def Host',
@@ -268,38 +289,69 @@ const later = (name: string): never => {
  * the generic words (changeField).
  */
 export const FIELD_HOOKS: Readonly<Record<string, FieldHook>> = {
-  name: { said: () => later('FIELD_HOOKS.name.said') },
-  abstract: { said: () => later('FIELD_HOOKS.abstract.said') },
-  conjugated: { said: () => later('FIELD_HOOKS.conjugated.said') },
-  doc: { said: () => later('FIELD_HOOKS.doc.said') },
+  name: {
+    said: (x) => {
+      if (x.type === 'el') return `Renamed to ${x.lib.describe(x.model, x.item as ModelElement)}`;
+      if (x.type === 'rel') return `Named the ${x.lib.describeRel(x.model, x.item as ModelRelationship)}`;
+      return `Renamed the view to ${String((x.item as ModelView).name ?? '').trim() || UNNAMED}`;
+    },
+  },
+  abstract: {
+    said: (x) => `${bag(x.item).abstract ? 'Made abstract: ' : 'Made concrete: '}${x.lib.describe(x.model, x.item as ModelElement)}`,
+  },
+  conjugated: {
+    said: (x) => `${bag(x.item).conjugated ? 'Conjugated ' : 'Unconjugated '}${x.lib.describe(x.model, x.item as ModelElement)}`,
+  },
+  doc: { said: (x) => `Wrote the doc of ${whatOf(x.lib, x.model, x.type, x.item)}` },
   type: {
     none: 'nothing yet',
-    value: () => later('FIELD_HOOKS.type.value'),
-    write: () => later('FIELD_HOOKS.type.write'),
-    said: () => later('FIELD_HOOKS.type.said'),
+    value: (x) => typingOf(x)?.to ?? '',
+    write: (x, value) => {
+      const typing = typingOf(x);
+      const rels = x.model.relationships;
+      if (!value) {
+        if (typing) rels.splice(rels.indexOf(typing), 1);
+        return;
+      }
+      if (typing) {
+        typing.to = value as string;
+        return;
+      }
+      let id: string;
+      do id = `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+      while (rels.some((r) => r.id === id));
+      rels.push({ id, kind: 'FeatureTyping', from: x.item.id, to: value as string, hidden: true } as ModelRelationship);
+    },
+    said: (x) => {
+      const typing = typingOf(x);
+      const def = typing ? x.lib.idsOf(x.model).get(typing.to) : undefined;
+      const what = x.lib.describe(x.model, x.item as ModelElement);
+      return def ? `Defined ${what} by ${x.lib.textName(def) || UNNAMED}` : `Undefined ${what}`;
+    },
   },
   typeLine: {
-    shown: () => later('FIELD_HOOKS.typeLine.shown'),
-    value: () => later('FIELD_HOOKS.typeLine.value'),
-    write: () => later('FIELD_HOOKS.typeLine.write'),
-    said: () => later('FIELD_HOOKS.typeLine.said'),
+    shown: (x) => typingOf(x) !== null,
+    value: (x) => { const typing = typingOf(x); return !!typing && !bag(typing).hidden; },
+    write: (x, value) => {
+      const typing = typingOf(x);
+      if (!typing) return;
+      if (value) delete bag(typing).hidden; else bag(typing).hidden = true;
+    },
+    said: (x) => {
+      const typing = typingOf(x);
+      return typing ? `${bag(typing).hidden ? 'Hid the line ' : 'Drew the line '}${x.lib.describeRel(x.model, typing)}` : null;
+    },
   },
-  specializes: {
-    none: 'nothing: take the line away',
-    shown: () => later('FIELD_HOOKS.specializes.shown'),
-    value: () => later('FIELD_HOOKS.specializes.value'),
-    write: () => later('FIELD_HOOKS.specializes.write'),
-    said: () => later('FIELD_HOOKS.specializes.said'),
+  specializes: generalHooks('specialize', 'specialization'),
+  subsets: generalHooks('subset', 'subsetting'),
+  parallel: {
+    locked: (x) => {
+      const ids = x.lib.idsOf(x.model);
+      const holds = x.lib.linesOfKind(x.model, 'TransitionUsage').some((r) => x.lib.RELATIONSHIPS.TransitionUsage.owner(x.model, r, ids) === x.item.id);
+      return holds ? `Is Parallel can't change while ${x.lib.describe(x.model, x.item as ModelElement)} holds transitions, as in SysON.` : null;
+    },
   },
-  subsets: {
-    none: 'nothing: take the line away',
-    shown: () => later('FIELD_HOOKS.subsets.shown'),
-    value: () => later('FIELD_HOOKS.subsets.value'),
-    write: () => later('FIELD_HOOKS.subsets.write'),
-    said: () => later('FIELD_HOOKS.subsets.said'),
-  },
-  parallel: { locked: () => later('FIELD_HOOKS.parallel.locked') },
-  order: { locked: () => later('FIELD_HOOKS.order.locked') },
+  order: { locked: () => ORDER_LOCKED },
 };
 
 // ---- The form: what Details shows for what is picked, as plain data.
@@ -378,6 +430,41 @@ export interface Form {
   readonly advanced: readonly Row[];
 }
 
+// ---- What the functions below share.
+
+const TABLES = { el: 'elements', rel: 'relationships', view: 'views' } as const;
+
+const itemIn = (model: Model, type: PickedType, id: string): Item | null => {
+  const list = model[TABLES[type]] as Item[];
+  return list.find((x) => x.id === id) ?? null;
+};
+
+const kindRowOf = (lib: Lib, type: PickedType, item: Item): { fields: string[] } | undefined => {
+  const table = type === 'el' ? lib.KINDS : type === 'rel' ? lib.RELATIONSHIPS : lib.VIEW_KINDS;
+  return table[item.kind];
+};
+
+/** The field as the hooks are given it, when it applies to the item (formOf, rule 2, but for the view's say). */
+function fieldOf(lib: Lib, model: Model, type: PickedType, item: Item, field: string): FieldOf | null {
+  const spec = lib.FIELDS[field];
+  if (!spec || spec.type === 'list' || !FIELD_LOOKS[field]) return null;
+  if (!kindRowOf(lib, type, item)?.fields.includes(field)) return null;
+  const x: FieldOf = { lib, model, type, item, field, spec };
+  const hook = FIELD_HOOKS[field];
+  return hook?.shown && !hook.shown(x) ? null : x;
+}
+
+/** What the field holds, as the model has it. */
+const rawOf = (x: FieldOf): unknown => {
+  const hook = FIELD_HOOKS[x.field];
+  return hook?.value ? hook.value(x) : bag(x.item)[x.field];
+};
+
+/** A named element's name, or UNNAMED. */
+const nameOf = (lib: Lib, el: ModelElement): string => lib.textName(el) || UNNAMED;
+
+const noneOf = (field: string): string => FIELD_HOOKS[field]?.none ?? NOTHING;
+
 /**
  * The form of what is picked, or null when the session's model holds no element, relationship or view of that type
  * and id (an undo took it out of the model and the selection has not yet let it go: Details then shows what it shows
@@ -410,10 +497,93 @@ export interface Form {
  * changes nothing and may be called at any time, also in the middle of a run of typing.
  */
 export function formOf(session: Session, picked: Picked, viewId: string | null): Form | null {
-  void session;
-  void picked;
-  void viewId;
-  return later('formOf');
+  const model = session.model;
+  const lib = fieldLibOf(session.lib);
+  const item = itemIn(model, picked.type, picked.id);
+  if (!item) return null;
+  return lib.reading(model, () => {
+    const details = lib.detailsOf(model, picked.type, item);
+    const ids = lib.idsOf(model);
+    let kind: string | null | undefined;
+    const rows = new Map<string, FieldRow | null>();
+    const rowOf = (field: string): FieldRow | null => {
+      const known = rows.get(field);
+      if (known !== undefined) return known;
+      let row: FieldRow | null = null;
+      const x = fieldOf(lib, model, picked.type, item, field);
+      if (x) {
+        if (x.spec.views && kind === undefined) kind = viewKindFor(model, picked.id, viewId);
+        if (!x.spec.views || (kind != null && x.spec.views.includes(kind))) row = fieldRow(x, ids);
+      }
+      rows.set(field, row);
+      return row;
+    };
+    const used = new Set<string>();
+    const take = (field: string): FieldRow | null => {
+      if (used.has(field)) return null;
+      const row = rowOf(field);
+      if (row) used.add(field);
+      return row;
+    };
+    const ofDetails = (r: DetailRow): Row | null => {
+      if (r.field !== undefined) return take(r.field);
+      if (r.value !== undefined) return { row: 'known', name: r.name, label: r.label, value: r.value ?? '' };
+      return { row: 'notHeld', name: r.name, label: r.label };
+    };
+    const onTabs = new Set<string>();
+    for (const r of [...details.core, ...details.advanced]) if (r.field !== undefined) onTabs.add(r.field);
+    const extra = (field: string): FieldRow | null => (onTabs.has(field) ? null : take(field));
+    const compact = (list: (Row | null)[]): Row[] => list.filter((r): r is Row => r !== null);
+    const main = compact(details.core.map(ofDetails));
+    for (const f of GROUP_ORDER.main) if (f !== 'doc') { const r = extra(f); if (r) main.push(r); }
+    const doc = extra('doc');
+    if (doc) main.push(doc);
+    const groups: Group[] = [{ name: 'main', rows: main }];
+    for (const name of GROUP_NAMES) {
+      if (name !== 'main') groups.push({ name, rows: compact(GROUP_ORDER[name].map(extra)) });
+    }
+    return {
+      type: picked.type,
+      id: picked.id,
+      what: picked.type === 'rel' ? lib.describeRel(model, item as ModelRelationship) : whatOf(lib, model, picked.type, item),
+      title: details.title,
+      core: groups.filter((g) => g.rows.length),
+      advanced: compact(details.advanced.map(ofDetails)),
+    };
+  });
+}
+
+/** The row of a field that applies, with the value and the choices it shows. Reads inside lib.reading(). */
+function fieldRow(x: FieldOf, ids: Map<string, ModelElement>): FieldRow {
+  const { spec, field } = x;
+  const look = FIELD_LOOKS[field];
+  const raw = rawOf(x);
+  const type = spec.type as FieldRow['type'];
+  let value: FieldValue;
+  let choice: Option | undefined;
+  let choices: FieldRow['choices'];
+  if (type === 'bool') value = raw === true;
+  else if (type === 'number') value = typeof raw === 'number' ? raw : '';
+  else if (type === 'enum') {
+    const values = spec.values ?? [];
+    value = typeof raw === 'string' && values.includes(raw) ? raw : values[0] ?? '';
+    choices = values.map((v) => ({ value: v, label: look.choices?.[v] ?? v }));
+  } else if (type === 'ref') {
+    const el = typeof raw === 'string' ? ids.get(raw) : undefined;
+    value = el ? el.id : '';
+    choice = el ? { id: el.id, label: nameOf(x.lib, el) } : { id: '', label: noneOf(field) };
+  } else value = raw == null ? '' : String(raw);
+  return {
+    row: 'field',
+    field,
+    label: look.label,
+    type,
+    value,
+    ...(look.placeholder !== undefined && (type === 'string' || type === 'text' || type === 'number') ? { placeholder: look.placeholder } : {}),
+    ...(choices ? { choices } : {}),
+    ...(choice ? { choice } : {}),
+    locked: FIELD_HOOKS[field]?.locked?.(x) ?? null,
+  };
 }
 
 /**
@@ -424,10 +594,10 @@ export function formOf(session: Session, picked: Picked, viewId: string | null):
  * holds, and no view places the id).
  */
 export function viewKindFor(model: Model, id: string, viewId: string | null): string | null {
-  void model;
-  void id;
-  void viewId;
-  return later('viewKindFor');
+  const front = viewId === null ? null : model.views.find((v) => v.id === viewId) ?? null;
+  const places = (v: ModelView): boolean => Object.prototype.hasOwnProperty.call(v.layout, id);
+  const view = front && places(front) ? front : model.views.find(places) ?? front;
+  return view ? view.kind : null;
 }
 
 /**
@@ -436,11 +606,9 @@ export function viewKindFor(model: Model, id: string, viewId: string | null): st
  * proofStructure').
  */
 export function whatOf(lib: Lib, model: Model, type: PickedType, item: Item): string {
-  void lib;
-  void model;
-  void type;
-  void item;
-  return later('whatOf');
+  if (type === 'el') return lib.describe(model, item as ModelElement);
+  if (type === 'rel') return `the ${lib.describeRel(model, item as ModelRelationship)}`;
+  return lib.describeView(model, item as ModelView);
 }
 
 /**
@@ -454,10 +622,25 @@ export function whatOf(lib: Lib, model: Model, type: PickedType, item: Item): st
  * not a ref.
  */
 export function optionsOf(session: Session, picked: Picked, field: string): Option[] {
-  void session;
-  void picked;
-  void field;
-  return later('optionsOf');
+  const model = session.model;
+  const lib = fieldLibOf(session.lib);
+  const item = itemIn(model, picked.type, picked.id);
+  if (!item) return [];
+  return lib.reading(model, () => {
+    const x = fieldOf(lib, model, picked.type, item, field);
+    if (!x || x.spec.type !== 'ref') return [];
+    const ids = lib.idsOf(model);
+    const list: Option[] = [{ id: '', label: noneOf(field) }];
+    const seen = new Set<string>();
+    for (const el of x.spec.options ? x.spec.options(model, item) : []) {
+      seen.add(el.id);
+      list.push({ id: el.id, label: nameOf(lib, el) });
+    }
+    const raw = rawOf(x);
+    const present = typeof raw === 'string' && raw !== '' ? ids.get(raw) : undefined;
+    if (present && !seen.has(present.id)) list.push({ id: present.id, label: nameOf(lib, present) });
+    return list;
+  });
 }
 
 /**
@@ -467,9 +650,8 @@ export function optionsOf(session: Session, picked: Picked, field: string): Opti
  * or text is the text as it is.
  */
 export function readText(spec: FieldSpec, text: string): string | number {
-  void spec;
-  void text;
-  return later('readText');
+  if (spec.type === 'number') return text.trim() !== '' && Number.isFinite(+text) ? +text : '';
+  return spec.trim ? text.trim() : text;
 }
 
 /** The key of a field's run of typing in the history: `<field>:<id>` (plan/slice-1.md, step 10). */
@@ -496,12 +678,28 @@ export const fieldKey = (field: string, id: string): string => `${field}:${id}`;
  * - The words are the step's (`history.steps`), which Undo's and Redo's tooltips show, and the log's entry.
  */
 export function changeField(session: Session, picked: Picked, field: string, value: FieldValue, key?: string | null): Touched | null {
-  void session;
-  void picked;
-  void field;
-  void value;
-  void key;
-  return later('changeField');
+  const model = session.model;
+  const lib = fieldLibOf(session.lib);
+  const item = itemIn(model, picked.type, picked.id);
+  if (!item) return null;
+  const hook = FIELD_HOOKS[field];
+  const go = lib.reading(model, () => {
+    const x = fieldOf(lib, model, picked.type, item, field);
+    if (!x || hook?.locked?.(x)) return null;
+    if (x.spec.type === 'enum' && !(typeof value === 'string' && (x.spec.values ?? []).includes(value))) return null;
+    return rawOf(x) === value ? null : x;
+  });
+  if (!go) return null;
+  return session.history.edit(() => {
+    if (hook?.write) hook.write(go, value); else bag(item)[field] = value;
+    return lib.reading(model, () => {
+      if (hook?.said) return hook.said(go) ?? undefined;
+      const shown = go.spec.type === 'ref'
+        ? (() => { const el = value === '' ? undefined : lib.idsOf(model).get(String(value)); return el ? nameOf(lib, el) : NOTHING; })()
+        : value === '' ? NOTHING : String(value);
+      return `Set the ${go.spec.label} of ${whatOf(lib, model, picked.type, item)} to ${shown}`;
+    });
+  }, key ?? null);
 }
 
 /**
@@ -511,7 +709,6 @@ export function changeField(session: Session, picked: Picked, field: string, val
  * ends a run that is not this field's.
  */
 export function endTyping(session: Session, key: string): void {
-  void session;
-  void key;
-  later('endTyping');
+  const last = session.history.steps.at(-1);
+  if (last && last.key === key) session.history.endEdit();
 }
