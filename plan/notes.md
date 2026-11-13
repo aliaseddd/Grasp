@@ -2157,3 +2157,54 @@ The test list, all in `shell.test.mjs`, each to be seen failing for the reason g
 
 `canvas/app/test/shots.mjs` and `npm run shots` come with the tests: `shell.png` at 1400 × 900, device scale 2, the
 page as it opens, with no file.
+
+### Step 5: built
+
+From 04:37 to 04:50 UTC. The two agents ran side by side, each in a git worktree, on Damon's word to parallelize:
+the test writer for 3.5 min of wall time (22 tool calls) and the shell builder for 5.7 min (55). Their reports guessed
+25 and 45 min; the harness's figures are the ones above. Both worktrees were made at `ee5f9fa`, one commit before the
+outline, so both were told to fast-forward to `65eb7a7` before starting: a cost of the tool, not of a brief.
+
+**Tests first.** The nine tests failed before the shell existed, each for the reason in the table above (the first
+lines of their messages: no top bar, no Explorer, no strip tab named Explorer, no card, no Open button). Choices the
+test writer made that the list did not settle: a view's tab is closed by Dockview's own close control,
+`.dv-default-tab-action`, after a hover; the refused file is `{ format: 'grasp/2', model: 'not a model' }`; a
+floating group is counted as `.dv-resize-container, .dv-floating-overlay-host > *`. That last selector was checked
+the other way round, since a side tab that cannot float gives it nothing to find: Shift + drag of an editor tab
+floats it, and the count goes from 0 to 1.
+
+**The shell, and where it departs from the outline.**
+- The first view's tab goes into a group made by `api.addGroup()`. With `position: { direction: 'right' }` relative
+  to the left group, as the outline said, Dockview put the tabs into the edge group in place of the Explorer. The
+  contract in `Dock.tsx` says so now.
+- Both edge groups get `collapsedSize: 32`, the tab bar's height; Dockview's 35 left a 3 px gap beside the strip.
+- A width is remembered only while the dock's own width is unchanged and the side is open; the collapsed flag is
+  kept apart, so collapsing does not lose the width.
+- The icons are imported whole by path (`import * as`) in `vendor.ts`, because the build's shim hands an application
+  import the namespace, and the icon is its `default`.
+- The refused file's message is an MUI Alert laid over the top of the dock, so the dock still fills the window.
+- MUI Buttons are not upper-cased (`theme.ts`).
+
+**My rework, after reading the diff** (the outline was right and the fixes were smaller than a brief):
+- The builder removed Dockview's empty `role="alert"` live region from the page, so that the page held one alert. I
+  took that out: it deletes a library's element, and the test finds the alert by the file's name anyway.
+- A colour written in `TopBar.tsx` (the disabled icons' white at 35%) moved into `theme.ts` as `BAR_DISABLED`.
+- The first independent look at `shell.png` marked "nothing wrapped" absent: the side panels' placeholders broke
+  "(step 9)" across two lines. They now read "The model's tree comes in step 9." and the like. Its scores were 4, 4,
+  4, 4.
+
+**`shell.png`**, the page as it opens with no file, looked at again by a fresh reviewer that saw only the image and
+its list: all seven items present. Its one caveat on "nothing wrapped": the card's sentence on where the example and
+the blank model are runs onto a second line, which is a paragraph's ordinary wrap, not a cut. The four scores:
+alignment and spacing 4, type and contrast 4, nothing cut off or overlapping 5, boxes and lines easy to read 4. What
+both reviewers would change, kept for slice 7, "The finish of the look": an accent bar on a strip's tab in front and
+the same rule between the names on both strips; a header row with a rule under each panel's title; brighter
+disabled icons on the bar; the two sides at one width.
+
+**The suite**, nothing else running: `npm run check` passes; `npm test` gives 71 tests, 65 pass, 0 fail, 6 todo, in
+12.4 s. Checks 3 and 4 pass, and `plan/status.json` names step 5 with six checks todo, as the runner says.
+
+### For the next session
+
+- Step 6: the adapter and the planes, as session 17's outline gives it. `npm ci` first.
+- Agents made with a worktree start one commit behind a commit made in the same session: fast-forward them first.

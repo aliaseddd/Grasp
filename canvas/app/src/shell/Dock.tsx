@@ -5,7 +5,14 @@
 //
 // Skeleton: the types, the layout record and its reader are final; the component is the implementer's.
 
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { DockviewReact, themeLight } from 'dockview-react';
+import type {
+  DockviewApi, DockviewGroupPanelApi, DockviewReadyEvent, IDockviewPanelHeaderProps, IDockviewPanelProps, IWatermarkPanelProps,
+} from 'dockview-react';
 import type { ModelView, Session } from '../core';
+import { EmptyCard } from './EmptyCard';
+import { TAB_BAR_HEIGHT } from './theme';
 
 /** Where the dock's layout is kept in this browser: localStorage, under this key. */
 export const LAYOUT_KEY = 'grasp-app:layout:1';
@@ -95,14 +102,176 @@ export interface DockProps {
  *   it, so a narrow window does not rewrite it. `onDidActivePanelChange` on the left group writes `front`.
  * - Views: when `session` changes, every `view:` panel goes and one is added per view of `session.model.views`, in
  *   the model's order: id viewPanelId(view.id), component 'view', params { viewId }, title viewTitle(view). The first
- *   goes in with `position: { direction: 'right' }` of the left group when the centre is empty, the rest into its
- *   group; the first is in front. A view's tab body is empty until step 6.
+ *   goes into a group of its own, `api.addGroup()`, when the centre is empty (with no position, or one relative to
+ *   the left group, Dockview puts it into the edge group), the rest beside it by `referencePanel`; the first is in
+ *   front. A view's tab body is empty until step 6.
  * - With no group in the centre, Dockview's `watermarkComponent` shows EmptyCard: with no file, "Open a model"; with
  *   a file whose tabs are all closed, also "Show the views again", which adds back only the views with no panel
  *   (adding a live panel's id throws).
  * - Panel bodies, the watermark and the tab component are module-level components that read a context Dock provides,
  *   so their identities never change between renders.
  */
-export function Dock(_props: DockProps): JSX.Element {
-  throw new Error('Dock: not built yet (step 5).');
+export function Dock({ session, onOpen }: DockProps): JSX.Element {
+  const [api, setApi] = useState<DockviewApi | null>(null);
+  const showViews = useCallback(() => {
+    if (api && session) addViews(api, session);
+  }, [api, session]);
+  const context = useMemo<DockState>(() => ({ session, onOpen, showViews }), [session, onOpen, showViews]);
+
+  // A new session: its views replace the old ones.
+  useEffect(() => {
+    if (!api) return;
+    for (const panel of [...api.panels]) if (panel.id.startsWith(VIEW_PREFIX)) api.removePanel(panel);
+    if (session) addViews(api, session);
+  }, [api, session]);
+
+  const onReady = useCallback((event: DockviewReadyEvent) => {
+    setUpSides(event.api);
+    setApi(event.api);
+  }, []);
+
+  return (
+    <DockContext.Provider value={context}>
+      <div data-testid="dock" className="grasp-dock">
+        <DockviewReact
+          className="grasp-dockview"
+          theme={themeLight}
+          components={COMPONENTS}
+          tabComponents={TAB_COMPONENTS}
+          watermarkComponent={Watermark}
+          onReady={onReady}
+        />
+      </div>
+    </DockContext.Provider>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// What the panels read.
+
+interface DockState {
+  session: Session | null;
+  onOpen: () => void;
+  showViews: () => void;
+}
+const DockContext = createContext<DockState>({ session: null, onOpen: () => {}, showViews: () => {} });
+
+const VIEW_PREFIX = 'view:';
+const isSidePanel = (id: string): boolean => (LEFT_PANELS as readonly string[]).includes(id) || (RIGHT_PANELS as readonly string[]).includes(id);
+const SIDE_GROUPS: readonly string[] = ['left', 'right'];
+
+function EmptyState({ testId, title, text }: { testId?: string; title: string; text: string }): JSX.Element {
+  return (
+    <div className="grasp-side-body" data-testid={testId}>
+      <div className="grasp-side-title">{title}</div>
+      <div className="grasp-side-text">{text}</div>
+    </div>
+  );
+}
+
+const ExplorerPanel = (): JSX.Element => <EmptyState testId="explorer" title="Explorer" text="The model's tree comes in step 9." />;
+const ToolsPanel = (): JSX.Element => <EmptyState title="Tools" text="The view's tools come in step 11." />;
+const ValidationPanel = (): JSX.Element => <EmptyState title="Validation" text="The model's problems come in step 12." />;
+const DetailsPanel = (): JSX.Element => <EmptyState testId="details" title="Details" text="The selection's fields come in step 10." />;
+const ViewPanel = (_props: IDockviewPanelProps): JSX.Element => <div className="grasp-view-body" />;
+
+const COMPONENTS = {
+  explorer: ExplorerPanel, tools: ToolsPanel, validation: ValidationPanel, details: DetailsPanel, view: ViewPanel,
+};
+
+/** A side panel's tab: its title and no close button. Shift + press must not float it, which Dockview does on pointerdown. */
+function SideTab({ api }: IDockviewPanelHeaderProps): JSX.Element {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const tab = ref.current?.closest('.dv-tab');
+    if (!tab) return undefined;
+    const stop = (event: Event): void => { if ((event as PointerEvent).shiftKey) event.preventDefault(); };
+    tab.addEventListener('pointerdown', stop, true);
+    return () => tab.removeEventListener('pointerdown', stop, true);
+  }, []);
+  return <span ref={ref} className="grasp-side-tab">{api.title}</span>;
+}
+const TAB_COMPONENTS = { side: SideTab };
+
+function Watermark(_props: IWatermarkPanelProps): JSX.Element {
+  const { session, onOpen, showViews } = useContext(DockContext);
+  return <EmptyCard fileName={session ? session.name : null} onOpen={onOpen} onShowViews={session ? showViews : undefined} />;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The sides.
+
+function readStored(): LayoutRecord {
+  let text: string | null = null;
+  try { text = localStorage.getItem(LAYOUT_KEY); } catch { text = null; }
+  return readLayout(text);
+}
+
+function keep(record: LayoutRecord): void {
+  try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(record)); } catch { /* the layout is only a convenience */ }
+}
+
+/** Makes both edge groups with their panels, and wires what they remember. Runs once, from onReady. */
+function setUpSides(api: DockviewApi): void {
+  const record = readStored();
+  const left = api.addEdgeGroup('left', { id: 'left', initialSize: record.left.size, collapsed: record.left.collapsed, collapsedSize: TAB_BAR_HEIGHT });
+  const right = api.addEdgeGroup('right', { id: 'right', initialSize: record.right.size, collapsed: record.right.collapsed, collapsedSize: TAB_BAR_HEIGHT });
+  const add = (ids: readonly SidePanelId[], group: DockviewGroupPanelApi): void => {
+    for (const id of ids) {
+      api.addPanel({ id, component: id, tabComponent: 'side', title: PANEL_TITLES[id], position: { referenceGroup: group.id } });
+    }
+  };
+  add(LEFT_PANELS, left);
+  add(RIGHT_PANELS, right);
+  api.getPanel(record.left.front)?.api.setActive();
+  left.locked = 'no-drop-target';
+  right.locked = 'no-drop-target';
+
+  // The side tabs and side groups stay where they are.
+  api.onWillDragPanel((event) => { if (isSidePanel(event.panel.id)) event.nativeEvent.preventDefault(); });
+  api.onWillDragGroup((event) => { if (SIDE_GROUPS.includes(event.group.id)) event.nativeEvent.preventDefault(); });
+
+  // What is remembered. A width is the user's only when the dock's own width did not change with it.
+  let dockWidth = api.width;
+  const remember = (side: 'left' | 'right', group: DockviewGroupPanelApi): void => {
+    group.onDidDimensionsChange((size) => {
+      const own = api.width === dockWidth;
+      dockWidth = api.width;
+      if (!own || group.isCollapsed() || !(size.width > 0)) return;
+      record[side].size = Math.round(size.width);
+      keep(record);
+    });
+    group.onDidCollapsedChange((event) => {
+      record[side].collapsed = event.isCollapsed;
+      keep(record);
+    });
+  };
+  remember('left', left);
+  remember('right', right);
+  left.onDidActivePanelChange(() => {
+    const front = api.getPanel('explorer')?.group.activePanel?.id;
+    if ((LEFT_PANELS as readonly string[]).includes(front ?? '')) {
+      record.left.front = front as LayoutRecord['left']['front'];
+      keep(record);
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The views.
+
+/** Adds a tab for each view of the session that has none. The first goes in beside the sides, the rest into its group, and the first is in front. */
+function addViews(api: DockviewApi, session: Session): void {
+  const views: readonly ModelView[] = session.model.views;
+  const missing = views.filter((view) => !api.getPanel(viewPanelId(view.id)));
+  let anchor = views.find((view) => api.getPanel(viewPanelId(view.id)));
+  let first: ReturnType<DockviewApi['addPanel']> | null = null;
+  for (const view of missing) {
+    // With nothing in the centre, a new group of its own: with no position the panel would join an edge group.
+    const position = anchor ? { referencePanel: viewPanelId(anchor.id) } : { referenceGroup: api.addGroup() };
+    const panel = api.addPanel({ id: viewPanelId(view.id), component: 'view', title: viewTitle(view), params: { viewId: view.id }, position });
+    anchor = anchor ?? view;
+    first = first ?? panel;
+  }
+  first?.api.setActive();
 }

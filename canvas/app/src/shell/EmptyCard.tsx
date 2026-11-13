@@ -4,6 +4,8 @@
 //
 // Skeleton: the props are final; the component is the implementer's.
 
+import { Button, Paper, Stack, Typography } from '@mui/material';
+
 export interface EmptyCardProps {
   /** The open file's name, or null when no file is open. */
   fileName: string | null;
@@ -22,6 +24,24 @@ export interface EmptyCardProps {
  * - The line: "The example is canvas/examples/stronghold-proof.json, and the blank model canvas/state.json."
  * - With `fileName` and `onShowViews`: "All of <fileName>'s views are closed." and a button "Show the views again".
  */
-export function EmptyCard(_props: EmptyCardProps): JSX.Element {
-  throw new Error('EmptyCard: not built yet (step 5).');
+export function EmptyCard({ fileName, onOpen, onShowViews }: EmptyCardProps): JSX.Element {
+  return (
+    <div className="grasp-card-ground">
+      <Paper variant="outlined" className="grasp-card" sx={{ p: 3, maxWidth: 440 }}>
+        <Typography component="h2" sx={{ fontSize: 16, fontWeight: 500 }}>Open a model</Typography>
+        <Stack spacing={1.5} sx={{ mt: 1.5, alignItems: 'flex-start' }}>
+          <Typography sx={{ color: 'text.secondary' }}>
+            The example is canvas/examples/stronghold-proof.json, and the blank model canvas/state.json.
+          </Typography>
+          <Button variant="contained" size="small" disableElevation onClick={onOpen}>Open a file…</Button>
+          {fileName !== null && onShowViews && (
+            <>
+              <Typography sx={{ color: 'text.secondary' }}>All of {fileName}&rsquo;s views are closed.</Typography>
+              <Button variant="outlined" size="small" onClick={onShowViews}>Show the views again</Button>
+            </>
+          )}
+        </Stack>
+      </Paper>
+    </div>
+  );
 }

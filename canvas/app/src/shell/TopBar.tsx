@@ -5,7 +5,16 @@
 //
 // Skeleton: the types and the actions' names are final; the component is the implementer's.
 
+import { useCallback, useSyncExternalStore } from 'react';
+import type { ReactElement } from 'react';
+import { Box, IconButton, Tooltip, Typography } from '@mui/material';
+import FolderOpenOutlined from '@mui/icons-material/FolderOpenOutlined';
+import SaveOutlined from '@mui/icons-material/SaveOutlined';
+import Undo from '@mui/icons-material/Undo';
+import Redo from '@mui/icons-material/Redo';
+import InfoOutlined from '@mui/icons-material/InfoOutlined';
 import type { Session } from '../core';
+import { BAR_DISABLED, BAR_HEIGHT, INK, WHITE } from './theme';
 
 /** The bar's actions: each is one <button> with this data-testid (helpers.mjs, TESTIDS) and this fixed aria-label. */
 export const ACTIONS = [
@@ -42,6 +51,43 @@ export interface TopBarProps {
  * - Save, Undo and Redo are disabled until step 7; About until step 12. Open calls `onOpen` (from a click, so the
  *   browser opens its picker or the file input's dialog).
  */
-export function TopBar(_props: TopBarProps): JSX.Element {
-  throw new Error('TopBar: not built yet (step 5).');
+export function TopBar({ session, onOpen }: TopBarProps): JSX.Element {
+  const subscribe = useCallback((tell: () => void) => (session ? session.listen(tell) : () => {}), [session]);
+  const unsaved = useSyncExternalStore(subscribe, () => (session ? session.unsaved : false));
+  const fileName = session ? `${session.name}${unsaved ? ' •' : ''}` : '';
+
+  const action = (id: ActionId, label: string, tip: string, icon: ReactElement, enabled: boolean, onClick?: () => void) => (
+    <Tooltip key={id} title={tip}>
+      {/* A disabled button gets no pointer events, so its tooltip hangs on a span around it. */}
+      <span style={{ display: 'inline-flex' }}>
+        <IconButton data-testid={id} aria-label={label} disabled={!enabled} onClick={onClick} sx={{ color: WHITE, '&.Mui-disabled': { color: BAR_DISABLED } }}>
+          {icon}
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+  const label = (id: ActionId) => ACTIONS.find((a) => a.id === id)?.label ?? id;
+
+  return (
+    <Box
+      component="header"
+      data-testid="top-bar"
+      sx={{ height: BAR_HEIGHT, flex: 'none', display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, boxSizing: 'border-box', overflow: 'hidden', whiteSpace: 'nowrap', bgcolor: INK, color: WHITE }}
+    >
+      <Typography component="span" sx={{ fontWeight: 500, flex: 'none', mr: 1.5 }}>Grasp</Typography>
+      <Typography
+        component="span"
+        data-testid="file-name"
+        sx={{ minWidth: 0, flex: '0 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', mr: 1.5 }}
+      >
+        {fileName}
+      </Typography>
+      {action('open', label('open'), 'Open a file', <FolderOpenOutlined fontSize="small" />, true, onOpen)}
+      {action('save', label('save'), 'Save', <SaveOutlined fontSize="small" />, false)}
+      {action('undo', label('undo'), 'Undo', <Undo fontSize="small" />, false)}
+      {action('redo', label('redo'), 'Redo', <Redo fontSize="small" />, false)}
+      <Box sx={{ flex: '1 0 0', minWidth: 0 }} />
+      {action('about', label('about'), 'About Grasp', <InfoOutlined fontSize="small" />, false)}
+    </Box>
+  );
 }

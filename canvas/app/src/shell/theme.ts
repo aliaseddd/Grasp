@@ -14,6 +14,8 @@ export const LINE_STRONG = '#CBD3D9';
 export const DOTS = '#B9C3CB';
 export const TEXT_SECONDARY = '#5B6973';
 export const WHITE = '#FFFFFF';
+/** A disabled icon on the ink bar. */
+export const BAR_DISABLED = 'rgba(255, 255, 255, 0.35)';
 
 /** The measures, in px. */
 export const BAR_HEIGHT = 40;
@@ -36,6 +38,7 @@ export const theme = createTheme({
     MuiButtonBase: { defaultProps: { disableRipple: true } },
     MuiIconButton: { defaultProps: { size: 'small' } },
     MuiTooltip: { defaultProps: { disableInteractive: true } },
+    MuiButton: { styleOverrides: { root: { textTransform: 'none' } } },
   },
 });
 
