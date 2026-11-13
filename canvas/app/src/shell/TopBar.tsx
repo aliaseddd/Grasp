@@ -62,7 +62,11 @@ export interface TopBarProps {
  *   Shift + Z, redo; Ctrl or ⌘ + S saves (onSave) whether or not anything is unsaved, and the browser's own Save is
  *   always prevented, with a file open or not. Undo and Redo by key act unless the event comes from a text field
  *   (an input, a textarea, or anything contenteditable), where the field's own undo is meant; Save acts from
- *   anywhere. A key that acts prevents the browser's default. Holding Undo's or Redo's key down does one thing per
+ *   anywhere. **Step 10** (plan/swarm/step-10.md) makes "a text field" exact, since Details brings the page's first
+ *   checkboxes and radio buttons, which are inputs that take no typing: the keys do not act when the event's target
+ *   is a textarea, a select, anything contenteditable, or an input whose `type` is none of checkbox, radio, button,
+ *   submit, reset, range, file, color and image; from any other target they act. So with the focus left on a
+ *   checkbox that was just ticked, Ctrl or ⌘ + Z takes the tick back. A key that acts prevents the browser's default. Holding Undo's or Redo's key down does one thing per
  *   repeat; holding Save's saves once, at the press, since each save without a picked file is a download of its own.
  *   While the page shows a modal dialog (an element with role "dialog" and aria-modal "true": the question before
  *   Open) the keys change nothing behind it: no undo, no redo, no save. Save's default is prevented then too.
