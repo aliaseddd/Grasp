@@ -2208,3 +2208,104 @@ disabled icons on the bar; the two sides at one width.
 
 - Step 6: the adapter and the planes, as session 17's outline gives it. `npm ci` first.
 - Agents made with a worktree start one commit behind a commit made in the same session: fast-forward them first.
+
+## Session 19, November 13, 2026: step 5 reviewed, and what the review found fixed
+
+On `claude/quirky-hawking-ia0e3v`, from `29c88de`. Damon asked for a review of step 5's code, then for its findings to
+be fixed, the small ones too. No step was begun: `plan/status.json` still names step 5, with six checks todo.
+
+### What the review found
+
+The step's own "Done when" held: from a clean clone, `npm ci && npm run check && npm test` gave 71 tests, 65 pass, 0
+fail, 6 todo at `29c88de`, and 64, 56, 0, 8 at the outline commit; `npm run shots` gave the committed `shell.png`
+byte for byte. Ten things were wrong beside it, each reproduced in the built page except the eighth:
+
+1. Details's width was never remembered. `api.width` is the width of Dockview's editor area, not of the dock, and a
+   layout tells the left group, lays out the editor, then tells the right group, each time, changed or not. So the
+   right handler always found `api.width` changed and took its own sash's drag for the window's doing.
+2. For the same reason the left handler took every layout for the user's, and a window under 700 px (the two sides
+   and the editor's least 100 px) wrote the squeezed width over the remembered one.
+3. Material UI's text was 14.86 px, not 13: `typography.fontSize` scales the type scale by fontSize / 14.
+4. The keyboard's focus could not be seen: no ripple, and nothing in its place; a tab's ring was Dockview's, 1 px in
+   the pale colour of the tabs' dividers.
+5. With a view floating and the others closed, the card said all the views were closed, and "Show the views again"
+   put them into the floating window.
+6. The narrow-window half of the sizes test could not fail: at 800 px nothing is squeezed.
+7. The strip test passed with the whole left side dragged into the editor (its tab then sits at x = 32, inside the
+   test's 40 px), and nothing tested a tab dropped onto a strip.
+8. When another file is opened, React renders the old file's tabs once more, with the new session in the dock's
+   context, before the effect takes them away. Nothing reads it yet; step 6's planes would have.
+9. A remembered width was taken at any size: 100000 left the editor Dockview's least 100 px.
+10. The side panels were 248 and 288 px wide, since Dockview's `initialSize` counts the strip; the plan's section 4
+    and session 17's outline give 280 and 320 beside the strips. Session 18's notes did not say so.
+
+The lesson for the method: a test seen to fail for want of the whole shell has not been seen to fail for each thing
+it claims. Session 17's rule ("checked the other way round, by breaking the code") is for those claims too.
+
+### How it was fixed
+
+The tests were written first, by a forked agent, while the sources were changed, and each was seen to fail on
+`29c88de` for its own reason; the two that guard something already right were seen to fail with the guard taken out
+(`locked`, and `onWillDragGroup`).
+
+- **The record** (`Dock.tsx`). A width is remembered when a sash was dragged: at the release that ends the drag, for
+  each open side whose width the drag changed, written there and then. Nothing else writes a width, so a narrow
+  window cannot. When the dock grows again, or a side is opened, a side narrower than its remembered width is set
+  back to it (`setSize`), so the squeeze goes with the window that made it. A remembered size under what a side can
+  be (its strip and Dockview's 50 px) is taken for none, and a side opens at no more than 40% of the dock
+  (`fitSide`), the record keeping the size as it was remembered.
+- **Two things tried and dropped there.** Reading the widths a task after the release (`setTimeout`): a reload
+  straight after the drag came first, and nothing was written. Reading the dock's width from its element: Dockview
+  lays out one frame after the window changed, and a window made narrow and wide again within that frame showed the
+  wide width at both layouts, so the dock never seemed to grow. The width is now the sum of the three parts as
+  Dockview laid them out, read when the right group, the last of a layout, is told its size.
+- **The sides' widths**: 280 and 320 beside the strips, as the plan has them, so the record's fresh sizes are 312 and
+  352. The editor is 736 px wide at 1400, which is what session 17's fit of the example assumed.
+- **The type** (`theme.ts`): body, button and tooltip sizes are given per variant, in rem: 13 px, and 12 px for a
+  tooltip. An icon button on the bar is 30 px now, where it was 28.56.
+- **The focus**: a 2 px teal ring standing off a Material UI button (the theme), a white one inside a button of the
+  ink bar (`TopBar.tsx`), and a teal one inside a tab, over Dockview's (`app.css`).
+- **The views**: the closed ones go back into the editor, beside a view that is in it or into a new group, never
+  beside one that floats. The card says what is true: all closed; so many of so many closed, the others floating;
+  or all floating. `EmptyCard`'s props changed for it (`file: { name, views, closed }`).
+- **A tab's session** is in its panel's params (`ViewParams`), with the view's id. Step 6's `Plane` draws that one,
+  not the context's. It cannot be tested until a tab draws something.
+- **The small ones**: the "Skeleton:" lines are gone from the four shell files and the icons' note sits with the
+  imports; a collapsed strip marks no name in teal; the bar's file name has its whole name as its `title`; the
+  record is written once per drag, not at every layout; the editor with no group and no card is the ground's colour.
+
+Still Dockview's own, and left: with the last tab of the editor floated by Shift + drag, Dockview shows no card until
+something else changes the editor.
+
+### How it was checked
+
+`npm run check` passes. `npm test`, three runs in a row, nothing else running: 77 tests, 71 pass, 0 fail, 6 todo.
+`shell.test.mjs` gained six tests and four changed: the sizes test (the right sash, a 500 px window, the widths back
+without a reload), the strip test (each strip tab where it was), the collapse test (no teal name while collapsed),
+the card's open test (the file name's title); new are the fresh widths, a remembered width that does not fit, 13 px,
+the focus, a tab dropped on a strip or a side panel, and the card with a view floating.
+
+### `shell.png`, retaken, and the fourth score
+
+The fixes change the look (13 px text, sides of 280 and 320 px), so `shell.png` was retaken and looked at by a fresh
+reviewer that saw only the image and its list: all seven items present; scores 4, 4, 5 and **3** for "boxes and lines
+easy to read" (hairline dividers too pale, panel titles with no header row, the strip's name in front not marked).
+Criterion 4 asks for 4. One round of changes answered those three remarks: the lines that part the window are darker
+(`LINE_STRONG` `#B4BFC8`, was `#CBD3D9`); a side panel has a header row as high as the editor's tab bar with a rule
+under it; the name of the view that is shown has a teal bar at the window's edge. A second fresh reviewer, on the
+image retaken after them: all seven present; 4, 4, 5 and **3** again, for other reasons: the strips are the same
+grey as the editor's ground, a line parts the tab in front from its own panel, and the window has no bottom edge or
+status bar. Session 18's two reviewers gave that point 4 for the look before any of this.
+
+I stopped there. The remarks differ from one reviewer to the next and now ask for design the plan does not have (a
+status bar), which is Damon's to decide, with slice 7, "The finish of the look". So the step's code is fixed and
+green, and criterion 4's fourth point stands at 3 by the two latest reviewers. Both also said, with session 18's:
+About reads as disabled (it is, until step 12).
+
+### For the next session
+
+- Damon's word on the fourth score: take session 18's 4, or have the strips toned and the tab in front joined to its
+  panel now, or leave it to slice 7.
+- Then step 6, as session 17's outline gives it. `npm ci` first. A view's tab draws the session in its params
+  (`ViewParams` in `Dock.tsx`); the sides are 312 and 352 px with their strips, so the editor is 736 px wide at 1400.
+- A test that guards something is seen to fail with that thing broken, not only before the code exists.

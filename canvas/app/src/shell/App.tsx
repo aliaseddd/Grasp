@@ -1,7 +1,5 @@
 // The application: the top bar over the dock, filling the window. It holds the session (the open file) and says what
 // went wrong when a file cannot be opened. main.tsx renders it inside the theme.
-//
-// Skeleton: the types are final; the component is the implementer's.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Box } from '@mui/material';
@@ -29,7 +27,7 @@ declare global {
  * - Open (the bar's, or the card's) calls `openFile(window.SysMLModel)` from the click. A session replaces the one
  *   open; null (the dialog closed) changes nothing. A rejection is shown in an MUI Alert, in the error's own
  *   sentence (files.ts / session.ts word it and name the file), and the file that was open stays open.
- * - The session is in React state and in a context the dock's panels read; `window.Grasp.session` follows it.
+ * - The session is in React state, and Dock hands it on to its panels; `window.Grasp.session` follows it.
  * - Step 7 adds the question before another file replaces one with unsaved changes; step 5 has nothing to lose.
  */
 export function App(): JSX.Element {

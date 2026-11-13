@@ -1,18 +1,19 @@
 // The card the editor shows when it holds no tab (Dockview's watermark): "Open a model", a button that opens a file,
-// and one line saying where the example and the blank model are. With a file open whose tabs were all closed, it also
-// offers to show the views again.
-//
-// Skeleton: the props are final; the component is the implementer's.
+// and one line saying where the example and the blank model are. With a file open, it also says how many of its views
+// are closed and offers to show them again.
 
 import { Button, Paper, Stack, Typography } from '@mui/material';
 
 export interface EmptyCardProps {
-  /** The open file's name, or null when no file is open. */
-  fileName: string | null;
+  /**
+   * The open file, or null when none is: its name, how many views it has, and how many of them are closed, that is,
+   * have no tab anywhere. A view that is not closed floats over the editor, or the card would not be showing.
+   */
+  file: { name: string; views: number; closed: number } | null;
   /** Opens a file, as the bar's Open does. */
   onOpen: () => void;
-  /** With a file open: shows its views' tabs again. Absent when no file is open. */
-  onShowViews?: () => void;
+  /** Gives the closed views their tabs again, in the editor. */
+  onShowViews: () => void;
 }
 
 /**
@@ -22,9 +23,11 @@ export interface EmptyCardProps {
  * - The title "Open a model". Its button is named "Open a file…", never "Open", and carries no data-testid "open":
  *   the bar's is the page's only one (helpers.mjs, openStateFile, counts them).
  * - The line: "The example is canvas/examples/stronghold-proof.json, and the blank model canvas/state.json."
- * - With `fileName` and `onShowViews`: "All of <fileName>'s views are closed." and a button "Show the views again".
+ * - With a file, what is true of its views: "All of <name>’s views are closed."; or, when some float over the editor,
+ *   "2 of <name>’s 3 views are closed; the others float over the editor."; or, when none is closed, "<name>’s views
+ *   float over the editor." The button "Show the views again" is there while a view is closed.
  */
-export function EmptyCard({ fileName, onOpen, onShowViews }: EmptyCardProps): JSX.Element {
+export function EmptyCard({ file, onOpen, onShowViews }: EmptyCardProps): JSX.Element {
   return (
     <div className="grasp-card-ground">
       <Paper variant="outlined" className="grasp-card" sx={{ p: 3, maxWidth: 440 }}>
@@ -34,14 +37,20 @@ export function EmptyCard({ fileName, onOpen, onShowViews }: EmptyCardProps): JS
             The example is canvas/examples/stronghold-proof.json, and the blank model canvas/state.json.
           </Typography>
           <Button variant="contained" size="small" disableElevation onClick={onOpen}>Open a file…</Button>
-          {fileName !== null && onShowViews && (
+          {file !== null && (
             <>
-              <Typography sx={{ color: 'text.secondary' }}>All of {fileName}&rsquo;s views are closed.</Typography>
-              <Button variant="outlined" size="small" onClick={onShowViews}>Show the views again</Button>
+              <Typography sx={{ color: 'text.secondary' }}>{viewsLine(file)}</Typography>
+              {file.closed > 0 && <Button variant="outlined" size="small" onClick={onShowViews}>Show the views again</Button>}
             </>
           )}
         </Stack>
       </Paper>
     </div>
   );
+}
+
+function viewsLine({ name, views, closed }: { name: string; views: number; closed: number }): string {
+  if (closed === 0) return `${name}’s views float over the editor.`;
+  if (closed >= views) return `All of ${name}’s views are closed.`;
+  return `${closed} of ${name}’s ${views} views ${closed === 1 ? 'is' : 'are'} closed; the others float over the editor.`;
 }
