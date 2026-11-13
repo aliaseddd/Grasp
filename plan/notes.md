@@ -2112,3 +2112,48 @@ the remote.
 **Step 8**
 - Switches kept in one place in `plane/`: lines below 25%.
 - The 5,000-element views leave free ground above and below when fitted, which the pan test needs.
+
+## Session 18, November 13, 2026: step 5 of slice 1, the shell
+
+On `claude/quirky-hawking-ia0e3v`, from `ee5f9fa`, begun 04:37 UTC. The method is session 17's ("How each step is
+built", above): I outline and review; Sonnet subagents at medium effort write the tests and fill in the skeleton.
+Damon asked for the work to be parallelized as needed.
+
+The baseline, in this container (Node 22.23.4): `npm ci` 12 s; `npm run check` passes in 2.5 s; `npm test` gives 64
+tests in 9 suites, 56 pass, 0 fail, 8 todo, in 11.9 s.
+
+### Step 5: the outline
+
+Session 17's design for the step stands. Checked against `node_modules/dockview-core` 8.9.0's typings:
+`api.addEdgeGroup(position, { id, initialSize, collapsed, minimumSize, maximumSize, collapsedSize })`, the group
+API's `collapse()`, `expand()`, `onDidCollapsedChange` and `onDidDimensionsChange`, `onWillDragPanel` and
+`onWillDragGroup` (each event has `nativeEvent` and its panel or group), `themeLight`, and a group's `locked`
+(`true` or `'no-drop-target'`). There is also a `disableFloatingGroups` option; it is not used, because the direction
+keeps floating for editor tabs, so Shift + press is cancelled on side tabs only.
+
+The skeleton, in `canvas/app/src/shell/`, imported by nothing yet, so the page is the one step 4 left:
+
+- `theme.ts`, complete: the colours, the measures, the MUI theme and the CSS variables.
+- `Dock.tsx`: `LAYOUT_KEY`, the side panels' ids and titles, `LayoutRecord`, `DEFAULT_LAYOUT`, `readLayout` (final),
+  `viewTitle`, `viewPanelId`, `DockProps`; the component's contract in its comment, its body throws.
+- `TopBar.tsx`: `ACTIONS` (data-testid and aria-label of each button), the icons by path, `TopBarProps`; contract.
+- `EmptyCard.tsx`: `EmptyCardProps`; contract. Its button is "Open a file…", so the bar's Open stays the page's only
+  `data-testid="open"`.
+- `App.tsx`: `GraspGlobal` (`window.Grasp.session`); contract.
+
+The test list, all in `shell.test.mjs`, each to be seen failing for the reason given:
+
+| Test | Fails today because |
+|---|---|
+| "no header palette or button row exists", todo mark off | no top bar |
+| "a sash drag resizes the Explorer", todo mark off | no Explorer |
+| a side panel collapses to its strip and opens again | no strip tab named Explorer |
+| the panels' sizes are remembered across a reload, and a narrow window does not rewrite them | no Explorer |
+| the text is drawn in Roboto, loaded from the page's folder (the bar's, a strip's and the card's) | no top bar |
+| a file opens from the card, and each of its views gets a tab (`browser.json`, three views) | no card |
+| a file that cannot be opened says why, and the open file stays | no Open button |
+| a side view cannot leave its strip (dragged by its name, by the blank part of the strip, and Shift + press) | no strip tab named Explorer |
+| with every tab closed, the card offers to show the views again | no Open button |
+
+`canvas/app/test/shots.mjs` and `npm run shots` come with the tests: `shell.png` at 1400 × 900, device scale 2, the
+page as it opens, with no file.

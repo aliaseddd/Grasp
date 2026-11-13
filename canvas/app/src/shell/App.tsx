@@ -1,0 +1,32 @@
+// The application: the top bar over the dock, filling the window. It holds the session (the open file) and says what
+// went wrong when a file cannot be opened. main.tsx renders it inside the theme.
+//
+// Skeleton: the types are final; the component is the implementer's.
+
+import type { Session } from '../core';
+
+/** What the page puts on window.Grasp for the tests and for Claude's own looking, as the old page has window.SysMLCanvas. */
+export interface GraspGlobal {
+  /** The open file, or null. */
+  readonly session: Session | null;
+}
+
+declare global {
+  interface Window {
+    Grasp?: GraspGlobal;
+  }
+}
+
+/**
+ * The application. Its contract:
+ *
+ * - Its root carries data-testid "app" (main.tsx's today) and is two rows: TopBar, then Dock filling the rest.
+ * - Open (the bar's, or the card's) calls `openFile(window.SysMLModel)` from the click. A session replaces the one
+ *   open; null (the dialog closed) changes nothing. A rejection is shown in an MUI Alert, in the error's own
+ *   sentence (files.ts / session.ts word it and name the file), and the file that was open stays open.
+ * - The session is in React state and in a context the dock's panels read; `window.Grasp.session` follows it.
+ * - Step 7 adds the question before another file replaces one with unsaved changes; step 5 has nothing to lose.
+ */
+export function App(): JSX.Element {
+  throw new Error('App: not built yet (step 5).');
+}
