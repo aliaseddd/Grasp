@@ -2548,3 +2548,111 @@ The adapter's tests, `adapter.test.mjs`, in Node, over the example, the nine fix
 | 17 | the 5,000-element model's three views project in under 1 s together | the model read outside `lib.reading` |
 | 18 | a fitted view lies inside the window, clear of its sides and of the band, at no more than 100% | the band left out |
 | 19 | `isDrawn` and `notDrawnText` say which kinds a plane draws, and how the card begins | passes today, since both are final: checked by breaking |
+
+### `shell.png`, rated again
+
+A fresh reviewer, given the retaken image and section 4's list and nothing else (6 min): all seven items present.
+Alignment and spacing 4, type and contrast 4, nothing cut off or overlapping 5, boxes and lines easy to read **4**
+("regions part cleanly by tone and hairline; active tabs join their panels"). So criterion 4 holds for `shell.png` at
+this step. What it would still change, kept for slice 7: the names on the strips sit 2 to 3 px right of the strip's
+middle; About is as dim as the disabled actions (it is disabled until step 12); the tabs not in front have no bounds
+of their own; the card's edge is faint; Save and Undo are not parted. It also read "comes in step 9" as a developer's
+note, which it is until those steps.
+
+### Step 6: the outline, part 2, the planes
+
+The skeletons are under `canvas/app/src/plane/`: `viewStore.ts`, `Plane.tsx`, `NotDrawnYet.tsx`, `nodes/BoxNode.tsx`,
+`nodes/PortNode.tsx`, `nodes/SmallNode.tsx`, `edges/LineEdge.tsx`, `edges/markers.tsx`. Each holds its contract in its
+comment and a body that throws; nothing imports them, so the page is unchanged.
+
+What they settle beyond session 17's design:
+- **The store is live or stale.** With a subscriber it projects when a change can have altered its view; with none it
+  only marks itself stale. `projected` counts its projections, so a test can see that a hidden tab costs nothing.
+- **The camera is decided before React Flow mounts**: the inner component reads `store.camera(width, height)` once,
+  which fits the first time and sets far or near, so the first render is already the right form.
+- **One fit**: the adapter's, through `store.fit`, from a button of ours in `Controls`.
+- **The outline of a node is CSS on React Flow's own node element**, so a far node is that element and the one inert
+  handle element. The component draws words and marks only.
+- **A line draws its label in its own svg**, and sets `marker-end` itself.
+- **The markers are one svg for the page**, rendered by `App`.
+
+**The DOM contract**, which the browser's tests are written to:
+
+| What | How a test finds it |
+|---|---|
+| A view's tab body, drawn or card | `[data-testid="plane"][data-view="<view id>"]` (`planeOf` in `helpers.mjs`) |
+| The card | its text, inside the tab body: `notDrawnText`, then "The old page draws it until slice 2." No `.react-flow` inside. |
+| A node | `.react-flow__node.react-flow__node-<shape>[data-id="<element id>"]`, with the words `def` or `usage`, `abstract`, `far`, and React Flow's `selected` |
+| A node's outline | that element's own computed border, radius and background |
+| A box's words, near | `.grasp-node-keyword`, `.grasp-node-name`; each compartment `.grasp-compartment` with `.grasp-compartment-head` and `.grasp-compartment-row`s |
+| A border item's name, near | `.grasp-port-name` inside the item's node |
+| A small node's name, near | `.grasp-small-name` |
+| A far node | has the word `far` and no text |
+| The inert handle | `.grasp-node-handle.source.target`, one in every node, far or near |
+| An edge | `.react-flow__edge.react-flow__edge-line[data-id="<relationship id>"]`, with its row's class |
+| A line's path, its marker, its label | `path.grasp-line`, whose `marker-end` is `url(#grasp-<the row's marker>)` or absent; `text.grasp-line-label` |
+| The markers | `svg.grasp-markers marker#grasp-m-general` and the four others, once in the page |
+| The zoom buttons, the fit button, the minimap | `.react-flow__controls`; a button named "Fit the view"; `.react-flow__minimap` |
+| The zoom | a node's width on the screen over its `offsetWidth` (`boxOf`) |
+
+Numbers: the fit keeps 48 px at the left, right and top and 180 px at the bottom, at no more than 100% and no less
+than 2%; far is under 25%; the wheel pans by its own delta; a switch of tab is timed from the `pointerdown` on the tab
+to the painted frame in which the other view's plane holds all its nodes and edges.
+
+**The browser's tests.** Each fails today because no plane exists (`untilDrawn` finds no `data-testid="plane"`), and
+each names the breakage that must fail it once the planes are built.
+
+`plane.test.mjs`:
+
+| # | Test | The breakage that must fail it |
+|---|---|---|
+| 1 | a part sits inside its part def | the nodes handed over without `parentId` |
+| 2 | each line kind has its marker | `marker-end` left off the path |
+| 3 | a definition's corners are square and a usage's round | the radius rule taken out of `app.css` |
+| 4 | a sequence view's tab says it is not drawn yet | React Flow mounted whatever `store.drawn` says |
+| 5 | the view is fitted once it has a size, clear of the window's sides and of the minimap | `defaultViewport` left at React Flow's own |
+| 6 | the wheel pans by its own delta, and Ctrl with the wheel zooms about the pointer | `panOnScrollSpeed` left at React Flow's 0.5 |
+| 7 | a double click does not zoom | `zoomOnDoubleClick` left on |
+| 8 | below 25% a box is its outline and a line has no label, and both come back above it | `moved` not given to React Flow |
+| 9 | the blank model's empty view opens at 100% | the fit of nothing dividing by zero |
+| 10 | no row of a compartment and no name runs past its box, in the example and the fixtures | the ellipsis rule taken out |
+| 11 | a click selects a box and a line, and a click on the ground lets go | `nodesChanged` ignoring `select` |
+| 12 | a line's label is over the box it lies in | the label drawn in `EdgeLabelRenderer` |
+| 13 | the fit button fits the view again | `Controls` left with its own fit |
+| 14 | a tab that is hidden holds no React Flow, and shown again finds its zoom and its selection | the camera not remembered |
+| 15 | far or near, every line stays drawn | the inert handle left out of a far node |
+| 16 | the planes' words are Roboto: 13 px medium for a name, 11 px for a keyword, 12 px in a row | a font size changed in `app.css` |
+| 17 | a port's square lies across its owner's border, with its name outside the owner | the port drawn at its owner's corner |
+
+`open.test.mjs`, criterion 2: "the example and the nine fixtures each open: 17 tabs, 11 planes, 6 cards, nothing
+logged". For each file, each view's tab is brought forward; a graph view's plane has one node for each element the
+view places and one edge for each line that is not hidden and has both ends placed, the model read through
+`M.normalize` (so `format1.json`'s places count); another kind's tab has the card and no React Flow. Its breakage: a
+card shown for a state transition view.
+
+`instant.test.mjs`, criterion 6's parts for this step, each by the median of the samples it names, timed inside the
+page:
+
+| Test | Samples | The breakage that must fail it (checked alone) |
+|---|---|---|
+| the page is ready in under 500 ms | 5 loads, from the navigation's start to the first frame painted with the top bar | 600 ms of work before the first render; it passes today, so only breaking it shows it can fail |
+| the example is drawn within 1 s of the file being given | 5 openings, from the file being given to the painted frame that holds its 13 nodes and 6 edges | a second's wait before the first projection |
+| a switch between the two tabs of the interconnection fixture takes under 100 ms | 9 switches, there and back | 120 ms of work as a plane mounts |
+
+**The store's tests**, `viewStore.test.mjs`, in Node, on a session opened from the example and from
+`interconnection.json`. Each fails today because `viewStoreOf()` throws "is not built yet":
+
+| # | Test | The breakage that must fail it |
+|---|---|---|
+| 1 | a session's view has one store | a new store at each call |
+| 2 | a snapshot is the same object until something in it changes | a new snapshot object at each `getSnapshot()` |
+| 3 | a store with no subscriber only goes stale | every store projecting at each change |
+| 4 | a live store projects when its view can have changed, and tells its subscribers once | subscribers told before the projection |
+| 5 | a change to another view's places leaves the snapshot the object it was | `told.views` not read |
+| 6 | the end of a run projects nothing | `by: 'end'` treated as a change |
+| 7 | a selection renews only the node or the line it names, and is kept through the next change | `selected` set on the projection's own object in place |
+| 8 | a change React Flow sends that is not a selection changes nothing | a `remove` taken |
+| 9 | the camera is the fit the first time and what was last seen after | `moved` not remembered |
+| 10 | crossing 25% projects again, far or near, and tells; a step that does not cross it tells nobody | far decided once |
+| 11 | a view of a kind no plane draws is not drawn and has the empty snapshot | `drawn` always true |
+| 12 | the store's methods can be handed over as they are | a method reading `this` |
