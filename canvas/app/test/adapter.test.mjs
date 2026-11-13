@@ -1460,6 +1460,27 @@ describe("placesFor: a gesture's places", () => {
     same(placesOf(ask([resize('Host', 32, 400, 4000, 4000)])), { Host: { x: 32, y: 400, w: 4000, h: 4000 } }, '4000 by 4000 is the limit and should be kept.');
   });
 
+  test('rule 4: an owner drawn larger than 4000 keeps its far corner when resized from its top left', () => {
+    // Session 25, from step 8's review. Page.app placed 5000 from Page's corner makes Page hold more than 4000 units:
+    // Page is drawn 5000 + 180 + 12 = 5192 wide. Its top left handle dragged 40 left and 30 up asks 5232 by 280 at -8,
+    // 42. A box is no larger than 4000 a side or than it is drawn, so Page's width stays 5192 and its right edge,
+    // 32 + 5192 = 5224, is kept: x stays 32. Its height takes the 280 asked, so its top goes up 30 to 42, and its parts
+    // are placed 30 further down from its corner, which is where they were on the plane.
+    const model = plain(EXAMPLE_MODEL);
+    const view = viewOf(model, VIEW);
+    view.layout['Page.app'] = { ...view.layout['Page.app'], x: 5000 };
+    const start = project(lib, model, view);
+    assert.equal(nodesById(start).get('Page').width, 5000 + 180 + LOOK.pad, 'Page should be drawn 5192 wide to hold Page.app at 5000.');
+    const placed = placesFor(lib, model, view, start, [resize('Page', -8, 42, 5232, 280)]);
+    same(placesOf(placed), {
+      Page: { x: 32, y: 42, w: 5192, h: 280 },
+      'Page.hosts': { x: 96, y: 134, w: 180, h: 110 },
+      'Page.app': { x: 5000, y: 134, w: 180, h: 110 },
+    }, 'Page, drawn 5192 wide, resized from its top left should keep its right edge where it was and grow upward only.');
+    const drawn = project(lib, model, view, { places: placed.places });
+    for (const id of ['Page.hosts', 'Page.app']) same(plain(drawn.rects.get(id)), plain(start.rects.get(id)), `${id} should be drawn where it was on the plane.`);
+  });
+
   test('rule 4: a box inside an owner is not resized to the left of 12 or above 48', () => {
     // Page.hosts resized from its top left to -20, 10 by 300 by 200: x = max(12, -20) = 12, y = max(48, 10) = 48. (Whether
     // the size shrinks to keep its right and bottom edges is not said by the contract; only the position is asserted.)

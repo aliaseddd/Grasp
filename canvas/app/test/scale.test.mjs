@@ -1,6 +1,8 @@
 // The planes at scale: the last four of slice 1's "Done when" checks, on the model of 5,000 elements in three views
-// that canvas/test/scale-model.mjs generates. They were written in step 3, before what they check, and each is marked
-// todo until its step builds it: steps 8 and 10 take the marks off.
+// that canvas/test/scale-model.mjs generates, and two tests of what step 8 changes. They were written in step 3,
+// before what they check. Step 8 took the marks off the opening and the drag step. The pan step's mark is back on, with
+// its numbers: with every change of step 8 in, the action flow view's pan step stays over the limit on this machine,
+// and the limit goes to Damon (plan/notes.md, session 25). The keystroke's mark stays until step 10 builds Details.
 //
 // The model is opened through the file input, as a person opens it. A step is timed as the old page's scale tests
 // time it, inside the page: the script's time from the event reaching the window to the end of its listeners, plus
@@ -14,7 +16,7 @@ import { after, afterEach, before, describe, test } from 'node:test';
 import { VIEWS, middleService, scaleState } from '../../test/scale-model.mjs';
 import {
   boxOf, byTestId, closePages, EDGE, finish, launch, measure, moveTiming, NODE, nodeOf, openPage, openStateFile, planeOf, selectBox,
-  sinceGiven, soon, stateFileOf, TESTIDS, timing, untilDrawn, viewTab,
+  sinceGiven, soon, stateFileOf, TESTIDS, timing, untilDrawn, viewTab, frame, zoomTo,
 } from './helpers.mjs';
 
 const ELEMENTS = 5000;
@@ -31,7 +33,11 @@ const STEP_LIMIT = 16;   // ms, a frame: one step of a drag or of a pan
 const KEY_LIMIT = 50;    // ms, one keystroke
 const DRAGS = 3;         // drags of a box, and pans of each view
 const MOVES = 4;         // moves in each
-const START = [3, 2];    // screen px of the first move, which starts the drag or the pan
+const START = [3, 2];    // screen px of the first move, which starts the pan
+// screen px of a drag's first move: at least the store's click distance (4 px, the larger axis, at 100%), so that it
+// starts the drag and draws it; a first move under it draws nothing, and a drag's first drawn step would be timed as
+// one that follows (session 25, from step 8's review)
+const DRAG_START = [6, 3];
 const STEP = [12, 6];    // screen px of each move that follows it
 const NAMES = 3;         // names typed, each one undo step
 const KEYS = 3;          // keystrokes in each name
@@ -106,19 +112,21 @@ function groundOf([plane, taken]) {
 const TAKEN = `${NODE}, ${EDGE}, .react-flow__panel, button, input, a`;
 
 /** How far the pointer goes in one gesture, in px along each axis. */
-const REACH = [START[0] + (MOVES - 1) * STEP[0], START[1] + (MOVES - 1) * STEP[1]];
+const reachOf = (start) => [start[0] + (MOVES - 1) * STEP[0], start[1] + (MOVES - 1) * STEP[1]];
+const REACH = reachOf(START);
+const DRAG_REACH = reachOf(DRAG_START);
 
 /**
  * One gesture with the mouse, each of its steps timed: a press at `from`, a move of START, MOVES - 1 moves of STEP
  * each, forward or back (`way`, 1 or -1), and a release. The first move, which starts the drag or the pan, is a
  * sample of `starting`; the others are samples of `following`.
  */
-async function gesture(page, time, from, way, starting, following) {
+async function gesture(page, time, from, way, starting, following, start = START) {
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   const at = { x: from.x, y: from.y };
   for (let m = 0; m < MOVES; m++) {
-    const [dx, dy] = m ? STEP : START;
+    const [dx, dy] = m ? STEP : start;
     at.x += way * dx;
     at.y += way * dy;
     (m ? following : starting).add(await time(() => page.mouse.move(at.x, at.y)));
@@ -131,16 +139,17 @@ async function gesture(page, time, from, way, starting, following) {
  * as far as the pointer went, or short of that by the first move, since a plane may take its first move only to tell
  * a drag from a click. `went` is how far it is from where it was, in px along the gesture's way, or null.
  */
-function moved(page, view, id, was, way, missing, apart = null) {
+function moved(page, view, id, was, way, missing, apart = null, start = START) {
+  const reach = reachOf(start);
   const went = (now) => (now ? [(now.x - was.x) * way, (now.y - was.y) * way] : null);
-  const there = (now) => !!now && went(now).every((far, axis) => far >= REACH[axis] - START[axis] - 1.5 && far <= REACH[axis] + 1.5);
+  const there = (now) => !!now && went(now).every((far, axis) => far >= reach[axis] - start[axis] - 1.5 && far <= reach[axis] + 1.5);
   // With `apart` ({ id, was }: a node that was not dragged, and where it was), the box must also have moved against it,
   // so that a pan of the whole plane, which takes both, does not pass.
   const against = async (now) => {
     if (!apart) return now;
     const other = await boxOf(page, view.id, apart.id);
     return other && now && [(now.x - other.x) - (was.x - apart.was.x), (now.y - other.y) - (was.y - apart.was.y)]
-      .every((far, axis) => far * way >= REACH[axis] - START[axis] - 1.5 && far * way <= REACH[axis] + 1.5) ? now : null;
+      .every((far, axis) => far * way >= reach[axis] - start[axis] - 1.5 && far * way <= reach[axis] + 1.5) ? now : null;
   };
   return soon(page, async () => { const now = await boxOf(page, view.id, id); return there(now) ? against(now) : null; },
     async () => {
@@ -177,7 +186,7 @@ describe('the planes at scale', () => {
 
   // The model opens: its three views are on three tabs, and the first is drawn, within OPEN_LIMIT of the page being
   // given the file. Then each tab in turn, fitted, draws every element its view places and answers a click on one.
-  test('a 5,000-element model opens', { todo: 'step 8 makes the planes hold at 5,000 elements' }, async (t) => {
+  test('a 5,000-element model opens', async (t) => {
     const views = STATE.model.views;
     assert.equal(STATE.model.elements.length, ELEMENTS);
     assert.equal(views.reduce((sum, view) => sum + Object.keys(view.layout).length, 0), ELEMENTS, 'the three views place every element between them');
@@ -210,7 +219,7 @@ describe('the planes at scale', () => {
   });
 
   // A box of the general view, at 100%, is dragged three times, there and back and there again, four moves each.
-  test('a drag step takes under 16 ms at 5,000 elements in 3 views', { todo: 'step 8 makes the planes hold at 5,000 elements' }, async (t) => {
+  test('a drag step takes under 16 ms at 5,000 elements in 3 views', async (t) => {
     const view = VIEW.definitions;
     const id = SERVICE;
     const opened = await openModel(browser);
@@ -226,8 +235,8 @@ describe('the planes at scale', () => {
       const apart = await neighbourOf(page, view, id);
       const way = drag % 2 ? -1 : 1; // there and back, so the box stays in its cell
       // The box is taken by the blank left end of its header, clear of its name, its compartments and its handles.
-      await gesture(page, time, { x: was.x + 24 * was.zoom, y: was.y + 14 * was.zoom }, way, starting, following);
-      await moved(page, view, id, was, way, (went) => `Not every move reached ${id}: the pointer dragged it ${px(REACH)}, and it went ${px(went)}.`, apart);
+      await gesture(page, time, { x: was.x + 24 * was.zoom, y: was.y + 14 * was.zoom }, way, starting, following, DRAG_START);
+      await moved(page, view, id, was, way, (went) => `Not every move reached ${id}: the pointer dragged it ${px(DRAG_REACH)}, and it went ${px(went)}.`, apart, DRAG_START);
     }
     const said = `A drag step takes ${ms(starting.median)} when it starts a drag and ${ms(following.median)} when it follows one, by the median, ` +
       `against ${STEP_LIMIT} ms.\nStarting, in ms: ${starting}\nFollowing, in ms: ${following}`;
@@ -275,7 +284,11 @@ describe('the planes at scale', () => {
 
   // Each view in turn, fitted to its tab as it opens, is panned by its ground three times, there and back and there
   // again, four moves each. Every view must hold the limit: the action flow view has the most boxes and lines.
-  test('a pan step of a fitted view takes under 16 ms at 5,000 elements', { todo: 'step 8 makes the planes hold at 5,000 elements' }, async (t) => {
+  test('a pan step of a fitted view takes under 16 ms at 5,000 elements', {
+    todo: 'with step 8 built, definitions and deployment hold (9 to 12 ms) but workflows, 2,112 nodes fitted at 4.3%, ' +
+      'takes 17.8 to 23.4 ms starting and 18.1 to 19.4 ms following, by the median of three runs alone (plan/notes.md, session 25): ' +
+      'the limit is Damon\'s to restate or to keep',
+  }, async (t) => {
     const opened = await openModel(browser);
     const { page } = opened;
     const time = await moveTiming(page);
@@ -303,6 +316,96 @@ describe('the planes at scale', () => {
         `when it follows one, by the median, against ${STEP_LIMIT} ms.\nStarting, in ms: ${starting}\nFollowing, in ms: ${following}`);
     }
     hold(t, held, said.join('\n'));
+    await finish(opened);
+  });
+
+  // The workflow view, fitted and far, draws no line; at 100% on a box it draws the lines near it; far again, none.
+  test("a large view draws no line while it is far, and its lines at 100%", async () => {
+    const view = VIEW.workflows;
+    const id = BOX[view.id];
+    const edges = (p) => p.evaluate((sel) => document.querySelectorAll(`${sel} ${'.react-flow__edge'}`).length, planeOf(view.id));
+    const opened = await openModel(browser);
+    const { page } = opened;
+    await showView(page, view);
+    const fitted = await boxOf(page, view.id, id);
+    const percent = fitted ? `${(fitted.zoom * 100).toFixed(1)}%` : 'no zoom at all';
+    const far = await edges(page);
+    assert.equal(far, 0, `The fitted plane of ${view.name}, at ${percent}, draws ${far} lines: a large view draws none while it is far.`);
+    await lookAt(page, view, id);
+    const edge = `${planeOf(view.id)} ${EDGE}[data-id=${JSON.stringify(`s-Handle${NUMBER}-receive-split`)}]`;
+    await soon(page, async () => (await page.locator(edge).count()) > 0,
+      `The plane of ${view.name}, at 100% on ${id}, draws no line s-Handle${NUMBER}-receive-split.`);
+    const near = await edges(page);
+    assert.ok(near >= 1 && near < 200, `The plane of ${view.name} at 100% draws ${near} lines, not at least 1 and fewer than 200.`);
+    await zoomTo(page, view, id, 0.2);
+    await soon(page, async () => (await edges(page)) === 0,
+      `The plane of ${view.name}, zoomed out to 20%, still draws ${await edges(page)} lines: a large view draws none while it is far.`);
+    await finish(opened);
+  });
+
+  // What a step's time measures is the script up to the frame that handles the move: every change of the DOM a pan or
+  // a drag makes must fall after a pointermove and no later than that move's animation frame callback.
+  test("the plane's commit falls inside what a step's time measures", async () => {
+    const view = VIEW.definitions;
+    const id = SERVICE;
+    const opened = await openModel(browser);
+    const { page } = opened;
+    await showView(page, view);
+
+    /** In the page: notes pointermoves, their frames, and the changes of `target`'s style attribute. */
+    const watch = (target) => page.evaluate((selector) => {
+      const probe = { moves: [], changes: [] };
+      window.addEventListener('pointermove', () => {
+        const move = { at: performance.now(), frame: null };
+        probe.moves.push(move);
+        requestAnimationFrame(() => { move.frame = performance.now(); });
+      }, true);
+      const observer = new MutationObserver((records) => { for (let i = 0; i < records.length; i++) probe.changes.push(performance.now()); });
+      observer.observe(document.querySelector(selector), { attributes: true, attributeFilter: ['style'] });
+      window.__probe = probe;
+    }, target);
+    /** Takes the probe's notes and clears them. */
+    const notes = () => page.evaluate(() => { const probe = window.__probe; const out = JSON.parse(JSON.stringify(probe)); probe.moves.length = 0; probe.changes.length = 0; return out; });
+    /** One gesture: a press, MOVES moves of 12 by 6 px each, a frame after each, a release. */
+    const swipe = async (from, way) => {
+      await page.mouse.move(from.x, from.y);
+      await page.mouse.down();
+      for (let m = 1; m <= MOVES; m++) {
+        await page.mouse.move(from.x + way * STEP[0] * m, from.y + way * STEP[1] * m);
+        await frame(page);
+      }
+      await page.mouse.up();
+      await frame(page);
+    };
+    const inside = (seen, what) => {
+      const late = seen.changes.filter((at) => {
+        const move = [...seen.moves].reverse().find((m) => m.at <= at);
+        return !move || move.frame === null || at > move.frame;
+      });
+      assert.equal(late.length, 0, `${late.length} of ${seen.changes.length} changes of ${what} fell outside a pointermove and the frame that handled it.`);
+    };
+
+    await watch(`${planeOf(view.id)} .react-flow__viewport`);
+    for (let pan = 0; pan < 2; pan++) {
+      const ground = await page.evaluate(groundOf, [planeOf(view.id), TAKEN]);
+      assert.ok(ground, `The fitted plane of ${view.name} has no bare ground to pan it by.`);
+      await swipe(ground, pan % 2 ? -1 : 1);
+    }
+    const panned = await notes();
+    assert.ok(panned.changes.length >= 8, `The viewport of ${view.name} changed ${panned.changes.length} times in two pans of 4 moves, not at least 8.`);
+    inside(panned, `the viewport in a pan`);
+
+    const box = await lookAt(page, view, id);
+    await page.evaluate(() => { delete window.__probe; });
+    await watch(nodeOf(view.id, id));
+    for (let drag = 0; drag < 2; drag++) {
+      const was = await boxOf(page, view.id, id);
+      await swipe({ x: was.x + 24 * was.zoom, y: was.y + 14 * was.zoom }, drag % 2 ? -1 : 1);
+    }
+    const dragged = await notes();
+    assert.ok(dragged.changes.length >= 6, `The node ${id} changed ${dragged.changes.length} times in two drags of 4 moves, not at least 6.`);
+    inside(dragged, `the dragged node's place`);
+    assert.ok(box, 'the box was found');
     await finish(opened);
   });
 });

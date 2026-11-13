@@ -3380,3 +3380,74 @@ checks are `"todo"` in `plan/status.json`, as the runner's `# todo` says; the st
 As session 22 left it: step 8, with the drag test's and the pan test's numbers. A top or left resize of an owner now
 gives a place per box inside it at every step; at 5,000 elements that is the general view's packages, and step 8's
 measure of a drag step does not cover a resize.
+
+## Session 25, November 13, 2026: steps 8 and 9 of slice 1 closed by the swarm; steps 10 to 12 built and kept aside
+
+On `claude/wonderful-goldberg-f8hyy1`, from `102d983` (main, with session 24's scaffold merged by pull request #50).
+Damon's word: "Finish slice 1."; then, while step 8 was being closed, "Stop once you're finished with step 8 and 9. Sync
+everything to GitHub after." The lead is Claude, on the session's model; the agents are those `plan/swarm/tasks.json`
+names, run as `plan/swarm/README.md` says. Each task's worktree was made by hand under `/home/user/wt/<task>`, from the
+last closed step's commit with the owned files of every task it needs checked out on top and committed as its base;
+`node_modules/` was hard-linked from the main tree (`cp -al`) in place of `npm ci`. Each agent was given its brief's
+path in its worktree and the worktree's place, and nothing else of the lead's context.
+
+The baseline, in this container (Node 22.23.4, 4 processors): `npm ci` 15 s; `npm run check` passes in 4 s; `npm test`
+gives 215 tests, 211 pass, 0 fail, 4 todo, in 56 s.
+
+### How the swarm was run
+
+As `plan/swarm/README.md` says, with these particulars:
+
+- **Worktrees.** Each task's worktree was made by hand under `/home/user/wt/<task>`, from the last closed step's commit (`102d983` until step 8 closed), with the owned files of every task it needs, directly or not, checked out on top from those tasks' final commits and committed as its base. `node_modules/` was hard-linked from the main tree (`cp -al`), which takes a second, in place of `npm ci`. A task's result was its last commit in its worktree, read by the lead (`git diff <base> <head>`, every change outside what the task owns flagged) and kept as a local ref, `refs/swarm/<task>`, never pushed. A step's closing checks the owned files of its tasks out of those refs into the main tree.
+- **What each agent was given**: the path of its brief inside its worktree, the worktree's place, and that `node_modules/` is in place; nothing else of the lead's context. The reviewers of a screenshot got the image, copied outside the repository, and its list, and nothing else.
+- **Models.** As `tasks.json` names them, Sonnet at medium for tests, code, breakages and screenshots. The code reviews (`fable` at `high`) could not run on Fable: its usage limit was reached at 14:05 ("resets Nov 16, 5pm UTC") and both first reviewers stopped at their start. The README's reason for the model is "a fresh instance of the lead's own model, which has not seen the outline", and this session's lead runs on Opus 5.5, so every review ran on Opus at high. Reworks ran on Sonnet at high.
+- **Speed.** An agent took 9 s (a screenshot) to 15 min (a code review); a test or code task 0.5 to 8 min, a breakage task 5 to 13 min. Up to fifteen ran at once, on this container's 4 processors (load average up to 9), which slows a browser test but does not break one: `soon()` counts frames, not milliseconds. Every timing that decides anything was taken by the lead with no agent running.
+- **What the agents' tests got wrong, and the lead fixed** (each smaller than a brief; each test then seen to pass against the code it tests): four test files compared an array from the model library, which `loadLib()` makes in another realm, with `assert.deepEqual` (`commands.test.mjs` test 24, `tools-panel.test.mjs` test 2, `details.test.mjs` two places; the same in `tools.test.mjs` 1 to 4, left for step 11): a library array is not a test array to the strict assert, though both read the same. `probe.test.mjs` test 7 flaked under load (2 of 6 runs): its stand-in hands the probe the real `WebAssembly.instantiate`, and `settle()`'s 20 turns were sometimes too few for the compile; it now awaits the compile (8 of 8 then passed at a load of 8.8). Two rows of `step-10.md`'s list were wrong: row 21 of `details-fields.test.mjs` ticks Is Abstract on Host, which the example has abstract already (the test now ticks App), and row 20 looks for the type's picker while the Advanced tab is shown (the test shows Core first). `step-9.md`'s list gives `built` 4 after two undos in R11; the contract counts every change of structure, so 5, and the test holds 5.
+
+### Step 8: each change measured alone, and the pan limit
+
+`8-checks-measure`, the lead's, with nothing else running (13:52 to 14:03): `npm run build && node --test --test-timeout=120000 canvas/app/test/scale.test.mjs`, three runs per build, the median of the three runs' medians, in ms. Build A is the scaffold; B adds change 1 (`projectStep`), with `linesDrawn` put back to `return true`; C adds change 2 (no lines for a large view while far); D adds change 3 (the minimap of our own).
+
+| Build | Opens | Drag step, starting / following | Pan step, `definitions` | `deployment` | `workflows` |
+|---|---|---|---|---|---|
+| A | 691.5 | 2.4 / 38.0 | 22.2 / 25.4 | 19.8 / 16.7 | 39.7 / 46.2 |
+| B | 655.9 | 2.2 / 12.8 | 22.4 / 16.5 | 14.5 / 19.1 | 35.2 / 34.3 |
+| C | 539.5 | 1.9 / 11.8 | 12.6 / 12.2 | 11.3 / 11.1 | 20.6 / 21.4 |
+| D | 492.8 | 1.0 / 11.6 | 15.6 / 11.1 | 10.9 / 8.9 | 17.8 / 19.4 |
+| D, three runs more | 493.5 | 1.3 / 10.7 | 9.8 / 11.4 | 9.1 / 9.0 | 23.4 / 18.1 |
+
+- **Change 1 kept**: a drag step that follows one went from 38.0 (runs 36.4 to 43.2) to 12.8 (12.2 to 12.9). In Node, `projectStep` works a step of `definitions` out in 0.53 ms by the median of 50 (the slow way, 14.6 to 18 ms).
+- **Change 2 kept**: a pan step of `workflows` went from 35.2 / 34.3 to 20.6 / 21.4, more than the runs of one build differ.
+- **Change 3 kept**, on the following steps of a pan, lower in all three views (12.2 to 11.1, 11.1 to 8.9, 21.4 to 19.4); for `deployment` the move is less than its runs' spread, and the starting steps are mixed. Its other gain, the minimap's subscriptions per node gone, is not in these numbers.
+- **This container is slower than session 24's**: the scaffold's `workflows` pan step is 39.7 / 46.2 here against 29.9 / 30.0 then, 1.3 to 1.5 times. Session 24's prototype of the same three changes gave 12 to 13 ms on the same test; times 1.4 that is what build D measures.
+
+**The pan limit still fails, for `workflows` alone**: 2,112 nodes fitted at 4.3%, 17.8 to 23.4 ms starting and 18.1 to 19.4 following, against 16, while `definitions` and `deployment` hold at 9 to 12. So the pan test has its todo mark back, with these numbers in its reason, and the limit goes to Damon (`plan/slice-1.md`, step 8, "If a limit still fails"). Where the time of a `workflows` pan step goes, from a Chromium trace of 20 steps of build D (`devtools.timeline`; not the CSS domain): the browser's handling of the mouse move, 16.7 ms, of which the page's script (d3's handler, React Flow's store, React) 7.7, the hit test of the pointer against 2,112 mounted nodes 6.1 to 6.6, and Chromium's handling of a pressed mouse moved as a text selection's drag (`MouseEventManager::handleMouseDraggedEvent`) 4.9; then the frame: layerizing and pushing the paint to the compositor 5.9 each (every node has its own transform), layout 2.4, paint 1.1. Tried on build D, alone, and not kept:
+
+| Tried | `workflows`, starting / following | Why it is not kept |
+|---|---|---|
+| `.react-flow__pane.dragging .react-flow__node { pointer-events: none }` | 17.8 / 19.8 | No gain: the hit test still walks every transformed node |
+| The default of a mousedown on the pane prevented (capturing, on the plane's root) | 10.2 / 11.4 (definitions 9.3 / 7.4, deployment 6.9 / 7.4); the pan test passed 2 of 3 runs | It stops the press from moving the focus, and Dockview makes a group active when its content takes the focus: the view in front would no longer follow a press in a split editor, and a field of Details would keep the focus on a click on the ground. Kept as a lever for Damon, with what it would have to put back |
+| `.react-flow__pane { user-select: none }` | 19.6 / 11.2 | Halves the following steps but not the starting ones; the test still fails in 2 of 3 runs |
+
+**What Damon is asked**, with the measurement above: restate the pan limit (for instance "under 16 ms for a fitted view of up to 1,600 nodes, under 25 ms for the 2,112-node view", or the limit for a working zoom, as `plan/direction.md`'s item allows), or have the press's default prevented with the focus put back by hand (about 10 to 11 ms here, passing 2 of 3 runs), or a far form drawn as one picture with no node mounted (not slice 1's: a click on a far plane would mean something else). The other three limits hold.
+
+### Step 8: what the reviews found, and what was done
+
+`8-checks-break` made every breakage of the step's three test files (step 16, minimap 11, scale 5) and each failed its test. It noted that `MiniMap.tsx`'s comments still said it was React Flow's (fixed), that minimap test 1 fails first at the missing path so its "no `.react-flow__minimap-node`" half was not seen alone, and that step test 9 alone guards that a copy of a projection carries its `read` (without it a drag goes the slow way, silently).
+
+`8-review-code` (on Opus, as said above) found three defects, each reproduced:
+
+1. **The drag test's starting sample timed a move that draws nothing.** Its first move is 3 by 2 px, and since step 7 the store starts a gesture only once a step has gone 4 screen px (`CLICK_DISTANCE`, the larger axis, times the zoom): so a drag's first drawn step was the second move, filed with the following ones, where a median of 9 hides it. Fixed in `scale.test.mjs`: a drag's first move is now `DRAG_START`, 6 by 3 px (a pan keeps 3 by 2: d3 pans at the first move). Seen, alone, under a breakage that makes each drag's first drawn step 30 ms slow (a busy loop at the gesture's first `step()` in `viewStore.ts`): the old test passed (starting 1.5 ms; the slow steps, 54.3, 44.9 and 43.8 ms, among the following, median 11.8), the new one failed ("A drag step takes 43.1 ms when it starts a drag", against 16).
+2. **A line selected before a large view went far came back selected after a click had let everything go while far**: React Flow can unselect only the lines it holds, and a far large view hands it none. Not fixed at step 8: step 9's selection, the session's, sets `selected` on every projection, which ends it; checked on step 9's build (below).
+3. **A top or left resize of an owner drawn larger than 4000 units moved it instead of resizing it** (step 7's rule 4 capped the size at 4000 a side, below the size the owner is drawn at, then kept the far corner from the capped size). Fixed in `adapter.ts`: a resize is held to 4000 or to the box's drawn size, the larger. Its test, `adapter.test.mjs` › "rule 4: an owner drawn larger than 4000 keeps its far corner when resized from its top left", failed first ("x: 1224, w: 4000", Page.hosts at -1096) and passes.
+
+The review's hints, which no limit covers: `placesFor` reads the whole model at each step of a drag (1.7 to 4.7 ms in a profile), and the minimap's path of 1,544 rectangles is made again at each step of a drag (about 1.7 ms at 5,000 elements).
+
+`8-review-shot-scale` saw `scale.png` of build D: items 1, 3, 4, 5, 6 and 7 present; item 2 "absent (partly)", with every condition of it said present (the grid whole, bare ground on every side, nothing cut) and the reservation that the model's last row is shorter and its last boxes flatter, which is the scale model's content. Other notes: the minimap's top band is veiled (the fit leaves 48 px above the view and 180 below it, so the window does not reach the top of the minimap's picture), a wider gap before the third tab, the grid above the plane's middle.
+
+### Step 8: the checks, alone, and what it changed beyond its files
+
+- **The test files run one at a time** from step 8 on (change 4 of `plan/swarm/step-8.md`): `package.json`'s `test` is `node --test --test-concurrency=1 --test-timeout=120000 canvas/app/test/*.test.mjs`. Beside the other files the timed tests fail on this machine's four processors, each file running a Chromium that draws in software. A run of the suite takes 2 min 16 s to 2 min 22 s where it took 56 s.
+- **`npm test` three times in a row, nothing else running**: 245 tests, 243 pass, 0 fail, 2 todo (the keystroke, step 10's; the pan step, Damon's), each time. By run, in ms: the model opens in 566.8, 557.0, 502.0; a drag step 13.9 / 12.8, 13.5 / 9.0, 10.9 / 9.3 (starting / following; the starting step is now a drawn one); a pan step of `definitions` 12.5 / 10.1, 11.0 / 10.9, 11.4 / 10.1, of `deployment` 9.3 / 9.3, 9.3 / 8.1, 8.8 / 9.3, of `workflows` 14.4 / 24.0, 22.9 / 23.4, 13.9 / 18.0. Checks 7 and 8 of `plan/status.json` pass; check 10 stays todo, with a note.
+- **`scale.png`**, taken from the step's build (`npm run shots -- scale`; the shot is no longer pending) and looked at by a fresh reviewer with the image and its list only: 7 of 7 present. The reviewer's other notes, none of them items: the boxes are faint at this zoom, the minimap's top band is veiled (the window does not reach the top of its picture), the last row of the grid is short (the model's).
+- **Beyond step 8's files**: `canvas/app/test/adapter.test.mjs` gained the rule 4 test above, and `canvas/app/src/core/adapter.ts`'s rule 4 (step 7's) changed with it.

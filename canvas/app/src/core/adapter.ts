@@ -185,9 +185,7 @@ export const LARGE_VIEW = 300;
  * the view is near again.
  */
 export function linesDrawn(nodes: number, far: boolean): boolean {
-  void nodes;
-  void far;
-  return true;
+  return !(far && nodes > LARGE_VIEW);
 }
 
 // ---- What crosses to the store and to React Flow.
@@ -317,6 +315,16 @@ export interface ProjectionRead {
   readonly model: Model;
   /** The id of the view it was read for. */
   readonly view: string;
+  readonly far: boolean;
+  readonly look: Look;
+  /** Whether every place the view's nodes were laid out from, bar those of `options.places`, is the view's own: false when a place given showed an element the layout does not hold. */
+  readonly exact: boolean;
+  /** What each node says that no place can alter, with the view's saved place: in the order the nodes come. */
+  readonly nodes: readonly ReadNode[];
+  /** The index in `nodes` of each node's id. */
+  readonly index: ReadonlyMap<string, number>;
+  /** The view's lines, in the model's order. */
+  readonly lines: readonly ReadLine[];
 }
 
 export interface ProjectOptions {
@@ -474,14 +482,13 @@ function sameLook(a: Look, b: Look): boolean {
 type SavedPlace = { x?: unknown; y?: unknown; w?: unknown; h?: unknown; side?: unknown; at?: unknown };
 
 /** layout.js `portRect`: the square of a border item, centred on its owner's border `at` along its side. */
-function portRect(place: SavedPlace, r: Rect, port: number): { rect: Rect; side: Side } {
-  const at = num(place.at);
+function portRect(side0: unknown, at: number, r: Rect, port: number): { rect: Rect; side: Side } {
   let cx: number;
   let cy: number;
   let side: Side;
-  if (place.side === 'top') { side = 'top'; cx = r.x + at * r.w; cy = r.y; }
-  else if (place.side === 'bottom') { side = 'bottom'; cx = r.x + at * r.w; cy = r.y + r.h; }
-  else if (place.side === 'left') { side = 'left'; cx = r.x; cy = r.y + at * r.h; }
+  if (side0 === 'top') { side = 'top'; cx = r.x + at * r.w; cy = r.y; }
+  else if (side0 === 'bottom') { side = 'bottom'; cx = r.x + at * r.w; cy = r.y + r.h; }
+  else if (side0 === 'left') { side = 'left'; cx = r.x; cy = r.y + at * r.h; }
   else { side = 'right'; cx = r.x + r.w; cy = r.y + at * r.h; }
   return { rect: { x: cx - port / 2, y: cy - port / 2, w: port, h: port }, side };
 }
@@ -601,27 +608,85 @@ function nameLine(lib: SysMLModelLibrary, model: Model, ids: Map<string, ModelEl
 
 const EMPTY_ROW: LineRow = { route: 'straight', marker: null, cls: '', label: null };
 
-/** What one reading of a view makes, before the words of far and the objects of `previous` are settled. */
-type Made = { nodes: PlaneNode[]; edges: PlaneEdge[]; rects: Map<string, Rect>; bounds: Rect | null };
-
 /** What a box's header and compartments need in height: header (a box shape's only), then each compartment's title, rows and tail. */
 function contentHeight(isBox: boolean, comps: readonly Compartment[], look: Look): number {
   return (isBox ? look.header : 0) + comps.reduce((h, c) => h + look.head + look.lead * c.lines.length + look.tail, 0);
 }
 
-function build(lib: SysMLModelLibrary, model: Model, view: ModelView, far: boolean, look: Look, places?: ReadonlyMap<string, Place> | null): Made {
-  const none: Made = { nodes: [], edges: [], rects: new Map(), bounds: null };
+/**
+ * One line of a view as read: its two ends (by the index of their entry in `ProjectionRead.nodes`), what its route
+ * is, and its edge, which no place alters. The edge is a template: a projection's edge is a copy of it.
+ */
+export interface ReadLine {
+  readonly from: number;
+  readonly to: number;
+  readonly fromBorder: boolean;
+  readonly toBorder: boolean;
+  readonly how: 'straight' | 'elbow';
+  readonly edge: PlaneEdge;
+}
+
+/**
+ * One node of a view as read: everything its node says that no place can alter, and the view's own saved place for
+ * it as plain numbers. `data` is the node's data for a box or a small node (a border item's is made at each layout,
+ * from its side and its first line), with the compartments wrapped for `wrapW`.
+ */
+export interface ReadNode {
+  readonly id: string;
+  readonly el: ModelElement;
+  readonly row: KindRow;
+  readonly shape: Shape;
+  /** The index of the entry of its parent node, or -1 at ground level. */
+  readonly parent: number;
+  readonly parentId: string | undefined;
+  readonly border: boolean;
+  readonly isBox: boolean;
+  readonly className: string;
+  /** The saved place: a box's x, y, w, h; a border item's side and at. Numbers by `num`. */
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+  readonly at: number;
+  readonly side: unknown;
+  /** The width the compartments were wrapped for, their height, and the data (a box, a small node). */
+  readonly wrapW: number;
+  readonly comps: readonly Compartment[];
+  readonly contentH: number;
+  /** Replaced by a value-equal object of a node that kept it: the one field of an entry ever written. */
+  data: NodeData | null;
+  /** A border item's glyph and name, and the lines that end at it, in the model's order. */
+  readonly glyph: BorderData['glyph'];
+  readonly name: string;
+  readonly lines: readonly ReadLine[];
+}
+
+const NO_READ_LINES: readonly ReadLine[] = [];
+
+const emptyRead = (model: Model, view: string, far: boolean, look: Look): ProjectionRead => ({ model, view, far, look, exact: true, nodes: [], index: new Map(), lines: [] });
+
+/**
+ * The first part of a projection: reads the model for one view, and keeps everything no place can alter. Rules 1, 2
+ * (compartments), 4 and 6 of project(); `places` only decides which elements the view shows, and the width the
+ * compartments are wrapped for, as the old build() did.
+ */
+function readView(lib: SysMLModelLibrary, model: Model, view: ModelView, far: boolean, look: Look, places?: ReadonlyMap<string, Place> | null): ProjectionRead {
+  const empty = emptyRead(model, view.id, far, look);
   const ids = new Map<string, ModelElement>();
   for (const el of model.elements) ids.set(el.id, el);
   // Rule 7: a place given stands in for the view's own, as if the layout held it.
-  const layout = (places && places.size > 0 ? { ...view.layout, ...Object.fromEntries(places) } : view.layout) as Record<string, SavedPlace>;
+  const given = places && places.size > 0 ? places : null;
+  const own = view.layout as Record<string, SavedPlace>;
+  const layout = (given ? { ...own, ...Object.fromEntries(given) } : own) as Record<string, SavedPlace>;
   const shown = new Set<string>();
   for (const id of Object.keys(layout)) {
     const el = ids.get(id);
     const lay: unknown = layout[id];
     if (el && lib.KINDS[el.kind] && lay !== null && typeof lay === 'object') shown.add(id);
   }
-  if (shown.size === 0) return none;
+  if (shown.size === 0) return empty;
+  let exact = true;
+  if (given) for (const id of given.keys()) { const o: unknown = own[id]; if (o === null || typeof o !== 'object') exact = false; }
 
   // A box's parent is its nearest owner that the view shows; what a box holds, boxes and border items apart, in the
   // model's order (graphLayout 44-58).
@@ -641,60 +706,185 @@ function build(lib: SysMLModelLibrary, model: Model, view: ModelView, far: boole
     (lib.KINDS[el.kind].onBorder ? group.ports : group.boxes).push(el);
   }
 
-  // graphLayout size(): a box is its saved size, or what its header and compartments need, or what holds each box in it.
-  type Size = { w: number; h: number; comps: Compartment[] };
-  const sizes = new Map<string, Size>();
-  const sizeOf = (el: ModelElement): Size => {
-    const kept = sizes.get(el.id);
-    if (kept) return kept;
-    const lay = layout[el.id];
+  // The nodes in order: a box, the boxes in it, its border items (graphLayout place()).
+  const nodes: ReadNode[] = [];
+  const index = new Map<string, number>();
+  const byEnd = new Map<number, ReadLine[]>();
+  const pending: { el: ModelElement; at: number }[] = [];
+  const add = (el: ModelElement, parent: number, parentId: string | undefined, border: boolean): number => {
+    const merged = layout[el.id];
+    const saved: SavedPlace = (() => { const o: unknown = own[el.id]; return o !== null && typeof o === 'object' ? (o as SavedPlace) : merged; })();
     const row = lib.KINDS[el.kind];
-    const isBox = BOX_SHAPES.includes(shapeOf(row));
-    const comps = isBox ? compartmentsOf(lib, model, el, row, num(lay.w), look) : [];
-    let bottom = contentHeight(isBox, comps, look);
-    let right = 0;
-    for (const kid of groups.get(el.id)?.boxes ?? []) {
-      const s = sizeOf(kid);
-      const kl = layout[kid.id];
-      bottom = Math.max(bottom, num(kl.y) + s.h + look.pad);
-      right = Math.max(right, num(kl.x) + s.w + look.pad);
-    }
-    const size = { w: Math.max(num(lay.w), right), h: Math.max(num(lay.h), bottom), comps };
-    sizes.set(el.id, size);
-    return size;
+    const shape = shapeOf(row);
+    const isBox = BOX_SHAPES.includes(shape);
+    const words = [row.definition ? 'def' : 'usage'];
+    if (el.abstract && !border) words.push('abstract');
+    if (far) words.push('far');
+    const wrapW = num(merged.w);
+    const comps = isBox ? compartmentsOf(lib, model, el, row, wrapW, look) : [];
+    const entry: ReadNode = {
+      id: el.id, el, row, shape, parent, parentId, border, isBox, className: words.join(' '),
+      x: num(saved.x), y: num(saved.y), w: num(saved.w), h: num(saved.h), at: num(saved.at), side: saved.side,
+      wrapW, comps, contentH: contentHeight(isBox, comps, look), data: null,
+      glyph: null, name: '', lines: NO_READ_LINES,
+    };
+    index.set(el.id, nodes.length);
+    nodes.push(entry);
+    return nodes.length - 1;
   };
-
-  // graphLayout place(): rectangles from the view's origin; the nodes in order: a box, the boxes in it, its border items.
-  type Entry = { el: ModelElement; row: KindRow; shape: Shape; parent: string | undefined; rect: Rect; comps: Compartment[]; side?: Side };
-  const entries: Entry[] = [];
-  const rects = new Map<string, Rect>();
-  const borders = new Set<string>();
-  const place = (el: ModelElement, ox: number, oy: number, parent: string | undefined): void => {
-    const lay = layout[el.id];
-    const s = sizeOf(el);
-    const r: Rect = { x: ox + num(lay.x), y: oy + num(lay.y), w: s.w, h: s.h };
-    const row = lib.KINDS[el.kind];
-    rects.set(el.id, r);
-    entries.push({ el, row, shape: shapeOf(row), parent, rect: r, comps: s.comps });
+  const place = (el: ModelElement, parent: number, parentId: string | undefined): void => {
+    const at = add(el, parent, parentId, false);
     const group = groups.get(el.id);
     if (!group) return;
-    for (const kid of group.boxes) place(kid, r.x, r.y, el.id);
-    for (const port of group.ports) {
-      const square = portRect(layout[port.id], r, look.port);
-      const prow = lib.KINDS[port.kind];
-      rects.set(port.id, square.rect);
-      borders.add(port.id);
-      entries.push({ el: port, row: prow, shape: shapeOf(prow), parent: el.id, rect: square.rect, comps: [], side: square.side });
-    }
+    for (const kid of group.boxes) place(kid, at, el.id);
+    for (const port of group.ports) pending.push({ el: port, at: add(port, at, el.id, true) });
   };
-  for (const el of groups.get(undefined)?.boxes ?? []) place(el, 0, 0, undefined);
-  if (entries.length === 0) return none;
+  for (const el of groups.get(undefined)?.boxes ?? []) place(el, -1, undefined);
+  if (nodes.length === 0) return empty;
 
+  // The lines: not hidden, both ends placed, in the model's order.
+  const lines: ReadLine[] = [];
+  for (const rel of model.relationships) {
+    if (rel.hidden) continue;
+    const from = index.get(rel.from);
+    const to = index.get(rel.to);
+    if (from === undefined || to === undefined) continue;
+    const row = lib.RELATIONSHIPS[rel.kind]?.line ?? EMPTY_ROW;
+    const line: ReadLine = {
+      from, to, fromBorder: nodes[from].border, toBorder: nodes[to].border, how: row.route === 'elbow' ? 'elbow' : 'straight',
+      edge: {
+        id: rel.id,
+        source: rel.from,
+        target: rel.to,
+        type: 'line',
+        className: row.cls,
+        data: {
+          route: row.route === 'elbow' ? 'elbow' : 'straight',
+          marker: row.marker ? markerId(row.marker) : null,
+          label: far || !row.label ? '' : row.label(rel, model, ids),
+          labelOffset: row.labelOffset ?? 30,
+          far,
+          sourceBorder: nodes[from].border,
+          targetBorder: nodes[to].border,
+        },
+      },
+    };
+    lines.push(line);
+    for (const end of from === to ? [from] : [from, to]) {
+      const list = byEnd.get(end);
+      if (list) list.push(line);
+      else byEnd.set(end, [line]);
+    }
+  }
+
+  // What each node says of the element that a place cannot change.
+  const sized = nodes as { -readonly [K in keyof ReadNode]: ReadNode[K] }[];
+  for (const { el, at } of pending) {
+    const row = nodes[at].row;
+    const raw = row.glyph ? row.glyph(model, el) : 'inout';
+    sized[at].glyph = far ? null : raw === 'in' || raw === 'out' || raw === 'inout' ? raw : null;
+    sized[at].name = far ? '' : nameLine(lib, model, ids, el, row);
+    sized[at].lines = byEnd.get(at) ?? NO_READ_LINES;
+  }
+  for (const e of sized) {
+    if (e.border) continue;
+    const { el, row, shape } = e;
+    if (e.isBox) {
+      e.data = {
+        form: 'box',
+        far,
+        keyword: far ? '' : keywordOf(shape, el, row),
+        name: far ? '' : nameLine(lib, model, ids, el, row),
+        compartments: far ? [] : (e.comps as Compartment[]),
+        glyph: far ? null : shape === 'action' && (el.actionKind === 'send' || el.actionKind === 'accept') ? el.actionKind : null,
+        least: { width: Math.min(80, row.size[0]), height: Math.min(40, row.size[1]) },
+      };
+    } else {
+      const named = shape === 'event' ? nameLine(lib, model, ids, el, row) : shape === 'bar' || shape === 'diamond' ? lib.textName(el) || '' : '';
+      e.data = { form: 'small', far, name: far ? '' : named };
+    }
+  }
+  return { model, view: view.id, far, look, exact, nodes, index, lines };
+}
+
+/** What the second part makes: the nodes (rule 5 applied against `previous`), rects and bounds; `same` when every node is previous's. */
+type Laid = { nodes: PlaneNode[]; rects: Map<string, Rect>; bounds: Rect | null; same: boolean };
+
+/**
+ * The second part of a projection: lays a view out from what was read of it and the places that stand in for its own
+ * (rules 2, 3 and 7), over plain numbers. It reads nothing of the model, except an element's own fields when a box's
+ * width in `places` is not the width its compartments were wrapped for. Each node is rule 5's against `previous`.
+ */
+function layOut(lib: SysMLModelLibrary, model: Model, read: ProjectionRead, places: ReadonlyMap<string, Place> | null | undefined, previous: Projection | null): Laid {
+  const { nodes: entries, look, far } = read;
+  const n = entries.length;
+  const out: PlaneNode[] = new Array(n);
+  const rects = new Map<string, Rect>();
+  if (n === 0) return { nodes: out, rects, bounds: null, same: true };
+
+  // Each node's place: the one given, else the saved one.
+  const X = new Float64Array(n);
+  const Y = new Float64Array(n);
+  const W = new Float64Array(n);
+  const H = new Float64Array(n);
+  const AT = new Float64Array(n);
+  const SIDE: unknown[] = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const e = entries[i];
+    const p = places && places.size > 0 ? (places.get(e.id) as SavedPlace | undefined) : undefined;
+    if (p) {
+      X[i] = num(p.x); Y[i] = num(p.y); W[i] = num(p.w); H[i] = num(p.h); AT[i] = num(p.at); SIDE[i] = p.side;
+    } else {
+      X[i] = e.x; Y[i] = e.y; W[i] = e.w; H[i] = e.h; AT[i] = e.at; SIDE[i] = e.side;
+    }
+  }
+
+  // graphLayout size(), children before their owners: a box is its saved size, or what its header and compartments
+  // need, or what holds each box in it.
+  const accBottom = new Float64Array(n).fill(-Infinity);
+  const accRight = new Float64Array(n);
+  const SW = new Float64Array(n);
+  const SH = new Float64Array(n);
+  const rewrapped = new Map<number, Compartment[]>();
+  for (let i = n - 1; i >= 0; i--) {
+    const e = entries[i];
+    if (e.border) continue;
+    let contentH = e.contentH;
+    if (e.isBox && W[i] !== e.wrapW) {
+      const comps = compartmentsOf(lib, model, e.el, e.row, W[i], look);
+      rewrapped.set(i, comps);
+      contentH = contentHeight(true, comps, look);
+    }
+    const w = Math.max(W[i], accRight[i]);
+    const h = Math.max(H[i], Math.max(contentH, accBottom[i]));
+    SW[i] = w;
+    SH[i] = h;
+    if (e.parent >= 0) {
+      accBottom[e.parent] = Math.max(accBottom[e.parent], Y[i] + h + look.pad);
+      accRight[e.parent] = Math.max(accRight[e.parent], X[i] + w + look.pad);
+    }
+  }
+
+  // graphLayout place(): rectangles from the view's origin, owners first.
+  const rs: Rect[] = new Array(n);
+  const sides: Side[] = new Array(n);
   let x = Infinity;
   let y = Infinity;
   let x2 = -Infinity;
   let y2 = -Infinity;
-  for (const r of rects.values()) {
+  for (let i = 0; i < n; i++) {
+    const e = entries[i];
+    let r: Rect;
+    if (e.border) {
+      const square = portRect(SIDE[i], AT[i], rs[e.parent], look.port);
+      r = square.rect;
+      sides[i] = square.side;
+    } else {
+      const o = e.parent >= 0 ? rs[e.parent] : null;
+      r = { x: (o ? o.x : 0) + X[i], y: (o ? o.y : 0) + Y[i], w: SW[i], h: SH[i] };
+    }
+    rs[i] = r;
+    rects.set(e.id, r);
     x = Math.min(x, r.x);
     y = Math.min(y, r.y);
     x2 = Math.max(x2, r.x + r.w);
@@ -702,107 +892,119 @@ function build(lib: SysMLModelLibrary, model: Model, view: ModelView, far: boole
   }
   const bounds: Rect = { x, y, w: x2 - x, h: y2 - y };
 
-  // The lines: not hidden, both ends placed, in the model's order. Their points are made when a border item asks.
-  type Line = { rel: ModelRelationship; row: LineRow; a: End; b: End; how: 'straight' | 'elbow'; points?: Point[] };
-  const lines: Line[] = [];
-  const byEnd = new Map<string, Line[]>();
-  const addEnd = (id: string, line: Line): void => {
-    const list = byEnd.get(id);
-    if (list) list.push(line);
-    else byEnd.set(id, [line]);
-  };
-  for (const rel of model.relationships) {
-    if (rel.hidden) continue;
-    const ra = rects.get(rel.from);
-    const rb = rects.get(rel.to);
-    if (!ra || !rb) continue;
-    const row = lib.RELATIONSHIPS[rel.kind]?.line ?? EMPTY_ROW;
-    const line: Line = { rel, row, a: { ...ra, border: borders.has(rel.from) }, b: { ...rb, border: borders.has(rel.to) }, how: row.route === 'elbow' ? 'elbow' : 'straight' };
-    lines.push(line);
-    addEnd(rel.from, line);
-    if (rel.to !== rel.from) addEnd(rel.to, line);
-  }
-  const pointsOf = (line: Line): Point[] => (line.points ??= route(line.how, line.a, line.b, look).points);
   // drawing.js lineWay: which way the first line drawn from a border item leaves it.
-  const lineWay = (id: string): Point | null => {
-    for (const line of byEnd.get(id) ?? []) {
-      const pts = pointsOf(line);
-      const n = pts.length;
-      const d = line.rel.from === id
-        ? { x: pts[1].x - pts[0].x, y: pts[1].y - pts[0].y }
-        : { x: pts[n - 2].x - pts[n - 1].x, y: pts[n - 2].y - pts[n - 1].y };
+  const pts = new Map<ReadLine, Point[]>();
+  const pointsOf = (line: ReadLine): Point[] => {
+    let p = pts.get(line);
+    if (!p) pts.set(line, (p = route(line.how, { ...rs[line.from], border: line.fromBorder }, { ...rs[line.to], border: line.toBorder }, look).points));
+    return p;
+  };
+  const lineWay = (i: number): Point | null => {
+    for (const line of entries[i].lines) {
+      const p = pointsOf(line);
+      const m = p.length;
+      const d = line.from === i
+        ? { x: p[1].x - p[0].x, y: p[1].y - p[0].y }
+        : { x: p[m - 2].x - p[m - 1].x, y: p[m - 2].y - p[m - 1].y };
       if (d.x || d.y) return d;
     }
     return null;
   };
 
-  const nodes: PlaneNode[] = entries.map(({ el, row, shape, parent, rect, comps, side }) => {
-    const words = [row.definition ? 'def' : 'usage'];
-    if (el.abstract && side === undefined) words.push('abstract');
-    if (far) words.push('far');
-    const base = { id: el.id, type: shape, handles: HANDLES, className: words.join(' ') };
-    const sized = (width: number, height: number) => ({ width, height, measured: { width, height } });
-    const withParent = parent === undefined ? {} : { parentId: parent };
+  // The nodes, each rule 5's: the object `previous` has for it when it reads the same.
+  const before = previous ? previous.nodes : null;
+  let was: Map<string, PlaneNode> | null = null;
+  const oldOf = (i: number, id: string): PlaneNode | undefined => {
+    if (!before) return undefined;
+    const o = before[i];
+    if (o && o.id === id) return o;
+    if (!was) {
+      was = new Map();
+      for (const node of before) was.set(node.id, node);
+    }
+    return was.get(id);
+  };
+  let same = true;
+  for (let i = 0; i < n; i++) {
+    const e = entries[i];
+    const r = rs[i];
     let data: NodeData;
-    if (BOX_SHAPES.includes(shape)) {
-      data = {
-        form: 'box',
-        far,
-        keyword: far ? '' : keywordOf(shape, el, row),
-        name: far ? '' : nameLine(lib, model, ids, el, row),
-        compartments: far ? [] : comps,
-        glyph: far ? null : shape === 'action' && (el.actionKind === 'send' || el.actionKind === 'accept') ? el.actionKind : null,
-        least: { width: Math.min(80, row.size[0]), height: Math.min(40, row.size[1]) },
-      };
-      const lay = layout[el.id];
-      return { ...base, ...withParent, position: { x: num(lay.x), y: num(lay.y) }, ...sized(rect.w, rect.h), data } as PlaneNode;
+    let px: number;
+    let py: number;
+    let own = true;
+    if (e.border) {
+      const owner = rs[e.parent];
+      px = r.x - owner.x;
+      py = r.y - owner.y;
+      data = { form: 'border', far, side: sides[i], glyph: e.glyph, name: e.name, nameAt: portName(sides[i], lineWay(i), look.port) };
+      own = false;
+    } else {
+      px = X[i];
+      py = Y[i];
+      const comps = rewrapped.get(i);
+      if (comps && !far) { data = { ...(e.data as BoxData), compartments: comps }; own = false; }
+      else data = e.data as NodeData;
     }
-    if (side !== undefined && parent !== undefined) {
-      const raw = row.glyph ? row.glyph(model, el) : 'inout';
-      data = {
-        form: 'border',
-        far,
-        side,
-        glyph: far ? null : raw === 'in' || raw === 'out' || raw === 'inout' ? raw : null,
-        name: far ? '' : nameLine(lib, model, ids, el, row),
-        nameAt: portName(side, lineWay(el.id), look.port),
-      };
-      const owner = rects.get(parent) as Rect;
-      return { ...base, ...withParent, position: { x: rect.x - owner.x, y: rect.y - owner.y }, ...sized(rect.w, rect.h), data } as PlaneNode;
+    const old = oldOf(i, e.id);
+    let node: PlaneNode;
+    if (old && old.type === e.shape && old.parentId === e.parentId && old.className === e.className && old.width === r.w && old.height === r.h
+      && old.position.x === px && old.position.y === py && (old.data === data || sameValue(old.data, data))) {
+      node = old;
+      if (own && old.data !== data) e.data = old.data;
+    } else {
+      node = { id: e.id, type: e.shape, handles: HANDLES, className: e.className, ...(e.parentId === undefined ? {} : { parentId: e.parentId }),
+        position: { x: px, y: py }, width: r.w, height: r.h, measured: { width: r.w, height: r.h }, data } as PlaneNode;
+      if (old) {
+        // A node that only moved or grew says what it said: its component, memoized on `data`, does not render again.
+        if (sameValue(old.data, node.data)) node.data = old.data;
+        if (old.selected !== undefined) node.selected = old.selected;
+        if (old.dragging !== undefined) node.dragging = old.dragging;
+      }
     }
-    const lay = layout[el.id];
-    const named = shape === 'event' ? nameLine(lib, model, ids, el, row) : shape === 'bar' || shape === 'diamond' ? lib.textName(el) || '' : '';
-    data = { form: 'small', far, name: far ? '' : named };
-    return { ...base, ...withParent, position: { x: num(lay.x), y: num(lay.y) }, ...sized(rect.w, rect.h), data } as PlaneNode;
-  });
-
-  const edges: PlaneEdge[] = lines.map(({ rel, row, how, a, b }) => ({
-    id: rel.id,
-    source: rel.from,
-    target: rel.to,
-    type: 'line',
-    className: row.cls,
-    data: {
-      route: how,
-      marker: row.marker ? markerId(row.marker) : null,
-      label: far || !row.label ? '' : row.label(rel, model, ids),
-      labelOffset: row.labelOffset ?? 30,
-      far,
-      sourceBorder: a.border,
-      targetBorder: b.border,
-    },
-  }));
-  return { nodes, edges, rects, bounds };
-}
-
-/** Whether a new node reads the same as the one before it: everything but `selected` and `dragging`. */
-function sameNode(a: PlaneNode, b: PlaneNode): boolean {
-  return a.type === b.type && a.parentId === b.parentId && a.width === b.width && a.height === b.height && a.className === b.className
-    && a.position.x === b.position.x && a.position.y === b.position.y && sameValue(a.data, b.data);
+    if (before && node !== before[i]) same = false;
+    out[i] = node;
+  }
+  return { nodes: out, rects, bounds, same };
 }
 
 function sameEdge(a: PlaneEdge, b: PlaneEdge): boolean {
   return a.type === b.type && a.source === b.source && a.target === b.target && a.className === b.className && sameValue(a.data, b.data);
+}
+
+/** Rule 5 for the edges: each line's edge as a copy of its template, or the object `previous` has when it reads the same. */
+function settleEdges(lines: readonly ReadLine[], previous: Projection | null): { edges: PlaneEdge[]; same: boolean } {
+  let was: Map<string, PlaneEdge> | null = null;
+  if (previous) {
+    was = new Map();
+    for (const edge of previous.edges) was.set(edge.id, edge);
+  }
+  let same = true;
+  const edges = lines.map(({ edge }, i) => {
+    const old = was?.get(edge.id);
+    let out: PlaneEdge;
+    if (old && sameEdge(old, edge)) out = old;
+    else {
+      out = { ...edge };
+      if (old) {
+        if (sameValue(old.data, out.data)) out.data = old.data;
+        if (old.selected !== undefined) out.selected = old.selected;
+      }
+    }
+    if (previous && out !== previous.edges[i]) same = false;
+    return out;
+  });
+  return { edges, same };
+}
+
+/** The projection of a reading and its layout, or `previous` itself (given the new `read`) when nothing differs from it (rule 5). */
+function compose(view: ModelView, read: ProjectionRead, laid: Laid, edges: PlaneEdge[], edgesSame: boolean, previous: Projection | null): Projection {
+  const { far, look } = read;
+  if (previous && laid.same && edgesSame && previous.far === far && sameLook(previous.look, look)
+    && previous.nodes.length === laid.nodes.length && previous.edges.length === edges.length) {
+    if (previous.read !== read) (previous as { read?: ProjectionRead }).read = read;
+    return previous;
+  }
+  return { view: view.id, far, look, nodes: laid.nodes, edges, rects: laid.rects, bounds: laid.bounds, read };
 }
 
 /**
@@ -845,51 +1047,16 @@ export function project(lib: SysMLModelLibrary, model: Model, view: ModelView, o
   const far = options.far === true;
   const look = options.look ?? LOOK;
   const previous = options.previous && options.previous.view === view.id ? options.previous : null;
-  const made: Made = isDrawn(lib, view.kind)
-    ? lib.reading(model, () => build(lib, model, view, far, look, options.places))
-    : { nodes: [], edges: [], rects: new Map(), bounds: null };
-
+  // The two parts, inside lib.reading: what the view reads of the model, then its layout over that and the places.
+  const done = isDrawn(lib, view.kind)
+    ? lib.reading(model, () => {
+      const read = readView(lib, model, view, far, look, options.places);
+      return { read, laid: layOut(lib, model, read, options.places, previous) };
+    })
+    : { read: emptyRead(model, view.id, far, look), laid: { nodes: [], rects: new Map<string, Rect>(), bounds: null, same: true } as Laid };
   // Rule 5: what reads the same as before is the object it was; what changed keeps what React Flow set on it.
-  let same = previous !== null && previous.far === far && sameLook(previous.look, look)
-    && previous.nodes.length === made.nodes.length && previous.edges.length === made.edges.length;
-  let nodes = made.nodes;
-  let edges = made.edges;
-  if (previous) {
-    const was = new Map<string, PlaneNode>();
-    for (const node of previous.nodes) was.set(node.id, node);
-    nodes = made.nodes.map((node, i) => {
-      const old = was.get(node.id);
-      let out = node;
-      if (old) {
-        if (sameNode(old, node)) out = old;
-        else {
-          // A node that only moved or grew says what it said: its component, memoized on `data`, does not render again.
-          if (sameValue(old.data, node.data)) node.data = old.data;
-          if (old.selected !== undefined) node.selected = old.selected;
-          if (old.dragging !== undefined) node.dragging = old.dragging;
-        }
-      }
-      if (out !== previous.nodes[i]) same = false;
-      return out;
-    });
-    const wasEdge = new Map<string, PlaneEdge>();
-    for (const edge of previous.edges) wasEdge.set(edge.id, edge);
-    edges = made.edges.map((edge, i) => {
-      const old = wasEdge.get(edge.id);
-      let out = edge;
-      if (old) {
-        if (sameEdge(old, edge)) out = old;
-        else {
-          if (sameValue(old.data, edge.data)) edge.data = old.data;
-          if (old.selected !== undefined) edge.selected = old.selected;
-        }
-      }
-      if (out !== previous.edges[i]) same = false;
-      return out;
-    });
-    if (same) return previous;
-  }
-  return { view: view.id, far, look, nodes, edges, rects: made.rects, bounds: made.bounds };
+  const { edges, same } = settleEdges(done.read.lines, previous);
+  return compose(view, done.read, done.laid, edges, same, previous);
 }
 
 /**
@@ -946,7 +1113,34 @@ export function projectStep(
   places: ReadonlyMap<string, Place>,
   options: { far?: boolean; previous?: Projection | null } = {},
 ): Projection {
-  return project(lib, model, view, { far: options.far ?? start.far, look: start.look, previous: options.previous ?? null, places });
+  const far = options.far ?? start.far;
+  const previous = options.previous && options.previous.view === view.id ? options.previous : null;
+  const read = start.read;
+  if (!read || read.model !== model || read.view !== view.id || !read.exact || far !== start.far || far !== read.far
+    || !(read.look === start.look || sameLook(read.look, start.look)) || !coversPlaces(read, places)) {
+    return project(lib, model, view, { far, look: start.look, previous: options.previous ?? null, places });
+  }
+  const laid = layOut(lib, model, read, places, previous);
+  const lines = read.lines;
+  let edges: PlaneEdge[] | null = null;
+  if (previous && previous.far === far && previous.edges.length === lines.length) {
+    // No edge reads a place: the edges before are this step's when they are the view's lines.
+    let aligned = true;
+    for (let i = 0; i < lines.length && aligned; i++) aligned = previous.edges[i].id === lines[i].edge.id;
+    if (aligned) edges = previous.edges;
+  }
+  if (edges) return compose(view, read, laid, edges, true, previous);
+  const settled = settleEdges(lines, previous);
+  return compose(view, read, laid, settled.edges, settled.same, previous);
+}
+
+/** Whether every place names a node `read` holds, and is of the form its node takes: a side and `at` for a border item, a box otherwise. */
+function coversPlaces(read: ProjectionRead, places: ReadonlyMap<string, Place>): boolean {
+  for (const [id, place] of places) {
+    const i = read.index.get(id);
+    if (i === undefined || place === null || typeof place !== 'object' || 'side' in place !== read.nodes[i].border) return false;
+  }
+  return true;
 }
 
 /**
@@ -1009,7 +1203,8 @@ export function fit(bounds: Rect | null, width: number, height: number): Viewpor
  *    is dropped: the node moves with its ancestor and keeps its own place.
  * 4. **A box resized** (`resize`): its new rectangle is `position` and `width` by `height`, then held:
  *    - no smaller than the library's least for its kind (`least` of its BoxData: min(80, size[0]) by
- *      min(40, size[1])), no larger than 4000 a side;
+ *      min(40, size[1])), no larger than 4000 a side, or than it is drawn when it is drawn larger (an owner that holds
+ *      more than 4000 units: a cap below its drawn size would move it instead of resizing it);
  *    - no smaller than what it holds: wide enough for each box inside it (its x + its drawn w + pad), high enough for
  *      its header and its compartments as they wrap at the new width, and for each box inside it (y + h + pad),
  *      by project()'s rule 2;
@@ -1111,7 +1306,11 @@ export function placesFor(lib: SysMLModelLibrary, model: Model, view: ModelView,
         const needW = Math.max(least.width, ...(leftHandle
           ? (kids.length > 0 ? [node.width - roomX] : [])
           : kids.map((k) => k.position.x + k.width + look.pad)));
-        const heldW = (w: number): number => Math.min(4000, Math.max(w, needW));
+        // No larger than 4000 a side, or than the box is drawn when it holds more than that (session 25): a cap below its
+        // drawn size would move a box resized from its top or left instead of resizing it.
+        const capW = Math.max(4000, node.width);
+        const capH = Math.max(4000, node.height);
+        const heldW = (w: number): number => Math.min(capW, Math.max(w, needW));
         let w = heldW(want.width);
         let x = want.x;
         if (leftHandle) {
@@ -1122,11 +1321,11 @@ export function placesFor(lib: SysMLModelLibrary, model: Model, view: ModelView,
         const needH = Math.max(least.height, contentHeight(isBox, comps, look), ...(topHandle
           ? (kids.length > 0 ? [node.height - roomY] : [])
           : kids.map((k) => k.position.y + k.height + look.pad)));
-        let h = Math.min(4000, Math.max(want.height, needH));
+        let h = Math.min(capH, Math.max(want.height, needH));
         let y = want.y;
         if (topHandle) {
           if (h !== want.height) y = bottom - h;
-          if (nested && y < look.childTop) { y = look.childTop; h = Math.min(4000, Math.max(bottom - y, needH)); }
+          if (nested && y < look.childTop) { y = look.childTop; h = Math.min(capH, Math.max(bottom - y, needH)); }
         }
         place = { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
         // The boxes inside are placed from the box's corner: each as far the other way as the corner went.
