@@ -1,15 +1,21 @@
 // Everything under the top bar (data-testid "dock"): Dockview with the two strips, their side panels, and the editor
-// group holding one tab per view of the open file. Step 5 builds it with every panel an empty state and each view's
-// tab body empty; step 6 puts a plane in each tab (Plane.tsx), step 9 the Explorer, step 10 Details, step 11 Tools,
-// step 12 Validation.
+// group holding one tab per view of the open file. Step 5 built it with every panel an empty state and each view's
+// tab body empty; step 6 put a plane in each tab (Plane.tsx). Each side panel's body is its own file under panels/,
+// which its step builds: Explorer (step 9), Details (10), Tools (11), Validation (12).
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DockviewReact, themeLight } from 'dockview-react';
 import type {
   DockviewApi, DockviewGroupPanelApi, DockviewReadyEvent, IDockviewPanelHeaderProps, IDockviewPanelProps, IWatermarkPanelProps,
 } from 'dockview-react';
 import type { ModelView, Session } from '../core';
+import { DetailsPanel } from '../panels/Details';
+import { ExplorerPanel } from '../panels/Explorer';
+import { ToolsPanel } from '../panels/Tools';
+import { ValidationPanel } from '../panels/Validation';
 import { Plane } from '../plane/Plane';
+import { DockContext, useDock } from './dockContext';
+import type { DockState } from './dockContext';
 import { EmptyCard } from './EmptyCard';
 import { TAB_BAR_HEIGHT } from './theme';
 
@@ -114,8 +120,10 @@ export interface DockProps {
  *   from readLayout(localStorage), each size fitted to the dock (fitSide); then the side panels join them with
  *   `position: { referenceGroup }`, in the order of LEFT_PANELS and RIGHT_PANELS, the record's `front` made active.
  *   Never `api.clear()`: it empties the edge groups.
- * - Each side panel's body is an empty state for now, as wide as its panel: Explorer's root carries data-testid
- *   "explorer", Details's "details" (helpers.mjs, TESTIDS). Tools and Validation say what step brings them.
+ * - Each side panel's body is its component under panels/ (COMPONENTS below), as wide as its panel, inside SidePanel
+ *   (panels/SidePanel.tsx): its root carries data-testid "explorer", "tools", "validation" or "details" (helpers.mjs,
+ *   TESTIDS). A panel reads the open file through useDock() (dockContext.ts). The dock makes each once, in onReady,
+ *   and Dockview keeps it mounted while its tab is hidden or its side collapsed.
  * - Strips: names run up the left strip, first name on top; the name of the view that is shown is teal, and none is
  *   while its side is collapsed. A click on the name in front collapses the side to its strip; a click on a name
  *   opens it (Dockview's own behaviour for edge groups).
@@ -137,8 +145,17 @@ export interface DockProps {
  * - With no group in the editor, Dockview's `watermarkComponent` shows EmptyCard: with no file, "Open a model"; with
  *   a file, also how many of its views are closed and "Show the views again", which adds back only the views with no
  *   panel (adding a live panel's id throws), into the editor.
- * - Panel bodies, the watermark and the tab component are module-level components that read a context Dock provides,
- *   so their identities never change between renders.
+ * - Panel bodies, the watermark and the tab component are module-level components that read a context Dock provides
+ *   (DockContext in dockContext.ts), so their identities never change between renders.
+ * - **Step 9** (plan/swarm/step-9.md): `showView` of the context opens a view's tab or brings it forward, as
+ *   DockState says; and the dock tells the session's selection which view is in front (selectionOf(session).front):
+ *   the view of the view panel that Dockview made active last (`api.onDidActivePanelChange`, for a panel whose id
+ *   begins `view:`; a side panel made active changes nothing), and null once that panel is closed with no other view
+ *   panel taking its place, or when another file is opened.
+ * - **Step 10** (plan/swarm/step-10.md): a view's tab is titled viewTitle(view) at every moment: when the session's
+ *   history tells of a change that touched a view (`told.touched.views`, or `told.views === null`), the panel of each
+ *   view that has one gets its title again (`panel.api.setTitle`), so a name typed into Details shows on the tab as
+ *   it is typed.
  */
 export function Dock({ session, onOpen }: DockProps): JSX.Element {
   const root = useRef<HTMLDivElement>(null);
@@ -150,7 +167,7 @@ export function Dock({ session, onOpen }: DockProps): JSX.Element {
   }, [api, session]);
   const context = useMemo<DockState>(() => {
     const closed = api && session ? session.model.views.filter((view) => !api.getPanel(viewPanelId(view.id))).length : 0;
-    return { session, onOpen, showViews, closed };
+    return { session, onOpen, showViews, closed, showView };
     // `panels` is here for its changes only: a panel added or removed changes what getPanel answers.
   }, [api, session, onOpen, showViews, panels]);
 
@@ -193,33 +210,16 @@ export function Dock({ session, onOpen }: DockProps): JSX.Element {
 // ---------------------------------------------------------------------------------------------------------------------
 // What the panels read.
 
-interface DockState {
-  session: Session | null;
-  onOpen: () => void;
-  showViews: () => void;
-  /** How many of the session's views have no tab anywhere, in the editor or floating over it. */
-  closed: number;
-}
-const DockContext = createContext<DockState>({ session: null, onOpen: () => {}, showViews: () => {}, closed: 0 });
+// Step 9 builds it: DockState in dockContext.ts says what it does. Nothing calls it until the Explorer does.
+const showView = (_viewId: string): void => {
+  throw new Error('Dock.showView: step 9 builds it');
+};
 
 const VIEW_PREFIX = 'view:';
 const isSidePanel = (id: string): boolean => (LEFT_PANELS as readonly string[]).includes(id) || (RIGHT_PANELS as readonly string[]).includes(id);
 const SIDES = ['left', 'right'] as const;
 type Side = (typeof SIDES)[number];
 
-function EmptyState({ testId, title, text }: { testId?: string; title: string; text: string }): JSX.Element {
-  return (
-    <div className="grasp-side-body" data-testid={testId}>
-      <div className="grasp-side-title">{title}</div>
-      <div className="grasp-side-text">{text}</div>
-    </div>
-  );
-}
-
-const ExplorerPanel = (): JSX.Element => <EmptyState testId="explorer" title="Explorer" text="The model's tree comes in step 9." />;
-const ToolsPanel = (): JSX.Element => <EmptyState title="Tools" text="The view's tools come in step 11." />;
-const ValidationPanel = (): JSX.Element => <EmptyState title="Validation" text="The model's problems come in step 12." />;
-const DetailsPanel = (): JSX.Element => <EmptyState testId="details" title="Details" text="The selection's fields come in step 10." />;
 // A view's tab draws `params.session`'s view `params.viewId` (ViewParams says why not the context's session).
 const ViewPanel = ({ params }: IDockviewPanelProps<ViewParams>): JSX.Element => <Plane session={params.session} viewId={params.viewId} />;
 
@@ -242,7 +242,7 @@ function SideTab({ api }: IDockviewPanelHeaderProps): JSX.Element {
 const TAB_COMPONENTS = { side: SideTab };
 
 function Watermark(_props: IWatermarkPanelProps): JSX.Element {
-  const { session, onOpen, showViews, closed } = useContext(DockContext);
+  const { session, onOpen, showViews, closed } = useDock();
   const file = session ? { name: session.name, views: session.model.views.length, closed } : null;
   return <EmptyCard file={file} onOpen={onOpen} onShowViews={showViews} />;
 }

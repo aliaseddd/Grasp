@@ -1,8 +1,11 @@
 // Screenshots of the new page, for looking at: `npm run shots` writes them into canvas/app/shots/, and
-// `npm run shots -- shell` writes only the ones named. Each step from 6 to 12 adds rows to SHOTS (example, nodes, scale,
-// palette, about). A shot is { name, step, take(page) }: take() gets the page as it opens, 1400 x 900 at device scale
-// 2, and writes the PNG itself, into OUT. A shot with `picker: false` gets a page without showOpenFilePicker, for
-// openStateFile.
+// `npm run shots -- shell` writes only the ones named. A shot is { name, step, take(page, out) }: take() gets the page
+// as it opens, 1400 x 900 at device scale 2, and writes the PNG itself, into `out` (canvas/app/shots/). A shot with
+// `picker: false` gets a page without showOpenFilePicker, for openStateFile.
+//
+// The shots of steps 5 to 7 (shell, example, nodes) are rows of SHOTS below. Each shot of steps 8 to 12 (scale,
+// palette, about) is a file of its own under shots/, which its step writes, so that no two steps change one file. A
+// shot marked `pending: true` is not built yet: `npm run shots` leaves it out and says so, and naming it runs it.
 
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -11,6 +14,10 @@ import {
   boxOf, byTestId, collapseSides, EXAMPLE, frame, modelOf, openStateFile, PAGE_URL, planeOf, ROOT, selectBox, soon, stateFileAt, TESTIDS,
   untilDrawn, viewTab, FIXTURES,
 } from './helpers.mjs';
+
+import about from './shots/about.mjs';
+import palette from './shots/palette.mjs';
+import scale from './shots/scale.mjs';
 
 const INTERCONNECTION = path.join(FIXTURES, 'interconnection.json');
 
@@ -105,12 +112,16 @@ export const SHOTS = [
       await page.screenshot({ path: path.join(OUT, 'nodes.png') });
     },
   },
+  scale,
+  palette,
+  about,
 ];
 
 async function main(names) {
   const unknown = names.filter((name) => !SHOTS.some((shot) => shot.name === name));
   if (unknown.length) throw new Error(`No shot is named ${unknown.join(', ')}. The shots: ${SHOTS.map((shot) => shot.name).join(', ')}.`);
-  const chosen = SHOTS.filter((shot) => !names.length || names.includes(shot.name));
+  const chosen = SHOTS.filter((shot) => (names.length ? names.includes(shot.name) : !shot.pending));
+  for (const shot of SHOTS) if (!names.length && shot.pending) console.log(`Left out ${shot.name}.png: step ${shot.step} builds it.`);
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch();
   try {
@@ -131,7 +142,7 @@ async function main(names) {
           await document.fonts.ready;
           await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         });
-        await shot.take(page);
+        await shot.take(page, OUT);
         console.log(`Wrote ${path.relative(ROOT, path.join(OUT, `${shot.name}.png`))}`);
       } finally {
         await context.close();

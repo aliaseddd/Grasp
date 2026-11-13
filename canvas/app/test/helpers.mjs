@@ -52,6 +52,11 @@ export const TESTIDS = {
   details: 'details', // what the Details panel shows
   plane: 'plane', // a view's plane, the body of its tab; its data-view is the view's id
   field: (name) => `field-${name}`, // a field of Details, by its name in the library's FIELDS: the input, or what holds it
+  tools: 'tools', // what the Tools panel shows (step 11)
+  validation: 'validation', // what the Validation panel shows (step 12)
+  palette: 'palette', // the right-click menu of a plane (step 11)
+  toast: 'toast', // a toast: what the page says in passing, such as why a tool was refused (step 11)
+  aboutPanel: 'about-panel', // the About panel (step 12); `about` above is the bar's button that opens it
 };
 
 /** A data-testid selector. */
@@ -530,3 +535,65 @@ export async function zoomTo(page, view, id, wanted) {
 
 /** A point of a box where its header is blank, 24 by 14 of the view's units in from its corner, as selectBox clicks. */
 export const headerOf = (box) => ({ x: box.x + 24 * box.zoom, y: box.y + 14 * box.zoom });
+
+// Added for steps 9 to 12 (plan/swarm/shared.md, "What the tests share"): a file opened in one call, the side panels,
+// the Explorer's rows, a field of Details, and the bar's Undo and Redo.
+
+/** Opens the page without the file picker and a state file ({ name, buffer }) in it. Returns what openPage returns. */
+export async function openIn(browser, file, options = {}) {
+  const opened = await openPage(browser, { ...options, picker: false });
+  await openStateFile(opened.page, file);
+  return opened;
+}
+
+/** The side panels by the name their strip shows, and the data-testid of each one's root. */
+export const SIDES = { Explorer: TESTIDS.explorer, Tools: TESTIDS.tools, Validation: TESTIDS.validation, Details: TESTIDS.details };
+
+/**
+ * Shows a side panel, by its name on its strip ('Explorer', 'Tools', 'Validation' or 'Details'): when its root is not
+ * drawn (another panel of its strip is in front, or its side is collapsed), a click on its name brings it to the
+ * front and opens the side. A panel that is shown already is left alone, since a click on the name in front would
+ * collapse its side.
+ */
+export async function showSide(page, name) {
+  const testid = SIDES[name];
+  assert.ok(testid, `No side panel is named ${name}. The side panels: ${Object.keys(SIDES).join(', ')}.`);
+  const shown = () => page.evaluate((selector) => {
+    const el = document.querySelector(selector);
+    return !!el && el.getBoundingClientRect().width >= 1 && el.getBoundingClientRect().height >= 1;
+  }, byTestId(testid));
+  if (await shown()) return;
+  await page.getByRole('tab', { name, exact: true }).click();
+  await soon(page, shown, `A click on ${name} on its strip did not show the ${name} panel (data-testid "${testid}").`);
+}
+
+/**
+ * The selector of a row of the Explorer (step 9): the element that holds the row's words and takes its click. It
+ * carries data-row, "<type>:<id>": `type` is 'package', 'view', 'el' or 'rel', and `id` the view's, the element's or
+ * the relationship's id ('' for the package's one row).
+ */
+export const rowOf = (type, id = '') => `${byTestId(TESTIDS.explorer)} [data-row=${JSON.stringify(`${type}:${id}`)}]`;
+/** A row of the Explorer, as a locator: its words (textContent) and its click. */
+export const rowIn = (page, type, id = '') => page.locator(rowOf(type, id));
+/** The tree item a row belongs to (ARIA role treeitem), which carries aria-selected and, when it has rows inside it, aria-expanded. */
+export const rowItemIn = (page, type, id = '') => rowIn(page, type, id).locator('xpath=ancestor::*[@role="treeitem"][1]');
+
+/**
+ * A field of Details (step 10), by its name in the library's FIELDS, as a locator: the <input> or <textarea> that
+ * carries data-testid "field-<name>" or lies inside what carries it; the first, when a field has several (radio
+ * buttons).
+ */
+export function fieldIn(page, name) {
+  const field = byTestId(TESTIDS.field(name));
+  return page.locator(byTestId(TESTIDS.details)).locator(`input${field}, textarea${field}, ${field} input, ${field} textarea`).first();
+}
+
+/** Clicks the bar's Undo, or its Redo, and gives the page a frame. The button must be enabled: a click on a disabled one fails. */
+export async function undo(page) {
+  await page.locator(byTestId(TESTIDS.undo)).click({ timeout: WAIT });
+  await frame(page);
+}
+export async function redo(page) {
+  await page.locator(byTestId(TESTIDS.redo)).click({ timeout: WAIT });
+  await frame(page);
+}

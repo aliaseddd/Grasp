@@ -8,10 +8,14 @@
 // (canvas/app/test/core.mjs).
 
 import type { EdgeChange, NodeChange } from '@xyflow/react';
-import { FAR, fit, isDrawn, notDrawnText, placesFor, project } from '../core';
+import { FAR, fit, isDrawn, linesDrawn, notDrawnText, placesFor, project, projectStep } from '../core';
 import type { Ask, PlaneEdge, PlaneNode, Projection, Session, Told, Viewport } from '../core';
 
-/** What a plane renders. A new object only when something in it changed; `nodes` and `edges` each likewise. */
+/**
+ * What a plane renders. A new object only when something in it changed; `nodes` and `edges` each likewise. `nodes` is
+ * the projection's nodes. `edges` is the projection's edges while the adapter's linesDrawn(nodes.length, far) is
+ * true, and one empty array, the same each time, while it is false.
+ */
 export interface ViewSnapshot {
   readonly nodes: PlaneNode[];
   readonly edges: PlaneEdge[];
@@ -53,7 +57,8 @@ export interface ViewSnapshot {
  *   start, whatever the later steps do. Each step adds its asks (the
  *   adapter's Ask: `move` for a position, `resize` for a resizer's position and size, the size kept until it changes
  *   again) to the gesture's asks by node id, works out the adapter's placesFor(lib, model, view, start, asks), and
- *   projects the view with those `places` and the projection before as `previous`; a node React Flow reports as
+ *   projects the view with those `places` and the projection before as `previous`, through the adapter's
+ *   projectStep(lib, model, view, start, places, { far, previous }); a node React Flow reports as
  *   dragging keeps `dragging: true`. Its subscribers are called once a step. Nothing is written to the model during a
  *   gesture, and the session's history hears nothing.
  * - **A gesture's end.** A `position` change with `dragging` false, or a `dimensions` change with `resizing` false,
@@ -70,6 +75,13 @@ export interface ViewSnapshot {
  * - React Flow's `remove`, `add` and `replace` changes, and `dimensions` with no `resizing` (React Flow measuring a
  *   node it was told the size of), change nothing: the model is changed only through the history.
  * - A view the model no longer holds, and a view of a kind no plane draws, have the empty snapshot.
+ * - **Step 9: what is selected is the session's selection** (core/selection.ts; plan/swarm/step-9.md), no longer
+ *   React Flow's own, kept view by view. A node carries `selected: true` when selectionOf(session).has('el', its id)
+ *   and an edge when has('rel', its id), in every view that shows it; no other node or edge is selected. The store
+ *   sets this after every projection and after every change of the selection it hears (selection.listen): a new
+ *   object for each node or edge whose `selected` differs, in a new array, every other the object it was. A live
+ *   store then tells its subscribers, once; a store with no subscriber sets it at its next getSnapshot(). A `select`
+ *   change from React Flow changes nothing by itself: step-9.md says which of them the store turns into picks.
  * - **A projection that throws** (a model the adapter cannot read) leaves the store showing what it showed, until
  *   the next change that can have altered its view projects again. It does not keep the session's other stores from
  *   hearing the change: each store hears it, and the first error is thrown on to the history, which reports it.
@@ -119,6 +131,8 @@ interface Gesture {
 }
 
 const EMPTY: ViewSnapshot = { nodes: [], edges: [], far: false };
+/** What a snapshot has for `edges` while the adapter's linesDrawn says no line is drawn. */
+const NO_EDGES: PlaneEdge[] = [];
 
 type Hear = (told: Told) => void;
 
@@ -188,7 +202,8 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   const adopt = (): void => {
     const p = projection;
     if (!p) { snapshot = EMPTY; return; }
-    if (snapshot.nodes !== p.nodes || snapshot.edges !== p.edges || snapshot.far !== p.far) snapshot = { nodes: p.nodes, edges: p.edges, far: p.far };
+    const edges = linesDrawn(p.nodes.length, p.far) ? p.edges : NO_EDGES;
+    if (snapshot.nodes !== p.nodes || snapshot.edges !== edges || snapshot.far !== p.far) snapshot = { nodes: p.nodes, edges, far: p.far };
   };
 
   /** Projects again when stale. Returns whether the snapshot is a new object. */
@@ -206,7 +221,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
       const open = gesture && gesture.passed && !gesture.cancelled ? gesture : null;
       if (open) {
         const { places } = placesFor(session.lib, session.model, view, open.start, [...open.asks.values()]);
-        projection = dragged(project(session.lib, session.model, view, { far, previous: projection, places }), open);
+        projection = dragged(projectStep(session.lib, session.model, view, open.start, places, { far, previous: projection }), open);
       } else {
         projection = project(session.lib, session.model, view, { far, previous: projection });
       }
@@ -303,7 +318,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   const step = (view: View, g: Gesture): void => {
     if (!projection) return;
     const { places } = placesFor(session.lib, session.model, view, g.start, [...g.asks.values()]);
-    projection = dragged(project(session.lib, session.model, view, { far, previous: projection, places }), g);
+    projection = dragged(projectStep(session.lib, session.model, view, g.start, places, { far, previous: projection }), g);
     adopt();
     tell();
   };

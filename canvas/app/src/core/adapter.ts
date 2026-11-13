@@ -165,6 +165,27 @@ export function fitMargins(width: number, height: number): { pad: number; band: 
   return { pad, band: hasMinimap(width, height) ? FIT_BAND : pad };
 }
 
+/**
+ * A view of more nodes than this is a large view. Its plane mounts only what its window shows (Plane.tsx,
+ * `onlyRenderVisibleElements`): React Flow culls a node by its own rectangle and a line by its two nodes', with no
+ * margin, so a name outside its node and a line's label leave with them while still in the window, and a view of few
+ * nodes is therefore not culled at all. Step 8 also leaves a large view's lines out while it is far (linesDrawn).
+ */
+export const LARGE_VIEW = 300;
+
+/**
+ * Whether a plane draws the lines of a view of `nodes` nodes that is `far` or near: what a view's store hands its
+ * plane as `edges` is the projection's edges when this is true and none when it is false (plane/viewStore.ts).
+ *
+ * Until step 8 it is always true. Step 8 (plan/swarm/step-8.md, change 2): false for a large view (more than
+ * LARGE_VIEW nodes) while it is far, true otherwise. A projection always holds every edge, far or near.
+ */
+export function linesDrawn(nodes: number, far: boolean): boolean {
+  void nodes;
+  void far;
+  return true;
+}
+
 // ---- What crosses to the store and to React Flow.
 
 /** The 13 shapes, which are a plane's node types. */
@@ -848,6 +869,29 @@ export function project(lib: SysMLModelLibrary, model: Model, view: ModelView, o
     if (same) return previous;
   }
   return { view: view.id, far, look, nodes, edges, rects: made.rects, bounds: made.bounds };
+}
+
+/**
+ * A step of a gesture: the view projected with the gesture's `places`, as a view's store asks at every step of a drag
+ * or a resize (plane/viewStore.ts). `start` is the projection the gesture began from, and the model has not changed
+ * since `start` was made: a change of the model in the middle of a gesture cancels it.
+ *
+ * It gives what `project(lib, model, view, { far, look: start.look, previous, places })` gives, by value and by
+ * object: the same nodes, edges, rects and bounds, each node and edge the object rule 5 makes it. `far` is
+ * `options.far`, or `start.far` when that is not given; `previous` is `options.previous`, or none.
+ *
+ * Until step 8 it calls project(), which reads the whole view from the model again. Step 8 (plan/swarm/step-8.md,
+ * change 1) works a step out from what `start` read of the model, and reads the model only for what `places` name.
+ */
+export function projectStep(
+  lib: SysMLModelLibrary,
+  model: Model,
+  view: ModelView,
+  start: Projection,
+  places: ReadonlyMap<string, Place>,
+  options: { far?: boolean; previous?: Projection | null } = {},
+): Projection {
+  return project(lib, model, view, { far: options.far ?? start.far, look: start.look, previous: options.previous ?? null, places });
 }
 
 /**
