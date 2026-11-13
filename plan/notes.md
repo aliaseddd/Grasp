@@ -3016,3 +3016,90 @@ the `doc` title 2 px under its rule, the turn in the line from `app` to `App`, a
 plane (the band the minimap stands in). The second still names `mount` and the ports' names first, then the two dots
 of a defined-by line (about 2 px on screen at 92.6%), the `doc` title, the grey of the keywords and of the strips'
 names, and the minimap 15 px from `DevHost`. Those are kept for slice 7, with session 20's list for `shell.png`.
+
+### The review's fixes: tests, each seen to fail
+
+The fixes were built by my hand, each smaller than its brief, in `adapter.ts`, `viewStore.ts`, `Plane.tsx`,
+`SmallNode.tsx` and `app.css`. Their tests were written by two agents, each in a worktree of its own, in new files so that no two
+writers shared one.
+
+**`fit.test.mjs` (Node, 5) and `small.test.mjs` (the page, 5)**, written against stubs before the fixes existed (3.7
+min, 22 tool calls); all ten failed on the stubs for the reason listed, and passed against my fixes when the two met.
+
+| Test | Failed before the fix with |
+|---|---|
+| a fitted view's margins follow its plane | the pad 48 and the band 180 whatever the size |
+| a view fitted into any plane lies inside it, clear of its margins | the bounds pushed out of the small planes |
+| a view still as fitted is fitted again when its plane's size changes | `sized` giving nothing |
+| a view somebody has placed stays when its plane's size changes, until it is fitted again | the same; and with `moved` never marking the view as placed |
+| a refit that crosses 25% tells the plane, far or near | no refit, no far snapshot |
+| a view nobody has moved follows its plane's size | the zoom staying at 54.4% when the sides collapse, not 92.6% |
+| a view somebody has panned stays where it was put when its plane's size changes | after Fit, the view not following again |
+| a narrow plane has no minimap, and a wide one has | the minimap always drawn |
+| a click on a port's name selects the port, and on a control node's name the node | nothing selected |
+| the zoom buttons and the fit button show the theme's focus ring | the browser's ring |
+
+One existing test changed: the adapter's test of `fit` took 90 by 828 and four more windows for ones with no room,
+which they no longer are; it now takes windows with no side, or too small for 2%.
+
+**`sturdy.test.mjs` (Node, 3) and `gestures.test.mjs` (the page, 5)**, written after the fixes, so each was seen to
+fail the other way round, with its fix broken (3.8 min, 20 tool calls). All eight passed as built and failed broken:
+
+| Test | Its fix broken | Failed with |
+|---|---|---|
+| a place that is not an object places nothing and throws nothing | the check of the place taken out of `build()` | "Cannot read properties of null (reading 'w')" |
+| a store whose projection throws does not keep the session's other stores from hearing the change | the try around each store's hearing taken out | "The other view's subscriber must be called once although v-ic's projection threw before it." |
+| a watcher is told when its view stops being drawn, and watching does not make the store live | the watchers never called; `watch` adding to the subscribers | "A view that becomes a kind no plane draws must call its watcher once."; "A rename must call no watcher." |
+| a name outside its node stays drawn while its node is just outside the plane | every view culled | "The node of System.tank.fuelOut left the document … while its name, 93 px wide, is still partly inside it." |
+| a view of thousands of nodes mounts only what its window shows | `CULL_OVER` a thousand million | "mounts 1544 of the 1544 nodes the view places" |
+| Shift with a drag draws no rectangle and leaves nothing over the boxes | `selectionKeyCode` left at React Flow's | "the plane draws a selection rectangle" |
+| a press that moves 3 px before its release still selects the box | `paneClickDistance` left at React Flow's | "did not select the box" |
+| a hidden tab's body is out of the document and holds no React Flow | the gate mounting whatever the size | "The plane of a hidden tab, out of the document, still holds 1 React Flow." |
+
+The last is the test the second reviewer asked for: `plane.test.mjs`'s "a tab that is hidden holds no React Flow"
+counts nodes through the document, which a hidden tab's body has left, so it passes with or without the gate. The
+stores hear the history in the order they were made, so the second test makes the failing view's store first, and
+says so.
+
+### What session 20 left not done, done
+
+- **`Look.snap` has a test**: "an elbow whose ends are no more than `snap` out of line is one straight stroke, at the
+  far end's centre", over the four directions at 1, 2 and 4 px out of line, the step at 4.5 and 5, the old page's
+  measures, and the example's line from `hosts` to `Host`. Seen to fail with `snap` ignored, and with `<` for `<=`.
+  The rule changes seven lines of the ten files, two of them in `behavior-actions.json`.
+- **The timed tests' own breakages**, by an agent in a worktree (1.9 min): 600 ms of work before the first render
+  gives 803.5 ms against 500; a second's wait before the first projection 1,056.2 ms against 1,000; 120 ms of work
+  as a plane mounts 149.5 ms against 100. Each failed its own test and no other. The second fails by the 50 ms the
+  drawing takes: a wait of 950 ms would pass.
+- **What the other test files cost the timed tests.** The three tests now say their median and samples as a `#` line
+  of the runner's output. By the median of three runs, with nothing else running on the machine:
+
+  | | Limit | Alone (`node --test canvas/app/test/instant.test.mjs`) | In `npm test` |
+  |---|---|---|---|
+  | The page is ready | 500 ms | 208.5 ms | 238.5 ms |
+  | The example is drawn | 1,000 ms | 49.8 ms | 77.1 ms |
+  | A switch of tab | 100 ms | 33.7 ms | 35.1 ms |
+
+  So the files go on running side by side, and `package.json` does not change.
+- **Three runs of `npm test` in a row**, at the step's last code: 161 tests, 156 pass, 0 fail, 5 todo each, in 41, 38
+  and 39 s. The suite was 135 tests when the session began; the 26 more are 1 for `snap`, 7 for the wrap, 10 for
+  session 20's review and 8 for this session's.
+- The worktrees and the local branch `wip/step-6` went with session 20's container.
+
+### For the next session
+
+- Step 7, from `plan/slice-1.md` and session 17's design ("The four steps"). Nothing waits for Damon.
+- Before step 7 takes the todo mark off "a drag step takes under 16 ms at 5,000 elements", it must see that test
+  fail: today it passes with nothing dragged (session 20's review, item 6).
+- Step 7 makes boxes draggable: `paneClickDistance` and the 2 or 3 px a press still pans can then go, and a drag's
+  steps must leave a view "as fitted" or not on purpose (`store.sized` reads only what `moved` was told).
+- Step 8 needs both levers session 20 measured: a minimap of our own, and no lines below 25%.
+- Step 9 turns the marquee on: `selectionKeyCode` is `null` until then.
+- If `@fontsource/roboto` changes version, `node canvas/app/test/roboto-widths.mjs` writes the table again; a test
+  fails until it does.
+- The branch is one commit of history ahead of what `main` reverted (`e191ddf`), then this session's commits. No
+  pull request is open: #46 was merged and reverted. A new one carries the whole of step 6.
+
+The method's log, this session: three test writers (6.1, 3.7 and 3.8 min), one breakage pass (1.9 min), two reviewers
+of the image (2.1 and 2.2 min) and one of the code (16 min); every fix and the wrap's rule written by me. Rework:
+none went back to an agent. One agent was sent out three times before it could start, on a worktree made from `main`.
