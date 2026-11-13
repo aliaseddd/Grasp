@@ -2839,3 +2839,45 @@ closed. A later session must not take these as done:
 The method's log: test writers 2.7, 8.1 and 14.3 min; the adapter 4.3 min; the planes 12 min; breakage passes 2.8 and
 4.3 min; the shell's look 3.7 min. Rework: one test, on a wrong claim of the outline's (mine); five weak or missing
 tests found by the breakage passes, written by me. Nothing went back to an implementer.
+
+### Step 6: the independent review, which came after the commit
+
+A reviewer on this session's model, given the diff and the plan's step 6 and section 4 but not the outline, with its
+scripts and screenshots in the session's scratchpad (gone with the container). The five test files passed for it, 56
+of 56. **None of these is fixed.** Each was reproduced in the built page unless it says otherwise.
+
+1. **Step 8's pan limit will not hold with the minimap drawn.** `scale.test.mjs` at this commit: a pan step of 21,
+   17.5 and 30 ms for the three views, against 16. On scratch builds, by the median of 5 rounds (definitions,
+   deployment, workflows): as built 14.7, 13.6, 34.7 ms; without `<MiniMap>` 11.0, 9.8, 25.6; without it and with no
+   lines while far 8.4, 7.2, 14.7; with it and no lines while far, workflows 18.8. The time is React Flow's
+   subscriptions per node and per edge; `app.js` takes 0.4 ms a step. So step 8 needs both levers: a minimap of our
+   own, which session 17 kept in reserve, and no lines below 25%.
+2. **A floated tab shows nothing usable.** Dockview passes the plane through 100 by 244 px, where a view never shown is
+   fitted, at 2%, for good; one shown before keeps the big tab's camera and draws no node. Fit then gives 3.8%, since
+   `FIT_PAD` and `FIT_BAND` keep 228 of 244 px free whatever the plane's size.
+3. **Under about 256 px of width the minimap covers the zoom and fit buttons.** At 800 by 600 in a fresh browser the
+   plane is 168 px wide; the example opens there at 6%, and at 1024 by 700 at 22%, as wordless outlines.
+4. After a split or a change of the window's size the view stays cut off until Fit is clicked: the contract's "a
+   later change of size fits nothing", reported for judging.
+5. **A port's name takes no click**, and a click on it clears the selection (`.grasp-port-svg` takes no pointer); the
+   square is 8.7 px at the fitted zoom.
+6. **The scale test's drag check passes with no dragging built** (4.0 ms): the press pans, and the test only asks
+   where the box is on screen. Step 7 or 8 takes its todo mark off and must make it fail first.
+7. The build defines `NODE_ENV` as production, which strips React's and React Flow's warnings, so "nothing logged"
+   cannot see them. A development copy logged nothing in the same scenarios: a blind spot, not a fault.
+8. The three control buttons show the browser's focus ring, not the theme's teal one.
+
+What held up: tabs switched, closed and shown again; eleven files opened over one another and the same one twice,
+with sessions, stores and planes all collected and no listener left; the first fit in 7 window sizes; both zoom
+limits; far and near at exactly 25%; clicks on a box, a nested box, a port, a line, a label and the ground; the
+5,000-element model opening in 0.56 s with every node and edge drawn, none of the application's components rendering
+on a pan and nothing projected. A switch of tab there takes 0.5 to 1.4 s, and crossing 25% one frame of 85 to 130 ms.
+
+### For the next session
+
+- Damon's word on `example.png`'s item 6 (one shared triangle, or lines spread), then the retaken image rated.
+- Faults 2, 3, 5 and 8 above are step 6's to fix: fit margins that follow the plane's size, a refit when a view was
+  fitted into less than it is shown in, a minimap that gives way in a narrow plane, a port's name that takes the
+  click, the teal ring on the controls. 1 and 6 belong to steps 8 and 7.
+- A test of `Look.snap`; the timed tests' breakages; three runs of `npm test` in a row.
+- Pull request #46 carries the branch.
