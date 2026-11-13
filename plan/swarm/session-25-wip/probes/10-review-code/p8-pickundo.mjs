@@ -1,0 +1,18 @@
+import { launch, openIn, stateFileAt, EXAMPLE, modelOf, untilDrawn, pickBox, fieldIn, steps, undone, active, tick, log, showSide, showTab, el } from './lib.mjs';
+const VIEW = modelOf(EXAMPLE).views[0];
+const browser = await launch();
+const o = await openIn(browser, stateFileAt(EXAMPLE));
+const { page } = o;
+await untilDrawn(page, VIEW);
+await showSide(page, 'Details');
+await pickBox(page, VIEW, 'Page.hosts');
+await showTab(page, 'Core');
+await fieldIn(page, 'name').click(); await page.keyboard.press('End'); await page.keyboard.type('Z'); await page.keyboard.press('Tab'); await tick(page);
+await fieldIn(page, 'type').click(); await tick(page, 2);
+await page.locator('[role="listbox"] [role="option"][data-option="ServerHost"]').click(); await tick(page, 3);
+const typing = () => page.evaluate(() => window.Grasp.session.model.relationships.find((r) => r.id === 't-hosts').to);
+log('before Ctrl+Z', { steps: await steps(page), active: await active(page), name: (await el(page, 'Page.hosts')).name, typedBy: await typing() });
+await page.keyboard.press('Control+z'); await tick(page, 3);
+log('after Ctrl+Z', { steps: await steps(page), undone: await undone(page), active: await active(page), name: (await el(page, 'Page.hosts')).name, typedBy: await typing() });
+log('problems', o.problems);
+await browser.close();
