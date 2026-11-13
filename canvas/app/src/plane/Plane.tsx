@@ -72,13 +72,14 @@ export interface PlaneProps {
  * - **The pointer and the keyboard.** A border item's name and a small node's name take the pointer, so a click on a
  *   name selects its node (app.css). The zoom buttons and the fit button show the theme's focus ring, teal,
  *   `--grasp-focus-width` wide, inside the button.
- * - **A press** (any button's mousedown) on the ground, a node or a line, heard by a capturing listener on the root,
- *   has its default prevented, unless it is on something that takes typing: so the browser starts no text selection's
- *   drag, whose handling of each move of the pressed mouse was a third of a pan step at 2,112 nodes (session 28). The
- *   listener then moves the focus as the press would have: to the press's nearest focusable ancestor (FOCUSABLE; in a
- *   tab, Dockview's content element, whose focus makes its group active), unless it holds it already; with none, the
- *   element that holds the focus lets it go. The zoom buttons, the fit button and the minimap are outside React Flow's
- *   pane, and their presses are left as they are.
+ * - **A press** of the main button (a mousedown, heard by a capturing listener on the root) on the ground, a node or a
+ *   line, and not on something that takes typing, has its default prevented when the focus is already where the press
+ *   would put it: on the press's nearest focusable ancestor (FOCUSABLE; in a tab, Dockview's content element), or,
+ *   with none, on nothing. So the browser starts no text selection's drag, whose handling of each move of the pressed
+ *   mouse was a third of a pan step at 2,112 nodes (session 28). A press that must move the focus keeps its default:
+ *   the browser moves the focus, as a press of the pointer (which `:focus-visible` and Dockview's group both hear), and
+ *   that one gesture pays for the drag. The plane focuses nothing by script. Other buttons' presses, and presses on
+ *   the zoom buttons, the fit button and the minimap, which are outside React Flow's pane, are left as they are.
  * - Nothing of Grasp's renders on a viewport change: `moved` is the store's, and the component reads no viewport.
  *
  * What the plane takes from each of steps 8 to 12 (plan/swarm/shared.md, "What the plane takes from each step"):
@@ -153,24 +154,19 @@ export function Plane({ session, viewId }: PlaneProps): JSX.Element {
   const openPalette = useCallback((at: PaletteAt) => setPalette(at), []);
   const noBrowserMenu = useCallback((event: ReactMouseEvent) => event.preventDefault(), []);
 
-  // A press on the ground or on what lies on it starts no text selection's drag: Chromium handles every move of a
-  // pressed mouse as one, which at 2,112 mounted nodes cost about 5 ms of each step of a pan (plan/notes.md, sessions
-  // 25 and 28). Preventing the press's default also keeps it from moving the focus, so the plane moves it as the
-  // browser would have: to the nearest focusable element around the press (Dockview's content, which makes its group
-  // active), or away from whatever held it.
+  // A press of the main button on the ground or on what lies on it starts no text selection's drag when it need not
+  // move the focus: Chromium handles every move of a pressed mouse as such a drag, which at 2,112 mounted nodes cost
+  // about 5 ms of each step of a pan (plan/notes.md, sessions 25 and 28). A press that must move the focus keeps its
+  // default, so that the browser moves it as a press of the pointer, which :focus-visible hears as one.
   useEffect(() => {
     const el = root.current;
     if (!el) return undefined;
     const pressed = (event: MouseEvent): void => {
       const target = event.target instanceof Element ? event.target : null;
-      if (!target || !target.closest('.react-flow__pane') || target.closest(TYPED_INTO)) return;
-      event.preventDefault();
-      const to = target.closest<HTMLElement>(FOCUSABLE);
-      if (to) {
-        if (document.activeElement !== to) to.focus({ preventScroll: true });
-      } else if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur();
-      }
+      if (event.button !== 0 || !target || !target.closest('.react-flow__pane') || target.closest(TYPED_INTO)) return;
+      const to = target.closest(FOCUSABLE);
+      const active = document.activeElement;
+      if (to ? active === to : !active || active === document.body) event.preventDefault();
     };
     el.addEventListener('mousedown', pressed, true);
     return () => el.removeEventListener('mousedown', pressed, true);
