@@ -79,9 +79,19 @@ export interface PlaneProps {
  *   one Hit (core/selection.ts) and goes through one function of this file, `clicked(hit)`: from React Flow's
  *   onPaneClick (the ground), onNodeClick (a node, wherever in it) and onEdgeClick (a line), with `at` from
  *   screenToFlowPosition and `add` from the event's ctrlKey or metaKey. `clicked` calls
- *   selectionOf(session).click(hit). React Flow's own `select` changes pick nothing; a marquee (Shift + drag) is the
- *   one gesture whose picks come from React Flow, and step-9.md says how. What is selected on the plane is what the
- *   store's snapshot says, from the session's selection.
+ *   selectionOf(session).click(hit). React Flow's own `select` changes pick nothing (the store's contract says what
+ *   it does with them). The props that change: `selectionKeyCode="Shift"`, `selectionMode={SelectionMode.Full}`,
+ *   `multiSelectionKeyCode` the constant `['Control', 'Meta']`, and the three click callbacks, each the same function
+ *   at every render. A marquee (Shift + drag, begun anywhere on the plane) is the one gesture whose picks come from
+ *   React Flow, and they come from its rectangle, not from its changes: a child component of ReactFlow subscribes to
+ *   React Flow's own store (useStoreApi) and, while `userSelectionActive` is true, hands each new
+ *   `userSelectionRect`, turned into the view's units with the state's `transform`, to the store's marquee(rect). The
+ *   same subscriber sets React Flow's `nodesSelectionActive` back to false whenever it finds it true, so the
+ *   rectangle React Flow would leave around the picked boxes, which lies over them and takes their clicks, is never
+ *   drawn. And the click that ends a marquee is no click: a flag set while a marquee is drawn and cleared at the next
+ *   pointerdown on the root (a capturing listener) makes the three callbacks do nothing, since React Flow lets that
+ *   click through to a node when Shift is let go before the button. The marquee's look is marquee.css, beside this
+ *   file. What is selected on the plane is what the store's snapshot says, from the session's selection.
  * - **Step 11, the tool in hand and the palette** (plan/swarm/step-11.md, "The plane's part"; core/commands.ts, Tools).
  *   - `clicked(hit)` offers the click to the tool first: `if (!toolsOf(session).click(hit)) selectionOf(session).click(hit)`.
  *     Nothing else of step 9's picking changes.

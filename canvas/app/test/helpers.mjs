@@ -569,13 +569,18 @@ export async function showSide(page, name) {
 
 /**
  * The selector of a row of the Explorer (step 9): the element that holds the row's words and takes its click. It
- * carries data-row, "<type>:<id>": `type` is 'package', 'view', 'el' or 'rel', and `id` the view's, the element's or
- * the relationship's id ('' for the package's one row).
+ * carries data-row, "<type>:<id>": `type` is 'package', 'view', 'el', 'rel' or 'more', and `id` the view's, the
+ * element's or the relationship's id ('' for the package's one row; for 'more', a "Show more" row, the row id of the
+ * row whose list it ends: rowOf('more', 'package:')).
  */
 export const rowOf = (type, id = '') => `${byTestId(TESTIDS.explorer)} [data-row=${JSON.stringify(`${type}:${id}`)}]`;
 /** A row of the Explorer, as a locator: its words (textContent) and its click. */
 export const rowIn = (page, type, id = '') => page.locator(rowOf(type, id));
-/** The tree item a row belongs to (ARIA role treeitem), which carries aria-selected and, when it has rows inside it, aria-expanded. */
+/**
+ * The tree item a row belongs to (ARIA role treeitem), which carries aria-selected ("true" or "false"; none on the
+ * package's row and on a "Show more" row), aria-current "true" on the row of the view in front, and, when it has rows
+ * inside it, aria-expanded. The Explorer sets aria-selected on its own row: MUI X Tree View 8 would say aria-checked.
+ */
 export const rowItemIn = (page, type, id = '') => rowIn(page, type, id).locator('xpath=ancestor::*[@role="treeitem"][1]');
 
 /**

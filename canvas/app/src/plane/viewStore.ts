@@ -81,7 +81,20 @@ export interface ViewSnapshot {
  *   sets this after every projection and after every change of the selection it hears (selection.listen): a new
  *   object for each node or edge whose `selected` differs, in a new array, every other the object it was. A live
  *   store then tells its subscribers, once; a store with no subscriber sets it at its next getSnapshot(). A `select`
- *   change from React Flow changes nothing by itself: step-9.md says which of them the store turns into picks.
+ *   change from React Flow picks nothing, ever. But React Flow has by then changed its own record of the nodes the
+ *   change names (a click sets `selected` there before it tells), and it takes a node's record from the store again
+ *   only with a new object. So each node or edge that a `select` change names, and that the projection holds, gets a
+ *   new object that reads as the selection says, in a new array, and the subscribers are told once for the call;
+ *   without this a later drag would move the boxes React Flow's records call selected, not the picked ones. A
+ *   `select` change that names nothing the projection holds changes nothing and tells nobody.
+ * - **Step 9: the marquee.** marquee(rect) picks what a rectangle covers, in the view's own units from the view's
+ *   origin; the plane calls it at each move of React Flow's selection rectangle (plan/swarm/step-9.md). The nodes of
+ *   the snapshot whose whole rectangle (the projection's `rects`) lies inside `rect`, its edges counting as inside,
+ *   are picked as elements, in the snapshot's order; then the edges of the snapshot both of whose ends are among
+ *   those nodes, as relationships, in the snapshot's order. It calls selectionOf(session).set() with that list, or
+ *   with the view alone (`[{ type: 'view', id: viewId }]`) when no node is covered. So what is picked is what the
+ *   rectangle covers at that moment and nothing else, and a rectangle that covers what the last one did tells
+ *   nobody. An edge the snapshot leaves out (linesDrawn) is not picked.
  * - **Step 11** changes nothing in this file: a first end's mark is the plane's own (Plane.tsx).
  * - **A projection that throws** (a model the adapter cannot read) leaves the store showing what it showed, until
  *   the next change that can have altered its view projects again. It does not keep the session's other stores from
@@ -115,6 +128,8 @@ export interface ViewStore {
   nodesChanged(changes: NodeChange<PlaneNode>[]): void;
   /** React Flow's onEdgesChange. */
   edgesChanged(changes: EdgeChange<PlaneEdge>[]): void;
+  /** The marquee's rectangle now, in the view's own units from the view's origin: picks what it covers (step 9). */
+  marquee(rect: { x: number; y: number; width: number; height: number }): void;
 }
 
 /** How far, in screen px, the pointer must go from where a drag or a resize began before it is a gesture and not a click. */
@@ -468,6 +483,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
     sized,
     nodesChanged,
     edgesChanged,
+    marquee: () => { throw new Error('ViewStore.marquee: step 9 builds it'); },
   };
 }
 

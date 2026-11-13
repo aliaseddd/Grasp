@@ -20,8 +20,9 @@ export interface Picked {
 }
 
 /**
- * What a click on a plane hit. `plane/Plane.tsx` makes one for every click that is not the end of a drag: on the
- * ground, on a node (anywhere inside it, its name outside it included), or on a line (its label included).
+ * What a click on a plane hit. `plane/Plane.tsx` makes one for every click that is not the end of a drag or of a
+ * marquee: on the ground, on a node (anywhere inside it, its name outside it included), or on a line (its label
+ * included).
  */
 export interface Hit {
   /** The id of the view the plane shows. */
@@ -44,7 +45,9 @@ export interface Hit {
  *   is in it twice. A new session's is empty.
  * - **What can be picked** is what the model holds: an element whose id is in `model.elements`, a relationship in
  *   `model.relationships`, a view in `model.views`. An item that names nothing is never picked: set() and toggle()
- *   leave it out without a word.
+ *   leave it out without a word. Whether the model holds an id is answered from an index of its ids, made when first
+ *   needed and again after a change that altered the structure, never by searching the model at each call: a
+ *   marquee calls set() at every move.
  * - **`set(items)`** picks exactly these, the first of them the last picked. An item given twice counts once, where
  *   it first stands. When the list that comes of it reads the same as `items` (the same types and ids in the same
  *   order), nothing changes and nobody is told. set([]) lets everything go.
@@ -70,7 +73,10 @@ export interface Selection {
   /** The last picked, `items[0]`, or null: what Details shows. */
   readonly last: Picked | null;
   readonly view: string | null;
-  /** Whether the element, relationship or view of this id is picked. */
+  /**
+   * Whether the element, relationship or view of this id is picked. It does not search the list: a plane asks it for
+   * every node and line it draws, after every projection.
+   */
   has(type: PickedType, id: string): boolean;
   set(items: readonly Picked[]): void;
   toggle(item: Picked): void;

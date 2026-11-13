@@ -46,7 +46,7 @@ The comments in `plane/Plane.tsx` and `plane/viewStore.ts` carry this, at the en
 | Step | What it gives the plane | Where |
 |---|---|---|
 | 8 | A gesture's step projected from what the gesture's start read (`projectStep`). No lines for a large view while it is far (`linesDrawn`). A minimap of our own (`PlaneMiniMap`). | `core/adapter.ts`, `plane/MiniMap.tsx`. The store and the plane call these already, so step 8 changes neither `viewStore.ts` nor `Plane.tsx`. |
-| 9 | The selection: flags from it, `clicked(hit)`, the marquee, Ctrl or ⌘ + click, the ground's click. | `plane/Plane.tsx`, `plane/viewStore.ts` |
+| 9 | The selection: flags from it, `clicked(hit)`, the marquee (`marquee(rect)` of the store), Ctrl or ⌘ + click, the ground's click. | `plane/Plane.tsx`, `plane/viewStore.ts`, `plane/marquee.css` |
 | 10 | Nothing. A name typed into Details reaches a box through the history, the store and the adapter, as every change does. | |
 | 11 | The tool before the pick in `clicked(hit)`; the right-click palette. | `plane/Plane.tsx`, `plane/Palette.tsx` |
 | 12 | Nothing. | |
@@ -58,6 +58,8 @@ A task owns a file only as `tasks.json` says. This table is why.
 | File | Changed by | How two steps keep apart |
 |---|---|---|
 | `canvas/app/src/plane/Plane.tsx`, `plane/viewStore.ts` | Step 9, then step 11 | Step 11's task needs step 9's. Step 8 changes neither (section 4). |
+| `canvas/app/src/panels/explorerRows.ts`, `panels/explorer.css`, `canvas/app/src/plane/marquee.css` | Step 9 only | The plan does not name them; `step-9.md` says why each exists. |
+| `canvas/app/test/viewStore.test.mjs`, `canvas/app/test/gestures.test.mjs` | Step 9's test tasks only (tests restated, and added) | Step 8's tests of the store are in a file of their own, `step.test.mjs`. |
 | `canvas/app/src/shell/Dock.tsx` | Step 9 (`showView`, the view in front), then step 10 (a view's tab follows its name) | Step 10's task needs step 9's. Both contracts are at the end of `Dock`'s comment. |
 | `canvas/app/src/shell/App.tsx` | Step 9 only (`window.Grasp.selection`) | Toasts and About are rendered already. |
 | `canvas/app/src/shell/TopBar.tsx` | Step 10 (the Undo and Redo keys act from a checkbox and a radio button), then step 12 (About enabled) | Step 12's task needs step 10's. |
@@ -83,9 +85,13 @@ A task owns a file only as `tasks.json` says. This table is why.
 | `TESTIDS.palette`, `TESTIDS.toast`, `TESTIDS.aboutPanel` | The right-click menu of a plane, a toast, the About panel (`about-panel`; `TESTIDS.about` is the bar's button). |
 | `openIn(browser, file, options)` | Opens the page without the picker and a state file in it. |
 | `showSide(page, name)` | Shows a side panel by its name on its strip, and leaves alone one that is shown already. |
-| `rowOf(type, id)`, `rowIn(page, type, id)`, `rowItemIn(page, type, id)` | A row of the Explorer. The element that holds the row's words and takes its click carries `data-row="<type>:<id>"`, with type `package`, `view`, `el` or `rel`. The tree item around it (ARIA role `treeitem`) carries `aria-selected`, and `aria-expanded` when rows are inside it. |
+| `rowOf(type, id)`, `rowIn(page, type, id)`, `rowItemIn(page, type, id)` | A row of the Explorer. The element that holds the row's words and takes its click carries `data-row="<type>:<id>"`, with type `package`, `view`, `el`, `rel` or `more` (a "Show more" row: its id is the row id of the row whose list it ends). The tree item around it (ARIA role `treeitem`) carries `aria-selected` ("true" or "false"; none on the package's row and on a "Show more" row), `aria-current="true"` on the row of the view in front, and `aria-expanded` when rows are inside it. The Explorer sets `aria-selected` on rows of its own: MUI X Tree View 8 would say `aria-checked`. A row's text is its keyword, its name and its type: `«part def» Host`. |
 | `fieldIn(page, name)` | A field of Details by its name in the library's `FIELDS`: the `<input>` or `<textarea>` that carries `data-testid="field-<name>"` or lies inside what carries it. |
 | `undo(page)`, `redo(page)` | A click on the bar's Undo or Redo. |
+| `saysIn(page)`, `shownIn(page)`, `nothingPicked(page)`, `untilShown(page, type, id, how)`, `NO_FILE`, `NOTHING_PICKED` | What Details says while it shows no form, what it shows the form of (`"<type>:<id>"`), and the wait until it shows an item (`step-10.md`, section 3). |
+| `pickRow(page, type, id)`, `pickBox(page, view, id)` | Picks by a click on a row of the Explorer, or on a box's header on its plane, and waits until Details shows it. |
+| `wordsOf(page, 'undo' or 'redo')` | The words of the step the bar's Undo would take back or its Redo make again, or null. |
+| `showTab(page, name)`, `rowOfField(page, field)` | A tab of Details, and a field's row on the tab shown. |
 
 `canvas/app/test/core.mjs` gained `loadWith(...files)`: the core and the named modules of `canvas/app/src/` in one bundle for a Node test, as `loadPlanes()` does for the view's store.
 

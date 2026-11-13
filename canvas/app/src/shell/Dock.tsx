@@ -148,10 +148,16 @@ export interface DockProps {
  * - Panel bodies, the watermark and the tab component are module-level components that read a context Dock provides
  *   (DockContext in dockContext.ts), so their identities never change between renders.
  * - **Step 9** (plan/swarm/step-9.md): `showView` of the context opens a view's tab or brings it forward, as
- *   DockState says; and the dock tells the session's selection which view is in front (selectionOf(session).front):
- *   the view of the view panel that Dockview made active last (`api.onDidActivePanelChange`, for a panel whose id
- *   begins `view:`; a side panel made active changes nothing), and null once that panel is closed with no other view
- *   panel taking its place, or when another file is opened.
+ *   DockState says: `panel.api.setActive()` for a view that has a panel, and for one that has none a tab added as
+ *   addViews adds a missing one, in front; it changes no selection and leaves the keyboard's focus where it is. And
+ *   the dock tells the session's selection which view is in front (selectionOf(session).front), by one rule applied
+ *   to Dockview's state whenever it may have changed: when the effect that follows `api` and `session` starts, at
+ *   every `api.onDidActivePanelChange` and at every `api.onDidRemovePanel`. If `api.activePanel` is a view's panel of
+ *   this session (its id begins `view:` and its params' session is the session), that view is in front; otherwise the
+ *   view that was in front stays while it still has a panel; otherwise none is (null). So a side panel made active
+ *   changes nothing, a closed tab hands on to the tab Dockview puts in its place or to none, and the panels of a
+ *   file that was open before are passed over while the dock takes them away. Dockview hands a new listener of
+ *   onDidActivePanelChange the last event at once; the rule gives the same answer however often it is asked.
  * - **Step 10** (plan/swarm/step-10.md): a view's tab is titled viewTitle(view) at every moment: when the session's
  *   history tells of a change that touched a view (`told.touched.views`, or `told.views === null`), the panel of each
  *   view that has one gets its title again (`panel.api.setTitle`), so a name typed into Details shows on the tab as

@@ -215,7 +215,7 @@
       "8-checks-close"
     ],
     "model": "lead",
-    "effort": null,
+    "effort": "high",
     "status": "open"
   }
 ]
