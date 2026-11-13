@@ -26,6 +26,8 @@ export const ACTIONS = [
 ] as const;
 export type ActionId = (typeof ACTIONS)[number]['id'];
 const LABELS = Object.fromEntries(ACTIONS.map((action) => [action.id, action.label])) as Record<ActionId, string>;
+/** Input types that take no typing: their own undo is not meant, so the bar's keys act from them. */
+const NON_TEXT_INPUT = ['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'file', 'color', 'image'];
 
 export interface TopBarProps {
   /** The open file, or null: its name shows in data-testid "file-name", then a dot while `session.unsaved`. */
@@ -66,7 +68,10 @@ export interface TopBarProps {
  *   checkboxes and radio buttons, which are inputs that take no typing: the keys do not act when the event's target
  *   is a textarea, a select, anything contenteditable, or an input whose `type` is none of checkbox, radio, button,
  *   submit, reset, range, file, color and image; from any other target they act. So with the focus left on a
- *   checkbox that was just ticked, Ctrl or ⌘ + Z takes the tick back. A key that acts prevents the browser's default. Holding Undo's or Redo's key down does one thing per
+ *   checkbox that was just ticked, Ctrl or ⌘ + Z takes the tick back. **Step 10's review** adds one exception to "a text
+ *   field": a field inside an element that carries the attribute `data-history-keys` (the form of Details) is not
+ *   one for these keys, which act from it, since the browser's own undo, one stack for the page's text fields, made an
+ *   earlier typing a new change and took no pick back. A key that acts prevents the browser's default. Holding Undo's or Redo's key down does one thing per
  *   repeat; holding Save's saves once, at the press, since each save without a picked file is a download of its own.
  *   While the page shows a modal dialog (an element with role "dialog" and aria-modal "true": the question before
  *   Open) the keys change nothing behind it: no undo, no redo, no save. Save's default is prevented then too.
@@ -100,7 +105,11 @@ export function TopBar({ session, onOpen, onSave, onAbout: _onAbout }: TopBarPro
       }
       if (!session || modal || !(k === 'z' || k === 'y')) return;
       const target = event.target as HTMLElement | null;
-      if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      // A field of Details (inside an element with data-history-keys) holds what the history holds, so its own undo
+      // would be a second one: from there the keys are the history's.
+      const ours = target !== null && target.closest('[data-history-keys]') !== null;
+      if (!ours && target && (target.isContentEditable || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
+      if (!ours && target && target.tagName === 'INPUT' && !NON_TEXT_INPUT.includes((target as HTMLInputElement).type)) return;
       event.preventDefault();
       if (k === 'y' || event.shiftKey) session.history.redo();
       else session.history.undo();

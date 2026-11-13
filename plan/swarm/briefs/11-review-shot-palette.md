@@ -13,7 +13,7 @@ One image, `canvas/app/shots/palette.png`, 2800 by 1800 pixels: the whole window
 Mark each item **present** or **absent**, and for an absent one say in a sentence what you see instead.
 
 1. One menu is open over the plane: a white panel with a shadow, in front of the boxes.
-2. The menu's top left corner lies inside the box named `Host`, which is headed `«part def»`.
+2. The menu's top left corner lies inside the box named `Host`, which is headed `«abstract part def»` (an abstract definition is headed so, and its name is in italics).
 3. The menu lists, from the top: `part`, `port`, `specializes`, and no other entry.
 4. A thin rule parts the menu in two groups: `part` and `port` above it, `specializes` below it.
 5. The menu's words are in the page's own type (the same face as the tab's title), dark on white, and none is cut off.

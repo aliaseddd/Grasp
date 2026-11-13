@@ -3507,3 +3507,100 @@ Fifty-five agents beside the lead: forty-four Sonnet tasks at medium (21 that wr
 - **Then step 10's closing, from the kept work**: take `plan/swarm/session-25-wip/10-*/` into the tree on top of step 9's commit, fix or keep each finding of `10-review-code` and `10-checks-break` (above) with a test seen to fail first, take the keystroke test's todo mark off, and close it as `plan/swarm/briefs/10-checks-close.md` says. Steps 11 and 12 follow the same way, with step 11's breakage, review and `palette.png` review still to run, and step 12's shell and example shots to retake and rate.
 - **How the swarm was run** is above, and `plan/swarm/session-25-wip/scripts/swarm.mjs` makes a task's worktree from a closed step's commit and the files of the tasks it needs (its paths are this session's).
 - **Two things in the tests to keep in mind**: a library array is not a test array to `node:assert/strict` (copy it first), and `core.mjs`'s bundle is sloppy-mode CommonJS, so a bare method's `this` is `globalThis`.
+
+## Session 26, November 13, 2026: steps 10 to 13 of slice 1, closed from the work session 25 kept aside
+
+On `claude/amazing-hawking-u0rs10`, from `57a8eca` (main, with session 25's two pull requests merged). Damon's word: "Finish slice 1."
+The lead is Claude; this session ran no swarm: the tasks of steps 10 to 12 were all built by session 25 and are in
+`plan/swarm/session-25-wip/`, so each step's closing here took its files into the tree, settled what the reviews of
+session 25 found, and ran the checks, as `plan/swarm/README.md`, "How the lead runs the swarm", 7 says.
+
+The baseline, in this container (Node 22.23.4, 4 processors), before anything was taken in: `npm run check` passes in 6 s;
+`npm test` gives 308 tests, 305 pass, 0 fail, 3 todo, in 140 s: step 9's commit as its notes say.
+
+### Step 10: Details
+
+- **Taken in**: the owned files of the eight finished tasks, from `session-25-wip/10-*/`, on step 9's tree (nothing of
+  theirs was outside what the task owns; `Dock.tsx` was the copy session 25 had re-applied to step 9's reworked one).
+  `fieldHooks.test.mjs` 15 of 15, `details.test.mjs` 9 of 9, `details-fields.test.mjs` 21 of 21, `instant.test.mjs` 5 of 5
+  (the keystroke of the example: median 8.8 ms of 9 samples) passed as taken in.
+- **What `10-review-code` found, and what was done** (each reproduced first, with its probe from
+  `session-25-wip/probes/10-review-code/`, pointed at the main tree, and each with a test seen to fail first):
+  1. *Ctrl + Z in a text field of Details undid another field's typing as a new step.* The browser has one undo stack
+     for the page's text fields. Fixed by making the history's Undo and Redo the keys in Details: the form's root has the
+     attribute `data-history-keys`, and `shell/TopBar.tsx`'s window handler acts from a field inside such an element
+     (it still leaves every other text field, checkbox excepted, to the browser). Test: `details-fields.test.mjs` ›
+     "Ctrl + Z in a field that was not typed into takes back the newest step, undone and not made again as a new step"
+     (failed: "Undo says "Renamed to part def Host", where it should have none").
+  2. *No key took a pick back while the focus stayed in a picker* (its input is a text input, so the bar left the key
+     to the browser, which took an earlier typing back): the same fix. Test: "Ctrl + Z with the focus in a picker takes
+     the pick back, and Ctrl + Y makes it again" (failed: "Ctrl + Z in the picker leaves it holding "ServerHost"").
+  3. *(minor) A click anywhere along a checkbox's row ticked it*: `.grasp-field` is a flex column, which stretched the
+     label to the panel's width (296 px). `details.css`: `.grasp-field .MuiFormControlLabel-root { align-self:
+     flex-start }`. Test: "a click on the empty ground along a checkbox's row changes nothing" (failed: "the label of
+     Is Abstract is 296 px wide, as wide as the panel"). The old test "Ctrl + Z in a text field is the field's own undo"
+     is now "... takes the step of its typing back", and holds unchanged.
+- **Kept, with the reason**: `10-checks-break` found that `details-fields.test.mjs` row 7 cannot see Details' unmount
+  cleanup (the blur on removal ends the run first); the cleanup is a second guard for a removal with no blur, which no
+  gesture was found to make.
+- **The two timed breakages of the closing brief**, alone, each put back after: 20 ms of busy work in the name's
+  `onChange` fails `instant.test.mjs` › "a keystroke in a name of the example takes under 16 ms" (median 27.4 ms) and no
+  other test of the file; `formOf` asking each picker's options outside `lib.reading` fails "a keystroke in a name takes
+  under 50 ms at 5,000 elements" (287.4 / 309.6 ms).
+- **The keystroke test's todo mark is off.** Alone, `node --test --test-name-pattern=keystroke canvas/app/test/scale.test.mjs`:
+  26.9 ms opening a step, 21.3 ms joining one (limit 50).
+- **`npm test` three times in a row, nothing else running**: 357 tests, 355 pass, 0 fail, 2 todo each time (3 min 27 s to
+  3 min 34 s). By run, in ms: the keystroke 29.4 / 25.0, 28.4 / 19.6, 34.2 / 27.3 (opening / joining); a drag step
+  16.0 / 10.1, 12.6 / 9.4, 14.0 / 10.9 (starting / following); a pan step of `definitions` 8.6 / 8.5, 11.7 / 10.9,
+  9.8 / 13.0, of `deployment` 8.5 / 8.6, 10.7 / 7.7, 10.0 / 11.7, of `workflows` 16.5 / 13.7, 13.7 / 17.1, 12.9 / 13.4.
+  The two todo tests (checks 8 and 10) are the drag's and the pan's, which sit at the limit in this container: one run in
+  three is over 16 ms for each; they keep their marks (below, "The two limits").
+
+### Step 11: the Tools view and the right-click palettes
+
+- **Taken in**: the owned files of the eight finished tasks, from `session-25-wip/11-*/`, on step 10's tree. `Plane.tsx` was
+  checked first against step 9's version (the kept one adds 43 lines to it; `viewStore.ts` is step 9's unchanged), so
+  nothing of steps 8 and 9 was lost. `commands.test.mjs` 26 of 26 and `tools-panel.test.mjs` 11 of 11 as taken in;
+  `palette.test.mjs` 11 of 12 and `tools.test.mjs` 9 of 14: the five that failed were faults of the tests, as session 25
+  said, and are fixed (each then seen to pass against the unchanged code): `tools.test.mjs` 1 to 4 compared a library
+  array (`problemsOf`) with a plain one, so `problemsOf` now copies it with `Array.from`; 10 waited for
+  `.grasp-details[data-picked]` with nothing picked, where Details shows only its sentence, so it reads `shownIn(page)`;
+  `palette.test.mjs` 7 clicked the bar's file name by a Playwright locator, whose actionability wait the menu's
+  backdrop defeats, so it clicks at the element's position, as a person does.
+- **`11-checks-break`** (Sonnet, medium; 23.6 min): all 63 rows tried; 57 failed their tests as they should. Six
+  passed: (1) c23, `choose` that arms the kind (a toggle) instead of putting down and taking it: the test never chose
+  a kind already in hand: **fixed**, four lines at the end of `commands.test.mjs` 23, seen to fail under the breakage;
+  (2) l5, a nested element placed at the clamped corner: the test clicked at (184, 100), which a part at (12, 48) also
+  holds: **fixed**, it clicks at (260, 100), seen to fail ("The new part is drawn at 367, 448, 98 by 33, which does not
+  hold the right-click's point 501, 477"); (3) t1, `clicked()` picking the first end before the tool: walk 1 passes
+  alone, since the tool's own pick overwrites it, but `tools.test.mjs` 9 and 10 fail under it, so it is guarded;
+  (4) l7, `stopPropagation` on the menu root's `onContextMenu`: dead protection (the menu is a sibling of the flow, not
+  inside it), no test can see it; (5) p6 as worded (the explicit `aria-pressed` line: MUI's ToggleButton sets it itself;
+  the real breakage, `aria-pressed={undefined}`, fails five tests); (6) p11 as worded (a cleanup on unmount: Dockview
+  detaches the element without unmounting the component; the real breakage, the tool put down when the panel's element
+  leaves the document, fails the target alone). 3, 4, 5 and 6 are kept.
+- **`11-review-code`** (Opus, high; 9.6 min): no serious defect; one small, **kept**: with two views side by side, a
+  click on the plane of a view whose kind lacks the tool in hand puts the tool down without a word and picks the view
+  (Dockview activates the other group on pointerdown, so the tools' listener for the view in front puts the tool down
+  before the click comes, and the click's own sentence, "A general view has no item def tool, so the tool was put
+  down.", can only be reached in the core). `commands.ts`'s contract says that a change of the view in front puts the tool
+  down and says nothing, so the page does what it says. It found sound: every tool of all four kinds from the palette
+  with Undo, Redo and `canvas/check.sh` on the saved files (three tools, interface def, flow and initial node, make a
+  new problem by themselves, which `tools.test.mjs` takes as `adds`); each refusal in the rule's own sentence; Escape
+  from every place the focus can be; an undo in the middle of a line; another file opened; a drag and a marquee with a
+  tool in hand; a right-click on everything a plane holds; the palette at the window's edge (kept 16 px inside); the
+  5,000-element model with a tool in hand (arming about 100 ms; a placement 210 to 240 ms, one long task of 140 to 170
+  ms, since `project()` works the whole view out again; no limit covers it). Its scripts were in `/tmp/review11/` of
+  this container and are not kept.
+- **`palette.png`**, taken by `npm run shots -- palette`, rated by two fresh reviewers (Sonnet) with the image and its list
+  only. The first marked item 2 absent: the list said `Host` is headed `«part def»`, and the example's `Host` is abstract,
+  so the box is headed `«abstract part def»` with its name in italics, as the plan and the old page have it. The list was
+  wrong, not the picture: the wording is corrected in `step-11.md` and in the brief, and a second reviewer, given the
+  corrected list, marked 8 of 8 present. Its other notes, none of them items: Details says "Nothing is picked" under an
+  open menu (a right-click picks nothing, by design); the menu covers the ServerHost box's header; the minimap shows no
+  rectangle of the view.
+- **`npm test` three times in a row, nothing else running**: 420 tests, 418 pass, 0 fail, 2 todo each time (4 min 11 s
+  to 4 min 17 s). By run, in ms: the keystroke 27.9 / 20.5, 28.6 / 26.6, 28.9 / 21.3 (opening / joining); a drag step
+  11.1 / 8.4, 10.2 / 9.0, 15.1 / 11.4 (starting / following); a pan step of `definitions` 9.1 / 8.8, 13.4 / 14.0,
+  9.1 / 8.1, of `deployment` 9.2 / 8.2, 9.5 / 13.1, 9.7 / 8.7, of `workflows` 21.6 / 18.6, 19.6 / 16.1, 13.0 / 12.0.
+  Checks 8 and 10 keep their todo marks (the two limits, below); no check changes status at this step.

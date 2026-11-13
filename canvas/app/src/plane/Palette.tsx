@@ -3,6 +3,10 @@
 // toolsOf(session).offers(hit), and a choice is toolsOf(session).choose(kind, hit) (core/commands.ts), so the menu is
 // one more hand on the session's tools, beside the Tools view. Plane.tsx renders one for its plane (step 11).
 
+import { useEffect, useMemo } from 'react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
+import { Divider, Menu, MenuItem } from '@mui/material';
+import { toolsOf } from '../core';
 import type { Hit, Session } from '../core';
 import './palette.css';
 
@@ -56,6 +60,51 @@ export const NOTHING_HERE = 'Nothing can be made here.';
  *   dialog (its root has no aria-modal), so the bar's keys act while it is open.
  * - It keeps no state but what it lists; the plane holds where it is open.
  */
-export function Palette(_props: PaletteProps): JSX.Element | null {
-  throw new Error('Palette: step 11 builds it');
+export function Palette({ session, at, onClose }: PaletteProps): JSX.Element | null {
+  const open = at !== null;
+  // Worked out once as it opens: the offer follows the hit, not the model changing under the open menu.
+  const groups = useMemo(() => (at ? toolsOf(session).offers(at.hit) : []), [session, at]);
+  useEffect(() => {
+    if (!open) return undefined;
+    return session.history.listen((told) => {
+      if (told.by === 'edit' || told.by === 'undo' || told.by === 'redo') onClose();
+    });
+  }, [session, open, onClose]);
+  if (!at) return null;
+  const items: JSX.Element[] = [];
+  groups.forEach((group, g) => {
+    if (g > 0) items.push(<Divider key={`d${g}`} component="li" />);
+    group.forEach((tool) => {
+      items.push(
+        <MenuItem
+          key={tool.kind}
+          data-tool={tool.kind}
+          onClick={() => { onClose(); toolsOf(session).choose(tool.kind, at.hit); }}
+        >
+          {tool.label}
+        </MenuItem>,
+      );
+    });
+  });
+  if (items.length === 0) items.push(<MenuItem key="nothing" disabled>{NOTHING_HERE}</MenuItem>);
+  const rightClicked = (event: ReactMouseEvent): void => {
+    event.preventDefault();
+    event.stopPropagation();
+    onClose();
+  };
+  return (
+    <Menu
+      open
+      onClose={onClose}
+      anchorReference="anchorPosition"
+      anchorPosition={{ left: at.left, top: at.top }}
+      transitionDuration={0}
+      slotProps={{
+        root: { onContextMenu: rightClicked },
+        list: { dense: true, 'data-testid': 'palette', 'aria-label': 'Make here' } as object,
+      }}
+    >
+      {items}
+    </Menu>
+  );
 }

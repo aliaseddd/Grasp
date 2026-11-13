@@ -1,7 +1,10 @@
 // The toasts: what the page says in passing, at the bottom of the window (plan/slice-1.md, step 11;
 // plan/swarm/step-11.md). Until step 11 builds it, it shows nothing. App renders it once, over the dock.
 
-import type { Session } from '../core';
+import { useState, useSyncExternalStore } from 'react';
+import { Snackbar } from '@mui/material';
+import { toolsOf, type Session } from '../core';
+import { FONT_SIZE, INK, WHITE } from './theme';
 
 export interface ToastsProps {
   /** The open file, or null. */
@@ -46,6 +49,34 @@ export const TOAST_MS = 8000;
  * data-testid "toast" and role "status" (given through `slotProps.content`; Material UI's default there is "alert",
  * which the page keeps for a file that cannot be opened). Its text is the sentence and nothing else.
  */
-export function Toasts(_props: ToastsProps): JSX.Element | null {
-  return null;
+export function Toasts({ session }: ToastsProps): JSX.Element | null {
+  return session === null ? null : <SessionToasts session={session} />;
+}
+
+function SessionToasts({ session }: { session: Session }): JSX.Element | null {
+  const tools = toolsOf(session);
+  const said = useSyncExternalStore(tools.listen, () => tools.said);
+  // Which saying has been let go, and in which session: a new session's counts start over, so `n` alone would not tell.
+  const [gone, setGone] = useState<{ session: Session; n: number } | null>(null);
+  if (said === null || (gone !== null && gone.session === session && gone.n === said.n)) return null;
+  return (
+    <Snackbar
+      key={said.n}
+      open
+      message={said.text}
+      autoHideDuration={TOAST_MS}
+      disableWindowBlurListener
+      transitionDuration={0}
+      anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      onClose={(_event, reason) => { if (reason !== 'clickaway') setGone({ session, n: said.n }); }}
+      sx={{ bottom: '24px !important' }}
+      slotProps={{
+        content: {
+          'data-testid': 'toast',
+          role: 'status',
+          sx: { bgcolor: INK, color: WHITE, fontSize: `${FONT_SIZE}px` },
+        } as object,
+      }}
+    />
+  );
 }

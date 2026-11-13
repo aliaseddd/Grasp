@@ -5,13 +5,14 @@
 import assert from 'node:assert/strict';
 import { after, afterEach, before, describe, test } from 'node:test';
 import {
-  boxOf, closePages, EXAMPLE, finish, FRAMES, headerOf, launch, linesOf, measure, modelOf, moveTiming, openPage, openStateFile, planeOf, sinceGiven, soon, stateFileAt, TEN, untilDrawn, viewTab,
+  boxOf, closePages, EXAMPLE, fieldIn, finish, FRAMES, headerOf, launch, linesOf, measure, modelOf, moveTiming, nodeOf, openPage, openStateFile, planeOf, selectBox, sinceGiven, soon, stateFileAt, TEN, timing, untilDrawn, viewTab,
   withInit,
 } from './helpers.mjs';
 
 const READY_LIMIT = 500; // ms, from the navigation's start to the first painted frame with the top bar
 const DRAWN_LIMIT = 1000; // ms, from the file being given to the painted frame that holds its nodes and its lines
 const DRAG_LIMIT = 16; // ms, from the pointermove to the painted frame that holds Host moved by it
+const KEY_LIMIT = 16; // ms, from the keydown reaching the window to the end of the input event, plus the frame that follows
 const SWITCH_LIMIT = 100; // ms, from the pointerdown on a tab to the painted frame that holds the other view's plane
 
 /** Runs in the page before its scripts: records, in window.__ready, when the first frame with the top bar was painted. */
@@ -195,6 +196,39 @@ describe('how fast the page answers', () => {
     });
     assert.ok(now);
     verdict(t, m, DRAG_LIMIT, 'A step of a drag of Host');
+    await finish(opened);
+  });
+
+  // Host's name is typed after, a letter at a time, in the name field of Details; each keystroke is a sample.
+  test('a keystroke in a name of the example takes under 16 ms', async (t) => {
+    const view = modelOf(EXAMPLE).views[0];
+    const opened = await openPage(browser, { picker: false });
+    const { page } = opened;
+    await openStateFile(page, stateFileAt(EXAMPLE));
+    await viewTab(page, view);
+    await untilDrawn(page, view);
+    await selectBox(page, view, 'Host');
+    const name = fieldIn(page, 'name');
+    await soon(page, async () => (await name.count()) > 0,
+      'Details shows no name field for Host, picked (data-testid "field-name" in "details").');
+    const time = await timing(page, 'keydown', 'input');
+    const m = measure(9, KEY_LIMIT);
+    await name.click();
+    await page.keyboard.press('End');
+    let typed = 'Host';
+    for (let i = 0; i < 9; i++) {
+      const letter = String.fromCharCode(97 + i);
+      m.add(await time(() => page.keyboard.press(letter)));
+      typed += letter;
+    }
+    assert.equal(await name.inputValue(), typed, 'every keystroke reached the name field');
+    const shown = await soon(page, async () => {
+      const text = await page.locator(`${nodeOf(view.id, 'Host')} .grasp-node-name`).first().textContent();
+      return text.includes(typed) ? text : null;
+    }, `The box of Host does not read the name typed into Details, ${typed}.`);
+    assert.ok(shown.includes(typed));
+    verdict(t, m, KEY_LIMIT, 'A keystroke in the name of Host');
+    await page.keyboard.press('Tab');
     await finish(opened);
   });
 });

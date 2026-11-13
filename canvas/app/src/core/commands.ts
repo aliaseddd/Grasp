@@ -14,7 +14,9 @@
 // Nothing here is React's and nothing asks for a browser: the core's tests run it in Node
 // (canvas/app/test/commands.test.mjs).
 
-import type { LineRow } from './adapter';
+import { LOOK, isDrawn, project } from './adapter';
+import type { LineRow, Projection, Rect } from './adapter';
+import { selectionOf } from './selection';
 import type { Model, ModelElement, ModelRelationship } from './history';
 import type { Session } from './session';
 import type { Hit, Picked } from './selection';
@@ -193,8 +195,18 @@ export interface Tool {
  * is left out, and so is a group left empty by that.
  */
 export function toolGroups(lib: SysMLModelLibrary, viewKind: string): Tool[][] {
-  void lib; void viewKind;
-  throw new Error('toolGroups: step 11 builds it');
+  const l = lib as unknown as CommandsLibrary;
+  const row = l.VIEW_KINDS[viewKind];
+  if (!row || !isDrawn(lib, viewKind)) return [];
+  const groups: Tool[][] = [[]];
+  for (const name of row.tools) {
+    if (name === '|') { groups.push([]); continue; }
+    const el = l.KINDS[name];
+    const rel = l.RELATIONSHIPS[name];
+    if (el) groups[groups.length - 1].push({ kind: name, type: 'el', label: el.label });
+    else if (rel) groups[groups.length - 1].push({ kind: name, type: 'rel', label: rel.label });
+  }
+  return groups.filter((group) => group.length > 0);
 }
 
 /**
@@ -204,8 +216,16 @@ export function toolGroups(lib: SysMLModelLibrary, viewKind: string): Tool[][] {
  * it is an element kind, and 'Click the first end…' then 'Now click the other end.' when it is a relationship kind.
  */
 export function toolHint(lib: SysMLModelLibrary, kind: string, step: 0 | 1): string {
-  void lib; void kind; void step;
-  throw new Error('toolHint: step 11 builds it');
+  const l = lib as unknown as CommandsLibrary;
+  const hint = TOOL_HINT[kind];
+  let text: string;
+  if (kind in l.RELATIONSHIPS) {
+    if (typeof hint === 'string') text = hint;
+    else text = (hint ?? ['Click the first end…', 'Now click the other end.'])[step];
+  } else if (typeof hint === 'string') text = hint;
+  else if (hint) text = hint[step];
+  else text = `Click where the ${l.KINDS[kind]?.label ?? kind} goes.`;
+  return text.replace('{definable}', l.definable());
 }
 
 // ---- What a command makes.
@@ -223,8 +243,112 @@ export type Outcome =
  * every start node is named start1 for the page's own use.
  */
 export function freeName(lib: SysMLModelLibrary, model: Model, kind: string, ownerId: string | null): string {
-  void lib; void model; void kind; void ownerId;
-  throw new Error('freeName: step 11 builds it');
+  const l = lib as unknown as CommandsLibrary;
+  const base = BASE_NAME[kind] ?? kind;
+  const taken = new Set(l.childrenOf(model, ownerId).map((el) => l.textName(el)));
+  let i = 1;
+  while (taken.has(base + i)) i++;
+  return base + i;
+}
+
+// ---- Helpers shared by place(), draw() and the tools.
+
+/** A new id: the letter, the time in ms in base 36, five characters of Math.random in base 36; made again while taken. */
+function newId(letter: string, taken: (id: string) => boolean): string {
+  let id: string;
+  do id = letter + Date.now().toString(36) + Math.random().toString(36).slice(2, 7).padEnd(5, '0');
+  while (taken(id));
+  return id;
+}
+
+/** Gives `item` the starting value of a field, by its row in FIELDS (the old page's blankField). */
+function blankField(l: CommandsLibrary, item: Record<string, unknown>, field: string): void {
+  const spec = l.FIELDS[field];
+  if (!spec || spec.stored === false) return;
+  if (spec.fresh) item[field] = spec.fresh();
+  else if (spec.type === 'bool') item[field] = false;
+  else if (spec.type === 'enum') item[field] = spec.values?.[0];
+  else item[field] = '';
+}
+
+const clamp = (n: number, low: number, high: number): number => Math.min(high, Math.max(low, n));
+const holds = (r: Rect, p: { x: number; y: number }): boolean => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+
+type Plan =
+  | { readonly refused: string }
+  | { readonly owner: ModelElement | null; readonly place: Record<string, unknown> };
+
+/** Where an element of `kind` would go at `hit`, or why not: what place() does before it writes. */
+function plan(l: CommandsLibrary, model: Model, projection: Projection, view: Model['views'][number], kind: string, hit: Hit): Plan {
+  const row = l.KINDS[kind];
+  const ids = l.idsOf(model);
+  const p = hit.at;
+  const under = hit.type === 'el' && hit.id !== null ? ids.get(hit.id) ?? null : null;
+
+  const boxUnder = (): ModelElement | null => {
+    let best: { el: ModelElement; area: number } | null = null;
+    for (const node of projection.nodes) {
+      const el = ids.get(node.id);
+      const r = projection.rects.get(node.id);
+      if (!el || !r || !Array.isArray(l.KINDS[el.kind]?.contains) || !l.canContain(el.kind, kind) || !holds(r, p)) continue;
+      if (!best || r.w * r.h < best.area) best = { el, area: r.w * r.h };
+    }
+    return best ? best.el : null;
+  };
+
+  if (row.onBorder) {
+    let owner: ModelElement | null;
+    if (under) {
+      if (l.canContain(under.kind, kind)) owner = under;
+      else if (l.KINDS[under.kind]?.onBorder) {
+        const up = under.owner !== undefined ? ids.get(under.owner) ?? null : null;
+        owner = up && l.canContain(up.kind, kind) ? up : null;
+      } else owner = boxUnder();
+    } else owner = boxUnder();
+    const r = owner ? projection.rects.get(owner.id) : undefined;
+    if (!owner || !r || !view.layout[owner.id]) {
+      return { refused: kind === 'ParameterUsage'
+        ? 'Click an action def or an action in this view to put a parameter on its border.'
+        : `Click a part def or a part in this view to put a ${row.label} on its border.` };
+    }
+    const sides = [
+      { side: 'top', dist: Math.abs(p.y - r.y), at: (p.x - r.x) / r.w },
+      { side: 'bottom', dist: Math.abs(p.y - (r.y + r.h)), at: (p.x - r.x) / r.w },
+      { side: 'left', dist: Math.abs(p.x - r.x), at: (p.y - r.y) / r.h },
+      { side: 'right', dist: Math.abs(p.x - (r.x + r.w)), at: (p.y - r.y) / r.h },
+    ];
+    let near = sides[0];
+    for (const d of sides) if (d.dist < near.dist) near = d;
+    return { owner, place: { side: near.side, at: Math.round(clamp(near.at, 0.05, 0.95) * 100) / 100 } };
+  }
+
+  const owner = boxUnder();
+  const home = NODE_HOME[kind];
+  if (home) {
+    const ok = owner !== null && (home === 'action' ? l.isActionOwner(owner.kind)
+      : home === 'state' ? l.isStateOwner(owner.kind)
+      : l.isActionOwner(owner.kind) || l.isStateOwner(owner.kind));
+    if (!ok) {
+      const where = home === 'action' ? 'an action def or an action' : home === 'state' ? 'a state def or a state'
+        : 'an action def, an action, a state def or a state';
+      return { refused: `Click inside ${where} to put the ${row.label} there.` };
+    }
+  }
+  const [w, h] = row.size;
+  const r = owner ? projection.rects.get(owner.id) : undefined;
+  if (owner && r) {
+    const y = home ? Math.max(LOOK.childTop, Math.round(p.y - r.y - h / 2)) : Math.max(LOOK.childTop, Math.round(p.y - r.y - 20));
+    return { owner, place: { x: Math.max(LOOK.pad, Math.round(p.x - r.x - w / 2)), y, w, h } };
+  }
+  return { owner: null, place: { x: Math.round(p.x - w / 2), y: Math.round(p.y - 20), w, h } };
+}
+
+/** The view of the model that hit names, which a plane draws; throws for a view the caller should not have named. */
+function drawnView(session: Session, viewId: string, what: string): Model['views'][number] {
+  const view = session.model.views.find((v) => v.id === viewId);
+  if (!view) throw new Error(`${what}: the model holds no view ${viewId}.`);
+  if (!isDrawn(session.lib, view.kind)) throw new Error(`${what}: no plane draws a view of kind ${view.kind}.`);
+  return view;
 }
 
 /**
@@ -287,8 +411,30 @@ export function freeName(lib: SysMLModelLibrary, model: Model, kind: string, own
  * the caller: it throws.
  */
 export function place(session: Session, kind: string, hit: Hit): Outcome {
-  void session; void kind; void hit;
-  throw new Error('place: step 11 builds it');
+  const l = libOf(session);
+  if (!l.KINDS[kind]) throw new Error(`place: ${kind} is no element kind.`);
+  const model = session.model;
+  const view = drawnView(session, hit.view, 'place');
+  const projection = project(session.lib, model, view);
+  const found = plan(l, model, projection, view, kind, hit);
+  if ('refused' in found) return { refused: found.refused };
+
+  const owner = found.owner;
+  const taken = new Set(model.elements.map((e) => e.id));
+  const el: ModelElement = { id: newId('e', (id) => taken.has(id)), kind, name: freeName(session.lib, model, kind, owner ? owner.id : null), doc: '' };
+  for (const field of l.KINDS[kind].fields) if (el[field] === undefined) blankField(l, el, field);
+  if (kind === 'ParameterUsage') el.direction = 'in';
+  else if (el.direction === '' && owner && owner.kind === 'PortDefinition') el.direction = 'out';
+  if (owner) el.owner = owner.id;
+
+  let words = '';
+  session.history.edit(() => {
+    session.model.elements.push(el);
+    session.model.views.find((v) => v.id === view.id)!.layout[el.id] = found.place as never;
+    words = 'Added ' + l.describe(session.model, el);
+    return words;
+  });
+  return { made: { type: 'el', id: el.id }, words };
 }
 
 /**
@@ -320,8 +466,39 @@ export function place(session: Session, kind: string, hit: Hit): Outcome {
  * An id that names no element and a kind that is no relationship kind are mistakes of the caller: it throws.
  */
 export function draw(session: Session, kind: string, fromId: string, toId: string): Outcome {
-  void session; void kind; void fromId; void toId;
-  throw new Error('draw: step 11 builds it');
+  const l = libOf(session);
+  const row = l.RELATIONSHIPS[kind];
+  if (!row) throw new Error(`draw: ${kind} is no relationship kind.`);
+  const model = session.model;
+  const ids = l.idsOf(model);
+  const from = ids.get(fromId);
+  const to = ids.get(toId);
+  if (!from) throw new Error(`draw: no element ${fromId}.`);
+  if (!to) throw new Error(`draw: no element ${toId}.`);
+
+  const first = row.first(model, from, ids);
+  if (first) return { refused: first };
+  if (from.id === to.id) return { refused: 'Pick two different elements.' };
+  if (model.relationships.some((r) => r.kind === kind && r.from === from.id && r.to === to.id)) return { refused: 'That is already drawn.' };
+  const ends = row.ends(model, from, to, ids);
+  if (ends) return { refused: ends };
+
+  const taken = new Set(model.relationships.map((r) => r.id));
+  const rel: ModelRelationship = { id: newId('r', (id) => taken.has(id)), kind, from: from.id, to: to.id };
+  for (const field of row.fields) blankField(l, rel, field);
+
+  let words = '';
+  session.history.edit(() => {
+    const rels = session.model.relationships;
+    if (kind === 'FeatureTyping') {
+      const old = l.typingOf(session.model, session.model.elements.find((e) => e.id === from.id)!);
+      if (old) rels.splice(rels.findIndex((r) => r.id === old.id), 1);
+    }
+    rels.push(rel);
+    words = 'Drew ' + l.describeRel(session.model, rel);
+    return words;
+  });
+  return { made: { type: 'rel', id: rel.id }, words };
 }
 
 // ---- The tool in hand.
@@ -431,6 +608,163 @@ export interface Tools {
  * one to its history.
  */
 export function toolsOf(session: Session): Tools {
-  void session;
-  throw new Error('toolsOf: step 11 builds it');
+  let kept = KEPT.get(session);
+  if (!kept) {
+    kept = makeTools(session);
+    KEPT.set(session, kept);
+  }
+  return kept;
+}
+
+const KEPT = new WeakMap<Session, Tools>();
+
+function makeTools(session: Session): Tools {
+  const l = libOf(session);
+  const sel = selectionOf(session);
+  const listeners = new Set<() => void>();
+  let armed: Tool | null = null;
+  let first: string | null = null;
+  let said: Saying | null = null;
+  let n = 0;
+  let depth = 0;
+  let dirty = false;
+
+  const tell = (): void => {
+    let failed: { error: unknown } | null = null;
+    for (const listener of Array.from(listeners)) {
+      try { listener(); } catch (error) { failed ??= { error }; }
+    }
+    if (failed) throw failed.error;
+  };
+  /** Runs fn; the listeners are told once afterwards when it changed anything, with the state whole. */
+  const batch = <T,>(fn: () => T): T => {
+    depth++;
+    try { return fn(); } finally {
+      depth--;
+      if (depth === 0 && dirty) { dirty = false; tell(); }
+    }
+  };
+  const setArmed = (next: Tool | null): void => { if (next?.kind !== armed?.kind) { armed = next; dirty = true; } };
+  const setFirst = (next: string | null): void => { if (next !== first) { first = next; dirty = true; } };
+  const setSaid = (text: string | null): void => {
+    if (text === null) { if (said !== null) { said = null; dirty = true; } return; }
+    said = { text, n: ++n };
+    dirty = true;
+  };
+  const putDown = (): void => batch(() => { setArmed(null); setFirst(null); setSaid(null); });
+
+  const toolOf = (kind: string): Tool => {
+    if (l.KINDS[kind]) return { kind, type: 'el', label: l.KINDS[kind].label };
+    if (l.RELATIONSHIPS[kind]) return { kind, type: 'rel', label: l.RELATIONSHIPS[kind].label };
+    throw new Error(`arm: the library holds no kind ${kind}.`);
+  };
+  const take = (tool: Tool): void => { setArmed(tool); setFirst(null); setSaid(null); };
+  const arm = (kind: string): void => batch(() => {
+    const tool = toolOf(kind);
+    if (armed && armed.kind === kind) putDown();
+    else take(tool);
+  });
+
+  const viewOf = (id: string) => session.model.views.find((v) => v.id === id);
+  const lists = (viewKind: string, kind: string): boolean => toolGroups(session.lib, viewKind).some((g) => g.some((t) => t.kind === kind));
+
+  const click = (hit: Hit): boolean => {
+    if (!armed) return false;
+    const tool = armed;
+    batch(() => {
+      const view = viewOf(hit.view);
+      if (!view || !isDrawn(session.lib, view.kind)) { putDown(); return; }
+      if (!lists(view.kind, tool.kind)) {
+        putDown();
+        setSaid(`${l.an(l.VIEW_KINDS[view.kind].label, true)} has no ${tool.label} tool, so the tool was put down.`);
+        return;
+      }
+      const ids = l.idsOf(session.model);
+      const element = hit.type === 'el' && hit.id !== null ? ids.get(hit.id) : undefined;
+
+      if (tool.type === 'el') {
+        const out = place(session, tool.kind, hit);
+        if ('refused' in out) { setSaid(out.refused); return; }
+        putDown();
+        sel.set([out.made]);
+        return;
+      }
+      if (!element) {
+        const had = first !== null;
+        putDown();
+        if (had) setSaid('Put down: nothing was drawn.');
+        return;
+      }
+      const taken = first !== null ? ids.get(first) : undefined;
+      if (!taken) {
+        setFirst(null);
+        const problem = l.RELATIONSHIPS[tool.kind].first(session.model, element, ids);
+        if (problem) setSaid(problem + ESCAPE_HINT);
+        else { setFirst(element.id); setSaid(null); }
+        return;
+      }
+      const out = draw(session, tool.kind, taken.id, element.id);
+      if ('refused' in out) { setSaid(out.refused + ESCAPE_HINT); return; }
+      const shown = session.model.views.some((v) => isDrawn(session.lib, v.kind) && v.layout[taken.id] && v.layout[element.id]);
+      putDown();
+      if (!shown) setSaid(out.words + '. No view shows both ends, so the line is not drawn anywhere yet.');
+      sel.set([out.made]);
+    });
+    return true;
+  };
+
+  const offers = (hit: Hit): Tool[][] => {
+    const view = viewOf(hit.view);
+    if (!view || !isDrawn(session.lib, view.kind)) return [];
+    const model = session.model;
+    const ids = l.idsOf(model);
+    const element = hit.type === 'el' && hit.id !== null ? ids.get(hit.id) : undefined;
+    if (hit.type === 'rel' || (hit.type === 'el' && !element)) return [];
+    const projection = project(session.lib, model, view);
+    const kept = (tool: Tool): boolean => {
+      if (tool.type === 'el') {
+        const found = plan(l, model, projection, view, tool.kind, hit);
+        if ('refused' in found) return false;
+        return element ? found.owner?.id === element.id : true;
+      }
+      return element ? l.RELATIONSHIPS[tool.kind].first(model, element, ids) === null : false;
+    };
+    return toolGroups(session.lib, view.kind).map((group) => group.filter(kept)).filter((group) => group.length > 0);
+  };
+
+  const choose = (kind: string, hit: Hit): void => batch(() => {
+    const tool = toolOf(kind);
+    putDown();
+    take(tool);
+    click(hit);
+  });
+
+  let front = sel.view;
+  sel.listen(() => {
+    if (sel.view === front) return;
+    front = sel.view;
+    if (!armed) return;
+    const view = front === null ? undefined : viewOf(front);
+    if (!view || !lists(view.kind, armed.kind)) putDown();
+  });
+  session.history.listen((told) => {
+    if (!told.structure || first === null) return;
+    if (!l.idsOf(session.model).has(first)) batch(() => setFirst(null));
+  });
+
+  return {
+    get armed() { return armed; },
+    get first() { return first; },
+    get hint() { return armed ? toolHint(session.lib, armed.kind, first === null ? 0 : 1) : null; },
+    get said() { return said; },
+    arm,
+    putDown,
+    click,
+    offers,
+    choose,
+    listen(listener) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+  };
 }

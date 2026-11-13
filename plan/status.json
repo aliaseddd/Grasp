@@ -5,7 +5,7 @@
   "slices": [
     {
       "id": 1, "name": "The shell and the planes", "status": "in progress",
-      "plan": "plan/slice-1.md", "criteria": "plan/slice-1.md, section 10", "step": 9,
+      "plan": "plan/slice-1.md", "criteria": "plan/slice-1.md, section 10", "step": 11,
       "checks": [
         { "id": 1, "check": "opened from the file system in Chromium with no console error", "test": "shell.test.mjs › from file://, the page opens with no console error", "status": "pass" },
         { "id": 2, "check": "the example shows its general view on a tab", "test": "shell.test.mjs › the example shows its general view on a tab", "status": "pass" },
@@ -15,7 +15,7 @@
         { "id": 6, "check": "the library's Node tests pass unchanged", "test": "unchanged.test.mjs › the library's Node tests pass, and the old page, the library and their tests are byte for byte as the slice found them", "status": "pass" },
         { "id": 7, "check": "a 5,000-element model opens", "test": "scale.test.mjs › a 5,000-element model opens", "status": "pass" },
         { "id": 8, "check": "a drag step measured inside the handler stays under 16 ms, or the limit is restated with the measurement", "test": "scale.test.mjs › a drag step takes under 16 ms at 5,000 elements in 3 views", "status": "todo", "note": "Damon's: a step that follows holds (9 to 13 ms), but a drag's first drawn step, timed apart since session 25, was over 16 ms by the median of three in 3 of 6 runs alone with steps 8 and 9 built; plan/notes.md, session 25" },
-        { "id": 9, "check": "a keystroke under 50 ms", "test": "scale.test.mjs › a keystroke in a name takes under 50 ms at 5,000 elements", "status": "todo" },
+        { "id": 9, "check": "a keystroke under 50 ms", "test": "scale.test.mjs › a keystroke in a name takes under 50 ms at 5,000 elements", "status": "pass" },
         { "id": 10, "check": "a far zoom that draws outlines and culls edges keeps a fitted 5,000-node view responsive", "test": "scale.test.mjs › a pan step of a fitted view takes under 16 ms at 5,000 elements", "status": "todo", "note": "Damon's: with step 8 built, the 2,112-node action flow view's pan step stays over 16 ms (17.8 to 23.4 by the median, alone), while the other two views hold; plan/notes.md, session 25" }
       ]
     },

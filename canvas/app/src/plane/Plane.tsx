@@ -7,7 +7,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import type { CSSProperties, MouseEvent as ReactMouseEvent, MutableRefObject, RefObject } from 'react';
 import { Background, BackgroundVariant, ControlButton, Controls, ReactFlow, SelectionMode, useReactFlow, useStoreApi } from '@xyflow/react';
 import type { EdgeTypes, NodeTypes } from '@xyflow/react';
-import { hasMinimap, LARGE_VIEW, LOOK, MAX_ZOOM, MIN_ZOOM, selectionOf } from '../core';
+import { hasMinimap, LARGE_VIEW, LOOK, MAX_ZOOM, MIN_ZOOM, selectionOf, toolsOf } from '../core';
 import type { Hit, PlaneEdge, PlaneNode, Session, Shape } from '../core';
 import { LineEdge } from './edges/LineEdge';
 import { PlaneMiniMap } from './MiniMap';
@@ -15,6 +15,8 @@ import { BoxNode } from './nodes/BoxNode';
 import { PortNode } from './nodes/PortNode';
 import { SmallNode } from './nodes/SmallNode';
 import { NotDrawnYet } from './NotDrawnYet';
+import { Palette } from './Palette';
+import type { PaletteAt } from './Palette';
 import './marquee.css';
 import { CLICK_DISTANCE, viewStoreOf } from './viewStore';
 import type { ViewStore } from './viewStore';
@@ -133,9 +135,32 @@ export function Plane({ session, viewId }: PlaneProps): JSX.Element {
     return () => observer.disconnect();
   }, [drawn]);
 
+  // The tool in hand and its first end, as one string, so the plane renders only when either changes.
+  const tools = toolsOf(session);
+  const handKey = useSyncExternalStore(tools.listen, () => `${tools.armed ? tools.armed.kind : ''}|${tools.first ?? ''}`);
+  const bar = handKey.indexOf('|');
+  const armed = handKey.slice(0, bar);
+  const first = handKey.slice(bar + 1);
+  const [palette, setPalette] = useState<PaletteAt | null>(null);
+  const closePalette = useCallback(() => setPalette(null), []);
+  const openPalette = useCallback((at: PaletteAt) => setPalette(at), []);
+  const noBrowserMenu = useCallback((event: ReactMouseEvent) => event.preventDefault(), []);
   return (
-    <div ref={root} className="grasp-plane" data-testid="plane" data-view={viewId} style={LOOK_VARIABLES}>
-      {!drawn ? <NotDrawnYet text={store.notDrawn} /> : sized ? <Flow store={store} root={root} /> : null}
+    <div
+      ref={root}
+      className="grasp-plane"
+      data-testid="plane"
+      data-view={viewId}
+      data-tool={armed || undefined}
+      data-first={first || undefined}
+      style={LOOK_VARIABLES}
+      onContextMenu={noBrowserMenu}
+    >
+      {first && (
+        <style>{`[data-testid="plane"][data-view="${viewId}"] .react-flow__node[data-id="${first}"] { outline: 2px dashed var(--grasp-teal); outline-offset: 3px; }`}</style>
+      )}
+      {!drawn ? <NotDrawnYet text={store.notDrawn} /> : sized ? <Flow store={store} root={root} openPalette={openPalette} /> : null}
+      <Palette session={session} at={palette} onClose={closePalette} />
     </div>
   );
 }
@@ -171,9 +196,10 @@ interface FlowProps {
   store: ViewStore;
   root: RefObject<HTMLDivElement>;
 }
+type OpenPalette = (at: PaletteAt) => void;
 
 /** React Flow, mounted while the tab's body has a size. */
-function Flow({ store, root }: FlowProps): JSX.Element {
+function Flow({ store, root, openPalette }: FlowProps & { openPalette: OpenPalette }): JSX.Element {
   // Before the first snapshot: the camera decides far or near, and a view that is first seen is fitted to this window.
   const [camera] = useState(() => store.camera(root.current?.clientWidth ?? 0, root.current?.clientHeight ?? 0));
   // Whether the root is large enough for the minimap: set again only when a new size crosses the line.
@@ -186,8 +212,17 @@ function Flow({ store, root }: FlowProps): JSX.Element {
   const clicked = useCallback((event: ReactMouseEvent, type: Hit['type'], id: string | null): void => {
     if (marqueed.current) return;
     const at = toFlow.current ? toFlow.current({ x: event.clientX, y: event.clientY }) : { x: 0, y: 0 };
-    selectionOf(store.session).click({ view: store.viewId, type, id, at, add: event.ctrlKey || event.metaKey });
+    const hit: Hit = { view: store.viewId, type, id, at, add: event.ctrlKey || event.metaKey };
+    if (!toolsOf(store.session).click(hit)) selectionOf(store.session).click(hit);
   }, [store]);
+  const rightClicked = useCallback((event: ReactMouseEvent, type: Hit['type'], id: string | null): void => {
+    event.preventDefault();
+    const at = toFlow.current ? toFlow.current({ x: event.clientX, y: event.clientY }) : { x: 0, y: 0 };
+    openPalette({ hit: { view: store.viewId, type, id, at, add: false }, left: event.clientX, top: event.clientY });
+  }, [store, openPalette]);
+  const onNodeContextMenu = useCallback((event: ReactMouseEvent, node: PlaneNode) => rightClicked(event, 'el', node.id), [rightClicked]);
+  const onEdgeContextMenu = useCallback((event: ReactMouseEvent, edge: PlaneEdge) => rightClicked(event, 'rel', edge.id), [rightClicked]);
+  const onPaneContextMenu = useCallback((event: ReactMouseEvent | MouseEvent) => rightClicked(event as ReactMouseEvent, 'ground', null), [rightClicked]);
   const onNodeClick = useCallback((event: ReactMouseEvent, node: PlaneNode) => clicked(event, 'el', node.id), [clicked]);
   const onEdgeClick = useCallback((event: ReactMouseEvent, edge: PlaneEdge) => clicked(event, 'rel', edge.id), [clicked]);
   const onPaneClick = useCallback((event: ReactMouseEvent) => clicked(event, 'ground', null), [clicked]);
@@ -216,6 +251,9 @@ function Flow({ store, root }: FlowProps): JSX.Element {
       onNodeClick={onNodeClick}
       onEdgeClick={onEdgeClick}
       onPaneClick={onPaneClick}
+      onNodeContextMenu={onNodeContextMenu}
+      onEdgeContextMenu={onEdgeContextMenu}
+      onPaneContextMenu={onPaneContextMenu}
       deleteKeyCode={null}
       selectNodesOnDrag={false}
       nodeClickDistance={CLICK_DISTANCE}
