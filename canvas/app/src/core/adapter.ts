@@ -559,11 +559,17 @@ const EMPTY_ROW: LineRow = { route: 'straight', marker: null, cls: '', label: nu
 /** What one reading of a view makes, before the words of far and the objects of `previous` are settled. */
 type Made = { nodes: PlaneNode[]; edges: PlaneEdge[]; rects: Map<string, Rect>; bounds: Rect | null };
 
-function build(lib: SysMLModelLibrary, model: Model, view: ModelView, far: boolean, look: Look): Made {
+/** What a box's header and compartments need in height: header (a box shape's only), then each compartment's title, rows and tail. */
+function contentHeight(isBox: boolean, comps: readonly Compartment[], look: Look): number {
+  return (isBox ? look.header : 0) + comps.reduce((h, c) => h + look.head + look.lead * c.lines.length + look.tail, 0);
+}
+
+function build(lib: SysMLModelLibrary, model: Model, view: ModelView, far: boolean, look: Look, places?: ReadonlyMap<string, Place> | null): Made {
   const none: Made = { nodes: [], edges: [], rects: new Map(), bounds: null };
   const ids = new Map<string, ModelElement>();
   for (const el of model.elements) ids.set(el.id, el);
-  const layout = view.layout as Record<string, SavedPlace>;
+  // Rule 7: a place given stands in for the view's own, as if the layout held it.
+  const layout = (places && places.size > 0 ? { ...view.layout, ...Object.fromEntries(places) } : view.layout) as Record<string, SavedPlace>;
   const shown = new Set<string>();
   for (const id of Object.keys(layout)) {
     const el = ids.get(id);
@@ -600,7 +606,7 @@ function build(lib: SysMLModelLibrary, model: Model, view: ModelView, far: boole
     const row = lib.KINDS[el.kind];
     const isBox = BOX_SHAPES.includes(shapeOf(row));
     const comps = isBox ? compartmentsOf(lib, model, el, row, num(lay.w), look) : [];
-    let bottom = (isBox ? look.header : 0) + comps.reduce((h, c) => h + look.head + look.lead * c.lines.length + look.tail, 0);
+    let bottom = contentHeight(isBox, comps, look);
     let right = 0;
     for (const kid of groups.get(el.id)?.boxes ?? []) {
       const s = sizeOf(kid);
@@ -795,7 +801,7 @@ export function project(lib: SysMLModelLibrary, model: Model, view: ModelView, o
   const look = options.look ?? LOOK;
   const previous = options.previous && options.previous.view === view.id ? options.previous : null;
   const made: Made = isDrawn(lib, view.kind)
-    ? lib.reading(model, () => build(lib, model, view, far, look))
+    ? lib.reading(model, () => build(lib, model, view, far, look, options.places))
     : { nodes: [], edges: [], rects: new Map(), bounds: null };
 
   // Rule 5: what reads the same as before is the object it was; what changed keeps what React Flow set on it.
@@ -923,6 +929,109 @@ export function fit(bounds: Rect | null, width: number, height: number): Viewpor
  * beyond the one project() with `places` makes.
  */
 export function placesFor(lib: SysMLModelLibrary, model: Model, view: ModelView, projection: Projection, asks: readonly Ask[], look: Look = LOOK): Placed {
-  void lib; void model; void view; void projection; void asks; void look;
-  throw new Error('placesFor: step 7 builds it');
+  return lib.reading(model, () => {
+    const ids = new Map<string, ModelElement>();
+    for (const el of model.elements) ids.set(el.id, el);
+    const nodes = new Map<string, PlaneNode>();
+    for (const node of projection.nodes) nodes.set(node.id, node);
+
+    // Rule 6: asks naming a node the projection does not hold, or a border item asked to resize, are left out.
+    const asked = new Map<string, Ask>();
+    for (const ask of asks) {
+      const node = nodes.get(ask.id);
+      if (!node || !ids.has(ask.id)) continue;
+      if ('resize' in ask && node.data.form === 'border') continue;
+      if ('move' in ask && node.data.form === 'border' && node.parentId === undefined) continue;
+      asked.set(ask.id, ask);
+    }
+    // Rule 3: an ask whose node has an ancestor also asked is dropped.
+    const kept: Ask[] = [];
+    for (const ask of asked.values()) {
+      let up = nodes.get(ask.id)?.parentId;
+      let covered = false;
+      for (let n = 0; up !== undefined && n <= nodes.size; n++) {
+        if (asked.has(up)) { covered = true; break; }
+        up = nodes.get(up)?.parentId;
+      }
+      if (!covered) kept.push(ask);
+    }
+
+    const places = new Map<string, Place>();
+    let moved = 0;
+    let resized = 0;
+    let only: { ask: Ask; place: Place } | null = null;
+    for (const ask of kept) {
+      const node = nodes.get(ask.id) as PlaneNode;
+      const el = ids.get(ask.id) as ModelElement;
+      const row = lib.KINDS[el.kind];
+      const own = lib.placement(el, view.layout[el.id]);
+      let place: Place;
+      if (node.data.form === 'border') {
+        // Rule 2: the owner's nearest border to the square's centre, against (0, 0, w, h) in the owner's coordinates.
+        const owner = projection.rects.get(node.parentId as string);
+        if (!owner || !('move' in ask)) continue;
+        const c = { x: ask.move.x + look.port / 2, y: ask.move.y + look.port / 2 };
+        const best = [
+          { side: 'top', dist: Math.abs(c.y), at: c.x / owner.w },
+          { side: 'bottom', dist: Math.abs(c.y - owner.h), at: c.x / owner.w },
+          { side: 'left', dist: Math.abs(c.x), at: c.y / owner.h },
+          { side: 'right', dist: Math.abs(c.x - owner.w), at: c.y / owner.h },
+        ].sort((a, b) => a.dist - b.dist)[0];
+        place = { side: best.side, at: Math.round(Math.min(0.95, Math.max(0.05, best.at)) * 100) / 100 };
+      } else if ('move' in ask) {
+        // Rule 1.
+        let x = Math.round(ask.move.x);
+        let y = Math.round(ask.move.y);
+        if (node.parentId !== undefined) { x = Math.max(look.pad, x); y = Math.max(look.childTop, y); }
+        const box = own as { w: number; h: number };
+        place = { x, y, w: box.w, h: box.h };
+      } else {
+        // Rule 4.
+        const want = ask.resize;
+        const isBox = BOX_SHAPES.includes(shapeOf(row));
+        const least = node.data.form === 'box' ? node.data.least : { width: Math.min(80, row.size[0]), height: Math.min(40, row.size[1]) };
+        const kids = projection.nodes.filter((k) => k.parentId === node.id && k.data.form !== 'border');
+        const right = node.position.x + node.width;
+        const bottom = node.position.y + node.height;
+        const nested = node.parentId !== undefined;
+        const leftHandle = want.x !== node.position.x;
+        const topHandle = want.y !== node.position.y;
+        const heldW = (w: number): number => Math.min(4000, Math.max(w, least.width, ...kids.map((k) => k.position.x + k.width + look.pad)));
+        let w = heldW(want.width);
+        let x = want.x;
+        if (leftHandle) {
+          if (w !== want.width) x = right - w;
+          if (nested && x < look.pad) { x = look.pad; w = heldW(right - x); }
+        }
+        const comps = isBox ? compartmentsOf(lib, model, el, row, Math.round(w), look) : [];
+        const needH = Math.max(least.height, contentHeight(isBox, comps, look), ...kids.map((k) => k.position.y + k.height + look.pad));
+        let h = Math.min(4000, Math.max(want.height, needH));
+        let y = want.y;
+        if (topHandle) {
+          if (h !== want.height) y = bottom - h;
+          if (nested && y < look.childTop) { y = look.childTop; h = Math.min(4000, Math.max(bottom - y, needH)); }
+        }
+        place = { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+      }
+      // Rule 5: only a place that differs from the view's own, in the library's form.
+      const same = 'side' in place
+        ? 'side' in own && own.side === place.side && own.at === place.at
+        : !('side' in own) && own.x === place.x && own.y === place.y && own.w === place.w && own.h === place.h;
+      if (same) continue;
+      places.set(ask.id, place);
+      if ('move' in ask) moved++;
+      else resized++;
+      only = { ask, place };
+    }
+
+    // Rule 7.
+    const count = moved + resized;
+    let words: string | null = null;
+    if (count === 1 && only) {
+      const what = lib.describe(model, ids.get(only.ask.id) as ModelElement);
+      if ('resize' in only.ask) words = 'Resized ' + what;
+      else words = 'Moved ' + what + ('side' in only.place ? ' to the ' + only.place.side + ' side' : '');
+    } else if (count > 1) words = (moved > 0 ? 'Moved ' : 'Resized ') + count + ' elements';
+    return { places, words };
+  });
 }

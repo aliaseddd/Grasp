@@ -90,10 +90,12 @@ const logged = (page) => {
  * logged: `problems` (console errors and warnings, and uncaught page errors), `requests` (every URL it asked for) and
  * `dialogs` (what it asked in a dialog of the browser's; each is accepted, so that a reload goes on).
  *
+ * `dialog` answers each dialog (it is given the Playwright Dialog, and accepts it by default; `(d) => d.dismiss()` dismisses).
+ *
  * With `picker: false` the page has no showOpenFilePicker, as in a browser without the file pickers: it is taken away
  * before the page's scripts run, so the page asks for a file through a file input, which openStateFile answers.
  */
-export async function openPage(browser, { url = PAGE_URL, picker = true } = {}) {
+export async function openPage(browser, { url = PAGE_URL, picker = true, dialog = (d) => d.accept() } = {}) {
   const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
   const page = await context.newPage();
   const problems = [];
@@ -105,9 +107,9 @@ export async function openPage(browser, { url = PAGE_URL, picker = true } = {}) 
   });
   page.on('pageerror', (error) => problems.push(`page error: ${error.message}`));
   page.on('request', (request) => requests.push(request.url()));
-  page.on('dialog', (dialog) => {
-    dialogs.push(`${dialog.type()}: ${dialog.message()}`);
-    dialog.accept().catch(() => {});
+  page.on('dialog', (dialog_) => {
+    dialogs.push(`${dialog_.type()}: ${dialog_.message()}`);
+    Promise.resolve(dialog(dialog_)).catch(() => {});
   });
   if (!picker) await page.addInitScript(() => { delete window.showOpenFilePicker; });
   await page.goto(url);

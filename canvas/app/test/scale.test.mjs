@@ -131,11 +131,35 @@ async function gesture(page, time, from, way, starting, following) {
  * as far as the pointer went, or short of that by the first move, since a plane may take its first move only to tell
  * a drag from a click. `went` is how far it is from where it was, in px along the gesture's way, or null.
  */
-function moved(page, view, id, was, way, missing) {
+function moved(page, view, id, was, way, missing, apart = null) {
   const went = (now) => (now ? [(now.x - was.x) * way, (now.y - was.y) * way] : null);
   const there = (now) => !!now && went(now).every((far, axis) => far >= REACH[axis] - START[axis] - 1.5 && far <= REACH[axis] + 1.5);
-  return soon(page, async () => { const now = await boxOf(page, view.id, id); return there(now) ? now : null; },
-    async () => missing(went(await boxOf(page, view.id, id))));
+  // With `apart` ({ id, was }: a node that was not dragged, and where it was), the box must also have moved against it,
+  // so that a pan of the whole plane, which takes both, does not pass.
+  const against = async (now) => {
+    if (!apart) return now;
+    const other = await boxOf(page, view.id, apart.id);
+    return other && now && [(now.x - other.x) - (was.x - apart.was.x), (now.y - other.y) - (was.y - apart.was.y)]
+      .every((far, axis) => far * way >= REACH[axis] - START[axis] - 1.5 && far * way <= REACH[axis] + 1.5) ? now : null;
+  };
+  return soon(page, async () => { const now = await boxOf(page, view.id, id); return there(now) ? against(now) : null; },
+    async () => {
+      const now = await boxOf(page, view.id, id);
+      const other = apart && await boxOf(page, view.id, apart.id);
+      const by = other && now ? ` Against ${apart.id}, which was not dragged, it went ${px([((now.x - other.x) - (was.x - apart.was.x)) * way, ((now.y - other.y) - (was.y - apart.was.y)) * way])}: a plane that pans takes both.` : '';
+      return missing(went(now)) + by;
+    });
+}
+/**
+ * A box of the view, drawn on the screen, that a drag of `id` does not take along (not inside it, not around it), and
+ * where it is: what the dragged box is moved against.
+ */
+async function neighbourOf(page, view, id) {
+  const ids = await page.evaluate(([plane, node]) => [...document.querySelectorAll(`${plane} ${node}`)].map((el) => el.getAttribute('data-id')), [planeOf(view.id), NODE]);
+  const other = ids.find((n) => n !== id && !n.startsWith(id + '.') && !id.startsWith(n + '.') && !id.startsWith(n));
+  assert.ok(other, `The plane of ${view.name} draws no other box than ${id} to tell a drag from a pan by.`);
+  const was = await boxOf(page, view.id, other);
+  return { id: other, was };
 }
 const px = (pair) => (pair ? `${pair[0].toFixed(1)} by ${pair[1].toFixed(1)} px` : 'off the plane');
 
@@ -199,10 +223,11 @@ describe('the planes at scale', () => {
     const following = measure(DRAGS * (MOVES - 1), STEP_LIMIT);
     for (let drag = 0; drag < DRAGS && !(starting.settled && following.settled); drag++) {
       const was = await boxOf(page, view.id, id);
+      const apart = await neighbourOf(page, view, id);
       const way = drag % 2 ? -1 : 1; // there and back, so the box stays in its cell
       // The box is taken by the blank left end of its header, clear of its name, its compartments and its handles.
       await gesture(page, time, { x: was.x + 24 * was.zoom, y: was.y + 14 * was.zoom }, way, starting, following);
-      await moved(page, view, id, was, way, (went) => `Not every move reached ${id}: the pointer dragged it ${px(REACH)}, and it went ${px(went)}.`);
+      await moved(page, view, id, was, way, (went) => `Not every move reached ${id}: the pointer dragged it ${px(REACH)}, and it went ${px(went)}.`, apart);
     }
     const said = `A drag step takes ${ms(starting.median)} when it starts a drag and ${ms(following.median)} when it follows one, by the median, ` +
       `against ${STEP_LIMIT} ms.\nStarting, in ms: ${starting}\nFollowing, in ms: ${following}`;

@@ -25,13 +25,44 @@ const EXPORTED = path.join(ROOT, 'canvas', 'test', 'fixtures', 'format1.sysml');
 const BOX = 'Host';
 const DRAG = { x: 60, y: 40 };
 
+/**
+ * Selects Host and drags its bottom right handle by DRAG px and waits for the plane to draw it grown.
+ * Returns the box as it was and as it is.
+ */
+async function resizeBox(page, view) {
+  // The handle at the bottom right corner of the selected box, dragged down and to the right.
+  const was = await selectBox(page, view, BOX);
+  const handle = page.locator(`${nodeOf(view.id, BOX)} ${HANDLE}.bottom.right`);
+  await soon(page, async () => (await handle.count()) === 1,
+    `${BOX}, selected, shows no resize handle at its bottom right corner (${HANDLE}.bottom.right).`);
+  const grip = await handle.boundingBox();
+  assert.ok(grip, `The resize handle at the bottom right corner of ${BOX} is not shown.`);
+  const from = { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 };
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + DRAG.x / 2, from.y + DRAG.y / 2);
+  await page.mouse.move(from.x + DRAG.x, from.y + DRAG.y);
+  await page.mouse.up();
+  // The box follows its handle: it grows by what the handle moved, in the view's units, give or take a rounding.
+  const grown = { w: was.w + DRAG.x / was.zoom, h: was.h + DRAG.y / was.zoom };
+  const resized = await soon(page, async () => {
+    const now = await boxOf(page, view.id, BOX);
+    return now && Math.abs(now.w - grown.w) <= 2 && Math.abs(now.h - grown.h) <= 2 ? now : null;
+  }, async () => {
+    const now = await boxOf(page, view.id, BOX);
+    return `The handle at the bottom right corner of ${BOX} was dragged ${DRAG.x} by ${DRAG.y} px at ${Math.round(was.zoom * 100)}%, which makes a box of ` +
+      `${was.w} by ${was.h} one of ${Math.round(grown.w)} by ${Math.round(grown.h)}. It is ${now?.w} by ${now?.h}.`;
+  });
+  return { was, resized };
+}
+
 describe('resizing a box', () => {
   let browser;
   before(async () => { browser = await launch(); });
   afterEach(() => closePages(browser));
   after(async () => { await browser?.close(); });
 
-  test('a box resized by its handles keeps its size after save and reload', { todo: 'step 7 writes a resize into the model and saves the file' }, async () => {
+  test('a box resized by its handles keeps its size after save and reload', async () => {
     const example = JSON.parse(fs.readFileSync(EXAMPLE, 'utf8'));
     const view = example.model.views[0];
     const name = path.basename(EXAMPLE);
@@ -41,38 +72,17 @@ describe('resizing a box', () => {
     await viewTab(page, view);
     await untilDrawn(page, view);
 
-    // The handle at the bottom right corner of the selected box, dragged down and to the right.
-    const was = await selectBox(page, view, BOX);
-    const handle = page.locator(`${nodeOf(view.id, BOX)} ${HANDLE}.bottom.right`);
-    await soon(page, async () => (await handle.count()) === 1,
-      `${BOX}, selected, shows no resize handle at its bottom right corner (${HANDLE}.bottom.right).`);
-    const grip = await handle.boundingBox();
-    assert.ok(grip, `The resize handle at the bottom right corner of ${BOX} is not shown.`);
-    const from = { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 };
-    await page.mouse.move(from.x, from.y);
-    await page.mouse.down();
-    await page.mouse.move(from.x + DRAG.x / 2, from.y + DRAG.y / 2);
-    await page.mouse.move(from.x + DRAG.x, from.y + DRAG.y);
-    await page.mouse.up();
-    // The box follows its handle: it grows by what the handle moved, in the view's units, give or take a rounding.
-    const grown = { w: was.w + DRAG.x / was.zoom, h: was.h + DRAG.y / was.zoom };
-    const resized = await soon(page, async () => {
-      const now = await boxOf(page, view.id, BOX);
-      return now && Math.abs(now.w - grown.w) <= 2 && Math.abs(now.h - grown.h) <= 2 ? now : null;
-    }, async () => {
-      const now = await boxOf(page, view.id, BOX);
-      return `The handle at the bottom right corner of ${BOX} was dragged ${DRAG.x} by ${DRAG.y} px at ${Math.round(was.zoom * 100)}%, which makes a box of ` +
-        `${was.w} by ${was.h} one of ${Math.round(grown.w)} by ${Math.round(grown.h)}. It is ${now?.w} by ${now?.h}.`;
-    });
+    const { was, resized } = await resizeBox(page, view);
 
     // Save: the state file comes as a download under the name it was opened by.
     const save = page.locator(byTestId(TESTIDS.save));
     assert.ok((await save.count()) === 1, `The page has no Save button (data-testid "${TESTIDS.save}").`);
     assert.ok(await save.isEnabled(), 'Save is disabled after the resize: the page holds no change to save.');
-    let download = null;
-    page.waitForEvent('download', { timeout: WAIT }).then((got) => { download = got; }, () => {});
+    // By the clock, started before the click: a download comes from another process, and frames are not time.
+    const downloading = page.waitForEvent('download', { timeout: WAIT });
     await save.click({ timeout: WAIT });
-    await soon(page, async () => download, 'A click on Save downloaded no file.', BROWSER_FRAMES);
+    const download = await downloading.catch(() => null);
+    assert.ok(download, `A click on Save downloaded no file in ${WAIT} ms.`);
     assert.equal(download.suggestedFilename(), name, 'the download has the name of the file that was opened');
     const file = await download.path();
     const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -104,6 +114,114 @@ describe('resizing a box', () => {
     const reopened = await boxOf(page, view.id, BOX);
     assert.ok(reopened, `The plane of ${view.name} draws no node for ${BOX} once the saved file is open.`);
     assert.deepEqual({ w: reopened.w, h: reopened.h }, { w: resized.w, h: resized.h }, `${BOX} has the size it was resized to, after save and reload`);
+    await finish(opened);
+  });
+
+  test('a save through the picker writes back through the file\'s handle', async () => {
+    const example = JSON.parse(fs.readFileSync(EXAMPLE, 'utf8'));
+    const view = example.model.views[0];
+    const name = path.basename(EXAMPLE);
+    const opened = await openPage(browser);
+    const { page } = opened;
+    // A stand-in for the browser's picker: it hands out a handle whose file is the example, and whose writable records
+    // what it is given, and whether it was closed, in a global of the test's own.
+    await page.evaluate(([text, fileName]) => {
+      window.__written = { texts: [], closed: 0, created: 0 };
+      const handle = {
+        kind: 'file',
+        name: fileName,
+        getFile: async () => new File([text], fileName, { type: 'application/json' }),
+        queryPermission: async () => 'granted',
+        requestPermission: async () => 'granted',
+        createWritable: async () => {
+          window.__written.created++;
+          return {
+            write: async (data) => { window.__written.texts.push(typeof data === 'string' ? data : await new Blob([data]).text()); },
+            close: async () => { window.__written.closed++; },
+          };
+        },
+      };
+      window.showOpenFilePicker = async () => [handle];
+    }, [fs.readFileSync(EXAMPLE, 'utf8'), name]);
+    const downloads = [];
+    page.on('download', (d) => downloads.push(d.suggestedFilename()));
+
+    await page.locator(byTestId(TESTIDS.open)).click({ timeout: WAIT });
+    await soon(page, () => page.evaluate(([selector, file]) => [...document.querySelectorAll(selector)].some((el) => el.textContent.includes(file)),
+      [byTestId(TESTIDS.fileName), name]), `After the picker gave a handle for ${name}, the bar does not show that name: the file is not open.`);
+    await viewTab(page, view);
+    await untilDrawn(page, view);
+    const { resized } = await resizeBox(page, view);
+
+    const bar = page.locator(byTestId(TESTIDS.fileName));
+    await soon(page, async () => ((await bar.textContent()) ?? '').endsWith(' •'), async () => `After the resize the bar shows "${await bar.textContent()}", with no " •" for unsaved changes.`);
+    const save = page.locator(byTestId(TESTIDS.save));
+    assert.ok(await save.isEnabled(), 'Save is disabled after the resize: the page holds no change to save.');
+    await save.click({ timeout: WAIT });
+    const written = () => page.evaluate(() => window.__written);
+    await soon(page, async () => (await written()).closed > 0, async () => {
+      const w = await written();
+      return `A click on Save wrote nothing back through the file's handle (createWritable called ${w.created} times, ${w.texts.length} writes, ${w.closed} closes). Downloads: ${JSON.stringify(downloads)}.`;
+    }, BROWSER_FRAMES);
+    const got = await written();
+    assert.equal(got.texts.length, 1, 'the file is written in one write');
+    const saved = JSON.parse(got.texts[0]);
+    assert.equal(saved.format, 'grasp/2', 'the written text is a state file in format grasp/2');
+    const { w, h } = saved.model.views.find((v) => v.id === view.id).layout[BOX];
+    assert.ok(Math.abs(w - resized.w) <= 1 && Math.abs(h - resized.h) <= 1,
+      `The written layout holds ${BOX} as ${w} by ${h}, and the plane draws it ${resized.w} by ${resized.h}.`);
+    assert.deepEqual(downloads, [], 'a save through a handle downloads nothing');
+    await soon(page, async () => !((await bar.textContent()) ?? '').includes('•'), async () => `After the save the bar still shows "${await bar.textContent()}".`);
+    assert.equal(await bar.textContent(), name, 'the bar shows the file name alone once saved');
+    await finish(opened);
+  });
+
+  test('a save that the browser refuses says so and leaves the file unsaved', async () => {
+    const example = JSON.parse(fs.readFileSync(EXAMPLE, 'utf8'));
+    const view = example.model.views[0];
+    const name = path.basename(EXAMPLE);
+    const opened = await openPage(browser);
+    const { page } = opened;
+    // A picker whose handle's writable refuses the write, and records whether it was aborted or closed.
+    await page.evaluate(([text, fileName]) => {
+      window.__refused = { created: 0, aborted: 0, closed: 0 };
+      const handle = {
+        kind: 'file',
+        name: fileName,
+        getFile: async () => new File([text], fileName, { type: 'application/json' }),
+        queryPermission: async () => 'granted',
+        requestPermission: async () => 'granted',
+        createWritable: async () => {
+          window.__refused.created++;
+          return {
+            write: async () => { throw new Error('disk full'); },
+            abort: async () => { window.__refused.aborted++; },
+            close: async () => { window.__refused.closed++; },
+          };
+        },
+      };
+      window.showOpenFilePicker = async () => [handle];
+    }, [fs.readFileSync(EXAMPLE, 'utf8'), name]);
+
+    await page.locator(byTestId(TESTIDS.open)).click({ timeout: WAIT });
+    await soon(page, () => page.evaluate(([selector, file]) => [...document.querySelectorAll(selector)].some((el) => el.textContent.includes(file)),
+      [byTestId(TESTIDS.fileName), name]), `After the picker gave a handle for ${name}, the bar does not show that name: the file is not open.`);
+    await viewTab(page, view);
+    await untilDrawn(page, view);
+    await resizeBox(page, view);
+
+    const bar = page.locator(byTestId(TESTIDS.fileName));
+    await soon(page, async () => ((await bar.textContent()) ?? '').endsWith(' •'), async () => `After the resize the bar shows "${await bar.textContent()}", with no " •" for unsaved changes.`);
+    const save = page.locator(byTestId(TESTIDS.save));
+    await save.click({ timeout: WAIT });
+    // Other elements may carry role "alert" (empty live regions): the one that names the file is the page's.
+    const alertTexts = async () => (await page.getByRole('alert').allTextContents()).map((t) => t.trim());
+    const want = `${name} wasn't saved: disk full`;
+    await soon(page, async () => (await alertTexts()).includes(want), async () => `The browser refused the write, and no element with role "alert" says "${want}". The alerts: ${JSON.stringify(await alertTexts())}.`, BROWSER_FRAMES);
+    assert.ok(((await bar.textContent()) ?? '').endsWith(' •'), `the write failed, and the bar shows "${await bar.textContent()}", with no " •": the file is not unsaved`);
+    assert.ok(await save.isEnabled(), 'the write failed, and Save is disabled');
+    assert.deepEqual(await page.evaluate(() => window.__refused), { created: 1, aborted: 1, closed: 0 },
+      'a refused write aborts its writable once and does not close it (createWritable, abort and close calls)');
     await finish(opened);
   });
 });

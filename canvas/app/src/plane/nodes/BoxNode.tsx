@@ -2,6 +2,7 @@
 // section 4, "A node on a plane"). It draws one node from its `data`, and knows no model, no session and no store.
 
 import { memo } from 'react';
+import { NodeResizer } from '@xyflow/react';
 import type { Node, NodeProps } from '@xyflow/react';
 import type { BoxData, Shape } from '../../core';
 
@@ -32,7 +33,7 @@ export type BoxNodeProps = NodeProps<Node<BoxData, Shape>>;
  * - Memoized: it renders again only when its `data`, `selected` or size changes, not when the node moves.
  */
 export function BoxNode({ data, selected, width, height }: BoxNodeProps): JSX.Element {
-  return <Box data={data} selected={selected} width={width} height={height} />;
+  return <Box data={data} selected={!!selected} width={width} height={height} />;
 }
 
 interface BoxViewProps {
@@ -46,10 +47,11 @@ interface BoxViewProps {
 const GLYPHS = { send: 'M8,8 h10 l5,5 l-5,5 h-10 Z', accept: 'M8,8 h15 v10 h-15 l5,-5 Z' } as const;
 
 // Memoized here, below the component React Flow calls, which is called again at every move of the node.
-const Box = memo(function Box({ data }: BoxViewProps): JSX.Element {
+const Box = memo(function Box({ data, selected }: BoxViewProps): JSX.Element {
   return (
     <>
       <span className="grasp-node-handle source target" />
+      {selected && !data.far && <NodeResizer minWidth={data.least.width} minHeight={data.least.height} />}
       {!data.far && (
         <>
           {data.glyph && (

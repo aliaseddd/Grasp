@@ -166,7 +166,8 @@ function download(name: string, text: string): void {
  * Saves the session's file: back through its handle when it came through the picker, as a download under its name
  * otherwise. A run of changes still open is ended first, so the log says what the file holds. Resolves with where the
  * file went, once it is written, and the session then has no unsaved changes but those made while it was written.
- * Rejects when the browser refuses the write (the person did not allow it), and the session stays as it was.
+ * Rejects when the browser refuses the write (the person did not allow it, the disk is full), and the session stays as
+ * it was; a writable that failed is aborted, so it does not stay open on the file.
  */
 export async function saveFile(session: Session): Promise<'handle' | 'download'> {
   session.history.endEdit();
@@ -174,8 +175,14 @@ export async function saveFile(session: Session): Promise<'handle' | 'download'>
   const text = stateText(session);
   if (session.handle) {
     const writable = await session.handle.createWritable();
-    await writable.write(text);
-    await writable.close();
+    try {
+      await writable.write(text);
+      await writable.close();
+    } catch (error) {
+      // A writable left open keeps its lock on the file (and its swap file): end it, whatever it says to that.
+      try { await writable.abort(); } catch { /* its own failure says nothing more */ }
+      throw error;
+    }
   } else download(session.name, text);
   session.saved(mark);
   return session.handle ? 'handle' : 'download';
@@ -194,6 +201,11 @@ export function LOSE_QUESTION(name: string): string {
  * false it does nothing, and the page goes without a question. Returns what takes the listener away.
  */
 export function askBeforeLeaving(unsaved: () => boolean): () => void {
-  void unsaved;
-  throw new Error('askBeforeLeaving: step 7 builds it');
+  const ask = (event: BeforeUnloadEvent): void => {
+    if (!unsaved()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  };
+  window.addEventListener('beforeunload', ask);
+  return () => window.removeEventListener('beforeunload', ask);
 }

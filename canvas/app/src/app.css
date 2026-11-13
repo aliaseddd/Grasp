@@ -333,6 +333,43 @@ body,
   stroke: var(--grasp-teal);
 }
 
+/* A selected box's resize controls: four round handles at the corners, four lines along the sides, in the theme's teal. */
+.grasp-plane .react-flow__resize-control {
+  --xy-resize-background-color: var(--grasp-teal);
+}
+.grasp-plane .react-flow__resize-control.handle {
+  box-sizing: border-box;
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--grasp-white);
+  border-radius: 50%;
+}
+/* A side's control is a line along the whole side, which takes the pointer there; its mark is a short bar at its middle,
+   as wide as a corner's handle, so that the four sides show a handle each as the corners do. */
+.grasp-plane .react-flow__resize-control.line::after {
+  content: '';
+  position: absolute;
+  background: var(--grasp-teal);
+  border: 1px solid var(--grasp-white);
+  box-sizing: border-box;
+  border-radius: 2px;
+  pointer-events: none;
+}
+.grasp-plane .react-flow__resize-control.line.top::after,
+.grasp-plane .react-flow__resize-control.line.bottom::after {
+  width: 16px;
+  height: 6px;
+  left: calc(50% - 8px);
+  top: calc(50% - 3px);
+}
+.grasp-plane .react-flow__resize-control.line.left::after,
+.grasp-plane .react-flow__resize-control.line.right::after {
+  width: 6px;
+  height: 16px;
+  top: calc(50% - 8px);
+  left: calc(50% - 3px);
+}
+
 /* The one inert element in every node: React Flow reads a node's handles from the DOM, far or near. */
 .grasp-plane .grasp-node-handle {
   position: absolute;

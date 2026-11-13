@@ -7,8 +7,8 @@ import path from 'node:path';
 import { after, afterEach, before, describe, test } from 'node:test';
 import { VIEWS, middleService, scaleState } from '../../test/scale-model.mjs';
 import {
-  boxOf, closePages, EXAMPLE, finish, FIXTURES, frame, groundPoint, headerOf, launch, modelOf, NODE, nodeOf, openPage, openStateFile,
-  planeOf, rectsOf, selectBox, showView, soon, stateFileAt, stateFileOf, untilDrawn, viewTab, zoomTo,
+  boxOf, byTestId, closePages, EXAMPLE, finish, FIXTURES, frame, groundPoint, headerOf, launch, modelOf, NODE, nodeOf, openPage, openStateFile,
+  planeOf, rectsOf, selectBox, showView, soon, stateFileAt, stateFileOf, TESTIDS, untilDrawn, viewTab, zoomTo,
 } from './helpers.mjs';
 
 const EX = modelOf(EXAMPLE);
@@ -146,8 +146,14 @@ describe('the planes: culling, the pointer and the gate', () => {
     };
     await press('Host', [6, 6]);
     assert.deepEqual(await selectedIn(page, EX_VIEW), [], 'A press on a box that moves 12 px before its release must select nothing.');
+    // The 12 px press was a drag, and wrote its step: Undo takes it back, and Undo is then disabled again.
+    const undoOff = () => page.evaluate((selector) => { const el = document.querySelector(selector); return el ? el.disabled || el.getAttribute('aria-disabled') === 'true' : null; }, byTestId(TESTIDS.undo));
+    await page.locator(byTestId(TESTIDS.undo)).click();
+    for (let i = 0; i < 3; i++) await frame(page);
+    assert.equal(await undoOff(), true, 'One Undo did not take back the 12 px drag of Host.');
     await press('Host', [2, 1]);
     await soon(page, async () => (await selectedIn(page, EX_VIEW)).includes('Host'), 'A press on the header of Host that moves 3 px (in two steps) before its release did not select the box: its node has no class "selected".');
+    assert.equal(await undoOff(), true, 'A press that moved 3 px before its release made an undo step: Undo is enabled.');
     await finish(opened);
   });
 

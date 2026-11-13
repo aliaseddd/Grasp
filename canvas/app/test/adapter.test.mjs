@@ -1264,3 +1264,285 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
     assert.equal(markerId('m-general'), 'grasp-m-general', 'A marker\'s id should be grasp- and its name.');
   });
 });
+
+// ---- Gestures (step 7): placesFor, and project() with `places`.
+//
+// placesFor's comment (canvas/app/src/core/adapter.ts) has seven rules. Each expected number below is worked out by hand
+// from a rule and from the example's places (view v-proof: Page at 32, 72, 760 by 250, holding Page.hosts at 96, 104 and
+// Page.app at 568, 104, each 180 by 110; Host at 32, 400, 368 by 130, with Host.api on its right at 0.5), never taken
+// from what the adapter gives.
+
+describe("placesFor: a gesture's places", () => {
+  const { placesFor } = core;
+  const VIEW = 'v-proof';
+  const exampleView = () => viewOf(EXAMPLE_MODEL, VIEW);
+  const exampleProjection = () => project(lib, EXAMPLE_MODEL, exampleView());
+  /** What placesFor says of `asks` on the example's v-proof. */
+  const ask = (asks) => placesFor(lib, EXAMPLE_MODEL, exampleView(), exampleProjection(), asks);
+  const move = (id, x, y) => ({ id, move: { x, y } });
+  const resize = (id, x, y, width, height) => ({ id, resize: { x, y, width, height } });
+  const placesOf = (placed) => plain(Object.fromEntries(placed.places));
+
+  /**
+   * Host's doc, as rows by Roboto's widths worked out beforehand with a greedy wrap of a scratch script with textWidth(),
+   * a word at a time: in 200 wide (room 176) it is 8 rows, and in 100 wide (room 76) 21. A box's rows are wrapped to the
+   * width it is given, so a Host 200 wide is 40 (header) + 16 (head) + 15 * 8 + 6 (tail) = 182 high, and one 100 wide
+   * 40 + 16 + 15 * 21 + 6 = 377. The first test below checks these rows against textWidth() again, so a slip in them
+   * shows as that test failing, not as a resize test failing.
+   */
+  const HOST_AT_200 = [
+    'hosts/: the small piece of code', 'that plugs the app into one', 'place. It works out where its', "package's files are, loads the",
+    'entry file with the shared loader,', 'and calls mount. It has no', 'settings: it only ever loads the', 'app from its own package.',
+  ];
+  const HOST_AT_100 = [
+    'hosts/: the', 'small piece of', 'code that', 'plugs the app', 'into one', 'place. It', 'works out', 'where its', "package's", 'files are,', 'loads the',
+    'entry file with', 'the shared', 'loader, and', 'calls mount. It', 'has no', 'settings: it', 'only ever', 'loads the app', 'from its own', 'package.',
+  ];
+
+  /** Checks the rows above against textWidth() again, so a slip in them is told as such, not as a resize's failure. */
+  function checkRows() {
+    const doc = EXAMPLE_MODEL.elements.find((el) => el.id === 'Host').doc;
+    for (const [width, rows] of [[200, HOST_AT_200], [100, HOST_AT_100]]) {
+      const room = rowRoom(LOOK, width);
+      assert.equal(rows.join(' '), doc, `The rows for ${width} wide should hold Host's doc, word for word.`);
+      rows.forEach((row, i) => {
+        assert.ok(textWidth(row, LOOK.rowType) <= room, `The test's row "${row}" is wider than ${room} px: the test's own rows are wrong.`);
+        if (i + 1 < rows.length) assert.ok(textWidth(`${row} ${rows[i + 1].split(' ')[0]}`, LOOK.rowType) > room, `The test's row "${row}" should have taken the next word: the test's own rows are wrong.`);
+      });
+    }
+    assert.equal(LOOK.header + LOOK.head + LOOK.lead * HOST_AT_200.length + LOOK.tail, 182, 'The test\'s height for Host 200 wide is wrong.');
+    assert.equal(LOOK.header + LOOK.head + LOOK.lead * HOST_AT_100.length + LOOK.tail, 377, 'The test\'s height for Host 100 wide is wrong.');
+  }
+
+  test('rule 1: a box moved takes its position, rounded, and keeps its size', () => {
+    const placed = ask([move('Host', 100, 450)]);
+    same(placesOf(placed), { Host: { x: 100, y: 450, w: 368, h: 130 } }, 'Host moved to 100, 450 should be placed there at its own 368 by 130, and nothing else placed.');
+    assert.equal(placed.words, 'Moved part def Host', 'One box moved should be written as "Moved part def Host".');
+    same(placesOf(ask([move('Host', 100.4, 449.6)])), { Host: { x: 100, y: 450, w: 368, h: 130 } }, '100.4, 449.6 should be rounded to 100, 450.');
+    same(placesOf(ask([move('Host', 99.5, 450.49)])), { Host: { x: 100, y: 450, w: 368, h: 130 } }, '99.5, 450.49 should be rounded to 100, 450.');
+  });
+
+  test('rule 1: inside its owner a box never goes left of 12 or above 48, and its owner grows to hold it', () => {
+    // Page.hosts moved to -50, -50: x = max(pad 12, -50) = 12, y = max(childTop 48, -50) = 48. Its size stays 180 by 110.
+    const hosts = ask([move('Page.hosts', -50, -50)]);
+    same(placesOf(hosts), { 'Page.hosts': { x: 12, y: 48, w: 180, h: 110 } }, 'Page.hosts moved to -50, -50 should be held at 12, 48.');
+    assert.equal(hosts.words, 'Moved part hosts in Page', 'Its words should be the library\'s for the part.');
+    same(placesOf(ask([move('Page.hosts', 12, 48)])), { 'Page.hosts': { x: 12, y: 48, w: 180, h: 110 } }, '12, 48 is on the limit and should be kept.');
+    same(placesOf(ask([move('Page.hosts', 11, 47)])), { 'Page.hosts': { x: 12, y: 48, w: 180, h: 110 } }, '11, 47 is past the limit and should be held at 12, 48.');
+
+    // Page.app moved to 700, 104: its place is that; Page is not placed, and grows to 700 + 180 + pad 12 = 892 wide.
+    const app = ask([move('Page.app', 700, 104)]);
+    same(placesOf(app), { 'Page.app': { x: 700, y: 104, w: 180, h: 110 } }, 'Page.app moved to 700, 104 should be placed there; Page is not placed.');
+    assert.ok(!app.places.has('Page'), 'Page\'s saved width must not be written: the owner grows by project()\'s rule 2.');
+    const drawn = project(lib, EXAMPLE_MODEL, exampleView(), { places: app.places });
+    assert.equal(nodesById(drawn).get('Page').width, 700 + 180 + LOOK.pad, 'Projected with the place, Page should be 700 + 180 + 12 = 892 wide.');
+    assert.equal(nodesById(drawn).get('Page.app').position.x, 700, 'Projected with the place, Page.app should be at x 700.');
+    assert.equal(exampleView().layout.Page.w, 760, 'Nothing should be written to the model: Page keeps its saved 760.');
+  });
+
+  test('rule 2: a port moved goes to its owner\'s nearest border, at the centre\'s fraction along it', () => {
+    // Host is 368 by 130, the port's square 16: React Flow's position is the square's corner, so its centre is 8 more.
+    // Just below the bottom right corner: the corner at 368, 130, centre 376, 138. Distances from the centre: top 138,
+    // bottom 8, left 376, right 8. Bottom and right tie, and ties go in the order top, bottom, left, right: bottom.
+    // The fraction along it, 376 / 368, is 1.02, clamped to 0.95.
+    const below = ask([move('Host.api', 368, 130)]);
+    same(placesOf(below), { 'Host.api': { side: 'bottom', at: 0.95 } }, 'A port just below the corner should go to the bottom at 0.95.');
+    assert.equal(below.words, 'Moved port api in Host to the bottom side', 'Its words should say the side.');
+    // The middle of the left side: centre 0, 65, so the corner at -8, 57. Left is 0 away, top and bottom 65: left, at 65 / 130 = 0.5.
+    same(placesOf(ask([move('Host.api', -8, 57)])), { 'Host.api': { side: 'left', at: 0.5 } }, 'A port at the middle of the left side should be left at 0.5.');
+    // A centre at 0.333 along the top: centre x 0.333 * 368 = 122.544, y 0, so the corner at 114.544, -8. Top is 0 away. 0.333 rounds to 0.33.
+    same(placesOf(ask([move('Host.api', 0.333 * 368 - 8, -8)])), { 'Host.api': { side: 'top', at: 0.33 } }, 'A centre at 0.333 along the top should be at 0.33.');
+    // Left of the top left corner: centre -20, -20, top and left tie at 20: top, at -20 / 368 clamped to 0.05.
+    same(placesOf(ask([move('Host.api', -28, -28)])), { 'Host.api': { side: 'top', at: 0.05 } }, 'A centre left of the corner should be clamped to 0.05.');
+    // Page.hosts is 180 by 110: a centre at 180, 22 is on its right line, 22 / 110 = 0.2; the corner is at 172, 14.
+    same(placesOf(ask([move('Page.hosts.api', 172, 14)])), { 'Page.hosts.api': { side: 'right', at: 0.2 } }, 'A port of Page.hosts with its centre 22 down its right side should be right at 0.2.');
+  });
+
+  test('rule 3: a box asked with its owner is dropped, a port with its owner too', () => {
+    const both = ask([move('Page', 50, 80), move('Page.hosts', 200, 200)]);
+    same(placesOf(both), { Page: { x: 50, y: 80, w: 760, h: 250 } }, 'Page asked with Page.hosts should give Page\'s place only.');
+    assert.equal(both.words, 'Moved part def Page', 'Only Page moved, so its words are Page\'s.');
+    same(placesOf(ask([move('Page.hosts', 200, 200), move('Page', 50, 80)])), { Page: { x: 50, y: 80, w: 760, h: 250 } }, 'The order of the asks should not matter.');
+    same(placesOf(ask([move('Host.api', 0, 0), move('Host', 100, 450)])), { Host: { x: 100, y: 450, w: 368, h: 130 } }, 'Host.api asked with Host should be dropped.');
+    same(placesOf(ask([move('Page.hosts.api', 0, 0), move('Page', 50, 80)])), { Page: { x: 50, y: 80, w: 760, h: 250 } }, 'A port asked with its owner\'s owner should be dropped too.');
+  });
+
+  test('rule 4: a box resized by its bottom right takes its width, and its height holds its rows at that width', () => {
+    checkRows();
+    // Host 200 by 50 from its own corner: w 200. Its doc is 8 rows in 200 wide (HOST_AT_200): 182 high, not 50.
+    const placed = ask([resize('Host', 32, 400, 200, 50)]);
+    same(placesOf(placed), { Host: { x: 32, y: 400, w: 200, h: 182 } }, 'Host resized to 200 by 50 should be 200 wide and 182 high, its header and its 8 rows of doc.');
+    assert.equal(placed.words, 'Resized part def Host', 'One box resized should be written as "Resized part def Host".');
+    same(placesOf(ask([resize('Host', 32, 400, 200, 300)])), { Host: { x: 32, y: 400, w: 200, h: 300 } }, 'A height above what the rows need should be kept.');
+    same(placesOf(ask([resize('Host', 32, 400, 200.4, 299.6)])), { Host: { x: 32, y: 400, w: 200, h: 300 } }, 'A resize should be rounded to whole numbers.');
+  });
+
+  test('rule 4: a box resized from its top left keeps its bottom right corner where the size is held', () => {
+    checkRows();
+    // Host before: 32, 400, 368 by 130, so its corner is 400, 530. Given 300, 500 and 100 by 30: w 100 is above the least
+    // (80), and its doc is 21 rows in 100 wide (HOST_AT_100): h = 377, not 30. The corner is kept: x = 400 - 100 = 300,
+    // y = 530 - 377 = 153.
+    const placed = ask([resize('Host', 300, 500, 100, 30)]);
+    same(placesOf(placed), { Host: { x: 300, y: 153, w: 100, h: 377 } }, 'Host resized from its top left to 300, 500 by 100 by 30 should keep the corner 400, 530: 100 by 377 at 300, 153.');
+    assert.equal(placed.words, 'Resized part def Host', 'It is one box resized.');
+    // A drag that holds nothing: the corner 400, 530 is where it was, and 360 by 230 needs no holding.
+    same(placesOf(ask([resize('Host', 40, 300, 360, 230)])), { Host: { x: 40, y: 300, w: 360, h: 230 } }, 'A top left drag to 40, 300 making 360 by 230 needs no holding.');
+  });
+
+  test('rule 4: no box is smaller than its kind\'s least, and the side not dragged stays', () => {
+    // A has no compartments: its least is the library's, 80 by 40 (BoxData.least), and its header 40.
+    const { model, view } = hand([{ id: 'A', kind: 'PartDefinition', name: 'A' }], [], { A: { x: 10, y: 20, w: 200, h: 100 } });
+    const projection = project(lib, model, view);
+    same(nodesById(projection).get('A').data.least, { width: 80, height: 40 }, 'A part def\'s least should be 80 by 40, or this test is wrong.');
+    const at = (asks) => plain(Object.fromEntries(placesFor(lib, model, view, projection, asks).places));
+    // From the bottom right: 30 by 10 is held at 80 by 40, from the same corner.
+    same(at([resize('A', 10, 20, 30, 10)]), { A: { x: 10, y: 20, w: 80, h: 40 } }, 'A resize to 30 by 10 should be held at 80 by 40 where it is.');
+    // From the top left: the corner is 210, 120; given 50, 60 and 30 by 10, held at 80 by 40 with the corner kept: 130, 80.
+    same(at([resize('A', 50, 60, 30, 10)]), { A: { x: 130, y: 80, w: 80, h: 40 } }, 'A resize from the top left to 30 by 10 should be held at 80 by 40 with the corner 210, 120 kept.');
+    // From the top only: x as before, y 60, 10 high, held at 40 with the bottom 120 kept: y = 80.
+    same(at([resize('A', 10, 60, 200, 10)]), { A: { x: 10, y: 80, w: 200, h: 40 } }, 'A resize from the top to 10 high should be held at 40 with the bottom 120 kept.');
+    same(at([resize('A', 10, 20, 500, 10)]), { A: { x: 10, y: 20, w: 500, h: 40 } }, 'Only the side below the least should be held.');
+  });
+
+  test('rule 4: an owner is held to what it holds', () => {
+    // Page resized to 100 by 100: Page.app is at 568, 104, 180 by 110, so wide enough for 568 + 180 + 12 = 760; and high
+    // enough for the bottoms of its parts + 12: 104 + 110 + 12 = 226. Its doc is 2 rows in 760 wide (PAGE_ROWS): 40 + 16
+    // + 30 + 6 = 92, under 226. Page keeps its corner, 32, 72.
+    const placed = ask([resize('Page', 32, 72, 100, 100)]);
+    same(placesOf(placed), { Page: { x: 32, y: 72, w: 760, h: 226 } }, 'Page resized to 100 by 100 should be held at 760 by 226 by what it holds.');
+    assert.equal(placed.words, 'Resized part def Page', 'It is one box resized.');
+  });
+
+  test('rule 4: no box is larger than 4000 a side', () => {
+    same(placesOf(ask([resize('Host', 32, 400, 5000, 5000)])), { Host: { x: 32, y: 400, w: 4000, h: 4000 } }, 'A resize of 5000 by 5000 should be held at 4000 by 4000.');
+    same(placesOf(ask([resize('Host', 32, 400, 4000, 4000)])), { Host: { x: 32, y: 400, w: 4000, h: 4000 } }, '4000 by 4000 is the limit and should be kept.');
+  });
+
+  test('rule 4: a box inside an owner is not resized to the left of 12 or above 48', () => {
+    // Page.hosts resized from its top left to -20, 10 by 300 by 200: x = max(12, -20) = 12, y = max(48, 10) = 48. (Whether
+    // the size shrinks to keep its right and bottom edges is not said by the contract; only the position is asserted.)
+    const got = ask([resize('Page.hosts', -20, 10, 300, 200)]).places.get('Page.hosts');
+    assert.ok(got, 'A resize past the owner\'s corner should still give a place.');
+    assert.equal(got.x, 12, 'A top left drag past the owner\'s left should be held at x 12.');
+    assert.equal(got.y, 48, 'A top left drag past the owner\'s top should be held at y 48.');
+  });
+
+  test('rule 5: a gesture that ends where it began gives no place; only asked nodes are placed', () => {
+    const still = ask([move('Host', 32, 400)]);
+    assert.equal(still.places.size, 0, 'Host moved to where it is should give no place.');
+    assert.equal(still.words, null, 'A move to where it is should have no words.');
+    const kept = ask([resize('Host', 32, 400, 368, 130)]);
+    assert.equal(kept.places.size, 0, 'Host resized to its own size should give no place.');
+    assert.equal(kept.words, null, 'A resize to its own size should have no words.');
+    const port = ask([move('Host.api', 360, 57)]);
+    assert.equal(port.places.size, 0, 'Host.api where it is (corner 360, 57: centre 368, 65 is the right side at 0.5) should give no place.');
+    assert.equal(port.words, null, 'A port where it is should have no words.');
+
+    const three = ask([move('Host', 100, 450), move('App', 700, 450), move('StrongholdApp', 840, 72)]);
+    assert.deepEqual([...three.places.keys()].sort(), ['App', 'Host'], 'Only the asked nodes that differ from the view\'s own should be placed: StrongholdApp stayed.');
+    assert.equal(three.words, 'Moved 2 elements', 'Two places that differ are "Moved 2 elements": the one that stayed is not counted.');
+    assert.equal(ask([]).places.size, 0, 'No asks should give no places.');
+    assert.equal(ask([]).words, null, 'No asks should give no words.');
+  });
+
+  test('rule 6: an unknown id, and a border item asked to resize, are left out', () => {
+    const lost = ask([move('Nothing', 5, 5)]);
+    assert.equal(lost.places.size, 0, 'A node the projection does not hold should be left out.');
+    assert.equal(lost.words, null, 'Nothing placed should have no words.');
+    const port = ask([resize('Host.api', 360, 57, 40, 40)]);
+    assert.equal(port.places.size, 0, 'A border item asked to resize should be left out.');
+    assert.equal(port.words, null, 'A border item asked to resize should leave no words.');
+    const mixed = ask([move('Nothing', 5, 5), resize('Host.api', 0, 0, 40, 40), move('Host', 100, 450)]);
+    same(placesOf(mixed), { Host: { x: 100, y: 450, w: 368, h: 130 } }, 'The asks that can be answered should be, beside those left out.');
+    assert.equal(mixed.words, 'Moved part def Host', 'The words are those of the one place.');
+  });
+
+  test('rule 7: the words', () => {
+    assert.equal(ask([move('Host', 100, 450), move('App', 700, 450), move('ServerHost', 32, 700)]).words, 'Moved 3 elements', 'Three boxes moved should be "Moved 3 elements".');
+    assert.equal(ask([resize('Host', 32, 400, 200, 300)]).words, 'Resized part def Host', 'One box resized should be "Resized part def Host".');
+    assert.equal(ask([resize('Host', 32, 400, 200, 300), resize('App', 600, 400, 300, 300), resize('ServerHost', 32, 620, 300, 300)]).words, 'Resized 3 elements', 'Three boxes resized should be "Resized 3 elements".');
+    assert.equal(ask([move('Host', 100, 450), move('Host.api', 368, 130)]).words, 'Moved part def Host', 'A port asked with its owner is dropped, so one box is moved.');
+    assert.equal(ask([move('Host.api', 368, 130), move('App.api', -8, 57)]).words, 'Moved 2 elements', 'Two ports moved should be "Moved 2 elements".');
+  });
+
+  // ---- A gesture's layout is the projection of the model its end writes.
+
+  /** The projection of a copy of `model` whose view's layout holds `placed.places`: what a gesture's end writes. */
+  function written(model, viewId, placed) {
+    const copy = lib.normalize(plain(model));
+    const view = viewOf(copy, viewId);
+    for (const [id, place] of placed.places) {
+      for (const key of Object.keys(place)) view.layout[id][key] = place[key];
+    }
+    return project(lib, copy, view);
+  }
+  function sameProjection(label, a, b) {
+    assert.deepEqual(a.nodes.map((n) => n.id), b.nodes.map((n) => n.id), `${label}: the two projections should have the same nodes in the same order.`);
+    for (let i = 0; i < a.nodes.length; i++) {
+      const x = a.nodes[i];
+      const y = b.nodes[i];
+      assert.deepEqual([x.position.x, x.position.y], [y.position.x, y.position.y], `${label}: ${x.id}'s position should be what the written model gives.`);
+      assert.deepEqual([x.width, x.height], [y.width, y.height], `${label}: ${x.id}'s size should be what the written model gives.`);
+      assert.equal(x.parentId, y.parentId, `${label}: ${x.id}'s parent should be what the written model gives.`);
+      same(x.data, y.data, `${label}: ${x.id}'s data should be what the written model gives.`);
+    }
+  }
+
+  test("a gesture's step is drawn as the model its end writes would be", () => {
+    const cases = [
+      ['a nested box moved right, growing its owner', [move('Page.app', 700, 300)]],
+      ['a nested box held at its owner\'s corner', [move('Page.hosts', 0, 0)]],
+      ['a ground box moved', [move('Host', 150, 460)]],
+      ['an owner moved', [move('Page', 90, 90)]],
+      ['a port moved to another side', [move('Host.api', 368, 130)]],
+      ['a nested box\'s port moved', [move('Page.hosts.api', 100, 20)]],
+      ['a box resized by its bottom right', [resize('Host', 32, 400, 200, 50)]],
+      ['a box resized from its top left', [resize('Host', 300, 500, 100, 30)]],
+      ['an owner resized smaller than what it holds', [resize('Page', 32, 72, 100, 100)]],
+      ['an owner resized larger', [resize('Page', 32, 72, 1000, 500)]],
+      ['a box resized beyond the limit', [resize('Host', 32, 400, 5000, 5000)]],
+      ['three boxes moved', [move('Host', 100, 450), move('App', 700, 450), move('ServerHost', 32, 700)]],
+      ['a move and a resize', [move('App', 700, 450), resize('Host', 32, 400, 250, 250)]],
+    ];
+    for (const [label, asks] of cases) {
+      const placed = ask(asks);
+      assert.ok(placed.places.size > 0, `${label}: the asks should change a place, or the case shows nothing.`);
+      const drawn = project(lib, EXAMPLE_MODEL, exampleView(), { places: placed.places });
+      sameProjection(label, drawn, written(EXAMPLE_MODEL, VIEW, placed));
+    }
+  });
+
+  test('a step is projected from the places given and nothing is written to the model', () => {
+    const before = JSON.stringify(EXAMPLE_MODEL);
+    const placed = ask([move('Host', 150, 460), move('Host.api', 368, 130)]);
+    const drawn = project(lib, EXAMPLE_MODEL, exampleView(), { places: placed.places });
+    assert.equal(JSON.stringify(EXAMPLE_MODEL), before, 'placesFor and project() with places must write nothing to the model.');
+    assert.deepEqual([nodesById(drawn).get('Host').position.x, nodesById(drawn).get('Host').position.y], [150, 460], 'The drawn Host should be at 150, 460.');
+    assert.deepEqual(plain(nodesById(project(lib, EXAMPLE_MODEL, exampleView())).get('Host').position), { x: 32, y: 400 }, 'The view without places should still draw Host where it was saved.');
+  });
+
+  test('over the 5,000-element model: one box moved in each view is moved by exactly the delta', () => {
+    const { model, views } = scaleModel();
+    assert.equal(views.length, 3, 'The 5,000-element model should have three graph views.');
+    for (const view of views) {
+      const projection = project(lib, model, view);
+      const box = projection.nodes.find((node) => node.parentId === undefined && node.data.form === 'box');
+      const own = view.layout[box.id];
+      const dx = 40;
+      const dy = 24;
+      const placed = placesFor(lib, model, view, projection, [move(box.id, box.position.x + dx, box.position.y + dy)]);
+      same(placesOf(placed), { [box.id]: { x: own.x + dx, y: own.y + dy, w: own.w, h: own.h } }, `${view.id}: ${box.id} moved by ${dx}, ${dy} should be placed at its own place plus that, at its own size.`);
+      assert.equal(placed.words, `Moved ${lib.describe(model, model.elements.find((el) => el.id === box.id))}`, `${view.id}: the words of one box moved.`);
+      const drawn = project(lib, model, view, { places: placed.places, previous: projection });
+      const before = nodesById(projection);
+      assert.equal(drawn.nodes.length, projection.nodes.length, `${view.id}: no node should be added or lost by a move.`);
+      for (const node of drawn.nodes) {
+        const was = before.get(node.id);
+        // A node's position is from its owner's corner, so only the moved box's own changes, by the delta.
+        const expected = node.id === box.id ? { x: was.position.x + dx, y: was.position.y + dy } : { x: was.position.x, y: was.position.y };
+        assert.deepEqual([node.position.x, node.position.y], [expected.x, expected.y], `${view.id}: ${node.id} should be at ${expected.x}, ${expected.y}.`);
+        assert.deepEqual([node.width, node.height], [was.width, was.height], `${view.id}: ${node.id} should keep its size.`);
+      }
+    }
+  });
+});

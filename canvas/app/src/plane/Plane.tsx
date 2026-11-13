@@ -14,7 +14,7 @@ import { BoxNode } from './nodes/BoxNode';
 import { PortNode } from './nodes/PortNode';
 import { SmallNode } from './nodes/SmallNode';
 import { NotDrawnYet } from './NotDrawnYet';
-import { viewStoreOf } from './viewStore';
+import { CLICK_DISTANCE, viewStoreOf } from './viewStore';
 import type { ViewStore } from './viewStore';
 
 export interface PlaneProps {
@@ -49,8 +49,14 @@ export interface PlaneProps {
  *   `zoomOnDoubleClick={false}`, `paneClickDistance` (a press that moves a few pixels is still a click),
  *   `selectionKeyCode={null}` (no rectangle is drawn with Shift until step 9 gives the marquee its meaning),
  *   `deleteKeyCode={null}` (React Flow's own Delete removes nothing until slice 2 gives Delete its meaning),
- *   nodes draggable (step 7: boxes, small nodes and border items; a press on a box drags it, a press on the ground
- *   pans), `nodesConnectable={false}`, `nodesFocusable={false}`,
+ *   nodes draggable (step 7: boxes, small nodes and border items, React Flow's default; a press on a box drags it, a
+ *   press on the ground pans) with `nodeDragThreshold={0}` (a drag begins at the press: with the default 1 px React
+ *   Flow starts its tracking at the first move and the node trails the pointer by that move; the store, not React Flow,
+ *   tells a click that slips from a drag: it starts no gesture until the pointer is CLICK_DISTANCE from the press),
+ *   `selectNodesOnDrag={false}` (a drag selects nothing; a click does, within `nodeClickDistance`, the same
+ *   CLICK_DISTANCE as the ground's),
+ *   `autoPanOnNodeDrag={false}` (the plane does not pan under a drag near its edge: a box stays under the pointer),
+ *   `nodesConnectable={false}`, `nodesFocusable={false}`,
  *   `edgesFocusable={false}`, `disableKeyboardA11y`, `proOptions` hiding the attribution. No `fitView`, `viewport`,
  *   `width` or `height` prop, no `extent` and no `expandParent` on a node.
  * - **Around the nodes**: the ground's dots (`Background`), left out when far; `Controls` at the bottom left without
@@ -115,9 +121,10 @@ const PRO_OPTIONS = { hideAttribution: true };
 // and a line by its two nodes', with no margin, so a name outside its node and a line's label leave with them while
 // still in the window: a view of few nodes is therefore not culled at all, and a far view has no words to lose.
 const CULL_OVER = 300;
-// How far the pointer may move between press and release and still click: a press on a box pans the ground until
-// step 7 makes boxes draggable, and a hand is seldom still to the pixel.
-const CLICK_DISTANCE = 4;
+// How far the pointer may move between press and release and still click is the store's CLICK_DISTANCE: React Flow's
+// own click distances (the ground's and a node's) are set to it, and the store starts no gesture of a drag or a resize
+// that has not gone as far (nodeDragThreshold is 0, so a drag begins at the press and the node does not trail the
+// pointer; the store, not React Flow, tells a click that slipped from a drag).
 const MINIMAP_STYLE = { width: MINIMAP.width, height: MINIMAP.height };
 
 interface FlowProps {
@@ -152,7 +159,11 @@ function Flow({ store, root }: FlowProps): JSX.Element {
       zoomOnDoubleClick={false}
       paneClickDistance={CLICK_DISTANCE}
       selectionKeyCode={null}
-      nodesDraggable={false}
+      deleteKeyCode={null}
+      selectNodesOnDrag={false}
+      nodeClickDistance={CLICK_DISTANCE}
+      nodeDragThreshold={0}
+      autoPanOnNodeDrag={false}
       nodesConnectable={false}
       nodesFocusable={false}
       edgesFocusable={false}

@@ -8,8 +8,8 @@
 // (canvas/app/test/core.mjs).
 
 import type { EdgeChange, NodeChange } from '@xyflow/react';
-import { FAR, fit, isDrawn, notDrawnText, project } from '../core';
-import type { PlaneEdge, PlaneNode, Projection, Session, Told, Viewport } from '../core';
+import { FAR, fit, isDrawn, notDrawnText, placesFor, project } from '../core';
+import type { Ask, PlaneEdge, PlaneNode, Projection, Session, Told, Viewport } from '../core';
 
 /** What a plane renders. A new object only when something in it changed; `nodes` and `edges` each likewise. */
 export interface ViewSnapshot {
@@ -45,7 +45,12 @@ export interface ViewSnapshot {
  *   what was selected.
  * - **React Flow's changes: a gesture (step 7).** A `position` change with `dragging` true, and a `dimensions` change
  *   with `resizing` true (with the `position` change NodeResizer sends beside it for a top or left handle), are a
- *   step of a gesture. The first step keeps the projection as the gesture's start. Each step adds its asks (the
+ *   step of a gesture. The first step keeps the projection as the gesture's start. A press is not yet a gesture: until
+ *   a step has gone CLICK_DISTANCE screen px from where the press began (the largest of the |dx| and |dy| of a drag's
+ *   position against the node's at the press, or of the position and the size of a resize, times the zoom of the
+ *   viewport last seen, 1 when none), the steps are kept but write and draw nothing, tell nobody, and the end of such a
+ *   press writes nothing: a click that slips a pixel or two is a click. Once past, the gesture runs from the press's
+ *   start, whatever the later steps do. Each step adds its asks (the
  *   adapter's Ask: `move` for a position, `resize` for a resizer's position and size, the size kept until it changes
  *   again) to the gesture's asks by node id, works out the adapter's placesFor(lib, model, view, start, asks), and
  *   projects the view with those `places` and the projection before as `previous`; a node React Flow reports as
@@ -57,7 +62,11 @@ export interface ViewSnapshot {
  *   placesFor's words. So a gesture is one undo step, and one that ends where it began is none. The history then tells
  *   the store of the change, which projects the model as written: that projection reads the same as the gesture's
  *   last step, so its nodes are the same objects. `dragging` is false on every node after the end. A change of the
- *   history heard during a gesture (an undo by the keyboard mid-drag) ends the gesture without writing it.
+ *   history heard during a gesture (an undo by the keyboard mid-drag; not the store's own write) cancels it: the
+ *   snapshot shows the model's projection, with no `dragging`, and every later step of that gesture (a position with
+ *   `dragging` true, dimensions with `resizing` true) is ignored until its end (`dragging` false, `resizing` false),
+ *   which writes nothing and clears the mark, so that the history keeps what Redo holds. While a gesture is open and
+ *   not cancelled, every projection of the view (a view crossing FAR, say) draws with the gesture's places.
  * - React Flow's `remove`, `add` and `replace` changes, and `dimensions` with no `resizing` (React Flow measuring a
  *   node it was told the size of), change nothing: the model is changed only through the history.
  * - A view the model no longer holds, and a view of a kind no plane draws, have the empty snapshot.
@@ -93,6 +102,20 @@ export interface ViewStore {
   nodesChanged(changes: NodeChange<PlaneNode>[]): void;
   /** React Flow's onEdgesChange. */
   edgesChanged(changes: EdgeChange<PlaneEdge>[]): void;
+}
+
+/** How far, in screen px, the pointer must go from where a drag or a resize began before it is a gesture and not a click. */
+export const CLICK_DISTANCE = 4;
+
+/** A gesture in progress: the projection it began from, what it has asked by node id, and the nodes React Flow drags. */
+interface Gesture {
+  readonly start: Projection;
+  readonly asks: Map<string, Ask>;
+  readonly dragging: Set<string>;
+  /** Whether a step has gone CLICK_DISTANCE from the press: until then the press writes and draws nothing. */
+  passed: boolean;
+  /** Whether a change of the history was heard in the middle of it: its steps are ignored until its end. */
+  cancelled: boolean;
 }
 
 const EMPTY: ViewSnapshot = { nodes: [], edges: [], far: false };
@@ -157,6 +180,9 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   /** The viewport the last fit gave, while the view is as fitted; null once somebody has placed it by hand. */
   let fitted: Viewport | null = null;
   let projected = 0;
+  let gesture: Gesture | null = null;
+  /** True while the store's own gesture end is being written, so that the history's telling is not taken for another's. */
+  let writing = false;
 
   const viewOf = () => session.model.views.find((view) => view.id === viewId);
 
@@ -179,7 +205,13 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
       projection = null;
     } else {
       projected++;
-      projection = project(session.lib, session.model, view, { far, previous: projection });
+      const open = gesture && gesture.passed && !gesture.cancelled ? gesture : null;
+      if (open) {
+        const { places } = placesFor(session.lib, session.model, view, open.start, [...open.asks.values()]);
+        projection = dragged(project(session.lib, session.model, view, { far, previous: projection, places }), open);
+      } else {
+        projection = project(session.lib, session.model, view, { far, previous: projection });
+      }
     }
     adopt();
     return snapshot !== before;
@@ -236,14 +268,139 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
     return fitted;
   };
 
+  /** The projection with `dragging` taken off the nodes that have it; the projection itself when none has. */
+  const undragged = (p: Projection): Projection => {
+    if (!p.nodes.some((n) => n.dragging)) return p;
+    return { ...p, nodes: p.nodes.map((n) => (n.dragging ? { ...n, dragging: false } : n)) };
+  };
+
+  /** The projection with `dragging: true` on the nodes React Flow drags in the gesture. */
+  const dragged = (p: Projection, g: Gesture): Projection => {
+    if (!p.nodes.some((n) => g.dragging.has(n.id) && !n.dragging)) return p;
+    return { ...p, nodes: p.nodes.map((n) => (g.dragging.has(n.id) && !n.dragging ? { ...n, dragging: true } : n)) };
+  };
+
+  type View = NonNullable<ReturnType<typeof viewOf>>;
+
+  /** Whether one of the steps is CLICK_DISTANCE screen px from where its node was at the press. */
+  const crossed = (g: Gesture, steps: readonly Ask[]): boolean => {
+    const zoom = viewport ? viewport.zoom : 1;
+    for (const ask of steps) {
+      const node = g.start.nodes.find((n) => n.id === ask.id);
+      if (!node) continue;
+      let gone = 0;
+      if ('move' in ask) {
+        gone = Math.max(Math.abs(ask.move.x - node.position.x), Math.abs(ask.move.y - node.position.y));
+      } else {
+        const r = ask.resize;
+        gone = Math.max(Math.abs(r.x - node.position.x), Math.abs(r.y - node.position.y),
+          Math.abs(r.width - (node.width ?? r.width)), Math.abs(r.height - (node.height ?? r.height)));
+      }
+      if (gone * zoom >= CLICK_DISTANCE) return true;
+    }
+    return false;
+  };
+
+  /** A step of the gesture: its asks worked out, the view projected with their places, the subscribers told. */
+  const step = (view: View, g: Gesture): void => {
+    if (!projection) return;
+    const { places } = placesFor(session.lib, session.model, view, g.start, [...g.asks.values()]);
+    projection = dragged(project(session.lib, session.model, view, { far, previous: projection, places }), g);
+    adopt();
+    tell();
+  };
+
+  /** The gesture's end: its last asks' places written as one undo step in placesFor's words, or nothing written. */
+  const finish = (view: View, g: Gesture): void => {
+    gesture = null;
+    if (!projection) return;
+    projection = undragged(projection);
+    const { places, words } = placesFor(session.lib, session.model, view, g.start, [...g.asks.values()]);
+    let touched = null;
+    if (words !== null) {
+      writing = true;
+      try {
+        touched = session.history.edit(() => {
+          const written = session.model.views.find((v) => v.id === viewId);
+          if (!written) return undefined;
+          for (const [id, place] of places) {
+            const lay = written.layout[id] as unknown as Record<string, unknown> | undefined;
+            if (!lay) { written.layout[id] = { ...place } as never; continue; }
+            for (const [key, value] of Object.entries(place)) if (lay[key] !== value) lay[key] = value;
+          }
+          return words;
+        }, null);
+      } finally { writing = false; }
+    }
+    if (!touched) {
+      // Nothing written: the model's own projection takes the place of the gesture's last step.
+      stale = true;
+      refresh();
+      adopt();
+      tell();
+    }
+  };
+
   const nodesChanged = (changes: NodeChange<PlaneNode>[]): void => {
     refresh();
     if (!projection) return;
-    const nodes = selected(projection.nodes, changes);
-    if (!nodes) return;
-    projection = { ...projection, nodes };
-    adopt();
-    tell();
+    const chosen = selected(projection.nodes, changes);
+    if (chosen) {
+      projection = { ...projection, nodes: chosen };
+      adopt();
+    }
+    const view = viewOf();
+    // The nodes this array resizes: a position with no `dragging` is a resize's only beside such a dimensions change.
+    const steps: Ask[] = [];
+    const draggedNow: string[] = [];
+    const ends: Ask[] = [];
+    let ended = false;
+    for (const c of changes) {
+      if (c.type === 'position' && c.position) {
+        if (c.dragging === true) { if (!gesture?.cancelled) { steps.push({ id: c.id, move: c.position }); draggedNow.push(c.id); } }
+        else if (c.dragging === false && gesture?.dragging.has(c.id)) { ends.push({ id: c.id, move: c.position }); ended = true; }
+      } else if (c.type === 'dimensions' && c.resizing === false && gesture?.asks.has(c.id)) {
+        ended = true;
+      } else if (c.type === 'dimensions' && c.resizing === true && c.dimensions) {
+        if (gesture?.cancelled) continue;
+        const own = changes.find((o) => o.type === 'position' && o.id === c.id && o.dragging === undefined);
+        const before = gesture?.asks.get(c.id);
+        const was = before && 'resize' in before ? before.resize : null;
+        const first = (gesture ? gesture.start : projection).nodes.find((n) => n.id === c.id)?.position;
+        const from = own && own.type === 'position' && own.position ? own.position : was ?? first;
+        if (from) steps.push({ id: c.id, resize: { x: from.x, y: from.y, width: c.dimensions.width, height: c.dimensions.height } });
+      }
+    }
+    if (!view || (steps.length === 0 && !ended)) {
+      if (chosen) tell();
+      return;
+    }
+    if (!gesture) {
+      if (steps.length === 0) { if (chosen) tell(); return; }
+      gesture = { start: projection, asks: new Map(), dragging: new Set(), passed: false, cancelled: false };
+    }
+    if (gesture.cancelled) {
+      // An undo (or another change of the history) was heard in the middle of it: only its end is heard.
+      if (ended) gesture = null;
+      if (chosen) tell();
+      return;
+    }
+    for (const ask of steps) gesture.asks.set(ask.id, ask);
+    for (const id of draggedNow) gesture.dragging.add(id);
+    if (ended) {
+      if (!gesture.passed) {
+        // A press that never went CLICK_DISTANCE from where it began: a click, which writes and draws nothing.
+        gesture = null;
+        if (chosen) tell();
+        return;
+      }
+      for (const ask of ends) gesture.asks.set(ask.id, ask);
+      finish(view, gesture);
+    } else {
+      if (!gesture.passed && crossed(gesture, steps)) gesture.passed = true;
+      if (gesture.passed) step(view, gesture);
+      else if (chosen) tell();
+    }
   };
 
   const edgesChanged = (changes: EdgeChange<PlaneEdge>[]): void => {
@@ -265,13 +422,20 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
 
   hear.set(viewId, (told) => {
     if (told.by === 'end') return;
+    let cancelling = false;
+    if (gesture && !gesture.cancelled && !writing) {
+      // Heard in the middle of a gesture (an undo by the keyboard): it is cancelled, and its steps ignored until its end.
+      gesture.cancelled = true;
+      cancelling = true;
+      if (projection) projection = undragged(projection);
+    }
     const now = drawnNow_();
     if (now !== drawnWas) {
       drawnWas = now;
       stale = true;
       for (const watcher of [...watchers]) watcher();
     }
-    if (told.views !== null && !told.views.includes(viewId)) return;
+    if (!cancelling && told.views !== null && !told.views.includes(viewId)) return;
     stale = true;
     if (listeners.size > 0 && refresh()) tell();
   });
