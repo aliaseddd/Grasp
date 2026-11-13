@@ -2656,3 +2656,17 @@ page:
 | 10 | crossing 25% projects again, far or near, and tells; a step that does not cross it tells nobody | far decided once |
 | 11 | a view of a kind no plane draws is not drawn and has the empty snapshot | `drawn` always true |
 | 12 | the store's methods can be handed over as they are | a method reading `this` |
+
+### Step 6: the tests, written first
+
+Three writers side by side, each in a worktree, from the lists above.
+
+**The store's, `viewStore.test.mjs`** (2.7 min, 17 tool calls). All 12 fail today with `plane/viewStore.ts: viewStoreOf()
+is not built yet (step 6).`, the reason listed. `loadPlanes()` in `test/core.mjs`, beside `loadCore()`, bundles the
+core and the store from one in-memory entry, so the store and the session it is given share one copy of the core; the
+store imports React Flow's types only, so none of the library is in the bundle. What the list left open and the writer
+settled:
+- `v-ic` places every element of `interconnection.json`, so "an element the view does not place" is one the test adds
+  first, outside any layout, and then renames.
+- `projected` before the first `getSnapshot()`, and whether `moved()` before any `camera()` tells anyone, are not
+  asserted: the contract does not say.
