@@ -3106,3 +3106,277 @@ says so.
 The method's log, this session: three test writers (6.1, 3.7 and 3.8 min), one breakage pass (1.9 min), two reviewers
 of the image (2.1 and 2.2 min) and one of the code (16 min); every fix and the wrap's rule written by me. Rework:
 none went back to an agent. One agent was sent out three times before it could start, on a worktree made from `main`.
+
+## Session 22, November 13, 2026: step 7 of slice 1, moving, resizing, undo, redo and save
+
+On `claude/charming-archimedes-i2vi31`, from `964ffb2` (main, with step 6 merged by pull request #48). Damon's word:
+"Execute step 7. Parallelize the work whenever possible." The method is session 17's, as session 20 tightened it.
+
+The baseline, in this container (Node 22.23.4, `node_modules` present): `npm run check` passes; `npm test` gives 161
+tests, 156 pass, 0 fail, 5 todo, in 39 s.
+
+### Step 7: the outline
+
+The contracts are in the files, as comments over bodies that throw; nothing calls them yet, so the page is the one
+step 6 left:
+
+- `core/adapter.ts`: `Ask` (a `move` to a position, or a `resize` to a position and size, in React Flow's numbers),
+  `Placed`, `placesFor(lib, model, view, start, asks)` with its seven rules, and `project()`'s `places` option (rule
+  7), so that a gesture's step is drawn by the very rules that draw the model its end writes. `describe` joins the
+  library's declared names. Session 17 named `withAsks` and `placeOf`; one function that gives places, and project()
+  reading them, says the same with no second copy of the layout.
+- `plane/viewStore.ts`: a gesture's steps and its end. Nothing is written during a gesture; the end is one
+  `history.edit()` with key null, writing only the keys that differ. An undo heard mid-gesture ends the gesture
+  unwritten.
+- `plane/Plane.tsx`: nodes draggable, `deleteKeyCode={null}`. `plane/nodes/BoxNode.tsx`: NodeResizer while selected
+  and near, with the kind's least size and no callbacks.
+- `shell/TopBar.tsx`: Save, Undo, Redo and the keys, `onSave`. `shell/App.tsx`: Save, its failure in the Alert, and
+  the question before Open loses changes. `core/files.ts`: `LOSE_QUESTION`, `askBeforeLeaving`.
+
+The rules a gesture keeps, from the old page's graph renderer (`drawing.js`, `dragStart`, `drag`, `drop`;
+`layout.js`, `nearestBorder`): a nested box no further left than 12 or up than 48 from its owner's corner, the owner
+growing by the layout's own rule; a port to its owner's nearest border, `at` clamped to 0.05 .. 0.95 and rounded to
+0.01; a resize held at the kind's least, at what the box holds at its new width, and at 4000, with the side not
+dragged kept where it was. The old page has no resize by handles; its words are kept: "Moved part def Host", "Moved
+port api in hosts to the right side", and "Resized part def Host" beside them.
+
+### The order of work, by what blocks what
+
+| # | Task | Who | Needs | Beside |
+|---|---|---|---|---|
+| O | The outline, committed and pushed | me | | |
+| A | `placesFor` and `project()`'s `places` | agent | O | N, B1, B2, S |
+| N | Node tests: `adapter.test.mjs` (the seven rules; a gesture's layout is the projection of what its end writes), `viewStore.test.mjs` (a gesture in the store) | agent | O | A, B1, B2, S |
+| B1 | `move.test.mjs`, and the `nodes` row of `shots.mjs` | agent | O | A, N, B2, S |
+| B2 | `resize.test.mjs` (the todo mark off; a save through a stubbed picker's handle), `keys.test.mjs`, the example's drag step in `instant.test.mjs`, and the scale test's drag made to fail with nothing dragged | agent | O | A, N, B1, S |
+| S | The bar, Save, the keys and the questions: `TopBar.tsx`, `App.tsx`, `files.ts` | agent | O | A, N, B1, B2 |
+| P | The gesture half of the store, the planes' props, NodeResizer and its look | agent | A taken in, the tests seen to fail | |
+| R, F, C, E | Reviews, fixes, the checks alone, the commit | me, agents | P | |
+
+The tests are seen to fail at O, where nothing is draggable and the bar's three buttons are disabled; S and A run
+beside the test writers, so P is the only implementer that waits, and it waits for A alone. `keys.test.mjs` is a
+file the plan does not name: the keys and the questions are the bar's, not a gesture's, and a second writer on
+`move.test.mjs` would have owned one file with another.
+
+### Step 7: the tests, written first, and the first two implementers
+
+Five agents (Sonnet, medium effort), each in a worktree at the outline, `695a789`, all at once: the adapter's
+`placesFor` (2.1 min), the bar (2.3 min), and three test writers (4.0, 4.4 and 5.1 min). Their commits were taken
+into a local branch, `wip/step-7`, never pushed, from which the planes' implementer started. Two of five worktrees were
+made from `main`, not from the outline, and their agents moved them back as the brief told them to.
+
+Each new test was run at the outline and failed for want of what it checks:
+
+| File | Tests | At the outline, they fail with |
+|---|---|---|
+| `adapter.test.mjs`, "placesFor: a gesture's places" | 16 | "placesFor: step 7 builds it" |
+| `viewStore.test.mjs`, "a gesture in the store" | 8 | the store ignores the change: "A step of a drag must give a new snapshot.", "The end of a drag must write one undo step.", and the like |
+| `move.test.mjs` | 9 | 8: "A drag of Host by its header did not move a box: it panned the plane by 80 x 40 px (a node is not draggable).", "Host, selected, shows no resize controls", "... no resize handle at its top left corner" |
+| `resize.test.mjs` | 2 | check 5, its todo mark taken off, and the save through a stubbed picker's handle: "Host, selected, shows no resize handle at its bottom right corner" |
+| `keys.test.mjs` | 6 | "After a drag of Host, Save, Undo and Redo are enabled as {save: false, undo: false, redo: false}", and "A drag of Host ... did not move it against App" |
+| `instant.test.mjs`, "a drag step of the example takes under 16 ms" | 1 | "Host's offset from App changed by -0.0 by 0.0 px: the drag did not move Host against App" |
+
+- **"Backspace and Delete remove nothing"** passes at the outline, where nothing removes anything. It is checked the
+  other way round, by giving React Flow its Delete key back.
+- **The scale test's drag** (check 8, still todo until step 8) now asks that the box moved against a neighbour that
+  was not dragged. At the outline it fails, as a todo, with "Against Store81, which was not dragged, it went 0.0 by
+  0.0 px: a plane that pans takes both." Session 20's review found it passing with nothing dragged.
+- A press on a box pans the plane at the outline, so each browser test that drags measures the box against another
+  one, or against its owner, and none can pass on a pan.
+- The adapter's 16 tests and its implementer worked from the same contract without seeing each other's work; all 16
+  passed at the first run against it, the hand-worked numbers included (Host resized to 200 wide is 182 high, its 8
+  rows of doc at that width; from the top left to 100 by 30 it is held at 80 by 377, its corner at 400, 530 kept).
+- Two of the store's tests were mine to correct, to what React Flow 12.10.2 sends (NodeResizer, in
+  `@xyflow/react`'s `dist/esm/index.mjs`): a top or left handle's position comes with no `dragging` key, beside the
+  resizing dimensions; and a position with no `dragging` and no resize beside it is no gesture. Step 6's "a change
+  that is not a selection changes nothing" sent a position with `dragging: true`, which step 7 makes a gesture: its
+  position line now has no `dragging`.
+- `helpers.mjs` gained one option: `openPage(browser, { dialog })`, a handler for the browser's dialogs, accepting
+  them as before unless given (the Open question's Cancel needs a dismiss).
+
+What the two first implementers decided where the contract was silent:
+- `placesFor`, rule 4: the edges kept are the drawn ones (position + drawn size), a handle counts as dragged on an
+  axis whose position differs from the start, the width is held before the compartments are wrapped at it and the
+  height held after, and the owner's 12 and 48 apply only on an axis whose handle was dragged, so a resize by the
+  bottom right never changes a saved x or y.
+- The bar: one `keydown` listener in `TopBar`, per session. Ctrl or ⌘ + Z that acts prevents the browser's default
+  even with nothing to undo; Ctrl or ⌘ + S with no file open prevents it and does nothing. The confirm before Open
+  leaves the click's user activation for the file input, seen in a probe.
+
+### Step 7: the planes' gestures, built
+
+One agent (Sonnet, medium, 7.3 min) from `wip/step-7` with every test of the step in it: the gesture half of
+`viewStore.ts`, the planes' props, NodeResizer, and the controls' look. `npm test` with it: 203 tests, 199 pass, 0
+fail, 4 todo. No test file changed. Beyond the outline, three props of `Plane.tsx`, each because a test failed without
+it, each in the contract's comment:
+- `nodeDragThreshold={0}`: with React Flow's 1 px a drag's tracking starts at the first move, and the box trailed the
+  pointer by that move all the way (76 of 86.4 units in the first move test).
+- `selectNodesOnDrag={false}` with `nodeClickDistance` 4: otherwise a press dragged 12 px selected the box, and step
+  6's gestures test asks that it select nothing.
+- `autoPanOnNodeDrag={false}`: a nested box dragged toward the plane's edge panned the plane under it.
+- `paneClickDistance` stays: a press on the ground still pans, and a click that slips must still clear the selection.
+
+**"Backspace and Delete remove nothing", checked the other way round**, in a scratch worktree: with
+`deleteKeyCode={null}` taken out it still passed, since the store takes no `remove` from React Flow either; with the
+store also dropping the nodes React Flow removes, it failed: "Backspace removed Host from the plane." Two locks, and
+the test sees through both.
+
+**`canvas/check.sh` on a file the new page saved** (a probe: the example opened through the file input, Host dragged,
+Page resized by its bottom right handle, Save): `ok ... (Package StrongholdProof)`. The file held Host at x 124, y 455
+and Page at 899 by 352.
+
+### `nodes.png`, looked at twice
+
+The first, of the example, by a reviewer that saw only the image and the list: 4 of 6 present. Absent: **the four
+side handles**, which React Flow draws as 1 px lines along the sides, lost under the selected box's 2 px outline; and
+**a port with its arrow**, because none of the example's four ports has a direction (their kind's glyph hook gives
+null for each), so the page rightly draws none. So:
+- Each side's control keeps its line, which takes the pointer along the whole side, and gains a mark at its middle, a
+  teal bar 16 by 6 px with a white edge, as the corners have their round handles (`app.css`).
+- The shot is taken in the interconnection fixture's view `v-ic`, whose ports have directions: at 150%, CtrlLink's
+  corner kept 60 px in, the part def Tank selected (its doc, the item `stored` inside it), the part `pump` in System
+  below with its four ports.
+
+The second, by a fresh reviewer on the retaken image: **6 of 6 present**: the zoom (judged from the dots' spacing,
+30 px), Tank selected, its doc, eight handles (four round at the corners, a bar at each side's middle), `pump`'s round
+corners, the ports' arrows (↓, ↔, ←). It also saw two things that are not step 7's: the dark line under the tab bar
+running past the tab in front, and a flow's filled head touching the port square it ends at. The rest it named is cut
+by the plane's edge.
+
+### Step 7: the independent review
+
+A reviewer on this session's model (8.6 min, 48 tool calls), given the diff and the plan's step 7 but not the
+outline, its probes in its own scratch folder. Four defects, all reproduced in the built page:
+
+1. **A click on a box that slips 2 or 3 px wrote "Moved part def Host"**, x 32 to 35, and so an unsaved file and a
+   question at reload. The old page began a drag only after 4 px (`pointing.js` 117). With `nodeDragThreshold` 0, every
+   press is a drag to React Flow.
+2. **An undo in the middle of a drag did not cancel it.** The store dropped the gesture, and the drag's next step
+   began a new one, which its release wrote; the redo list was lost. In a resize the undone size came back, since
+   React Flow's resizer works from the size it began with.
+3. **The browser's confirm before Open spends the click's user activation**: answered after 6 s, no chooser opens and
+   nothing is said (with the picker, "Must be handling a user gesture to show a file picker.").
+4. **A write refused through a file handle left the writable open**, neither aborted nor closed.
+
+And four smaller: `keys.test.mjs`'s Ctrl + S waited for its download by frames and failed under load; the status file
+still had check 5 as todo; the port's test checked only what is drawn, and the least size of a top left resize only
+`>= 40`; zooming across 25% in mid-drag showed the dragged box at its model place for a frame.
+
+What held up, by its probes: a box dragged with its owner selected moves the owner only; three boxes are one step; a
+nested part's port slides and changes side by `nearestBorder`; a nested box resized from the top left into its
+owner's corner stops at 12, 48 with its right and bottom edges kept; undo and redo of a resize put the port back; no
+handles in the far form; no node left `dragging`; the keys; NodeResizer's props stable; nothing logged.
+
+### What the review found, fixed
+
+Two agents (Sonnet, high effort, as rework goes), each in a worktree, at once: the planes (6.4 min) and the bar with
+the files (28 min, most of it on the flaky download). Each test written first and seen to fail on the code before:
+
+| Fix | Test | Failed before with |
+|---|---|---|
+| A drag or a resize is no gesture until the pointer has gone 4 screen px (`CLICK_DISTANCE`, now the store's) from the press; until then it draws and writes nothing | `move.test.mjs` "a click that slips a few pixels moves nothing"; `viewStore.test.mjs`, two; `gestures.test.mjs`'s 3 px press also asks that Undo stay disabled | "A press that slipped 3 px moved Host by 2.8 x 0.0 px against App." |
+| A history change heard mid-gesture cancels it: the snapshot is the model's, and the gesture's later steps are ignored until its end, which writes nothing | `move.test.mjs` "an undo by the keyboard in the middle of a drag cancels the drag"; `viewStore.test.mjs`, a drag and a resize, with steps between the undo and the end | "Host is 130.0 x 43.0 units from where it was: the drag that an undo interrupted was written." |
+| Crossing 25% mid-drag projects with the gesture's places | `viewStore.test.mjs` | "A far projection during a drag must keep Host where the drag put it." |
+| Open's question is an in-page MUI dialog ("Cancel", "Open another"), whose own click opens the chooser | `keys.test.mjs`, with the dialog up 6 s before "Open another" | "Open, with unsaved changes, showed no dialog (role "dialog") before taking another file." |
+| A refused write aborts its writable | `resize.test.mjs` "a save that the browser refuses says so and leaves the file unsaved" | "a refused write aborts its writable once and does not close it" (aborted 0) |
+
+- **The port's test** now saves and reads `{ side: 'bottom', at }` from the file, and Undo's words; **the top left
+  resize's least** is Host's 80 wide. Both passed before: they ask more of what was right.
+- **The flaky Ctrl + S was not the wait.** The downloads are now waited for by the clock, and still about 6 runs in
+  100 lost theirs: the page was clean, so `saveFile` had run, and no download came in 20 s. Chromium now and then drops
+  a download started inside the keydown's own task. `App` now runs Save a task later (`setTimeout` 0): 0 lost in 240
+  runs, against about 8 in 160. The deferral is in `App`, not in `download()`, which `files.test.mjs` asks to click
+  before `saveFile` resolves. A task later is well inside the click's user activation, which writing through a picked
+  file's handle may ask for.
+- **Departs from session 17's design:** "both questions are the browser's own". The one before leaving still is
+  (`beforeunload`); the one before Open is the page's, for the reason above.
+
+### Step 7: the checks, alone
+
+- `npm run check` passes. `npm test`, three runs in a row with nothing else running: 210 tests, 206 pass, 0 fail, 4
+  todo, in 47, 46 and 46 s. Four checks are `"todo"` in `plan/status.json`, as the runner's `# todo` says.
+- **Criterion 6's drag step** of the example ("a drag step of the example takes under 16 ms", `instant.test.mjs`): by
+  the median of 9 samples, 4.1, 4.6 and 4.1 ms alone (`node --test canvas/app/test/instant.test.mjs`), 7.7 ms in
+  `npm test`.
+- **For step 8**: "a drag step takes under 16 ms at 5,000 elements" (todo), now that a drag moves the box, alone:
+  "1.5 ms when it starts a drag and 23.6 ms when it follows one, by the median". The first step is under the 4 px, so
+  it draws nothing; a step that follows projects the general view's 1,544 places with the gesture's: placesFor runs
+  over the start, but project() reads the view whole. Session 17 kept the lever: a step that lays out only over the
+  numbers the projection holds.
+- `nodes.png` is retaken with the fixes; the look did not change.
+
+### For the next session
+
+- Step 8, from `plan/slice-1.md` and session 17's design. It has the drag test's numbers above to start from, and the
+  pan test's from session 20's review (the minimap of our own, no lines below 25%).
+- The two things the second image reviewer saw are not step 7's: the dark line under the tab bar past the tab in front,
+  and a flow's head touching its port's square.
+- Pull request #49 (aliaseddd/Grasp) carries the branch: the outline, `695a789`, and the step, one commit on
+  `claude/charming-archimedes-i2vi31`.
+
+The method's log, this session: test writers 4.0, 4.4 and 5.1 min; implementers 2.1 (adapter), 2.3 (bar) and 7.3
+(planes); reviewers of the image 0.7 and 0.5, of the code 8.6; rework 6.4 and 28. Rework, by whose fault: the review's
+two serious defects were the outline's, which did not say that a press is not yet a drag, nor what an undo's later
+steps do; the dropped download and the confirm's user activation were not in the outline either. Two store tests and
+the shot's view were mine to correct. Five agents ran at once at the start, and two at the end.
+
+## Session 23, November 13, 2026: step 7 reviewed again, three defects fixed
+
+On `claude/charming-archimedes-i2vi31`, from `a558ad5`. Damon's word: "Review the code", then "Make the fixes." No
+agents: the review, the tests and the fixes are mine, in one session.
+
+The baseline: `npm run check` passes; `npm test` gives 210 tests, 206 pass, 0 fail, 4 todo, in 51 s.
+
+### What the review found
+
+Read against `plan/slice-1.md` step 7, section 10's criteria and session 17's design; each defect reproduced in the
+built page by a probe before anything was changed:
+
+1. **A resize from the top or left dragged what the box holds along with its corner.** Page's top left handle dragged
+   61 by 40 units: Page.hosts moved 61 by 40 on the screen. Session 17's design, event 8: "A top or left resize keeps
+   the far corner, shifts the boxes inside so they stay put, and stops where one would pass 12 or 48." `placesFor`'s
+   rule 4 gave a place to the resized box alone, and session 22 did not note it as a departure. No test saw it: the
+   resize tests from the top left use Host, which holds no box.
+2. **Ctrl + S held down saved once per repeat of the key.** One press held through 5 repeats: 6 downloads.
+3. **Ctrl + Z acted behind the question before Open.** With the dialog up, the drag was undone behind it, and the
+   dialog still said the file has changes that aren't saved while the session had none.
+4. `viewStore.ts`'s `writing` flag never changed anything: `finish()` sets `gesture` to null before it writes, so the
+   history's listener never finds a gesture then.
+
+Tried and found sound, so nothing was changed: the far corner in a top left resize at 70%, over 37 steps (0.00 off at
+each); a box dragged out of the plane in the 5,000-element general view, which culls (React Flow keeps a dragged node
+mounted, the gesture ends and writes one step); rule 2 against the old page's `nearestBorder`, the order of ties too.
+
+### The fixes, each test seen to fail first
+
+| Fix | Test | Failed before with |
+|---|---|---|
+| `placesFor`, rule 4: when a top or left handle moves a box's corner, each box inside it is placed as far the other way from the corner (in the same `places`, so the store's one `edit()` writes them), and the corner stops where one would pass 12 or 48 | `adapter.test.mjs`, "rule 4: a box resized from its top or left leaves the boxes inside it where they were" and "... stops where a box inside would pass 12 or 48", and two cases more in "a gesture's step is drawn as the model its end writes would be"; `move.test.mjs`, "a resize of an owner from its top left leaves what it holds where it was, in one undo step" | "After Page was resized from its top left, Page.hosts is drawn -50.0 by -36.1 px from where it was" |
+| Ctrl or ⌘ + S saves at the press, not at its repeats (`event.repeat`); each repeat's default is still prevented | `keys.test.mjs`, "Ctrl + S held down saves once" | "Ctrl + S held through five repeats saved the file 6 times; it should save once." |
+| While a modal dialog is up (`[role="dialog"][aria-modal="true"]`, which MUI's Dialog is), the keys undo, redo and save nothing; Save's default is prevented all the same | `keys.test.mjs`, "the keys change nothing while the question before Open is up" | "Ctrl + Z, with the question before Open up, undid the drag behind it: Host is at 360.0, 422.2, and was at 449.8, 472.2." |
+| The `writing` flag taken out | `viewStore.test.mjs`, unchanged, passes | |
+
+- **Rule 4, as it now reads.** By the hand-worked numbers of the tests: Page (32, 72, 760 by 250) resized from its top
+  left to -28, 32 gives Page -28, 32, 820 by 290, Page.hosts 156, 144 and Page.app 628, 144; dragged 200 right and 100
+  down it stops at 116, 128, 676 by 194, with Page.hosts at 12, 48. On an axis whose top or left handle is dragged, what
+  the box holds is the room to its nearest box inside; the far edges of the boxes inside are held by the kept right or
+  bottom edge. A bottom or right handle is as before, and places the box alone. The words count the asked box only:
+  "Resized part def Page".
+- **The store did not change for it**: it writes every place `placesFor` gives. React Flow's resizer sends positions
+  for the child nodes too (no `dragging` key); the store ignores them as before, and the adapter's are the ones drawn.
+- **The modal check is by the document, not by a prop**, so that step 12's About dialog is covered when it comes. For
+  the 200 ms or so in which MUI takes a closed dialog out of the document, the keys still do nothing.
+- **`canvas/check.sh` on a file saved after a top left resize of Page** (a probe): `ok ... (Package StrongholdProof)`,
+  the file holding Page at -20, 33, 812 by 289, Page.hosts at 148, 143 and Page.app at 620, 143.
+- The look did not change, so `nodes.png` is not retaken.
+
+### The checks, alone
+
+`npm run check` passes. `npm test`, two runs in a row: 215 tests, 211 pass, 0 fail, 4 todo, in 54 and 53 s. Four
+checks are `"todo"` in `plan/status.json`, as the runner's `# todo` says; the status file did not change.
+
+### For the next session
+
+As session 22 left it: step 8, with the drag test's and the pan test's numbers. A top or left resize of an owner now
+gives a place per box inside it at every step; at 5,000 elements that is the general view's packages, and step 8's
+measure of a drag step does not cover a resize.

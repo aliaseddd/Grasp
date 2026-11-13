@@ -80,6 +80,8 @@ declare global {
     reading<T>(model: Model, read: () => T): T;
     /** 'via' when a send's target names a port, else 'to'. */
     sendWord(model: Model, target: string): string;
+    /** An element in words, as Undo and the log name it: 'part def Host', 'port api in hosts'. */
+    describe(model: Model, el: ModelElement): string;
   }
 }
 
@@ -282,9 +284,39 @@ export interface ProjectOptions {
   previous?: Projection | null;
   /** The measures. Default LOOK. */
   look?: Look;
+  /**
+   * Places that stand in for the view's own, by element id (step 7): what a gesture asks, before its end writes it.
+   * A place given here is read as if the view's layout held it, and nothing is written to the model. Default none.
+   */
+  places?: ReadonlyMap<string, Place> | null;
 }
 
 export type Viewport = { x: number; y: number; zoom: number };
+
+/**
+ * What a gesture on a plane asks of one node (step 7), in the numbers React Flow gives, which are a node's position
+ * from its parent node's corner (from the view's origin at ground level) and its size:
+ * - `move`: the node was dragged to `position`. For a border item, it is where React Flow put its square.
+ * - `resize`: a box's resize handles gave it `position` and `width` by `height` (NodeResizer's own numbers, with the
+ *   kind's least size already held by NodeResizer's minWidth and minHeight).
+ */
+export type Ask =
+  | { id: string; move: Point }
+  | { id: string; resize: Point & { width: number; height: number } };
+
+/** The words a gesture's end is written with: what Undo's tooltip and the log say (rule 7 of placesFor). */
+export type GestureWords = string;
+
+/** What placesFor gives: the places the asks come to, by element id, and the words their end is written with. */
+export interface Placed {
+  /**
+   * Each node the asks move or resize, and each box inside a box resized from its top or left, as the library keeps a
+   * place (M.placement's form: whole numbers, `at` to 0.01).
+   */
+  readonly places: ReadonlyMap<string, Place>;
+  /** The words of the step, or null when no place differs from the view's own. */
+  readonly words: GestureWords | null;
+}
 
 // ---- What the adapter does.
 
@@ -530,11 +562,17 @@ const EMPTY_ROW: LineRow = { route: 'straight', marker: null, cls: '', label: nu
 /** What one reading of a view makes, before the words of far and the objects of `previous` are settled. */
 type Made = { nodes: PlaneNode[]; edges: PlaneEdge[]; rects: Map<string, Rect>; bounds: Rect | null };
 
-function build(lib: SysMLModelLibrary, model: Model, view: ModelView, far: boolean, look: Look): Made {
+/** What a box's header and compartments need in height: header (a box shape's only), then each compartment's title, rows and tail. */
+function contentHeight(isBox: boolean, comps: readonly Compartment[], look: Look): number {
+  return (isBox ? look.header : 0) + comps.reduce((h, c) => h + look.head + look.lead * c.lines.length + look.tail, 0);
+}
+
+function build(lib: SysMLModelLibrary, model: Model, view: ModelView, far: boolean, look: Look, places?: ReadonlyMap<string, Place> | null): Made {
   const none: Made = { nodes: [], edges: [], rects: new Map(), bounds: null };
   const ids = new Map<string, ModelElement>();
   for (const el of model.elements) ids.set(el.id, el);
-  const layout = view.layout as Record<string, SavedPlace>;
+  // Rule 7: a place given stands in for the view's own, as if the layout held it.
+  const layout = (places && places.size > 0 ? { ...view.layout, ...Object.fromEntries(places) } : view.layout) as Record<string, SavedPlace>;
   const shown = new Set<string>();
   for (const id of Object.keys(layout)) {
     const el = ids.get(id);
@@ -571,7 +609,7 @@ function build(lib: SysMLModelLibrary, model: Model, view: ModelView, far: boole
     const row = lib.KINDS[el.kind];
     const isBox = BOX_SHAPES.includes(shapeOf(row));
     const comps = isBox ? compartmentsOf(lib, model, el, row, num(lay.w), look) : [];
-    let bottom = (isBox ? look.header : 0) + comps.reduce((h, c) => h + look.head + look.lead * c.lines.length + look.tail, 0);
+    let bottom = contentHeight(isBox, comps, look);
     let right = 0;
     for (const kid of groups.get(el.id)?.boxes ?? []) {
       const s = sizeOf(kid);
@@ -755,6 +793,9 @@ function sameEdge(a: PlaneEdge, b: PlaneEdge): boolean {
  * 6. Far: words are left out (BoxData, BorderData, SmallData, EdgeData say which), sizes stay, and every node's
  *    className gains `far`.
  *
+ * 7. With `places` (step 7), each place given stands in for the view's own for its element, before rules 1 to 6 are
+ *    applied: a gesture's step is drawn by the same rules as the model its end writes.
+ *
  * It reads the model inside `lib.reading(model, ...)`, so a view of thousands of elements is projected in
  * milliseconds, and it writes nothing to the model. A view of a kind no plane draws projects to nothing.
  */
@@ -763,7 +804,7 @@ export function project(lib: SysMLModelLibrary, model: Model, view: ModelView, o
   const look = options.look ?? LOOK;
   const previous = options.previous && options.previous.view === view.id ? options.previous : null;
   const made: Made = isDrawn(lib, view.kind)
-    ? lib.reading(model, () => build(lib, model, view, far, look))
+    ? lib.reading(model, () => build(lib, model, view, far, look, options.places))
     : { nodes: [], edges: [], rects: new Map(), bounds: null };
 
   // Rule 5: what reads the same as before is the object it was; what changed keeps what React Flow set on it.
@@ -843,4 +884,185 @@ export function fit(bounds: Rect | null, width: number, height: number): Viewpor
     y: pad + (roomH - bounds.h * zoom) / 2 - bounds.y * zoom,
     zoom,
   };
+}
+
+// ---- Gestures (step 7).
+
+/**
+ * The places that a gesture's asks come to, by the old page's rules (canvas/src/core/page/drawing.js, the graph
+ * renderer's dragStart, drag and drop; layout.js nearestBorder), and the words its end is written with. `projection`
+ * is the view as it was drawn when the gesture began: the rectangles it reads (an owner's, the box's own before a
+ * resize) are that projection's, so every step of one gesture is worked out from the same start, and the same asks
+ * give the same places. It writes nothing to the model; the store writes `places` through history.edit() at the
+ * gesture's end, and project() with `places` draws each step before that.
+ *
+ * 1. **A box moved** (`move`, an element that is not on a border) takes its position, rounded to whole numbers, as
+ *    its x, y; its w, h stay the view's. Inside a shown owner (the node has a parentId) it never goes left of
+ *    `look.pad` (12) or above `look.childTop` (48) from the owner's corner, as on the old page: x = max(pad, x),
+ *    y = max(childTop, y). Going right or down, the owner grows to hold it, by project()'s rule 2, nothing written to
+ *    the owner. A box never leaves its owner by dragging in this slice, and never changes owner.
+ * 2. **A border item moved**: the centre of the square React Flow put at `position` is taken to its owner's nearest
+ *    border, as nearestBorder does it, against the owner's rectangle in the owner's own coordinates (0, 0, w, h):
+ *    the side whose line is nearest the centre (ties in the order top, bottom, left, right), and `at` the centre's
+ *    fraction along that side, clamped to 0.05 .. 0.95 and rounded to 0.01. So a port slides along its border and
+ *    changes side at a corner.
+ * 3. **An ask whose node has an ancestor also asked** (a box dragged together with its owner, a port with its owner)
+ *    is dropped: the node moves with its ancestor and keeps its own place.
+ * 4. **A box resized** (`resize`): its new rectangle is `position` and `width` by `height`, then held:
+ *    - no smaller than the library's least for its kind (`least` of its BoxData: min(80, size[0]) by
+ *      min(40, size[1])), no larger than 4000 a side;
+ *    - no smaller than what it holds: wide enough for each box inside it (its x + its drawn w + pad), high enough for
+ *      its header and its compartments as they wrap at the new width, and for each box inside it (y + h + pad),
+ *      by project()'s rule 2;
+ *    - inside a shown owner, never left of pad or above childTop from the owner's corner.
+ *    Where a limit holds the size, the side that was not dragged stays where it was: when `position` differs from
+ *    the box's position before the gesture (a top or left handle was dragged), the right or bottom edge of the box
+ *    before the gesture is kept, and x or y is worked out from it and the held w or h. Every number is rounded to a
+ *    whole one, as M.placement does. Its border items keep their side and `at`, and so stay on the border.
+ *    **The boxes inside it stay where they are on the plane** when a top or left handle moves its corner: each is
+ *    placed as far the other way from the corner as the corner went (its x less the corner's dx, its y less the
+ *    corner's dy; its w, h the view's), in the same `places`, so the gesture's end writes them in its one step. The
+ *    corner then stops where one of them would pass pad or childTop from it: on such an axis that, and not the far
+ *    edges of the boxes inside (which the kept right or bottom edge already holds), is what the box holds.
+ * 5. **Every place is in M.placement's form**: a box { x, y, w, h }, a border item { side, at }. A place is given only
+ *    for an asked node (rule 3 aside) and for the boxes inside a box resized from its top or left (rule 4), and only
+ *    when it differs from the view's own; so a gesture that ends where it began gives no place, and `words` null.
+ *    The words count the asked nodes only.
+ * 6. Asks naming a node the projection does not hold, or a border item asked to resize, are left out.
+ * 7. **The words**, from the library's describe(): one box moved, "Moved part def Host"; one border item moved,
+ *    "Moved port api in hosts to the right side"; one box resized, "Resized part def Host"; more than one node,
+ *    "Moved 3 elements" or "Resized 3 elements" (the elements whose place differs).
+ *
+ * It runs over plain numbers: the projection's rectangles and nodes, and the view's layout, read inside
+ * lib.reading(model, ...). The store calls it at every step of a gesture, so a step costs no projection of the model
+ * beyond the one project() with `places` makes.
+ */
+export function placesFor(lib: SysMLModelLibrary, model: Model, view: ModelView, projection: Projection, asks: readonly Ask[], look: Look = LOOK): Placed {
+  return lib.reading(model, () => {
+    const ids = new Map<string, ModelElement>();
+    for (const el of model.elements) ids.set(el.id, el);
+    const nodes = new Map<string, PlaneNode>();
+    for (const node of projection.nodes) nodes.set(node.id, node);
+
+    // Rule 6: asks naming a node the projection does not hold, or a border item asked to resize, are left out.
+    const asked = new Map<string, Ask>();
+    for (const ask of asks) {
+      const node = nodes.get(ask.id);
+      if (!node || !ids.has(ask.id)) continue;
+      if ('resize' in ask && node.data.form === 'border') continue;
+      if ('move' in ask && node.data.form === 'border' && node.parentId === undefined) continue;
+      asked.set(ask.id, ask);
+    }
+    // Rule 3: an ask whose node has an ancestor also asked is dropped.
+    const kept: Ask[] = [];
+    for (const ask of asked.values()) {
+      let up = nodes.get(ask.id)?.parentId;
+      let covered = false;
+      for (let n = 0; up !== undefined && n <= nodes.size; n++) {
+        if (asked.has(up)) { covered = true; break; }
+        up = nodes.get(up)?.parentId;
+      }
+      if (!covered) kept.push(ask);
+    }
+
+    const places = new Map<string, Place>();
+    let moved = 0;
+    let resized = 0;
+    let only: { ask: Ask; place: Place } | null = null;
+    for (const ask of kept) {
+      const node = nodes.get(ask.id) as PlaneNode;
+      const el = ids.get(ask.id) as ModelElement;
+      const row = lib.KINDS[el.kind];
+      const own = lib.placement(el, view.layout[el.id]);
+      let place: Place;
+      if (node.data.form === 'border') {
+        // Rule 2: the owner's nearest border to the square's centre, against (0, 0, w, h) in the owner's coordinates.
+        const owner = projection.rects.get(node.parentId as string);
+        if (!owner || !('move' in ask)) continue;
+        const c = { x: ask.move.x + look.port / 2, y: ask.move.y + look.port / 2 };
+        const best = [
+          { side: 'top', dist: Math.abs(c.y), at: c.x / owner.w },
+          { side: 'bottom', dist: Math.abs(c.y - owner.h), at: c.x / owner.w },
+          { side: 'left', dist: Math.abs(c.x), at: c.y / owner.h },
+          { side: 'right', dist: Math.abs(c.x - owner.w), at: c.y / owner.h },
+        ].sort((a, b) => a.dist - b.dist)[0];
+        place = { side: best.side, at: Math.round(Math.min(0.95, Math.max(0.05, best.at)) * 100) / 100 };
+      } else if ('move' in ask) {
+        // Rule 1.
+        let x = Math.round(ask.move.x);
+        let y = Math.round(ask.move.y);
+        if (node.parentId !== undefined) { x = Math.max(look.pad, x); y = Math.max(look.childTop, y); }
+        const box = own as { w: number; h: number };
+        place = { x, y, w: box.w, h: box.h };
+      } else {
+        // Rule 4.
+        const want = ask.resize;
+        const isBox = BOX_SHAPES.includes(shapeOf(row));
+        const least = node.data.form === 'box' ? node.data.least : { width: Math.min(80, row.size[0]), height: Math.min(40, row.size[1]) };
+        const kids = projection.nodes.filter((k) => k.parentId === node.id && k.data.form !== 'border');
+        const right = node.position.x + node.width;
+        const bottom = node.position.y + node.height;
+        const nested = node.parentId !== undefined;
+        const leftHandle = want.x !== node.position.x;
+        const topHandle = want.y !== node.position.y;
+        // A top or left handle takes the box's corner away from the boxes inside it, which stay where they are on the
+        // plane: the corner may come no nearer than pad and childTop to the one furthest left, and the one furthest up.
+        const roomX = Math.max(0, Math.min(...kids.map((k) => k.position.x)) - look.pad);
+        const roomY = Math.max(0, Math.min(...kids.map((k) => k.position.y)) - look.childTop);
+        const needW = Math.max(least.width, ...(leftHandle
+          ? (kids.length > 0 ? [node.width - roomX] : [])
+          : kids.map((k) => k.position.x + k.width + look.pad)));
+        const heldW = (w: number): number => Math.min(4000, Math.max(w, needW));
+        let w = heldW(want.width);
+        let x = want.x;
+        if (leftHandle) {
+          if (w !== want.width) x = right - w;
+          if (nested && x < look.pad) { x = look.pad; w = heldW(right - x); }
+        }
+        const comps = isBox ? compartmentsOf(lib, model, el, row, Math.round(w), look) : [];
+        const needH = Math.max(least.height, contentHeight(isBox, comps, look), ...(topHandle
+          ? (kids.length > 0 ? [node.height - roomY] : [])
+          : kids.map((k) => k.position.y + k.height + look.pad)));
+        let h = Math.min(4000, Math.max(want.height, needH));
+        let y = want.y;
+        if (topHandle) {
+          if (h !== want.height) y = bottom - h;
+          if (nested && y < look.childTop) { y = look.childTop; h = Math.min(4000, Math.max(bottom - y, needH)); }
+        }
+        place = { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+        // The boxes inside are placed from the box's corner: each as far the other way as the corner went.
+        const dx = leftHandle ? place.x - node.position.x : 0;
+        const dy = topHandle ? place.y - node.position.y : 0;
+        if (dx !== 0 || dy !== 0) {
+          for (const kid of kids) {
+            const kidEl = ids.get(kid.id);
+            if (!kidEl) continue;
+            const was = lib.placement(kidEl, view.layout[kid.id]);
+            if ('side' in was) continue;
+            const now = { x: Math.round(was.x - dx), y: Math.round(was.y - dy), w: was.w, h: was.h };
+            if (now.x !== was.x || now.y !== was.y) places.set(kid.id, now);
+          }
+        }
+      }
+      // Rule 5: only a place that differs from the view's own, in the library's form.
+      const same = 'side' in place
+        ? 'side' in own && own.side === place.side && own.at === place.at
+        : !('side' in own) && own.x === place.x && own.y === place.y && own.w === place.w && own.h === place.h;
+      if (same) continue;
+      places.set(ask.id, place);
+      if ('move' in ask) moved++;
+      else resized++;
+      only = { ask, place };
+    }
+
+    // Rule 7.
+    const count = moved + resized;
+    let words: string | null = null;
+    if (count === 1 && only) {
+      const what = lib.describe(model, ids.get(only.ask.id) as ModelElement);
+      if ('resize' in only.ask) words = 'Resized ' + what;
+      else words = 'Moved ' + what + ('side' in only.place ? ' to the ' + only.place.side + ' side' : '');
+    } else if (count > 1) words = (moved > 0 ? 'Moved ' : 'Resized ') + count + ' elements';
+    return { places, words };
+  });
 }

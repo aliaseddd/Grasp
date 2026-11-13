@@ -3,7 +3,7 @@
 // changes, the icon buttons Open, Save, Undo and Redo, and About at the right end. No tools, no text buttons, no
 // second row (shell.test.mjs, "no header palette or button row exists").
 
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { ReactElement } from 'react';
 import { Box, IconButton, Tooltip, Typography } from '@mui/material';
 // The icons come from @mui/icons-material one by one, by path: vendor.ts puts each on window.GraspVendor under that
@@ -32,6 +32,8 @@ export interface TopBarProps {
   session: Session | null;
   /** Called by Open. */
   onOpen: () => void;
+  /** Called by Save and by Ctrl or ⌘ + S (step 7). */
+  onSave: () => void;
 }
 
 /**
@@ -46,13 +48,59 @@ export interface TopBarProps {
  *   separate from its name (the child's own aria-label wins), and a disabled button sits in a <span> under its
  *   tooltip, as MUI asks. Open, Save, Undo, Redo sit together after the file name; About at the right end. The
  *   keyboard's focus is a white ring inside the button, since the theme's teal one would not show on the ink.
- * - Save, Undo and Redo are disabled until step 7; About until step 12. Open calls `onOpen` (from a click, so the
- *   browser opens its picker or the file input's dialog).
+ * - Open calls `onOpen` (from a click, so the browser opens its picker or the file input's dialog). About is
+ *   disabled until step 12.
+ * - **Save, Undo, Redo** (step 7). Save is enabled while a file is open and `session.unsaved`, and calls `onSave`.
+ *   Undo is enabled while the history has a step (`history.steps`), Redo while it has one undone
+ *   (`history.undone`); each calls the history's undo() or redo(). Undo's tooltip names the step it takes back,
+ *   "Undo Moved part def Host", and Redo's the step it makes again, "Redo Moved part def Host"; with none, "Undo" and
+ *   "Redo". All three re-read through `session.listen`.
+ * - **The keys** (step 7), on the window, for the open file: Ctrl or ⌘ + Z undoes; Ctrl or ⌘ + Y, and Ctrl or ⌘ +
+ *   Shift + Z, redo; Ctrl or ⌘ + S saves (onSave) whether or not anything is unsaved, and the browser's own Save is
+ *   always prevented, with a file open or not. Undo and Redo by key act unless the event comes from a text field
+ *   (an input, a textarea, or anything contenteditable), where the field's own undo is meant; Save acts from
+ *   anywhere. A key that acts prevents the browser's default. Holding Undo's or Redo's key down does one thing per
+ *   repeat; holding Save's saves once, at the press, since each save without a picked file is a download of its own.
+ *   While the page shows a modal dialog (an element with role "dialog" and aria-modal "true": the question before
+ *   Open) the keys change nothing behind it: no undo, no redo, no save. Save's default is prevented then too.
  */
-export function TopBar({ session, onOpen }: TopBarProps): JSX.Element {
+export function TopBar({ session, onOpen, onSave }: TopBarProps): JSX.Element {
   const subscribe = useCallback((tell: () => void) => (session ? session.listen(tell) : () => {}), [session]);
-  const unsaved = useSyncExternalStore(subscribe, () => (session ? session.unsaved : false));
+  // One snapshot, a string so equal states compare equal: unsaved, the newest step's words, the newest undone's.
+  const key = useSyncExternalStore(subscribe, () => {
+    if (!session) return '';
+    const { steps, undone } = session.history;
+    return JSON.stringify([session.unsaved, steps.length ? steps[steps.length - 1].what : null, undone.length ? undone[undone.length - 1].what : null]);
+  });
+  const [unsaved, undoWhat, redoWhat] = (key ? JSON.parse(key) : [false, null, null]) as [boolean, string | null, string | null];
   const fileName = session ? `${session.name}${unsaved ? ' •' : ''}` : '';
+  const undo = () => session?.history.undo();
+  const redo = () => session?.history.redo();
+
+  // The keys, registered here once per session; the handler reads the latest onSave through a ref.
+  const saving = useRef(onSave);
+  saving.current = onSave;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const k = event.key.toLowerCase();
+      // A question in front of the page is answered first: the keys are not the file's while it is up.
+      const modal = document.querySelector('[role="dialog"][aria-modal="true"]') !== null;
+      if (k === 's') {
+        event.preventDefault();
+        if (session && !event.repeat && !modal) saving.current();
+        return;
+      }
+      if (!session || modal || !(k === 'z' || k === 'y')) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      event.preventDefault();
+      if (k === 'y' || event.shiftKey) session.history.redo();
+      else session.history.undo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [session]);
 
   const action = (id: ActionId, tip: string, icon: ReactElement, enabled: boolean, onClick?: () => void) => (
     <Tooltip key={id} title={tip}>
@@ -91,9 +139,9 @@ export function TopBar({ session, onOpen }: TopBarProps): JSX.Element {
         {fileName}
       </Typography>
       {action('open', 'Open a file', <FolderOpenOutlined fontSize="small" />, true, onOpen)}
-      {action('save', 'Save', <SaveOutlined fontSize="small" />, false)}
-      {action('undo', 'Undo', <Undo fontSize="small" />, false)}
-      {action('redo', 'Redo', <Redo fontSize="small" />, false)}
+      {action('save', 'Save', <SaveOutlined fontSize="small" />, unsaved, onSave)}
+      {action('undo', undoWhat ? `Undo ${undoWhat}` : 'Undo', <Undo fontSize="small" />, undoWhat !== null, undo)}
+      {action('redo', redoWhat ? `Redo ${redoWhat}` : 'Redo', <Redo fontSize="small" />, redoWhat !== null, redo)}
       <Box sx={{ flex: '1 0 0', minWidth: 0 }} />
       {action('about', 'About Grasp', <InfoOutlined fontSize="small" />, false)}
     </Box>
