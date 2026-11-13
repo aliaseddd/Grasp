@@ -1229,14 +1229,28 @@ export function fit(bounds: Rect | null, width: number, height: number): Viewpor
  *
  * It runs over plain numbers: the projection's rectangles and nodes, and the view's layout, read inside
  * lib.reading(model, ...). The store calls it at every step of a gesture, so a step costs no projection of the model
- * beyond the one project() with `places` makes.
+ * beyond the one project() with `places` makes. It looks up only the elements the asks name (and the boxes inside one
+ * asked to resize), not the whole model, and the words of one element are worked out when `words` is first read, inside
+ * a reading of the model as it is then, which must be the model the places were worked out from (session 28).
  */
 export function placesFor(lib: SysMLModelLibrary, model: Model, view: ModelView, projection: Projection, asks: readonly Ask[], look: Look = LOOK): Placed {
   return lib.reading(model, () => {
-    const ids = new Map<string, ModelElement>();
-    for (const el of model.elements) ids.set(el.id, el);
     const nodes = new Map<string, PlaneNode>();
     for (const node of projection.nodes) nodes.set(node.id, node);
+    // The elements the asks name, and those drawn inside a box asked to resize (rule 4 places them), and no others: a
+    // map of the whole model, made at every step of a drag, was about 0.7 ms of a step at 5,000 elements (session 28).
+    // The search stops once each wanted id is found.
+    const wanted = new Set(asks.map((ask) => ask.id));
+    const resizing = new Set(asks.filter((ask) => 'resize' in ask).map((ask) => ask.id));
+    if (resizing.size > 0) for (const node of projection.nodes) if (node.parentId !== undefined && resizing.has(node.parentId)) wanted.add(node.id);
+    const ids = new Map<string, ModelElement>();
+    if (wanted.size > 0) {
+      for (const el of model.elements) {
+        if (!wanted.has(el.id)) continue;
+        ids.set(el.id, el);
+        if (ids.size === wanted.size) break;
+      }
+    }
 
     // Rule 6: asks naming a node the projection does not hold, or a border item asked to resize, are left out.
     const asked = new Map<string, Ask>();
@@ -1353,14 +1367,24 @@ export function placesFor(lib: SysMLModelLibrary, model: Model, view: ModelView,
       only = { ask, place };
     }
 
-    // Rule 7.
+    // Rule 7. The words of one element are worked out when they are first read, which the store does only at a
+    // gesture's end: the library's describe() was about 0.7 ms of every step of a drag at 5,000 elements (session 28).
     const count = moved + resized;
-    let words: string | null = null;
     if (count === 1 && only) {
-      const what = lib.describe(model, ids.get(only.ask.id) as ModelElement);
-      if ('resize' in only.ask) words = 'Resized ' + what;
-      else words = 'Moved ' + what + ('side' in only.place ? ' to the ' + only.place.side + ' side' : '');
-    } else if (count > 1) words = (moved > 0 ? 'Moved ' : 'Resized ') + count + ' elements';
-    return { places, words };
+      const one = only;
+      const el = ids.get(one.ask.id) as ModelElement;
+      let said: string | undefined;
+      return {
+        places,
+        get words(): string {
+          if (said === undefined) {
+            const what = lib.reading(model, () => lib.describe(model, el));
+            said = 'resize' in one.ask ? 'Resized ' + what : 'Moved ' + what + ('side' in one.place ? ' to the ' + one.place.side + ' side' : '');
+          }
+          return said;
+        },
+      };
+    }
+    return { places, words: count > 1 ? (moved > 0 ? 'Moved ' : 'Resized ') + count + ' elements' : null };
   });
 }
