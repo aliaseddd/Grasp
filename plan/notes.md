@@ -2740,3 +2740,18 @@ One thing added by my hand, smaller than a brief: a node or edge that changed on
 object it had (rule 5 says so now), so that a box's component, memoized on `data`, does not render at each step of
 step 7's drag; with a test of it, "a box that only moved is a new node with the data object it had", seen to fail
 without the two lines. `adapter.test.mjs` has 20 tests.
+
+**Each test seen to fail with its thing broken.** An agent, in a worktree (2.8 min, 16 tool calls), made each
+breakage the list names in `adapter.ts`, ran the test that guards it and then the whole file, and put the file back.
+All 19 named tests failed under their breakage. Three things it showed, each closed by my hand and then seen to fail
+under its breakage:
+
+| What was weak | What holds it now |
+|---|---|
+| The timed test's 1 s: with the model read outside `lib.reading` the three views took 1,041 ms alone and 955 ms in the whole file's run, so the test passed and failed by turns | The bound is 300 ms and the test is named for it: read as built it takes about 40 ms, read outside `lib.reading` 979 ms |
+| A renewed edge dropping `selected` failed nothing | "a changed line is a new edge that keeps what React Flow set": `mount` renamed while selected |
+| Rows wrapped to a box's grown width failed nothing: no box of the ten files is both grown wider and wrapped | "a box grown past its saved width still wraps its rows to the saved width", on a hand-made part def |
+
+`adapter.test.mjs` has 22 tests. Noticed by the agent and left: `Look.childTop` is read by nothing until step 7; the
+order of the compartments is held by the fixtures' test alone; a left port with no line has its name below its square
+and a right one above, which is the old page's own.
