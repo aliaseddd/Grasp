@@ -2951,9 +2951,9 @@ The tests, written before the rule is built (today `LOOK` still wraps by the cou
 
 **The tests, written** by one agent in a worktree at the outline's commit (6.1 min, 33 tool calls), while the rule was
 built apart from it, by my hand: `wrapWidth` and `fitTail` in `adapter.ts`, 40 lines, and four lines of `app.css`.
-Against the outline, 9 of the tests failed for the count and three passed, as they must: the table is final, so
-`textWidth` and the table's own test are checked by breaking a width, and the two tests of the old layout stand (given
-`rowType` 12, `OLD_LOOK` fails both). The writer checked its tests against a throwaway rule of its own; taken into the
+Against the outline, 9 tests failed for the count, or for kerning still on. The rest passed, as they must: the table
+is final, so `textWidth`'s test and the table's own are checked by breaking a width, and the two tests of the old
+layout stand (given `rowType` 12, `OLD_LOOK` fails both). The writer checked its tests against a throwaway rule of its own; taken into the
 main tree they met mine for the first time: `adapter.test.mjs` 28 of 28, `plane.test.mjs` 19 of 19. Two rules written
 apart agree on every row of the eleven views.
 
@@ -3000,3 +3000,19 @@ small for the minimap the zoom buttons stand over a fitted view's bottom left co
 
 Tried and put back: the reviewer's "set `stale` only after `project` returns". A stale store is projected at every
 read, and React reads in its render.
+
+### `example.png`, rated
+
+Each time by a fresh reviewer given the image and its list and nothing else, the list as eight items.
+
+| Image | Items present | Alignment and spacing | Type and contrast | Nothing cut off or overlapping | Boxes and lines easy to read |
+|---|---|---|---|---|---|
+| As session 20 left it (rows by the count, `snap` in) | 7 of 8: item 6 absent as worded, one shared triangle | 3 | 4 | 4 | 4 |
+| With rows by the font's widths, item 6 read as Damon decided | 8 of 8 | 4 | 4 | 5 | 4 |
+
+So criteria 3 and 4 hold for `example.png` at step 6. The first reviewer's 3 named, of the page's own doing: doc text
+that ends up to 115 px short of its box, `mount` 25 px under its line with the two ports' names above and below it,
+the `doc` title 2 px under its rule, the turn in the line from `app` to `App`, and the view not centred down the
+plane (the band the minimap stands in). The second still names `mount` and the ports' names first, then the two dots
+of a defined-by line (about 2 px on screen at 92.6%), the `doc` title, the grey of the keywords and of the strips'
+names, and the minimap 15 px from `DevHost`. Those are kept for slice 7, with session 20's list for `shell.png`.
