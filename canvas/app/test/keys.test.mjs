@@ -159,6 +159,65 @@ describe('save, undo, redo and their keys', () => {
     await finish(opened);
   });
 
+  test('Ctrl + S held down saves once', async () => {
+    const opened = await openExample(browser);
+    const { page } = opened;
+    await page.evaluate(() => {
+      window.__saves = [];
+      addEventListener('keydown', (e) => { if (e.ctrlKey && e.key.toLowerCase() === 's') window.__saves.push([e.repeat, e.defaultPrevented]); });
+    });
+    await dragHost(page);
+    const downloads = [];
+    page.on('download', (d) => downloads.push(d.suggestedFilename()));
+    // The key goes down and repeats five times before it comes up, as it does when held for half a second.
+    await page.keyboard.down('Control');
+    for (let i = 0; i < 6; i++) await page.keyboard.down('s');
+    await page.keyboard.up('s');
+    await page.keyboard.up('Control');
+    const start = Date.now();
+    while (downloads.length === 0 && Date.now() - start < WAIT) await page.waitForTimeout(50);
+    // By the clock: a download comes from another process, and one too many would come as late as the first.
+    await page.waitForTimeout(1000);
+    assert.deepEqual(downloads, [NAME], `Ctrl + S held through five repeats saved the file ${downloads.length} times; it should save once.`);
+    assert.deepEqual(await page.evaluate(() => window.__saves), [[false, true], ...Array(5).fill([true, true])],
+      'each keydown of the held Ctrl + S, the repeats too, has its default prevented, so the browser\'s own Save never opens');
+    await finish(opened);
+  });
+
+  test('the keys change nothing while the question before Open is up', async () => {
+    const opened = await openExample(browser);
+    const { page } = opened;
+    const was = await dragHost(page);
+    const moved = await boxOf(page, VIEW.id, BOX);
+    const downloads = [];
+    page.on('download', (d) => downloads.push(d.suggestedFilename()));
+    await page.evaluate(() => {
+      window.__saves = [];
+      addEventListener('keydown', (e) => { if (e.ctrlKey && e.key.toLowerCase() === 's') window.__saves.push(e.defaultPrevented); });
+    });
+    const ask = page.getByRole('dialog');
+    await button(page, TESTIDS.open).click({ timeout: WAIT });
+    await soon(page, async () => (await ask.count()) === 1, 'Open, with unsaved changes, showed no dialog (role "dialog").', BROWSER_FRAMES);
+
+    await page.keyboard.press('Control+z');
+    await idle(page);
+    const behind = await boxOf(page, VIEW.id, BOX);
+    assert.ok(near(behind.x, moved.x, 2) && near(behind.y, moved.y, 2),
+      `Ctrl + Z, with the question before Open up, undid the drag behind it: ${BOX} is at ${behind.x.toFixed(1)}, ${behind.y.toFixed(1)}, and was at ${moved.x.toFixed(1)}, ${moved.y.toFixed(1)}.`);
+    assert.equal(await button(page, TESTIDS.fileName).textContent(), `${NAME} •`, 'the file still has the changes the question speaks of');
+    await page.keyboard.press('Control+s');
+    await page.waitForTimeout(1000);
+    assert.deepEqual(downloads, [], 'Ctrl + S, with the question before Open up, saved the file behind it');
+    assert.deepEqual(await page.evaluate(() => window.__saves), [true], 'Ctrl + S is still the page\'s then: the browser\'s own Save does not open');
+
+    // Once the question is answered the keys are the file's again.
+    await ask.getByRole('button', { name: 'Cancel' }).click({ timeout: WAIT });
+    await soon(page, async () => (await ask.count()) === 0, 'The dialog is still shown after Cancel.', BROWSER_FRAMES);
+    await page.keyboard.press('Control+z');
+    await seenAt(page, was, 'Ctrl + Z, after the question was cancelled, did not undo the drag', moved);
+    await finish(opened);
+  });
+
   test('a key in a text field undoes nothing of the model', async () => {
     const opened = await openExample(browser);
     const { page } = opened;

@@ -1413,6 +1413,48 @@ describe("placesFor: a gesture's places", () => {
     assert.equal(placed.words, 'Resized part def Page', 'It is one box resized.');
   });
 
+  test('rule 4: a box resized from its top or left leaves the boxes inside it where they were', () => {
+    // Page is at 32, 72, 760 by 250 (its corner 792, 322), with Page.hosts at 96, 104 and Page.app at 568, 104 from its
+    // corner, each 180 by 110. Its top left handle dragged 60 left and 40 up: Page is 820 by 290 at -28, 32, and each
+    // part is placed 60 right and 40 down from the new corner, which is where it was on the plane.
+    const start = exampleProjection();
+    const grown = ask([resize('Page', -28, 32, 820, 290)]);
+    same(placesOf(grown), {
+      Page: { x: -28, y: 32, w: 820, h: 290 },
+      'Page.hosts': { x: 156, y: 144, w: 180, h: 110 },
+      'Page.app': { x: 628, y: 144, w: 180, h: 110 },
+    }, 'Page resized from its top left by 60 and 40 should place its two parts 60 and 40 further from its corner.');
+    assert.equal(grown.words, 'Resized part def Page', 'It is one box resized: the parts inside it are not counted.');
+    const drawn = project(lib, EXAMPLE_MODEL, exampleView(), { places: grown.places });
+    for (const id of ['Page.hosts', 'Page.hosts.api', 'Page.app', 'Page.app.api']) {
+      same(plain(drawn.rects.get(id)), plain(start.rects.get(id)), `${id} should be drawn where it was on the plane after Page is resized from its top left.`);
+    }
+    // By the left side only, and by the top only: the parts are shifted along that axis alone.
+    same(placesOf(ask([resize('Page', 2, 72, 790, 250)])), {
+      Page: { x: 2, y: 72, w: 790, h: 250 }, 'Page.hosts': { x: 126, y: 104, w: 180, h: 110 }, 'Page.app': { x: 598, y: 104, w: 180, h: 110 },
+    }, 'Page resized by its left side by 30 should place its parts 30 further right from its corner, at the same y.');
+    same(placesOf(ask([resize('Page', 32, 32, 760, 290)])), {
+      Page: { x: 32, y: 32, w: 760, h: 290 }, 'Page.hosts': { x: 96, y: 144, w: 180, h: 110 }, 'Page.app': { x: 568, y: 144, w: 180, h: 110 },
+    }, 'Page resized by its top by 40 should place its parts 40 further down from its corner, at the same x.');
+    // By the bottom right the corner stays, and so do the parts' places.
+    assert.deepEqual([...ask([resize('Page', 32, 72, 900, 400)]).places.keys()], ['Page'], 'A resize by the bottom right should place the box alone.');
+  });
+
+  test('rule 4: a resize from the top or left stops where a box inside would pass 12 or 48', () => {
+    // Page's top left handle dragged 200 right and 100 down. Page.hosts, the part furthest left and up, is 96, 104 from
+    // the corner: the corner may come 96 - 12 = 84 right and 104 - 48 = 56 down, to 116, 128. Page's corner 792, 322 is
+    // kept: 676 by 194. Page.hosts is then at 12, 48, and Page.app at 568 - 84, 104 - 56.
+    const placed = ask([resize('Page', 232, 172, 560, 150)]);
+    same(placesOf(placed), {
+      Page: { x: 116, y: 128, w: 676, h: 194 },
+      'Page.hosts': { x: 12, y: 48, w: 180, h: 110 },
+      'Page.app': { x: 484, y: 48, w: 180, h: 110 },
+    }, 'Page resized from its top left past its parts should stop with Page.hosts at 12, 48 from its corner.');
+    const start = exampleProjection();
+    const drawn = project(lib, EXAMPLE_MODEL, exampleView(), { places: placed.places });
+    for (const id of ['Page.hosts', 'Page.app']) same(plain(drawn.rects.get(id)), plain(start.rects.get(id)), `${id} should be drawn where it was on the plane.`);
+  });
+
   test('rule 4: no box is larger than 4000 a side', () => {
     same(placesOf(ask([resize('Host', 32, 400, 5000, 5000)])), { Host: { x: 32, y: 400, w: 4000, h: 4000 } }, 'A resize of 5000 by 5000 should be held at 4000 by 4000.');
     same(placesOf(ask([resize('Host', 32, 400, 4000, 4000)])), { Host: { x: 32, y: 400, w: 4000, h: 4000 } }, '4000 by 4000 is the limit and should be kept.');
@@ -1500,6 +1542,8 @@ describe("placesFor: a gesture's places", () => {
       ['a box resized from its top left', [resize('Host', 300, 500, 100, 30)]],
       ['an owner resized smaller than what it holds', [resize('Page', 32, 72, 100, 100)]],
       ['an owner resized larger', [resize('Page', 32, 72, 1000, 500)]],
+      ['an owner resized from its top left', [resize('Page', -28, 32, 820, 290)]],
+      ['an owner resized from its top left past what it holds', [resize('Page', 232, 172, 560, 150)]],
       ['a box resized beyond the limit', [resize('Host', 32, 400, 5000, 5000)]],
       ['three boxes moved', [move('Host', 100, 450), move('App', 700, 450), move('ServerHost', 32, 700)]],
       ['a move and a resize', [move('App', 700, 450), resize('Host', 32, 400, 250, 250)]],

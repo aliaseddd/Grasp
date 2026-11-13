@@ -309,7 +309,10 @@ export type GestureWords = string;
 
 /** What placesFor gives: the places the asks come to, by element id, and the words their end is written with. */
 export interface Placed {
-  /** Each node the asks move or resize, as the library keeps a place (M.placement's form: whole numbers, `at` to 0.01). */
+  /**
+   * Each node the asks move or resize, and each box inside a box resized from its top or left, as the library keeps a
+   * place (M.placement's form: whole numbers, `at` to 0.01).
+   */
   readonly places: ReadonlyMap<string, Place>;
   /** The words of the step, or null when no place differs from the view's own. */
   readonly words: GestureWords | null;
@@ -916,9 +919,15 @@ export function fit(bounds: Rect | null, width: number, height: number): Viewpor
  *    the box's position before the gesture (a top or left handle was dragged), the right or bottom edge of the box
  *    before the gesture is kept, and x or y is worked out from it and the held w or h. Every number is rounded to a
  *    whole one, as M.placement does. Its border items keep their side and `at`, and so stay on the border.
+ *    **The boxes inside it stay where they are on the plane** when a top or left handle moves its corner: each is
+ *    placed as far the other way from the corner as the corner went (its x less the corner's dx, its y less the
+ *    corner's dy; its w, h the view's), in the same `places`, so the gesture's end writes them in its one step. The
+ *    corner then stops where one of them would pass pad or childTop from it: on such an axis that, and not the far
+ *    edges of the boxes inside (which the kept right or bottom edge already holds), is what the box holds.
  * 5. **Every place is in M.placement's form**: a box { x, y, w, h }, a border item { side, at }. A place is given only
- *    for an asked node (rule 3 aside), and only when it differs from the view's own; so a gesture that ends where it
- *    began gives no place, and `words` null.
+ *    for an asked node (rule 3 aside) and for the boxes inside a box resized from its top or left (rule 4), and only
+ *    when it differs from the view's own; so a gesture that ends where it began gives no place, and `words` null.
+ *    The words count the asked nodes only.
  * 6. Asks naming a node the projection does not hold, or a border item asked to resize, are left out.
  * 7. **The words**, from the library's describe(): one box moved, "Moved part def Host"; one border item moved,
  *    "Moved port api in hosts to the right side"; one box resized, "Resized part def Host"; more than one node,
@@ -996,7 +1005,14 @@ export function placesFor(lib: SysMLModelLibrary, model: Model, view: ModelView,
         const nested = node.parentId !== undefined;
         const leftHandle = want.x !== node.position.x;
         const topHandle = want.y !== node.position.y;
-        const heldW = (w: number): number => Math.min(4000, Math.max(w, least.width, ...kids.map((k) => k.position.x + k.width + look.pad)));
+        // A top or left handle takes the box's corner away from the boxes inside it, which stay where they are on the
+        // plane: the corner may come no nearer than pad and childTop to the one furthest left, and the one furthest up.
+        const roomX = Math.max(0, Math.min(...kids.map((k) => k.position.x)) - look.pad);
+        const roomY = Math.max(0, Math.min(...kids.map((k) => k.position.y)) - look.childTop);
+        const needW = Math.max(least.width, ...(leftHandle
+          ? (kids.length > 0 ? [node.width - roomX] : [])
+          : kids.map((k) => k.position.x + k.width + look.pad)));
+        const heldW = (w: number): number => Math.min(4000, Math.max(w, needW));
         let w = heldW(want.width);
         let x = want.x;
         if (leftHandle) {
@@ -1004,7 +1020,9 @@ export function placesFor(lib: SysMLModelLibrary, model: Model, view: ModelView,
           if (nested && x < look.pad) { x = look.pad; w = heldW(right - x); }
         }
         const comps = isBox ? compartmentsOf(lib, model, el, row, Math.round(w), look) : [];
-        const needH = Math.max(least.height, contentHeight(isBox, comps, look), ...kids.map((k) => k.position.y + k.height + look.pad));
+        const needH = Math.max(least.height, contentHeight(isBox, comps, look), ...(topHandle
+          ? (kids.length > 0 ? [node.height - roomY] : [])
+          : kids.map((k) => k.position.y + k.height + look.pad)));
         let h = Math.min(4000, Math.max(want.height, needH));
         let y = want.y;
         if (topHandle) {
@@ -1012,6 +1030,19 @@ export function placesFor(lib: SysMLModelLibrary, model: Model, view: ModelView,
           if (nested && y < look.childTop) { y = look.childTop; h = Math.min(4000, Math.max(bottom - y, needH)); }
         }
         place = { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) };
+        // The boxes inside are placed from the box's corner: each as far the other way as the corner went.
+        const dx = leftHandle ? place.x - node.position.x : 0;
+        const dy = topHandle ? place.y - node.position.y : 0;
+        if (dx !== 0 || dy !== 0) {
+          for (const kid of kids) {
+            const kidEl = ids.get(kid.id);
+            if (!kidEl) continue;
+            const was = lib.placement(kidEl, view.layout[kid.id]);
+            if ('side' in was) continue;
+            const now = { x: Math.round(was.x - dx), y: Math.round(was.y - dy), w: was.w, h: was.h };
+            if (now.x !== was.x || now.y !== was.y) places.set(kid.id, now);
+          }
+        }
       }
       // Rule 5: only a place that differs from the view's own, in the library's form.
       const same = 'side' in place

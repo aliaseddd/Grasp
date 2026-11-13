@@ -308,6 +308,45 @@ describe('moving and resizing boxes', () => {
     await finish(opened);
   });
 
+  test('a resize of an owner from its top left leaves what it holds where it was, in one undo step', async () => {
+    const opened = await openExample(browser);
+    const { page } = opened;
+    const was = await selectBox(page, VIEW, 'Page');
+    const inside = async () => ({ hosts: await boxOf(page, VIEW.id, 'Page.hosts'), app: await boxOf(page, VIEW.id, 'Page.app') });
+    const before = await inside();
+    const still = (now, what) => {
+      for (const id of ['hosts', 'app']) {
+        assert.ok(near(now[id].x, before[id].x, 1.5) && near(now[id].y, before[id].y, 1.5),
+          `${what}, Page.${id} is drawn ${(now[id].x - before[id].x).toFixed(1)} by ${(now[id].y - before[id].y).toFixed(1)} px from where it was: what a box holds must stay where it is when the box is resized from its top left.`);
+      }
+    };
+    const grip = await handleOf(page, 'Page', 'top.left');
+    await dragTo(page, grip, { x: grip.x - 50, y: grip.y - 36 }, 6);
+    const larger = await untilBox(page, 'Page', (b) => b.x < was.x - 20 && b.y < was.y - 20, 'Page did not grow when its top left handle was dragged up and to the left.');
+    assert.ok(near(larger.x + larger.width, was.x + was.width, 1.5) && near(larger.y + larger.height, was.y + was.height, 1.5), 'Page\'s bottom right corner moved in a resize from its top left.');
+    still(await inside(), 'After Page was resized from its top left');
+
+    // One step: Undo names the resize, puts Page and its parts back, and has nothing more to undo.
+    assert.equal(await tooltipOf(page, 'undo'), 'Undo Resized part def Page', 'Undo names the resize of Page.');
+    await press(page, 'undo');
+    await untilBox(page, 'Page', (b) => near(b.x, was.x, 1.5) && near(b.y, was.y, 1.5) && near(b.width, was.width, 1.5), 'Undo did not put Page back where it was before the resize.');
+    still(await inside(), 'After the resize was undone');
+    assert.equal(await disabled(page, 'undo'), true, 'The resize of Page with what it holds was more than one undo step.');
+    await press(page, 'redo');
+    await untilBox(page, 'Page', (b) => near(b.x, larger.x, 1.5) && near(b.y, larger.y, 1.5), 'Redo did not resize Page again.');
+    still(await inside(), 'After the resize was redone');
+
+    // Far down and to the right: the corner stops where Page.hosts would pass 12 or 48 from it, and nothing inside moves.
+    const grip2 = await handleOf(page, 'Page', 'top.left');
+    await dragTo(page, grip2, { x: grip2.x + 400, y: grip2.y + 260 }, 10);
+    const smaller = await untilBox(page, 'Page', (b) => b.x > larger.x + 20, 'Page did not shrink when its top left handle was dragged down and to the right.');
+    const now = await inside();
+    still(now, 'After Page was resized from its top left down and to the right');
+    const gap = { x: (now.hosts.x - smaller.x) / smaller.zoom, y: (now.hosts.y - smaller.y) / smaller.zoom };
+    assert.ok(near(gap.x, 12, 1) && near(gap.y, 48, 1), `Page's corner stopped ${gap.x.toFixed(1)} by ${gap.y.toFixed(1)} units from Page.hosts; it should stop at 12 by 48.`);
+    await finish(opened);
+  });
+
   test('a selected box shows eight resize controls', async () => {
     const opened = await openExample(browser);
     const { page } = opened;

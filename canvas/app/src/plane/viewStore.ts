@@ -181,8 +181,6 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   let fitted: Viewport | null = null;
   let projected = 0;
   let gesture: Gesture | null = null;
-  /** True while the store's own gesture end is being written, so that the history's telling is not taken for another's. */
-  let writing = false;
 
   const viewOf = () => session.model.views.find((view) => view.id === viewId);
 
@@ -318,19 +316,18 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
     const { places, words } = placesFor(session.lib, session.model, view, g.start, [...g.asks.values()]);
     let touched = null;
     if (words !== null) {
-      writing = true;
-      try {
-        touched = session.history.edit(() => {
-          const written = session.model.views.find((v) => v.id === viewId);
-          if (!written) return undefined;
-          for (const [id, place] of places) {
-            const lay = written.layout[id] as unknown as Record<string, unknown> | undefined;
-            if (!lay) { written.layout[id] = { ...place } as never; continue; }
-            for (const [key, value] of Object.entries(place)) if (lay[key] !== value) lay[key] = value;
-          }
-          return words;
-        }, null);
-      } finally { writing = false; }
+      // The gesture is over before its end is written (`gesture` is null above), so the history's telling of this
+      // write is not taken for a change heard in the middle of one.
+      touched = session.history.edit(() => {
+        const written = session.model.views.find((v) => v.id === viewId);
+        if (!written) return undefined;
+        for (const [id, place] of places) {
+          const lay = written.layout[id] as unknown as Record<string, unknown> | undefined;
+          if (!lay) { written.layout[id] = { ...place } as never; continue; }
+          for (const [key, value] of Object.entries(place)) if (lay[key] !== value) lay[key] = value;
+        }
+        return words;
+      }, null);
     }
     if (!touched) {
       // Nothing written: the model's own projection takes the place of the gesture's last step.
@@ -423,7 +420,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   hear.set(viewId, (told) => {
     if (told.by === 'end') return;
     let cancelling = false;
-    if (gesture && !gesture.cancelled && !writing) {
+    if (gesture && !gesture.cancelled) {
       // Heard in the middle of a gesture (an undo by the keyboard): it is cancelled, and its steps ignored until its end.
       gesture.cancelled = true;
       cancelling = true;

@@ -59,7 +59,10 @@ export interface TopBarProps {
  *   Shift + Z, redo; Ctrl or ⌘ + S saves (onSave) whether or not anything is unsaved, and the browser's own Save is
  *   always prevented, with a file open or not. Undo and Redo by key act unless the event comes from a text field
  *   (an input, a textarea, or anything contenteditable), where the field's own undo is meant; Save acts from
- *   anywhere. A key that acts prevents the browser's default. Holding a key down does one thing per repeat.
+ *   anywhere. A key that acts prevents the browser's default. Holding Undo's or Redo's key down does one thing per
+ *   repeat; holding Save's saves once, at the press, since each save without a picked file is a download of its own.
+ *   While the page shows a modal dialog (an element with role "dialog" and aria-modal "true": the question before
+ *   Open) the keys change nothing behind it: no undo, no redo, no save. Save's default is prevented then too.
  */
 export function TopBar({ session, onOpen, onSave }: TopBarProps): JSX.Element {
   const subscribe = useCallback((tell: () => void) => (session ? session.listen(tell) : () => {}), [session]);
@@ -81,12 +84,14 @@ export function TopBar({ session, onOpen, onSave }: TopBarProps): JSX.Element {
     const onKey = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
       const k = event.key.toLowerCase();
+      // A question in front of the page is answered first: the keys are not the file's while it is up.
+      const modal = document.querySelector('[role="dialog"][aria-modal="true"]') !== null;
       if (k === 's') {
         event.preventDefault();
-        if (session) saving.current();
+        if (session && !event.repeat && !modal) saving.current();
         return;
       }
-      if (!session || !(k === 'z' || k === 'y')) return;
+      if (!session || modal || !(k === 'z' || k === 'y')) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
       event.preventDefault();
