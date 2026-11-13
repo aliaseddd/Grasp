@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import { scaleState } from '/home/user/wt/12-review-code/canvas/test/scale-model.mjs';
+import { lib } from './h.mjs';
+const k = Number(process.argv[2] || 100);
+const s = scaleState(5000);
+const tops = s.model.elements.filter(e => e.owner === undefined && e.kind === 'PartDefinition' && /^Store\d/.test(e.id));
+console.log('candidates', tops.length, tops.slice(0,3).map(e => e.id + ' ' + e.name));
+tops.slice(0, k).forEach(e => { e.name = 'Store'; });
+fs.writeFileSync(`scale-dup-${k}.json`, JSON.stringify(s));
+const n = lib.normalize(s.model);
+let t = performance.now(); const p = lib.validate(n); const t1 = performance.now(); const d = lib.validateSpec(n); const t2 = performance.now();
+console.log('problems', p.length, 'diagnostics', d.length, 'validate ms', (t1 - t).toFixed(0), 'spec ms', (t2 - t1).toFixed(0));

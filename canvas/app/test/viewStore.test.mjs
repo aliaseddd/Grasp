@@ -139,10 +139,11 @@ describe("a view's store", () => {
 
   test('a selection renews only the node or the line it names, and is kept through the next change', async () => {
     const { session: s, store } = await example();
+    const sel = (await loadPlanes()).selectionOf(s);
     const before = store.getSnapshot();
     const { calls } = listen(store);
     const host = node(before, 'Host');
-    store.nodesChanged([{ id: 'Host', type: 'select', selected: true }]);
+    sel.set([{ type: 'el', id: 'Host' }]);
     const after = store.getSnapshot();
     assert.notEqual(after, before, 'Selecting a node must give a new snapshot object.');
     assert.notEqual(after.nodes, before.nodes, 'Selecting a node must give a new nodes array.');
@@ -154,7 +155,7 @@ describe("a view's store", () => {
       if (n.id !== 'Host') assert.equal(node(after, n.id), n, 'Node ' + n.id + ' was not selected and must be the very object it was.');
     }
     assert.equal(calls.n, 1, 'A selection must call the listener once.');
-    store.nodesChanged([{ id: 'Host', type: 'select', selected: true }]);
+    sel.set([{ type: 'el', id: 'Host' }]);
     assert.equal(store.getSnapshot(), after, 'The same selection again must change nothing.');
     assert.equal(calls.n, 1, 'The same selection again must call nobody.');
 
@@ -170,7 +171,7 @@ describe("a view's store", () => {
     const now = store.getSnapshot();
     const mount = edge(now, 'mount');
     const callsBefore = calls.n;
-    store.edgesChanged([{ id: 'mount', type: 'select', selected: true }]);
+    sel.toggle({ type: 'rel', id: 'mount' });
     const last = store.getSnapshot();
     assert.notEqual(last, now, 'Selecting an edge must give a new snapshot object.');
     assert.notEqual(last.edges, now.edges, 'Selecting an edge must give a new edges array.');
@@ -181,7 +182,7 @@ describe("a view's store", () => {
       if (e.id !== 'mount') assert.equal(edge(last, e.id), e, 'Edge ' + e.id + ' was not selected and must be the very object it was.');
     }
     assert.equal(calls.n, callsBefore + 1, "An edge's selection must call the listener once.");
-    store.edgesChanged([{ id: 'mount', type: 'select', selected: true }]);
+    sel.set([{ type: 'rel', id: 'mount' }, { type: 'el', id: 'Host' }]);
     assert.equal(store.getSnapshot(), last, 'The same edge selection again must change nothing.');
     assert.equal(calls.n, callsBefore + 1, 'The same edge selection again must call nobody.');
   });
@@ -255,19 +256,21 @@ describe("a view's store", () => {
 
   test("the store's methods can be handed over as they are", async () => {
     const { store } = await example();
-    const { subscribe, getSnapshot, nodesChanged, edgesChanged, moved, camera, fit } = store;
+    const { subscribe, getSnapshot, nodesChanged, edgesChanged, moved, camera, fit, marquee } = store;
     assert.equal(store.subscribe, store.subscribe, 'subscribe must be the same function each time it is read.');
     let calls = 0;
     const stop = subscribe(() => { calls++; });
     assert.equal(typeof stop, 'function', 'A bare subscribe must give back what unsubscribes.');
     assert.equal(getSnapshot().nodes.length, PLACED.length, 'A bare getSnapshot must give the snapshot.');
     nodesChanged([{ id: 'Host', type: 'select', selected: true }]);
-    assert.equal(node(getSnapshot(), 'Host').selected, true, 'A bare nodesChanged must select.');
+    assert.notEqual(node(getSnapshot(), 'Host').selected, true, 'A select change from React Flow must pick nothing: Host says selected.');
     edgesChanged([{ id: 'mount', type: 'select', selected: true }]);
-    assert.equal(edge(getSnapshot(), 'mount').selected, true, 'A bare edgesChanged must select.');
+    assert.notEqual(edge(getSnapshot(), 'mount').selected, true, 'A select change from React Flow must pick nothing: mount says selected.');
     assert.ok(fit(736, 828).zoom > 0, 'A bare fit must give a viewport.');
     moved({ x: 5, y: 6, zoom: 0.8 });
     assert.deepEqual(plain(camera(736, 828)), { x: 5, y: 6, zoom: 0.8 }, 'A bare moved and a bare camera must work together.');
+    marquee({ x: -100000, y: -100000, width: 200000, height: 200000 });
+    for (const n of getSnapshot().nodes) assert.equal(n.selected, true, 'A bare marquee over everything must pick every node: ' + n.id + ' does not say selected.');
     assert.ok(calls >= 2, 'The bare subscriber must have been called by the changes.');
     stop();
   });
@@ -553,5 +556,177 @@ describe('a gesture in the store', () => {
       if (n.id !== 'Host') assert.equal(node(done, n.id), n, 'Node ' + n.id + ' must be the very object it was in the last step.');
     }
     for (const e of last.edges) assert.equal(edge(done, e.id), e, 'Edge ' + e.id + ' must be the very object it was in the last step.');
+  });
+});
+
+// ---- Step 9: what is selected is the session's selection (the last two entries of ViewStore's comment in viewStore.ts).
+
+describe('the selection in the store', () => {
+  const EL = (id) => ({ type: 'el', id });
+  const selectedIds = (snapshot) => snapshot.nodes.filter((n) => n.selected === true).map((n) => n.id);
+  const added = (s, id) => s.model.views.find((v) => v.id === id);
+
+  test('a picked element is selected in every view that shows it', async () => {
+    const { viewStoreOf, selectionOf } = await loadPlanes();
+    const s = await session(fixture('interconnection.json'));
+    const sel = selectionOf(s);
+    const ic = viewStoreOf(s, 'v-ic');
+    const defs = viewStoreOf(s, 'v-defs');
+    const a = listen(ic);
+    const b = listen(defs);
+    ic.getSnapshot();
+    defs.getSnapshot();
+    sel.set([EL('Pump')]);
+    assert.deepEqual(selectedIds(ic.getSnapshot()), ['Pump'], 'Picking Pump must select Pump, and only Pump, in v-ic.');
+    assert.deepEqual(selectedIds(defs.getSnapshot()), ['Pump'], 'Picking Pump must select Pump, and only Pump, in v-defs.');
+    assert.equal(a.calls.n, 1, 'The store of v-ic must call its listener once for the pick.');
+    assert.equal(b.calls.n, 1, 'The store of v-defs must call its listener once for the pick.');
+    sel.set([EL('System.pump')]);
+    assert.deepEqual(selectedIds(ic.getSnapshot()), ['System.pump'], 'Picking System.pump must select it in v-ic, which places it.');
+    assert.deepEqual(selectedIds(defs.getSnapshot()), [], 'Picking System.pump, which v-defs does not place, must leave nothing selected in v-defs.');
+    assert.equal(a.calls.n, 2, 'The store of v-ic must call its listener once more.');
+    assert.equal(b.calls.n, 2, 'The store of v-defs must call its listener once more, for Pump let go.');
+    sel.set([{ type: 'view', id: 'v-ic' }]);
+    assert.deepEqual(selectedIds(ic.getSnapshot()), [], 'Picking a view must leave nothing selected in v-ic.');
+    assert.deepEqual(selectedIds(defs.getSnapshot()), [], 'Picking a view must leave nothing selected in v-defs.');
+    assert.equal(a.calls.n, 3, 'The store of v-ic must call its listener once more, for System.pump let go.');
+    for (const store of [ic, defs]) for (const e of store.getSnapshot().edges) assert.notEqual(e.selected, true, 'No line may be selected: ' + e.id + '.');
+    a.stop();
+    b.stop();
+  });
+
+  test('a store with no subscriber marks what is picked at its next read, and projects nothing for it', async () => {
+    const { session: s, store } = await example();
+    const sel = (await loadPlanes()).selectionOf(s);
+    const before = store.getSnapshot();
+    const projected = store.projected;
+    sel.set([EL('Host')]);
+    const after = store.getSnapshot();
+    assert.equal(node(after, 'Host').selected, true, 'A store nobody listens to must say Host selected at its next read.');
+    for (const n of before.nodes) {
+      if (n.id !== 'Host') assert.equal(node(after, n.id), n, 'Node ' + n.id + ' was not picked and must be the very object it was.');
+    }
+    assert.equal(store.projected, projected, 'Marking what is picked must not project the view again.');
+  });
+
+  test('a select change from React Flow picks nothing, and what it names is a new object that reads the same', async () => {
+    const { session: s, store } = await example();
+    const sel = (await loadPlanes()).selectionOf(s);
+    const before = store.getSnapshot();
+    const { calls } = listen(store);
+    store.nodesChanged([{ id: 'Host', type: 'select', selected: true }, { id: 'App', type: 'select', selected: false }]);
+    assert.equal(sel.items.length, 0, 'A select change from React Flow must pick nothing.');
+    const after = store.getSnapshot();
+    assert.notEqual(after, before, 'A select change that names nodes must give a new snapshot.');
+    for (const id of ['Host', 'App']) {
+      assert.notEqual(node(after, id), node(before, id), id + ' is named by a select change and must be a new object.');
+      assert.deepEqual(plain(node(after, id)), plain(node(before, id)), id + ' must read as it did before the select change.');
+      assert.notEqual(node(after, id).selected, true, id + ' must not say selected: nothing is picked.');
+    }
+    for (const n of before.nodes) {
+      if (n.id !== 'Host' && n.id !== 'App') assert.equal(node(after, n.id), n, 'Node ' + n.id + ' was not named and must be the very object it was.');
+    }
+    assert.equal(after.edges, before.edges, 'A select change of nodes must leave the edges the very array they were.');
+    assert.equal(calls.n, 1, 'A select change must call the listener once.');
+
+    sel.set([EL('Host')]);
+    const picked = store.getSnapshot();
+    const callsBefore = calls.n;
+    store.nodesChanged([{ id: 'Host', type: 'select', selected: false }]);
+    const unselected = store.getSnapshot();
+    assert.notEqual(node(unselected, 'Host'), node(picked, 'Host'), 'A select change that names Host must give it a new object even when the selection says otherwise.');
+    assert.equal(node(unselected, 'Host').selected, true, 'Host is picked and must still say selected after a select change that unselects it.');
+    assert.equal(calls.n, callsBefore + 1, 'That select change must call the listener once.');
+
+    const edgesBefore = store.getSnapshot();
+    const callsEdge = calls.n;
+    store.edgesChanged([{ id: 'mount', type: 'select', selected: true }]);
+    const edgesAfter = store.getSnapshot();
+    assert.notEqual(edge(edgesAfter, 'mount'), edge(edgesBefore, 'mount'), 'mount is named by a select change and must be a new object.');
+    assert.notEqual(edge(edgesAfter, 'mount').selected, true, 'mount must not say selected: nothing picked it.');
+    assert.equal(calls.n, callsEdge + 1, 'A select change of an edge must call the listener once.');
+
+    const last = store.getSnapshot();
+    const callsEnd = calls.n;
+    store.nodesChanged([{ id: 'Nobody', type: 'select', selected: true }]);
+    store.edgesChanged([{ id: 'Nobody', type: 'select', selected: true }]);
+    assert.equal(store.getSnapshot(), last, 'A select change that names nothing the view holds must leave the snapshot the very object it was.');
+    assert.equal(calls.n, callsEnd, 'A select change that names nothing the view holds must call nobody.');
+  });
+
+  test('a marquee picks the nodes it covers whole, in the view\'s order, and the lines between them', async () => {
+    const { viewStoreOf, selectionOf, project } = await loadPlanes();
+    const s = await session();
+    const store = viewStoreOf(s, VIEW);
+    const sel = selectionOf(s);
+    const { calls } = listen(store);
+    store.camera(736, 828);
+    store.getSnapshot();
+    const { rects } = project(lib, s.model, s.model.views.find((v) => v.id === VIEW), { far: false });
+    const four = ['Page.hosts', 'Page.hosts.api', 'Host', 'Host.api'].map((id) => rects.get(id));
+    const x1 = Math.min(...four.map((r) => r.x)) - 1;
+    const y1 = Math.min(...four.map((r) => r.y)) - 1;
+    const x2 = Math.max(...four.map((r) => r.x + r.w)) + 1;
+    const y2 = Math.max(...four.map((r) => r.y + r.h)) + 1;
+    const R = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+    store.marquee(R);
+    assert.deepEqual(plain(sel.items), [EL('Page.hosts'), EL('Page.hosts.api'), EL('Host'), EL('Host.api'), { type: 'rel', id: 't-hosts' }],
+      'A marquee around Page.hosts, Page.hosts.api, Host and Host.api must pick those four in the order of the view, then the line t-hosts, and not Page.');
+    const covered = store.getSnapshot().nodes.filter((n) => {
+      const r = rects.get(n.id);
+      return r.x >= R.x && r.y >= R.y && r.x + r.w <= R.x + R.width && r.y + r.h <= R.y + R.height;
+    }).map((n) => n.id);
+    assert.deepEqual(plain(sel.items.filter((i) => i.type === 'el').map((i) => i.id)), covered, 'What is picked must be exactly the nodes whose rectangle lies wholly inside the marquee.');
+    assert.ok(calls.n >= 1, 'The marquee must have told the store\'s listener.');
+
+    const host = rects.get('Host');
+    store.marquee({ x: host.x, y: host.y, width: host.w, height: host.h });
+    assert.deepEqual(plain(sel.items), [EL('Host')], "A marquee of Host's own rectangle must pick Host alone: the edges of the rectangle count as inside.");
+    store.marquee({ x: host.x, y: host.y, width: host.w - 1, height: host.h });
+    assert.deepEqual(plain(sel.items), [{ type: 'view', id: VIEW }], 'A marquee one unit narrower than Host cuts it and must pick the view.');
+  });
+
+  test('a marquee that covers nothing picks the view, and the same marquee again tells nobody', async () => {
+    const { session: s, store } = await example();
+    const sel = (await loadPlanes()).selectionOf(s);
+    const { calls } = listen(store);
+    store.getSnapshot();
+    sel.set([EL('Host')]);
+    const callsBefore = calls.n;
+    let told = 0;
+    const stop = sel.listen(() => { told++; });
+    store.marquee({ x: -5000, y: -5000, width: 10, height: 10 });
+    assert.deepEqual(plain(sel.items), [{ type: 'view', id: VIEW }], 'A marquee that covers no node must pick the view alone.');
+    assert.equal(calls.n, callsBefore + 1, 'Letting Host go must call the store\'s listener once.');
+    assert.equal(told, 1, 'The selection must tell its listener once.');
+    store.marquee({ x: -5000, y: -5000, width: 10, height: 10 });
+    assert.equal(calls.n, callsBefore + 1, 'The same marquee again must not call the store\'s listener.');
+    assert.equal(told, 1, 'The same marquee again must not call a listener on the selection.');
+    stop();
+  });
+
+  test('a picked element that a view comes to show is selected there, and what is picked stays marked through a drag', async () => {
+    const { viewStoreOf, selectionOf } = await loadPlanes();
+    const ic = await session(fixture('interconnection.json'));
+    const defs = viewStoreOf(ic, 'v-defs');
+    selectionOf(ic).set([EL('System')]);
+    listen(defs);
+    assert.deepEqual(selectedIds(defs.getSnapshot()), [], 'System is not placed in v-defs and nothing may be selected there.');
+    ic.history.edit(() => { added(ic, 'v-defs').layout.System = { x: 0, y: 0, w: 200, h: 100 }; return 'Placed System'; });
+    assert.equal(node(defs.getSnapshot(), 'System')?.selected, true, 'System is picked, and the node that v-defs now shows for it must say selected.');
+
+    const { session: s, store } = await example();
+    const sel = selectionOf(s);
+    const { calls } = listen(store);
+    store.getSnapshot();
+    sel.set([EL('Host')]);
+    const position = (x, y, dragging) => ({ type: 'position', id: 'Host', position: { x, y }, dragging });
+    store.nodesChanged([position(60, 420, true)]);
+    assert.equal(node(store.getSnapshot(), 'Host').selected, true, 'Host must say selected at the first step of its drag.');
+    store.nodesChanged([position(82, 450, true)]);
+    assert.equal(node(store.getSnapshot(), 'Host').selected, true, 'Host must say selected at the second step of its drag.');
+    store.nodesChanged([position(82, 450, false)]);
+    assert.equal(node(store.getSnapshot(), 'Host').selected, true, 'Host must say selected after the end of its drag.');
+    assert.ok(calls.n >= 3, 'The drag must have called the listener.');
   });
 });

@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import { loadWith, lib } from '/home/user/wt/12-review-code/canvas/app/test/core.mjs';
+const core = await loadWith("core/checks");
+const text = fs.readFileSync('/home/user/probes/12-review-code/scale-dup-150.json', 'utf8');
+const s = core.openText(lib, text, { name: 'x.json' });
+const found = lib.validate(s.model);
+let t = performance.now();
+for (let i = 0; i < 5; i++) found.map((p) => core.aboutProblem(s.model, p));
+console.log('aboutProblem for', found.length, 'problems on the session model:', ((performance.now() - t) / 5).toFixed(1), 'ms per render');
+const plainModel = JSON.parse(JSON.stringify(s.model));
+t = performance.now();
+for (let i = 0; i < 5; i++) found.map((p) => core.aboutProblem(plainModel, p));
+console.log('same on a plain copy:', ((performance.now() - t) / 5).toFixed(1), 'ms');

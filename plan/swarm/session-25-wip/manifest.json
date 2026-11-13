@@ -1,0 +1,274 @@
+[
+  {
+    "task": "10-tests-hooks",
+    "step": 10,
+    "kind": "tests",
+    "commit": "c301bbb096c743e57652e7867cbbc0a7d9888d6e",
+    "base": "102d983e8b3ec3c8a2d535f03f5248d238e3e73e",
+    "files": [
+      "canvas/app/test/fieldHooks.test.mjs"
+    ]
+  },
+  {
+    "task": "10-tests-details",
+    "step": 10,
+    "kind": "tests",
+    "commit": "bede667f209d812b0301d77006bfb11cbe154157",
+    "base": "102d983e8b3ec3c8a2d535f03f5248d238e3e73e",
+    "files": [
+      "canvas/app/test/details.test.mjs"
+    ]
+  },
+  {
+    "task": "10-tests-fields",
+    "step": 10,
+    "kind": "tests",
+    "commit": "e49bd03c7b91a17bb5e6932c53a4661d636d021f",
+    "base": "102d983e8b3ec3c8a2d535f03f5248d238e3e73e",
+    "files": [
+      "canvas/app/test/details-fields.test.mjs"
+    ]
+  },
+  {
+    "task": "10-tests-instant",
+    "step": 10,
+    "kind": "tests",
+    "commit": "2c17ab3dafff55fd453dcb9eedca85b1184f29c6",
+    "base": "102d983e8b3ec3c8a2d535f03f5248d238e3e73e",
+    "files": [
+      "canvas/app/test/instant.test.mjs"
+    ]
+  },
+  {
+    "task": "10-impl-hooks",
+    "step": 10,
+    "kind": "implement",
+    "commit": "f681911a8fa81e4047de2bbea7d245e54b208256",
+    "base": "c84df525cd31e661adf319e53c81558ec446e518",
+    "files": [
+      "canvas/app/src/panels/fieldHooks.ts"
+    ]
+  },
+  {
+    "task": "10-impl-details",
+    "step": 10,
+    "kind": "implement",
+    "commit": "5449d900ff243be613217f03abf11071527c40ec",
+    "base": "cd5d29d5b74ce3112de121a5a6b16c07d763a106",
+    "files": [
+      "canvas/app/src/panels/Details.tsx",
+      "canvas/app/src/panels/details.css"
+    ]
+  },
+  {
+    "task": "10-impl-dock",
+    "step": 10,
+    "kind": "implement",
+    "commit": "e6337c89efbd370a52ecde181cf8ec96159205b7",
+    "base": "8dd9e5e862a18116daf84e70fa2627a42dadc073",
+    "files": [
+      "canvas/app/src/shell/Dock.tsx"
+    ]
+  },
+  {
+    "task": "10-impl-bar",
+    "step": 10,
+    "kind": "implement",
+    "commit": "b2778705d9ce5dc9c309ba6e217e7592e090a680",
+    "base": "9e51b4b37f6767002a99e86c74918d254d81d1b0",
+    "files": [
+      "canvas/app/src/shell/TopBar.tsx"
+    ]
+  },
+  {
+    "task": "10-checks-break",
+    "step": 10,
+    "kind": "checks",
+    "commit": "2a630799b2be8676c94e662c94bbf89f8b0b001d",
+    "base": "2a630799b2be8676c94e662c94bbf89f8b0b001d",
+    "files": []
+  },
+  {
+    "task": "11-tests-commands",
+    "step": 11,
+    "kind": "tests",
+    "commit": "5694e8bc7f700d3fb92814d1ce03462e917d7ffc",
+    "base": "102d983e8b3ec3c8a2d535f03f5248d238e3e73e",
+    "files": [
+      "canvas/app/test/commands.test.mjs"
+    ]
+  },
+  {
+    "task": "11-tests-panel",
+    "step": 11,
+    "kind": "tests",
+    "commit": "7d47f5c27d39bc23c5815a684eb5385a2909d4d3",
+    "base": "102d983e8b3ec3c8a2d535f03f5248d238e3e73e",
+    "files": [
+      "canvas/app/test/tools-panel.test.mjs"
+    ]
+  },
+  {
+    "task": "11-tests-tools",
+    "step": 11,
+    "kind": "tests",
+    "commit": "682b59d2fb80cef3ac0a5ca9db9b8f33ee9a0a8c",
+    "base": "102d983e8b3ec3c8a2d535f03f5248d238e3e73e",
+    "files": [
+      "canvas/app/test/tools.test.mjs"
+    ]
+  },
+  {
+    "task": "11-tests-palette",
+    "step": 11,
+    "kind": "tests",
+    "commit": "7b7b1662bf09b7103443d72a52addef304a7eb45",
+    "base": "102d983e8b3ec3c8a2d535f03f5248d238e3e73e",
+    "files": [
+      "canvas/app/test/palette.test.mjs",
+      "canvas/app/test/shots/palette.mjs"
+    ]
+  },
+  {
+    "task": "11-impl-commands",
+    "step": 11,
+    "kind": "implement",
+    "commit": "3e35bb7502c297054788047a05e2bf454e6626d6",
+    "base": "a24e94d6507801d0267d7aebf8c858fea7bf783b",
+    "files": [
+      "canvas/app/src/core/commands.ts"
+    ]
+  },
+  {
+    "task": "11-impl-tools",
+    "step": 11,
+    "kind": "implement",
+    "commit": "02121377b7977c06768dacaa909b62dc2917f751",
+    "base": "10480cc4f32e93cf868a323e8dedfad69b7927fe",
+    "files": [
+      "canvas/app/src/panels/Tools.tsx"
+    ]
+  },
+  {
+    "task": "11-impl-toasts",
+    "step": 11,
+    "kind": "implement",
+    "commit": "5d838618323d68f6256a8b6acd6072510fe90c7a",
+    "base": "bd9096f7dec0c78ba15b398d6c49fd2b453b3420",
+    "files": [
+      "canvas/app/src/shell/Toasts.tsx"
+    ]
+  },
+  {
+    "task": "11-impl-plane",
+    "step": 11,
+    "kind": "implement",
+    "commit": "61bf73d772a0cedc2d51906a6fc40491c2edbd2c",
+    "base": "4ccd3537c0300f1d91a4ca87390aea5e14b07252",
+    "files": [
+      "canvas/app/src/plane/Plane.tsx",
+      "canvas/app/src/plane/viewStore.ts",
+      "canvas/app/src/plane/Palette.tsx",
+      "canvas/app/src/plane/palette.css"
+    ]
+  },
+  {
+    "task": "12-tests-checks",
+    "step": 12,
+    "kind": "tests",
+    "commit": "2dd67b1cbf6ec17d434767b507536989c95d870f",
+    "base": "102d983e8b3ec3c8a2d535f03f5248d238e3e73e",
+    "files": [
+      "canvas/app/test/checks.test.mjs"
+    ]
+  },
+  {
+    "task": "12-tests-probe",
+    "step": 12,
+    "kind": "tests",
+    "commit": "7a5dde53ec875d9ecdba10cb7edef88bada1f9c2",
+    "base": "102d983e8b3ec3c8a2d535f03f5248d238e3e73e",
+    "files": [
+      "canvas/app/test/probe.test.mjs"
+    ]
+  },
+  {
+    "task": "12-tests-validation",
+    "step": 12,
+    "kind": "tests",
+    "commit": "6c820b6c625ef0ecc7fe2bcfecffc73634bf2467",
+    "base": "102d983e8b3ec3c8a2d535f03f5248d238e3e73e",
+    "files": [
+      "canvas/app/test/validation.test.mjs"
+    ]
+  },
+  {
+    "task": "12-tests-about",
+    "step": 12,
+    "kind": "tests",
+    "commit": "b47121c21a7eace5deadc0af92ab8a16bac4896b",
+    "base": "102d983e8b3ec3c8a2d535f03f5248d238e3e73e",
+    "files": [
+      "canvas/app/test/about.test.mjs",
+      "canvas/app/test/shots/about.mjs"
+    ]
+  },
+  {
+    "task": "12-impl-checks",
+    "step": 12,
+    "kind": "implement",
+    "commit": "c402aeb68a10b6a9c991ebf324636ca06d5b9fef",
+    "base": "1907e0eb3f0688da18637778d35cb002406849c9",
+    "files": [
+      "canvas/app/src/core/checks.ts"
+    ]
+  },
+  {
+    "task": "12-impl-probe",
+    "step": 12,
+    "kind": "implement",
+    "commit": "762b9eabd7375cdc304889e46305f639b93150ee",
+    "base": "7b9d5d6a945eb6eb601ad6dfd20b2fa714e0cd37",
+    "files": [
+      "canvas/app/src/core/probe.ts"
+    ]
+  },
+  {
+    "task": "12-impl-bar",
+    "step": 12,
+    "kind": "implement",
+    "commit": "7b756dcb5b3d54d69415bfcb5d251d1fe06f947c",
+    "base": "8205896da87e3739e9615e1081a6ffb94790044c",
+    "files": [
+      "canvas/app/src/shell/TopBar.tsx"
+    ]
+  },
+  {
+    "task": "12-impl-about",
+    "step": 12,
+    "kind": "implement",
+    "commit": "1e84998973c050dcf3abaeb15f5d63ccc3a0f9d5",
+    "base": "2fce6eac1d46829183a0669071d92fb996b8846c",
+    "files": [
+      "canvas/app/src/shell/About.tsx"
+    ]
+  },
+  {
+    "task": "12-impl-validation",
+    "step": 12,
+    "kind": "implement",
+    "commit": "fb77a8bfab54946ce12051f0658f80461bc7d472",
+    "base": "a409c1c2620225445d0cd1d08c7e4855516fa861",
+    "files": [
+      "canvas/app/src/panels/Validation.tsx"
+    ]
+  },
+  {
+    "task": "12-checks-break",
+    "step": 12,
+    "kind": "checks",
+    "commit": "a68e5fedaf733f2b434f1f3f32b6af67d19b1556",
+    "base": "a68e5fedaf733f2b434f1f3f32b6af67d19b1556",
+    "files": []
+  }
+]

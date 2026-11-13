@@ -1,0 +1,15 @@
+.grasp-minimap {
+  background: var(--grasp-white);
+  pointer-events: all;
+}
+.grasp-minimap svg {
+  display: block;
+}
+.grasp-minimap .grasp-minimap-nodes {
+  fill: var(--grasp-line-strong);
+  stroke: none;
+}
+.grasp-minimap .grasp-minimap-mask {
+  fill: var(--grasp-minimap-mask);
+  stroke: none;
+}

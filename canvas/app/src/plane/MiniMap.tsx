@@ -1,22 +1,60 @@
-// A plane's minimap, at its bottom right (plan/slice-1.md, section 4; plan/swarm/step-8.md, change 3). Until step 8
-// draws one of our own, it is React Flow's. Plane.tsx renders it inside React Flow, only while the plane is as large
-// as the adapter's hasMinimap(width, height) asks.
+// A plane's minimap, at its bottom right (plan/slice-1.md, section 4; plan/swarm/step-8.md, change 3): one of our own
+// since step 8, in place of React Flow's. Plane.tsx renders it inside React Flow, only while the plane is as large as
+// the adapter's hasMinimap(width, height) asks.
 
-import { MiniMap } from '@xyflow/react';
+import { Panel, useStore } from '@xyflow/react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { MINIMAP } from '../core';
+import type { PlaneNode } from '../core';
 import type { ViewStore } from './viewStore';
+import './minimap.css';
 
 export interface PlaneMiniMapProps {
   /** The store of the view the plane shows. */
   store: ViewStore;
 }
 
-const STYLE = { width: MINIMAP.width, height: MINIMAP.height };
+const rect = (x: number, y: number, w: number, h: number): string => `M${x},${y}h${w}v${h}h${-w}z`;
+
+interface Picture {
+  d: string;
+  /** x, y, width, height of the viewBox. */
+  box: [number, number, number, number];
+}
+
+/** The nodes' path and the viewBox around it: made again only when the nodes are another array. */
+function pictureOf(nodes: readonly PlaneNode[]): Picture {
+  if (nodes.length === 0) return { d: '', box: [0, 0, MINIMAP.width, MINIMAP.height] };
+  const at = new Map<string, { x: number; y: number }>();
+  let d = '';
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const node of nodes) {
+    const parent = node.parentId ? at.get(node.parentId) : undefined;
+    const x = node.position.x + (parent?.x ?? 0);
+    const y = node.position.y + (parent?.y ?? 0);
+    at.set(node.id, { x, y });
+    d += rect(x, y, node.width, node.height);
+    x0 = Math.min(x0, x);
+    y0 = Math.min(y0, y);
+    x1 = Math.max(x1, x + node.width);
+    y1 = Math.max(y1, y + node.height);
+  }
+  const bw = x1 - x0;
+  const bh = y1 - y0;
+  const scale = Math.max(bw / MINIMAP.width, bh / MINIMAP.height) || 1;
+  const vw = scale * MINIMAP.width;
+  const vh = scale * MINIMAP.height;
+  const off = 5 * scale;
+  return { d, box: [x0 - (vw - bw) / 2 - off, y0 - (vh - bh) / 2 - off, vw + 2 * off, vh + 2 * off] };
+}
 
 /**
- * The minimap of a plane. Today it is React Flow's `MiniMap`, which keeps one subscription to React Flow's store for
- * every node of the view and changes its picture's viewBox at every step of a pan: at 5,000 elements that is 5 to 8
- * ms of every step (plan/swarm/step-8.md). Step 8 draws one of our own, which shows the same picture. Its contract:
+ * The minimap of a plane. Until step 8 it was React Flow's `MiniMap`, which keeps one subscription to React Flow's
+ * store for every node of the view and changes its picture's viewBox at every step of a pan: at 5,000 elements that
+ * was 5 to 8 ms of every step (plan/swarm/step-8.md). This one shows the same picture. Its contract:
  *
  * - **Where.** A React Flow `Panel` at `position="bottom-right"`, with the classes `react-flow__minimap` (the tests
  *   and the plane's own code find a minimap by it) and `grasp-minimap`; so it stands 15 px from the plane's right and
@@ -52,6 +90,20 @@ const STYLE = { width: MINIMAP.width, height: MINIMAP.height };
  * - While a drag moves nodes the picture follows, since each step's snapshot has a new `nodes` array.
  * - Its rules are in `plane/minimap.css`, which this file imports; every colour is a CSS variable of shell/theme.ts.
  */
-export function PlaneMiniMap(_props: PlaneMiniMapProps): JSX.Element {
-  return <MiniMap style={STYLE} />;
+export function PlaneMiniMap({ store }: PlaneMiniMapProps): JSX.Element {
+  const { nodes } = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  const picture = useMemo(() => pictureOf(nodes), [nodes]);
+  const window = useStore((s) => `${s.transform[0]},${s.transform[1]},${s.transform[2]},${s.width},${s.height}`);
+  const [tx, ty, zoom, width, height] = window.split(',').map(Number);
+  const [x, y, w, h] = picture.box;
+  const mask = rect(x - w, y - h, 3 * w, 3 * h) + rect(-tx / zoom, -ty / zoom, width / zoom, height / zoom);
+  return (
+    <Panel position="bottom-right" className="react-flow__minimap grasp-minimap">
+      <svg width={MINIMAP.width} height={MINIMAP.height} viewBox={`${x} ${y} ${w} ${h}`} role="img">
+        <title>Minimap</title>
+        <path className="grasp-minimap-nodes" d={picture.d} />
+        <path className="grasp-minimap-mask" fillRule="evenodd" d={mask} />
+      </svg>
+    </Panel>
+  );
 }

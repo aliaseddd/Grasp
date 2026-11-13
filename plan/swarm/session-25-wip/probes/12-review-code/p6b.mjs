@@ -1,0 +1,15 @@
+import { launch, openPage, byTestId, stubGitHub } from './h.mjs';
+const b = await launch();
+const o = await openPage(b);
+const { page, context } = o;
+await stubGitHub(context);
+await page.evaluate(() => { window.__gaps = []; let last = performance.now(); const f = (now) => { if (now - last > 100) window.__gaps.push([Math.round(last), Math.round(now - last)]); last = now; requestAnimationFrame(f); }; requestAnimationFrame(f); });
+await page.locator(byTestId('about')).click();
+const t0 = await page.evaluate(() => Math.round(performance.now()));
+await page.waitForTimeout(80);
+await page.keyboard.press('Escape');
+await page.waitForFunction(() => !document.querySelector('[data-testid="about-panel"]'));
+const t2 = await page.evaluate(() => Math.round(performance.now()));
+await page.waitForTimeout(1500);
+console.log('opened ~', t0, 'closed by', t2, 'frame gaps >100ms', JSON.stringify(await page.evaluate(() => window.__gaps)), 'panel open now:', await page.locator('[data-testid="about-panel"]').count());
+await b.close();

@@ -3,8 +3,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogContentText } from '@mui/material';
-import { LOSE_QUESTION, askBeforeLeaving, openFile, saveFile } from '../core';
-import type { Session } from '../core';
+import { LOSE_QUESTION, askBeforeLeaving, openFile, saveFile, selectionOf } from '../core';
+import type { Selection, Session } from '../core';
 import { Markers } from '../plane/edges/markers';
 import { viewStoresOf } from '../plane/viewStore';
 import type { ViewStore } from '../plane/viewStore';
@@ -19,6 +19,8 @@ export interface GraspGlobal {
   readonly session: Session | null;
   /** The open file's view stores by view id (those made so far), or null with no file. */
   readonly views: ReadonlyMap<string, ViewStore> | null;
+  /** The open file's selection, or null with no file. */
+  readonly selection: Selection | null;
 }
 
 declare global {
@@ -62,7 +64,7 @@ export function App(): JSX.Element {
   const closeAbout = useCallback(() => setAbout(false), []);
 
   useEffect(() => {
-    window.Grasp = { session, views: session ? viewStoresOf(session) : null };
+    window.Grasp = { session, views: session ? viewStoresOf(session) : null, selection: session ? selectionOf(session) : null };
   }, [session]);
 
   // While a file is open the page asks before it is left or reloaded with unsaved changes.

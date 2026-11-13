@@ -91,6 +91,113 @@ export interface Selection {
  * first call adds the selection's one listener to the session's history.
  */
 export function selectionOf(session: Session): Selection {
-  void session;
-  throw new Error('selectionOf: step 9 builds it');
+  let kept = KEPT.get(session);
+  if (!kept) {
+    kept = make(session);
+    KEPT.set(session, kept);
+  }
+  return kept;
+}
+
+const KEPT = new WeakMap<Session, Selection>();
+
+const TYPES: readonly PickedType[] = ['el', 'rel', 'view'];
+
+function make(session: Session): Selection {
+  let items: readonly Picked[] = [];
+  let keys = new Set<string>();   // `${type}:${id}` of each item, beside items
+  let view: string | null = null;
+  let index: Record<PickedType, Set<string>> | null = null;
+  const listeners = new Set<() => void>();
+
+  const keyOf = (type: PickedType, id: string): string => `${type}:${id}`;
+  const ids = (): Record<PickedType, Set<string>> => {
+    if (!index) {
+      const model = session.model;
+      index = {
+        el: new Set(model.elements.map((e) => e.id)),
+        rel: new Set(model.relationships.map((r) => r.id)),
+        view: new Set(model.views.map((v) => v.id)),
+      };
+    }
+    return index;
+  };
+  const holds = (type: PickedType, id: string): boolean => TYPES.includes(type) && ids()[type].has(id);
+
+  const tell = (): void => {
+    let failed: { error: unknown } | null = null;
+    for (const listener of Array.from(listeners)) {
+      try { listener(); } catch (error) { failed ??= { error }; }
+    }
+    if (failed) throw failed.error;
+  };
+
+  const adopt = (next: Picked[]): boolean => {
+    if (next.length === items.length && next.every((p, i) => p.type === items[i].type && p.id === items[i].id)) return false;
+    items = next;
+    keys = new Set(next.map((p) => keyOf(p.type, p.id)));
+    return true;
+  };
+
+  const set = (list: readonly Picked[]): void => {
+    const seen = new Set<string>();
+    const next: Picked[] = [];
+    for (const p of list) {
+      const k = keyOf(p.type, p.id);
+      if (seen.has(k) || !holds(p.type, p.id)) continue;
+      seen.add(k);
+      next.push({ type: p.type, id: p.id });
+    }
+    if (adopt(next)) tell();
+  };
+
+  const toggle = (item: Picked): void => {
+    const k = keyOf(item.type, item.id);
+    if (keys.has(k)) {
+      adopt(items.filter((p) => keyOf(p.type, p.id) !== k));
+      tell();
+    } else if (holds(item.type, item.id)) {
+      adopt([{ type: item.type, id: item.id }, ...items]);
+      tell();
+    }
+  };
+
+  const click = (hit: Hit): void => {
+    if (hit.type === 'ground') set([{ type: 'view', id: hit.view }]);
+    else if (hit.id === null) return;
+    else if (hit.add) toggle({ type: hit.type, id: hit.id });
+    else set([{ type: hit.type, id: hit.id }]);
+  };
+
+  const front = (viewId: string | null): void => {
+    const next = viewId !== null && holds('view', viewId) ? viewId : null;
+    if (next === view) return;
+    view = next;
+    tell();
+  };
+
+  session.history.listen((told) => {
+    if (!told.structure) return;
+    index = null;
+    const next = items.filter((p) => holds(p.type, p.id));
+    let changed = next.length !== items.length;
+    if (changed) adopt(next);
+    if (view !== null && !holds('view', view)) { view = null; changed = true; }
+    if (changed) tell();
+  });
+
+  return {
+    get items() { return items; },
+    get last() { return items[0] ?? null; },
+    get view() { return view; },
+    has: (type, id) => keys.has(keyOf(type, id)),
+    set,
+    toggle,
+    click,
+    front,
+    listen(listener) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+  };
 }

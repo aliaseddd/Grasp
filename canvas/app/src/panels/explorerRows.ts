@@ -19,8 +19,11 @@ declare global {
      * of the model.
      */
     browserRows(model: Model, view: { options: { roots: null; collapsed: string[] } }): LibraryRow[];
-    /** A relationship in words: 'DevHost specializes Host', 'hosts defined by Host', 'connection mount, api to api'. */
-    describeRel(model: Model, rel: ModelRelationship): string;
+    /**
+     * A relationship in words: 'DevHost specializes Host', 'hosts defined by Host', 'connection mount, api to api'.
+     * `ids` answers for the elements by id (get(id)); without it the library makes its own index of the model.
+     */
+    describeRel(model: Model, rel: ModelRelationship, ids?: { get(id: string): ModelElement | undefined }): string;
     /** Every element of the model by its id. Inside reading() it is made once. */
     idsOf(model: Model): Map<string, ModelElement>;
   }
@@ -48,6 +51,20 @@ export const rowId = (type: RowType, id = ''): string => `${type}:${id}`;
 
 /** The package's row. */
 export const PACKAGE_ROW = rowId('package');
+
+/**
+ * The rows a Shift range picks, as row ids: `to` first, then the rest of the rows from `anchor` to `to` in the order of
+ * `shown` (the tree's), whichever of the two comes first. When `anchor` is null, or is not among the shown rows, or `to`
+ * is not, only `to`. The package's row and a "Show more" row are in the range as any row is: pickedOf() leaves them out.
+ */
+export function rangeOf(shown: readonly string[], anchor: string | null, to: string): string[] {
+  const from = anchor === null ? -1 : shown.indexOf(anchor);
+  const at = shown.indexOf(to);
+  if (from < 0 || at < 0) return [to];
+  const out = [to];
+  for (let i = Math.min(from, at); i <= Math.max(from, at); i++) if (i !== at) out.push(shown[i]);
+  return out;
+}
 
 /** A row id read back: its type, and the id after the first colon (which may hold colons itself). Null when it is no row id. */
 export function rowOf(row: string): { type: RowType; id: string } | null {
@@ -131,7 +148,11 @@ export interface RowItem {
  *   comes to be shown (a build, setUnfolded, showMore), and after a change of the model that can have altered words.
  *   Each working out reads the model inside one lib.reading(). The library is always reached as `session.lib`, at
  *   each use (`session.lib.browserRows(...)`, `session.lib.reading(...)`): a test counts those reads to see that a
- *   move costs none.
+ *   move costs none. The rows keep their own index of the model, made at each build: the place in the model's lists
+ *   of each element, relationship and view, and of the typing of each element. A working out looks up the rows it is
+ *   for in that index, and asks the library for no index of the whole model (lib.idsOf, the lookups of a reading),
+ *   so a reword costs in proportion to the rows shown, not to the model. An index that no longer matches what the
+ *   model holds at a place is made again.
  * - **After a change of the model** (the session's history tells of it):
  *   - `told.by === 'end'`, and a change that only moved things (`told.moved`): nothing is done and nobody is told. A
  *     drag's end, a resize's end and a port's slide cost the Explorer nothing.
@@ -156,18 +177,355 @@ export interface ExplorerRows {
   readonly items: readonly RowItem[];
   readonly unfolded: readonly string[];
   readonly built: number;
+  /**
+   * The ids of the rows that are shown, in the tree's order: the package's row, and what is inside each unfolded
+   * shown row, its "Show more" row last among them. A new array at each call.
+   */
+  shown(): string[];
   wordsOf(row: string): RowWords | null;
   setUnfolded(rows: readonly string[]): void;
   showMore(row: string): void;
   listen(listener: () => void): () => void;
 }
 
-/**
- * The rows of a session: the same object each time it is asked for, kept by the session object itself, weakly, as
- * its selection is (core/selection.ts), so a session that is replaced takes its rows with it. The first call builds
- * the rows and adds the rows' one listener to the session's history.
- */
 export function explorerRowsOf(session: Session): ExplorerRows {
-  void session;
-  throw new Error('explorerRowsOf: step 9 builds it');
+  let kept = KEPT.get(session);
+  if (!kept) {
+    kept = make(session);
+    KEPT.set(session, kept);
+  }
+  return kept;
+}
+
+const KEPT = new WeakMap<Session, ExplorerRows>();
+
+/** A row of the tree: what it is, the rows inside it (all of them, shown or not) and the row it is inside. */
+interface Node {
+  readonly id: string;
+  readonly type: RowType;
+  readonly key: string;
+  readonly parent: Node | null;
+  readonly kids: Node[];
+}
+
+/** The place in the model's lists of each element, relationship and view by id, and of the first typing of each element. */
+interface Index {
+  readonly els: Map<string, number>;
+  readonly rels: Map<string, number>;
+  readonly views: Map<string, number>;
+  readonly typed: Map<string, number>;
+}
+
+function indexOf(model: Model): Index {
+  const els = new Map<string, number>();
+  const rels = new Map<string, number>();
+  const views = new Map<string, number>();
+  const typed = new Map<string, number>();
+  const elements = model.elements;
+  for (let i = 0; i < elements.length; i++) els.set(elements[i].id, i);
+  const relationships = model.relationships;
+  for (let i = 0; i < relationships.length; i++) {
+    const rel = relationships[i];
+    rels.set(rel.id, i);
+    if (rel.kind === 'FeatureTyping' && !typed.has(rel.from)) typed.set(rel.from, i);
+  }
+  const list = model.views;
+  for (let i = 0; i < list.length; i++) views.set(list[i].id, i);
+  return { els, rels, views, typed };
+}
+
+/** What the library is asked inside one reading(): the lookups of what a row says, answered from the rows' index. */
+interface Look {
+  readonly lib: SysMLModelLibrary;
+  readonly model: Model;
+  /** The element, relationship or view of an id, or undefined when the model holds none. */
+  el(id: string): ModelElement | undefined;
+  rel(id: string): ModelRelationship | undefined;
+  view(id: string): { id: string; name?: unknown; kind: string } | undefined;
+  /** The first typing of an element, or null. */
+  typing(el: ModelElement): ModelRelationship | null;
+  /** The elements by id, as the library's describeRel takes them. */
+  readonly ids: { get(id: string): ModelElement | undefined };
+}
+
+// The library's rows carry a `label` that the core's types do not declare (the old page's browserRowParts reads them).
+type Labelled = Readonly<Record<string, { label: string; keyword?: string | null; usage?: boolean } | undefined>>;
+const KINDS_OF = (lib: SysMLModelLibrary): Labelled => lib.KINDS as unknown as Labelled;
+const RELATIONSHIPS_OF = (lib: SysMLModelLibrary): Labelled => lib.RELATIONSHIPS as unknown as Labelled;
+
+const OPTIONS = { options: { roots: null, collapsed: [] as string[] } };
+const UNNAMED = '(unnamed)';
+const text = (value: unknown): string => (typeof value === 'string' ? value : '').trim();
+const sameWords = (a: RowWords, b: RowWords): boolean => a.kw === b.kw && a.name === b.name && a.type === b.type;
+
+/** What a row says, and its Tree View label (the name part alone, but a relationship's kind's label). Null for a row the model no longer holds. */
+function wordsAndLabel(node: Node, look: Look): { words: RowWords; label: string } | null {
+  const { lib, model } = look;
+  if (node.type === 'package') {
+    const name = text(model.package.name) || UNNAMED;
+    return { words: { kw: '«package» ', name, type: '' }, label: name };
+  }
+  if (node.type === 'view') {
+    const view = look.view(node.key);
+    if (!view) return null;
+    const kind = lib.VIEW_KINDS[view.kind];
+    const name = text(view.name) || UNNAMED;
+    return { words: { kw: '«' + (kind ? kind.label : view.kind) + '» ', name, type: '' }, label: name };
+  }
+  if (node.type === 'rel') {
+    const rel = look.rel(node.key);
+    if (!rel) return null;
+    const label = RELATIONSHIPS_OF(lib)[rel.kind]?.label ?? rel.kind;
+    let said = lib.describeRel(model, rel, look.ids);
+    if (said.indexOf(label + ' ') === 0) said = said.slice(label.length + 1);
+    return { words: { kw: '«' + label + '» ', name: said, type: '' }, label };
+  }
+  const el = look.el(node.key);
+  if (!el) return null;
+  const kind = KINDS_OF(lib)[el.kind];
+  const named = lib.textName(el);
+  const name = named === null ? (kind ? kind.label : el.kind) : named || UNNAMED;
+  let type = '';
+  if (kind && kind.usage) {
+    const typing = look.typing(el);
+    if (typing) {
+      const def = look.el(typing.to);
+      type += ' : ' + (el.conjugated ? '~' : '') + (def ? lib.textName(def) || UNNAMED : '?');
+    }
+    if (el.multiplicity) type += ' [' + el.multiplicity + ']';
+  }
+  return { words: { kw: named !== null && kind && kind.keyword ? '«' + kind.keyword + '» ' : '', name, type }, label: name };
+}
+
+function make(session: Session): ExplorerRows {
+  const listeners = new Set<() => void>();
+  let nodes = new Map<string, Node>();
+  let root: Node = { id: PACKAGE_ROW, type: 'package', key: '', parent: null, kids: [] };
+  let items: readonly RowItem[] = [];
+  let unfolded: readonly string[] = [];
+  let unfoldedSet = new Set<string>();
+  let words = new Map<string, RowWords>();
+  const shownCount = new Map<string, number>();   // how many rows inside a row are shown, for a row that has had showMore
+  let labels = new Map<string, string>();
+  let index: Index = { els: new Map(), rels: new Map(), views: new Map(), typed: new Map() };
+  let built = 0;
+
+  const tell = (): void => {
+    let failed: { error: unknown } | null = null;
+    for (const listener of Array.from(listeners)) {
+      try { listener(); } catch (error) { failed ??= { error }; }
+    }
+    if (failed) throw failed.error;
+  };
+
+  /**
+   * The lookups of what a row says, in this reading of the model. Each answers from the index and checks the answer
+   * against the model at the place the index gives; when that is not what it says, the index is made again, once.
+   */
+  const lookOf = (lib: SysMLModelLibrary, model: Model): Look => {
+    let fresh = false;
+    const again = (): void => { index = indexOf(model); fresh = true; };
+    const at = <T extends { id: string }>(list: readonly T[], places: () => Map<string, number>, id: string): T | undefined => {
+      let place = places().get(id);
+      if (place === undefined) return undefined;
+      let found: T | undefined = list[place];
+      if ((!found || found.id !== id) && !fresh) {
+        again();
+        place = places().get(id);
+        found = place === undefined ? undefined : list[place];
+      }
+      return found && found.id === id ? found : undefined;
+    };
+    const el = (id: string): ModelElement | undefined => at(model.elements, () => index.els, id);
+    const rel = (id: string): ModelRelationship | undefined => at(model.relationships, () => index.rels, id);
+    return {
+      lib,
+      model,
+      el,
+      rel,
+      view: (id) => at(model.views as readonly { id: string; name?: unknown; kind: string }[], () => index.views, id),
+      typing(one) {
+        const place = index.typed.get(one.id);
+        if (place === undefined) return null;
+        const found = model.relationships[place];
+        if (found && found.kind === 'FeatureTyping' && found.from === one.id) return found;
+        if (fresh) return null;
+        again();
+        const next = index.typed.get(one.id);
+        const rewound = next === undefined ? undefined : model.relationships[next];
+        return rewound && rewound.kind === 'FeatureTyping' && rewound.from === one.id ? rewound : null;
+      },
+      ids: { get: el },
+    };
+  };
+
+  const shownOf = (node: Node): number => Math.min(node.kids.length, shownCount.get(node.id) ?? ROWS_SHOWN);
+  const moreOf = (node: Node): number => node.kids.length - shownOf(node);
+
+  /** The ids of the rows that are shown, in order: the package's, and what is inside each unfolded shown row. */
+  const shownRows = (): string[] => {
+    const out: string[] = [];
+    const walk = (node: Node): void => {
+      out.push(node.id);
+      if (!unfoldedSet.has(node.id)) return;
+      const n = shownOf(node);
+      for (let i = 0; i < n; i++) walk(node.kids[i]);
+      if (moreOf(node) > 0) out.push(rowId('more', node.id));
+    };
+    walk(root);
+    return out;
+  };
+
+  const moreWords = (row: string): RowWords | null => {
+    const node = nodes.get(row.slice('more:'.length));
+    return node && moreOf(node) > 0 ? { kw: '', name: 'Show more', type: ` (${moreOf(node)} not shown)` } : null;
+  };
+
+  /**
+   * Makes `words` those of the rows that are shown now. A row that has words keeps them unless `again`, which works
+   * them out again; one that has none gets them. Where the library is asked, it is inside one reading(). Returns
+   * whether a row that had words before has different ones.
+   */
+  const sync = (again: boolean): boolean => {
+    const shown = shownRows();
+    const need = shown.filter((id) => !id.startsWith('more:') && (again || !words.has(id)));
+    const next = new Map<string, RowWords>();
+    let changed = false;
+    const put = (id: string, made: RowWords | null): void => {
+      const was = words.get(id);
+      if (made === null) { if (was) next.set(id, was); return; }
+      if (was && sameWords(was, made)) next.set(id, was);
+      else { next.set(id, made); if (was) changed = true; }
+    };
+    const fresh = new Map<string, RowWords | null>();
+    if (need.length > 0) {
+      const lib = session.lib;
+      const model = session.model;
+      lib.reading(model, () => {
+        const look = lookOf(lib, model);
+        for (const id of need) fresh.set(id, wordsAndLabel(nodes.get(id)!, look)?.words ?? null);
+      });
+    }
+    for (const id of shown) {
+      if (id.startsWith('more:')) put(id, moreWords(id));
+      else if (fresh.has(id)) put(id, fresh.get(id)!);
+      else if (words.has(id)) next.set(id, words.get(id)!);
+    }
+    words = next;
+    return changed;
+  };
+
+  const itemsOf = (node: Node): RowItem => {
+    const n = shownOf(node);
+    const children: RowItem[] = [];
+    for (let i = 0; i < n; i++) children.push(itemsOf(node.kids[i]));
+    if (moreOf(node) > 0) children.push({ id: rowId('more', node.id), label: 'Show more', children: [] });
+    return { id: node.id, label: labels.get(node.id) ?? '', children };
+  };
+
+  const build = (): void => {
+    const lib = session.lib;
+    const model = session.model;
+    const first = built === 0;
+    const wasKids = new Map<string, number>();
+    nodes.forEach((n, id) => wasKids.set(id, n.kids.length));
+    const wasUnfolded = unfoldedSet;
+
+    const next = new Map<string, Node>();
+    const top: Node = { id: PACKAGE_ROW, type: 'package', key: '', parent: null, kids: [] };
+    next.set(top.id, top);
+    const add = (parent: Node, type: RowType, key: string): Node => {
+      const node: Node = { id: rowId(type, key), type, key, parent, kids: [] };
+      parent.kids.push(node);
+      next.set(node.id, node);
+      return node;
+    };
+    const newLabels = new Map<string, string>();
+    lib.reading(model, () => {
+      model.views.forEach((v) => add(top, 'view', v.id));
+      const rows = lib.browserRows(model, OPTIONS);
+      const open: Node[] = [];   // the last element row at each depth
+      for (const row of rows) {
+        const parent = row.depth === 0 ? top : open[row.depth - 1] ?? top;
+        const node = add(parent, row.type, row.id);
+        if (row.type === 'el') open[row.depth] = node;
+      }
+      index = indexOf(model);
+      const look = lookOf(lib, model);
+      next.forEach((node, id) => {
+        const made = wordsAndLabel(node, look);
+        newLabels.set(id, made ? made.label : '');
+      });
+    });
+
+    const small = model.elements.length <= UNFOLDED_UP_TO;
+    const open: string[] = [];
+    const walk = (node: Node): void => {
+      if (node.kids.length > 0) {
+        const was = wasKids.get(node.id);
+        const on = first || was === undefined || was === 0 ? node === top || small : wasUnfolded.has(node.id);
+        if (on) open.push(node.id);
+      }
+      node.kids.forEach(walk);
+    };
+    walk(top);
+
+    nodes = next;
+    root = top;
+    labels = newLabels;
+    for (const id of Array.from(shownCount.keys())) if (!next.has(id)) shownCount.delete(id);
+    unfoldedSet = new Set(open);
+    unfolded = open;
+    items = [itemsOf(top)];
+    built++;
+    words = new Map();
+    sync(false);
+  };
+
+  build();
+
+  session.history.listen((told) => {
+    if (told.by === 'end' || (told.moved && !told.structure)) return;
+    if (told.structure) {
+      build();
+      tell();
+    } else if (sync(true)) {
+      tell();
+    }
+  });
+
+  return {
+    get items() { return items; },
+    get unfolded() { return unfolded; },
+    get built() { return built; },
+    shown: shownRows,
+    wordsOf: (row) => words.get(row) ?? null,
+    setUnfolded(rows) {
+      const next: string[] = [];
+      const seen = new Set<string>();
+      for (const id of rows) {
+        const node = nodes.get(id);
+        if (!node || node.kids.length === 0 || seen.has(id)) continue;
+        seen.add(id);
+        next.push(id);
+      }
+      if (next.length === unfoldedSet.size && next.every((id) => unfoldedSet.has(id))) return;
+      unfolded = next;
+      unfoldedSet = seen;
+      sync(false);
+      tell();
+    },
+    showMore(row) {
+      const node = nodes.get(row);
+      if (!node || moreOf(node) <= 0) return;
+      shownCount.set(node.id, shownOf(node) + ROWS_SHOWN);
+      items = [itemsOf(root)];
+      sync(false);
+      tell();
+    },
+    listen(listener) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+  };
 }

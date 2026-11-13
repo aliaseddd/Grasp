@@ -4,17 +4,18 @@
 // It knows no Dockview, none of the model's elements, no history and no file: it draws what its view's store gives.
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
-import type { CSSProperties, RefObject } from 'react';
-import { Background, BackgroundVariant, ControlButton, Controls, ReactFlow, useReactFlow } from '@xyflow/react';
+import type { CSSProperties, MouseEvent as ReactMouseEvent, MutableRefObject, RefObject } from 'react';
+import { Background, BackgroundVariant, ControlButton, Controls, ReactFlow, SelectionMode, useReactFlow, useStoreApi } from '@xyflow/react';
 import type { EdgeTypes, NodeTypes } from '@xyflow/react';
-import { hasMinimap, LARGE_VIEW, LOOK, MAX_ZOOM, MIN_ZOOM } from '../core';
-import type { PlaneEdge, PlaneNode, Session, Shape } from '../core';
+import { hasMinimap, LARGE_VIEW, LOOK, MAX_ZOOM, MIN_ZOOM, selectionOf } from '../core';
+import type { Hit, PlaneEdge, PlaneNode, Session, Shape } from '../core';
 import { LineEdge } from './edges/LineEdge';
 import { PlaneMiniMap } from './MiniMap';
 import { BoxNode } from './nodes/BoxNode';
 import { PortNode } from './nodes/PortNode';
 import { SmallNode } from './nodes/SmallNode';
 import { NotDrawnYet } from './NotDrawnYet';
+import './marquee.css';
 import { CLICK_DISTANCE, viewStoreOf } from './viewStore';
 import type { ViewStore } from './viewStore';
 
@@ -48,7 +49,7 @@ export interface PlaneProps {
  *   `minZoom` and `maxZoom` (the adapter's MIN_ZOOM, MAX_ZOOM), `onlyRenderVisibleElements` for a view of more than
  *   LARGE_VIEW nodes (the adapter's, which says why), `panOnScroll` with `panOnScrollSpeed={1}`, `zoomOnScroll={false}`, `zoomOnPinch`,
  *   `zoomOnDoubleClick={false}`, `paneClickDistance` (a press that moves a few pixels is still a click),
- *   `selectionKeyCode={null}` (no rectangle is drawn with Shift until step 9 gives the marquee its meaning),
+ *   `selectionKeyCode="Shift"` (Shift with a drag draws the marquee, step 9),
  *   `deleteKeyCode={null}` (React Flow's own Delete removes nothing until slice 2 gives Delete its meaning),
  *   nodes draggable (step 7: boxes, small nodes and border items, React Flow's default; a press on a box drags it, a
  *   press on the ground pans) with `nodeDragThreshold={0}` (a drag begins at the press: with the default 1 px React
@@ -157,6 +158,10 @@ const NODE_TYPES = {
 } satisfies Record<Shape, unknown> as unknown as NodeTypes;
 const EDGE_TYPES = { line: LineEdge } as unknown as EdgeTypes;
 const PRO_OPTIONS = { hideAttribution: true };
+// So that React Flow's own idea of "adding" is Hit.add on every machine (its default is Meta on a Mac, Control elsewhere).
+const MULTI_SELECTION_KEYS = ['Control', 'Meta'];
+
+type ToFlow = (point: { x: number; y: number }) => { x: number; y: number };
 // How far the pointer may move between press and release and still click is the store's CLICK_DISTANCE: React Flow's
 // own click distances (the ground's and a node's) are set to it, and the store starts no gesture of a drag or a resize
 // that has not gone as far (nodeDragThreshold is 0, so a drag begins at the press and the node does not trail the
@@ -174,6 +179,18 @@ function Flow({ store, root }: FlowProps): JSX.Element {
   // Whether the root is large enough for the minimap: set again only when a new size crosses the line.
   const [minimap, setMinimap] = useState(() => hasMinimap(root.current?.clientWidth ?? 0, root.current?.clientHeight ?? 0));
   const snapshot = useSyncExternalStore(store.subscribe, store.getSnapshot);
+  // What the click callbacks reach: React Flow's screenToFlowPosition (put there by Picking), and whether a marquee was
+  // drawn since the last press, which makes the click that ends it no click.
+  const toFlow = useRef<ToFlow | null>(null);
+  const marqueed = useRef(false);
+  const clicked = useCallback((event: ReactMouseEvent, type: Hit['type'], id: string | null): void => {
+    if (marqueed.current) return;
+    const at = toFlow.current ? toFlow.current({ x: event.clientX, y: event.clientY }) : { x: 0, y: 0 };
+    selectionOf(store.session).click({ view: store.viewId, type, id, at, add: event.ctrlKey || event.metaKey });
+  }, [store]);
+  const onNodeClick = useCallback((event: ReactMouseEvent, node: PlaneNode) => clicked(event, 'el', node.id), [clicked]);
+  const onEdgeClick = useCallback((event: ReactMouseEvent, edge: PlaneEdge) => clicked(event, 'rel', edge.id), [clicked]);
+  const onPaneClick = useCallback((event: ReactMouseEvent) => clicked(event, 'ground', null), [clicked]);
   return (
     <ReactFlow<PlaneNode, PlaneEdge>
       nodes={snapshot.nodes}
@@ -193,7 +210,12 @@ function Flow({ store, root }: FlowProps): JSX.Element {
       zoomOnPinch
       zoomOnDoubleClick={false}
       paneClickDistance={CLICK_DISTANCE}
-      selectionKeyCode={null}
+      selectionKeyCode="Shift"
+      selectionMode={SelectionMode.Full}
+      multiSelectionKeyCode={MULTI_SELECTION_KEYS}
+      onNodeClick={onNodeClick}
+      onEdgeClick={onEdgeClick}
+      onPaneClick={onPaneClick}
       deleteKeyCode={null}
       selectNodesOnDrag={false}
       nodeClickDistance={CLICK_DISTANCE}
@@ -211,6 +233,7 @@ function Flow({ store, root }: FlowProps): JSX.Element {
       </Controls>
       {minimap && <PlaneMiniMap store={store} />}
       <Follow store={store} root={root} setMinimap={setMinimap} />
+      <Picking store={store} root={root} toFlow={toFlow} marqueed={marqueed} />
     </ReactFlow>
   );
 }
@@ -236,6 +259,40 @@ function Follow({ store, root, setMinimap }: FlowProps & { setMinimap: (shown: b
     observer.observe(el);
     return () => observer.disconnect();
   }, [store, root, setMinimap, setViewport]);
+  return null;
+}
+
+/**
+ * Draws nothing. It reaches what only React Flow's inside holds: screenToFlowPosition for the click callbacks, and the
+ * marquee's rectangle, which goes to the store at each move (step 9, "Picking on a plane"). It also sets React Flow's
+ * `nodesSelectionActive` back to false whenever it is true, so the rectangle that would lie over the picked boxes is
+ * never drawn, and raises the flag that drops the click ending a marquee, which the next press on the root clears.
+ */
+function Picking({ store, root, toFlow, marqueed }: FlowProps & { toFlow: MutableRefObject<ToFlow | null>; marqueed: MutableRefObject<boolean> }): null {
+  const { screenToFlowPosition } = useReactFlow();
+  const flow = useStoreApi();
+  useEffect(() => {
+    toFlow.current = screenToFlowPosition;
+    return () => { toFlow.current = null; };
+  }, [toFlow, screenToFlowPosition]);
+  useEffect(() => {
+    const el = root.current;
+    const clear = (): void => { marqueed.current = false; };
+    el?.addEventListener('pointerdown', clear, true);
+    const stop = flow.subscribe((state, before) => {
+      if (state.nodesSelectionActive) flow.setState({ nodesSelectionActive: false });
+      if (!state.userSelectionActive) return;
+      marqueed.current = true;
+      const rect = state.userSelectionRect;
+      if (!rect || (state.userSelectionActive === before.userSelectionActive && rect === before.userSelectionRect)) return;
+      const [tx, ty, zoom] = state.transform;
+      store.marquee({ x: (rect.x - tx) / zoom, y: (rect.y - ty) / zoom, width: rect.width / zoom, height: rect.height / zoom });
+    });
+    return () => {
+      stop();
+      el?.removeEventListener('pointerdown', clear, true);
+    };
+  }, [store, root, flow, marqueed]);
   return null;
 }
 

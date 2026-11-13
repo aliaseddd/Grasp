@@ -1,15 +1,15 @@
 // A view's store: one view's state outside React (plan/slice-1.md, section 3; plan/notes.md, session 17, "The
 // architecture", and session 20, "Step 6: the outline, part 2"). Dockview takes a hidden tab's body out of the
 // document and its plane unmounts React Flow; the store keeps what the tab must find again: the view's projection,
-// its camera, far or near, and React Flow's own `selected`. React reads it through useSyncExternalStore.
+// its camera, far or near, and which of its nodes and lines the session's selection names. React reads it through useSyncExternalStore.
 //
 // It knows no React, no Dockview and no DOM, how no node looks, and no rule of place or size: those are the
 // adapter's (core/adapter.ts), which it calls. It imports React Flow's types only, so Node tests load it
 // (canvas/app/test/core.mjs).
 
 import type { EdgeChange, NodeChange } from '@xyflow/react';
-import { FAR, fit, isDrawn, linesDrawn, notDrawnText, placesFor, project, projectStep } from '../core';
-import type { Ask, PlaneEdge, PlaneNode, Projection, Session, Told, Viewport } from '../core';
+import { FAR, fit, isDrawn, linesDrawn, notDrawnText, placesFor, project, projectStep, selectionOf } from '../core';
+import type { Ask, Picked, PlaneEdge, PlaneNode, Projection, Session, Told, Viewport } from '../core';
 
 /**
  * What a plane renders. A new object only when something in it changed; `nodes` and `edges` each likewise. `nodes` is
@@ -44,9 +44,9 @@ export interface ViewSnapshot {
  *   a small plane (a tab that Dockview passes through a small size as it floats, a narrow window) fills its plane
  *   when that grows, a split or a sash drag keeps a fitted view fitted, and a view somebody has panned or zoomed
  *   stays where they put it.
- * - **React Flow's changes: select.** The node or edge named gets a new object with `selected` set, in a new array,
- *   and only when it differs; the projection kept as `previous` holds the same objects, so the next projection keeps
- *   what was selected.
+ * - **React Flow's changes: select.** They pick nothing (see "Step 9" below): React Flow's own record of the nodes
+ *   and lines a `select` change names has changed by then, and the store answers with a new object for each of them
+ *   that the projection holds, reading as the selection says.
  * - **React Flow's changes: a gesture (step 7).** A `position` change with `dragging` true, and a `dimensions` change
  *   with `resizing` true (with the `position` change NodeResizer sends beside it for a top or left handle), are a
  *   step of a gesture. The first step keeps the projection as the gesture's start. A press is not yet a gesture: until
@@ -180,16 +180,21 @@ function storesOf(session: Session): Stores {
 interface Item { id: string; selected?: boolean }
 interface Select { type: string; id?: string; selected?: boolean }
 
-/** The list with the items the `select` changes name set as they say: a new array, new objects for those; null if none differs. */
-function selected<T extends Item>(list: T[], changes: readonly Select[]): T[] | null {
+/**
+ * The list with a new object for each item a `select` change names, reading as `says` says: a new array; null when
+ * the changes name no item of the list.
+ */
+function renewed<T extends Item>(list: T[], changes: readonly Select[], says: (id: string) => boolean): T[] | null {
   let out: T[] | null = null;
   for (const change of changes) {
     if (change.type !== 'select' || change.id === undefined) continue;
     const current: T[] = out ?? list;
     const at = current.findIndex((item) => item.id === change.id);
-    if (at < 0 || (current[at].selected ?? false) === (change.selected ?? false)) continue;
+    if (at < 0) continue;
     out ??= [...list];
-    out[at] = { ...current[at], selected: change.selected ?? false };
+    const is = says(change.id);
+    // A copy that reads as the selection says: `selected` is written only where it would otherwise differ.
+    out[at] = (current[at].selected ?? false) === is ? { ...current[at] } : { ...current[at], selected: is };
   }
   return out;
 }
@@ -211,6 +216,9 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   let fitted: Viewport | null = null;
   let projected = 0;
   let gesture: Gesture | null = null;
+  const selection = selectionOf(session);
+  /** Whether the nodes' and lines' marks may differ from the selection: set by a change of it that a stale or hidden store heard. */
+  let outdated = false;
 
   const viewOf = () => session.model.views.find((view) => view.id === viewId);
 
@@ -220,6 +228,31 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
     if (!p) { snapshot = EMPTY; return; }
     const edges = linesDrawn(p.nodes.length, p.far) ? p.edges : NO_EDGES;
     if (snapshot.nodes !== p.nodes || snapshot.edges !== edges || snapshot.far !== p.far) snapshot = { nodes: p.nodes, edges, far: p.far };
+  };
+
+  /**
+   * Sets `selected` on the projection's nodes and edges as the selection says: a new object for each that differs, in a
+   * new array, every other the object it was. Nothing is replaced when nothing differs.
+   */
+  const mark = (): void => {
+    outdated = false;
+    const p = projection;
+    if (!p) return;
+    let nodes: PlaneNode[] | null = null;
+    p.nodes.forEach((n, i) => {
+      const is = selection.has('el', n.id);
+      if ((n.selected ?? false) === is) return;
+      nodes ??= [...p.nodes];
+      nodes[i] = { ...n, selected: is };
+    });
+    let edges: PlaneEdge[] | null = null;
+    p.edges.forEach((e, i) => {
+      const is = selection.has('rel', e.id);
+      if ((e.selected ?? false) === is) return;
+      edges ??= [...p.edges];
+      edges[i] = { ...e, selected: is };
+    });
+    if (nodes || edges) projection = { ...p, nodes: nodes ?? p.nodes, edges: edges ?? p.edges };
   };
 
   /** Projects again when stale. Returns whether the snapshot is a new object. */
@@ -242,6 +275,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
         projection = project(session.lib, session.model, view, { far, previous: projection });
       }
     }
+    mark();
     adopt();
     return snapshot !== before;
   };
@@ -262,6 +296,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
 
   const getSnapshot = (): ViewSnapshot => {
     refresh();
+    if (outdated) { mark(); adopt(); }
     return snapshot;
   };
 
@@ -335,6 +370,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
     if (!projection) return;
     const { places } = placesFor(session.lib, session.model, view, g.start, [...g.asks.values()]);
     projection = dragged(projectStep(session.lib, session.model, view, g.start, places, { far, previous: projection }), g);
+    mark();
     adopt();
     tell();
   };
@@ -372,7 +408,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   const nodesChanged = (changes: NodeChange<PlaneNode>[]): void => {
     refresh();
     if (!projection) return;
-    const chosen = selected(projection.nodes, changes);
+    const chosen = renewed(projection.nodes, changes, (id) => selection.has('el', id));
     if (chosen) {
       projection = { ...projection, nodes: chosen };
       adopt();
@@ -434,7 +470,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   const edgesChanged = (changes: EdgeChange<PlaneEdge>[]): void => {
     refresh();
     if (!projection) return;
-    const edges = selected(projection.edges, changes);
+    const edges = renewed(projection.edges, changes, (id) => selection.has('rel', id));
     if (!edges) return;
     projection = { ...projection, edges };
     adopt();
@@ -447,6 +483,36 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
     watchers.add(listener);
     return () => { watchers.delete(listener); };
   };
+
+  const marquee = (rect: { x: number; y: number; width: number; height: number }): void => {
+    refresh();
+    const picked: Picked[] = [];
+    if (projection) {
+      const { rects } = projection;
+      const inside = new Set<string>();
+      for (const node of snapshot.nodes) {
+        const r = rects.get(node.id);
+        if (r && r.x >= rect.x && r.y >= rect.y && r.x + r.w <= rect.x + rect.width && r.y + r.h <= rect.y + rect.height) {
+          inside.add(node.id);
+          picked.push({ type: 'el', id: node.id });
+        }
+      }
+      if (inside.size > 0) {
+        for (const edge of snapshot.edges) if (inside.has(edge.source) && inside.has(edge.target)) picked.push({ type: 'rel', id: edge.id });
+      }
+    }
+    selection.set(picked.length > 0 ? picked : [{ type: 'view', id: viewId }]);
+  };
+
+  // Every change of the selection: a live store marks its nodes and lines and tells once if the snapshot is new; a
+  // store with no subscriber only notes that its marks are out of date.
+  selection.listen(() => {
+    if (listeners.size === 0) { outdated = true; return; }
+    const before = snapshot;
+    mark();
+    adopt();
+    if (snapshot !== before) tell();
+  });
 
   hear.set(viewId, (told) => {
     if (told.by === 'end') return;
@@ -483,7 +549,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
     sized,
     nodesChanged,
     edgesChanged,
-    marquee: () => { throw new Error('ViewStore.marquee: step 9 builds it'); },
+    marquee,
   };
 }
 
