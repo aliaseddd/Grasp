@@ -2712,3 +2712,31 @@ the implementer's sight and used at review as a second reading of the contract.
   border item's end 9 px out; a box's size is asserted as exactly the largest of its saved size, its header with its
   compartments, and the room for what it holds. Left unpinned: a border item whose owner the view does not place
   (`normalize` drops those), and whether a renewed edge keeps `selected` (the implementer is told it does).
+
+### Step 6: the adapter, built and reviewed
+
+**Built** by one agent in 4.3 min (23 tool calls), from the skeleton, the notes' table of the old page's rules and
+the 19 tests: `core/adapter.ts`, 729 lines. `adapter.test.mjs` passes 19 of 19; the 5,000-element model's three views
+project in 37 ms together (1,544, 1,344 and 2,112 nodes), against the test's 1 s. It found no contradiction between a
+test, the contract and the old page, and dropped nothing. What it settled where the contract was silent, none of it
+met by the ten files:
+- a border item with no shown owner gets no node, as the old page's `place` never placed one, and neither does an
+  element whose nearest shown owner is a border item; an element of a kind the library has no row for is not placed
+  (the old page would throw); a walk up the owners stops after as many steps as there are elements;
+- `abstract` is a word of a box's and a small node's class, not a border item's (the old `elClass`); only a bar and a
+  diamond say `textName`, an event says its name line, a start, a done and an entry say nothing;
+- `nameAt` is worked out far and near alike; `previous` is ignored when it is another view's;
+- with no room in the window `fit` gives `MIN_ZOOM` and still centres, so the viewport stays finite.
+
+**Two readings compared.** The test writer's throwaway port and the implementer's adapter were written apart, the
+second without sight of the first. A scratch script ran both over every view of the ten files, the blank model and the
+5,000-element model, with `LOOK` and with `OLD_LOOK`, near and far (84 projections): every node, edge, rectangle and
+bound, every edge's route by each side's own `route()`, `fit` over 25 windows and bounds, and that each returns
+`previous` itself for an unchanged model. 0 differences. With tests 5 and 6, which hold the adapter to the old page's
+own numbers, that is the adapter's rectangles and lines checked three ways.
+
+**My reading of the diff**, against the outline: a port, in the old page's order of arithmetic, with nothing invented.
+One thing added by my hand, smaller than a brief: a node or edge that changed only in place or size keeps the `data`
+object it had (rule 5 says so now), so that a box's component, memoized on `data`, does not render at each step of
+step 7's drag; with a test of it, "a box that only moved is a new node with the data object it had", seen to fail
+without the two lines. `adapter.test.mjs` has 20 tests.
