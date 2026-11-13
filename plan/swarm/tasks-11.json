@@ -176,7 +176,8 @@
       "canvas/app/shots/palette.png",
       "plan/status.json",
       "plan/notes.md",
-      "plan/swarm/tasks.json"
+      "plan/swarm/tasks.json",
+      "canvas/app/test/shots/palette.mjs"
     ],
     "needs": [
       "10-checks-close",

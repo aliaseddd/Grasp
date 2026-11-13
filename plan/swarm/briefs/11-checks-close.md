@@ -17,7 +17,7 @@ Every task of step 11 is done and step 10 is closed. This task is the lead's own
 5. What must go on holding: `selection.test.mjs` (with no tool in hand a click picks as step 9 built it), `scale.test.mjs` and `instant.test.mjs` (a plane that reads the tools renders no more on a pan or a drag step), `open.test.mjs` (criterion 2).
 6. `11-checks-break`'s report: no test still passed with its breakage in, or each that did is mended first.
 7. `11-review-code`'s findings: each serious one fixed, with a test seen to fail first; each small one fixed or noted.
-8. `npm run shots -- palette`; `11-review-shot-palette` marks all eight items present.
+8. Take `pending: true` off `canvas/app/test/shots/palette.mjs`, so that `npm run shots` takes this shot from now on. `npm run shots -- palette`; `11-review-shot-palette` marks all eight items present.
 9. A file saved by the page after a tool made something is accepted by `canvas/check.sh` (a probe: the example, a part def placed and a specialization drawn, Save).
 10. `plan/status.json`: `step` 11. `plan/swarm/tasks.json`: the step's tasks `done`.
 11. `plan/notes.md`, the session's entry: what cannot be read from the plan or the code. For this step: that three tools always add one line to `M.validate` and the tests ask for exactly it; each thing the builders decided where the contract was silent; each rework and whose fault it was; the times.

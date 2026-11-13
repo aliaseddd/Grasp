@@ -43,7 +43,7 @@ What the plan leaves open, and how it is settled:
 | `canvas/app/test/commands.test.mjs` | The core's tests, in Node. | `11-tests-commands` |
 | `canvas/app/test/tools-panel.test.mjs` | The Tools view by itself. | `11-tests-panel` |
 | `canvas/app/test/tools.test.mjs` | The plan's file: the tools on the planes, the toasts. | `11-tests-tools` |
-| `canvas/app/test/palette.test.mjs`, `canvas/app/test/shots/palette.mjs` | The palette's tests, and the shot. | `11-tests-palette` |
+| `canvas/app/test/palette.test.mjs`, `canvas/app/test/shots/palette.mjs` | The palette's tests, and the shot. | `11-tests-palette`; the shot file then `11-checks-close`, which takes `pending` off |
 | `canvas/app/shots/palette.png`, `canvas/dist/`, `plan/status.json`, `plan/notes.md` | | the lead, in `11-checks-close` |
 
 Two test files are not in the plan's list for the step: `commands.test.mjs`, because what needs no browser is tested in Node, and `tools-panel.test.mjs` and `palette.test.mjs`, so that three writers can work at once and the panel's builder has tests it can run before the planes take a tool.
@@ -274,7 +274,7 @@ No existing test is restated: step 11 changes nothing an earlier test asks for. 
 
 ## 5. The screenshot: `palette.png`
 
-`canvas/app/test/shots/palette.mjs` exports `{ name: 'palette', step: 11, picker: false, take }`, without `pending`. `take(page, out)` gets the page as `shots.mjs` opens it (1400 × 900, device scale 2, no file picker) and does this:
+`canvas/app/test/shots/palette.mjs` exports `{ name: 'palette', step: 11, picker: false, pending: true, take }`: `11-tests-palette` writes `take` and leaves `pending: true`, so that `npm run shots` with no name goes on leaving the shot out while step 11 is not built (a shot that is named, `npm run shots -- palette`, runs though pending); `11-checks-close` takes `pending` off. `take(page, out)` gets the page as `shots.mjs` opens it (1400 × 900, device scale 2, no file picker) and does this:
 
 1. `openStateFile(page, stateFileAt(EXAMPLE))`, then `untilDrawn(page, view)` and `untilLines(page, view, 6)` for the example's one view, `v-proof`. The side panels stay as the page opens them.
 2. `const box = await boxOf(page, view.id, 'Host')`; the point is `{ x: box.x + 120 * box.zoom, y: box.y + 60 * box.zoom }`: inside Host, below its name.

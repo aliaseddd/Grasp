@@ -1,5 +1,6 @@
-// The shot about.png (plan/slice-1.md, section 4; plan/swarm/step-12.md, "The screenshot"). Step 12 writes take()
-// and takes `pending` off.
+// The shot about.png (plan/slice-1.md, section 4; plan/swarm/step-12.md, "The screenshot"). A test task of step 12
+// writes take() and leaves `pending: true`, so that `npm run shots` goes on leaving this shot out while its step is not
+// built; the step's closing takes `pending` off. A shot that is named (`npm run shots -- about`) runs though pending.
 
 export default {
   name: 'about',

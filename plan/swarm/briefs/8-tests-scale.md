@@ -23,7 +23,7 @@ In `scale.test.mjs`:
 - Add tests 4 and 5 of the list, under those very names, after the pan test. Test 5's page script and its two halves are described in the list; its moves are 12 by 6 px each, with a frame waited after each (`frame(page)`), and it measures nothing against a limit: it asserts where each change of the DOM falls.
 - Change the file's header comment where it says the tests are todo until their step builds them, so that it reads true: the three of step 8 are no longer marked, the keystroke's still is.
 
-In `shots/scale.mjs`: write `take(page, out)` as section 7's scenario says, and take `pending: true` off. Import what you need from `../helpers.mjs` and `../../../test/scale-model.mjs`.
+In `shots/scale.mjs`: write `take(page, out)` as section 7's scenario says, and leave `pending: true` as it is: `npm run shots` with no name goes on leaving the shot out until the step's closing takes `pending` off, and a shot that is named runs though pending. Import what you need from `../helpers.mjs` and `../../../test/scale-model.mjs`.
 
 Then build and run: `npm run build`, then `node --test --test-timeout=120000 canvas/app/test/scale.test.mjs`. Against the scaffold, tests 1 and 5 pass, tests 2, 3 and 4 fail with the messages the list gives (the figures vary), and the keystroke test is reported as todo. Run `npm run shots -- scale` and look at `canvas/app/shots/scale.png` yourself against section 7's list; at the scaffold, items 4 and 6 are not yet as the list has them (lines are drawn, the minimap is React Flow's), which is expected. Do not hand the image over.
 

@@ -1,5 +1,6 @@
-// The shot scale.png (plan/slice-1.md, section 4; plan/swarm/step-8.md, "The screenshot"). Step 8 writes take()
-// and takes `pending` off.
+// The shot scale.png (plan/slice-1.md, section 4; plan/swarm/step-8.md, "The screenshot"). A test task of step 8
+// writes take() and leaves `pending: true`, so that `npm run shots` goes on leaving this shot out while its step is not
+// built; the step's closing takes `pending` off. A shot that is named (`npm run shots -- scale`) runs though pending.
 
 export default {
   name: 'scale',

@@ -155,6 +155,7 @@
     "brief": "plan/swarm/briefs/8-checks-close.md",
     "owns": [
       "package.json",
+      "canvas/app/test/shots/scale.mjs",
       "canvas/app/shots/scale.png",
       "canvas/dist/",
       "plan/status.json",

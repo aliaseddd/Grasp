@@ -60,14 +60,15 @@ A task owns a file only as `tasks.json` says. This table is why.
 | `canvas/app/src/plane/Plane.tsx`, `plane/viewStore.ts` | Step 9, then step 11 | Step 11's task needs step 9's. Step 8 changes neither (section 4). |
 | `canvas/app/src/shell/Dock.tsx` | Step 9 (`showView`, the view in front), then step 10 (a view's tab follows its name) | Step 10's task needs step 9's. Both contracts are at the end of `Dock`'s comment. |
 | `canvas/app/src/shell/App.tsx` | Step 9 only (`window.Grasp.selection`) | Toasts and About are rendered already. |
-| `canvas/app/src/shell/TopBar.tsx` | Step 12 only (About enabled) | |
+| `canvas/app/src/shell/TopBar.tsx` | Step 10 (the Undo and Redo keys act from a checkbox and a radio button), then step 12 (About enabled) | Step 12's task needs step 10's. |
 | `canvas/app/src/core/adapter.ts` | Step 8 only | |
-| `canvas/app/src/core/index.ts` | No task | It exports `selection` and `commands` already; the scaffold adds each new core file as it is made. |
+| `canvas/app/src/core/index.ts` | No task | It exports every core file of steps 9 to 12 already: `selection`, `commands`, `checks`, `probe`. |
+| `canvas/app/build.mjs` | No task | It hands the application the libraries' names, versions and licences as the text `__GRASP_LIBRARIES__` already (`core/probe.ts`, `LIBRARIES`), for step 12's About. |
 | `canvas/app/src/app.css` | No task | A step's styles go in a stylesheet of its own, beside the component that imports it (`panels/explorer.css` imported by `panels/Explorer.tsx`). The bundle puts such a stylesheet before `app.css`, so its rules use class names of their own and do not count on overriding `app.css`. |
 | `canvas/app/src/shell/theme.ts` | No task | Every colour a step needs is in it already, added by the scaffold. A colour that is missing is a reason to stop. |
 | `canvas/app/src/vendor.ts` | No task | Every library import a step needs is in it already. An import that is missing is a reason to stop. |
 | `canvas/app/test/helpers.mjs`, `test/core.mjs` | No task | What several test files need is in them already (section 6). A helper only one test file needs is written in that file. |
-| `canvas/app/test/shots.mjs` | No task | Each new shot is a file of its own under `test/shots/`, owned by its step's test task. |
+| `canvas/app/test/shots.mjs` | No task | Each new shot is a file of its own under `test/shots/`. A test task of its step writes its `take()` and leaves `pending: true`, so `npm run shots` leaves the shot out while its step is not built; the step's closing takes `pending` off. |
 | `canvas/app/test/scale.test.mjs` | Step 8 (its three tests), then step 10 (the keystroke's todo mark) | Step 10's change is the lead's, in `10-checks-close`. |
 | `package.json` | Step 8 only (the test files run one at a time) | |
 | `plan/status.json`, `plan/notes.md`, `canvas/dist/` | The lead | An agent builds `canvas/dist/` to run its tests and does not hand it over. |

@@ -12,3 +12,5 @@ export * from './adapter';
 export * from './roboto';
 export * from './selection';
 export * from './commands';
+export * from './checks';
+export * from './probe';
