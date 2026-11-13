@@ -1,0 +1,292 @@
+{
+  "about": "The old page's layout of every graph view of the example and the nine fixtures, from each view's own origin, and a hash of each view of the 5,000-element model. Written by old-layout.mjs; adapter.test.mjs compares the adapter with it.",
+  "files": [
+    { "file": "stronghold-proof.json", "views": [
+      { "id": "v-proof", "kind": "GeneralView",
+        "rects": {
+          "Page": {"x":32,"y":72,"w":760,"h":250},
+          "Page.hosts": {"x":128,"y":176,"w":180,"h":110},
+          "Page.hosts.api": {"x":300,"y":223,"w":16,"h":16,"side":"right"},
+          "Page.app": {"x":600,"y":176,"w":180,"h":110},
+          "Page.app.api": {"x":592,"y":223,"w":16,"h":16,"side":"left"},
+          "Host": {"x":32,"y":400,"w":368,"h":139},
+          "Host.api": {"x":392,"y":461.5,"w":16,"h":16,"side":"right"},
+          "App": {"x":600,"y":400,"w":368,"h":130},
+          "App.api": {"x":960,"y":457,"w":16,"h":16,"side":"right"},
+          "StrongholdApp": {"x":840,"y":72,"w":368,"h":100},
+          "ServerHost": {"x":32,"y":620,"w":368,"h":100},
+          "OnlineHost": {"x":436,"y":620,"w":368,"h":100},
+          "DevHost": {"x":840,"y":620,"w":368,"h":100}
+        },
+        "lines": [
+          {"id":"t-hosts","points":[[218,286],[218,343],[216,343],[216,400]],"mid":[217,343]},
+          {"id":"t-app","points":[[690,286],[690,343],[784,343],[784,400]],"mid":[737,343]},
+          {"id":"s-ServerHost","points":[[216,620],[216,579.5],[216,579.5],[216,539]],"mid":[216,579.5]},
+          {"id":"s-OnlineHost","points":[[620,620],[620,579.5],[216,579.5],[216,539]],"mid":[418,579.5]},
+          {"id":"s-DevHost","points":[[1024,620],[1024,579.5],[216,579.5],[216,539]],"mid":[620,579.5]},
+          {"id":"mount","points":[[317,231],[591,231]],"mid":[454,231]}
+        ] }
+    ] },
+    { "file": "annotations.json", "views": [
+      { "id": "v-proof", "kind": "GeneralView",
+        "rects": {
+          "Page": {"x":32,"y":72,"w":760,"h":282},
+          "Page.hosts": {"x":128,"y":232,"w":180,"h":110},
+          "Page.hosts.api": {"x":300,"y":279,"w":16,"h":16,"side":"right"},
+          "Page.app": {"x":600,"y":232,"w":180,"h":110},
+          "Page.app.api": {"x":592,"y":279,"w":16,"h":16,"side":"left"},
+          "Host": {"x":32,"y":400,"w":368,"h":178},
+          "Host.api": {"x":392,"y":481,"w":16,"h":16,"side":"right"},
+          "App": {"x":600,"y":400,"w":368,"h":130},
+          "App.api": {"x":960,"y":457,"w":16,"h":16,"side":"right"},
+          "StrongholdApp": {"x":840,"y":72,"w":368,"h":100},
+          "ServerHost": {"x":32,"y":620,"w":368,"h":100},
+          "OnlineHost": {"x":436,"y":620,"w":368,"h":100},
+          "DevHost": {"x":840,"y":620,"w":368,"h":100}
+        },
+        "lines": [
+          {"id":"t-hosts","points":[[218,342],[218,371],[216,371],[216,400]],"mid":[217,371]},
+          {"id":"t-app","points":[[690,342],[690,371],[784,371],[784,400]],"mid":[737,371]},
+          {"id":"s-ServerHost","points":[[216,620],[216,599],[216,599],[216,578]],"mid":[216,599]},
+          {"id":"s-OnlineHost","points":[[620,620],[620,599],[216,599],[216,578]],"mid":[418,599]},
+          {"id":"s-DevHost","points":[[1024,620],[1024,599],[216,599],[216,578]],"mid":[620,599]},
+          {"id":"mount","points":[[317,287],[591,287]],"mid":[454,287]}
+        ] }
+    ] },
+    { "file": "behavior-actions.json", "views": [
+      { "id": "v-release", "kind": "ActionFlowView",
+        "rects": {
+          "Release": {"x":32,"y":72,"w":1000,"h":600},
+          "Release.source": {"x":24,"y":364,"w":16,"h":16,"side":"left"},
+          "Release.bundle": {"x":1024,"y":364,"w":16,"h":16,"side":"right"},
+          "Release.compile": {"x":122,"y":180,"w":150,"h":94},
+          "Release.test": {"x":442,"y":164,"w":150,"h":56},
+          "Release.test.passed": {"x":584,"y":184,"w":16,"h":16,"side":"right"},
+          "Release.lint": {"x":442,"y":256,"w":150,"h":56},
+          "Release.lint.warnings": {"x":584,"y":276,"w":16,"h":16,"side":"right"},
+          "Release.publish": {"x":732,"y":416,"w":150,"h":56},
+          "Release.notify": {"x":512,"y":416,"w":170,"h":94},
+          "Release.fix": {"x":332,"y":416,"w":150,"h":56},
+          "Release.approve": {"x":72,"y":536,"w":170,"h":79},
+          "Release.split": {"x":332,"y":208,"w":60,"h":8},
+          "Release.rejoin": {"x":662,"y":208,"w":60,"h":8},
+          "Release.verdict": {"x":772,"y":192,"w":40,"h":40},
+          "Release.collect": {"x":222,"y":446,"w":40,"h":40},
+          "Release.start": {"x":68,"y":204,"w":16,"h":16},
+          "Release.done": {"x":142,"y":626,"w":22,"h":22}
+        },
+        "lines": [
+          {"id":"s-start","points":[[84,212],[103,212],[103,227],[122,227]],"mid":[103,219.5]},
+          {"id":"s-compiled","points":[[272,227],[302,227],[302,212],[332,212]],"mid":[302,219.5]},
+          {"id":"s-split-test","points":[[392,212],[417,212],[417,192],[442,192]],"mid":[417,202]},
+          {"id":"s-split-lint","points":[[362,216],[362,236],[517,236],[517,256]],"mid":[439.5,236]},
+          {"id":"s-test-rejoin","points":[[592,192],[627,192],[627,212],[662,212]],"mid":[627,202]},
+          {"id":"s-lint-rejoin","points":[[517,256],[517,236],[692,236],[692,216]],"mid":[604.5,236]},
+          {"id":"s-rejoin-verdict","points":[[722,212],[747,212],[747,212],[772,212]],"mid":[747,212]},
+          {"id":"s-publish","points":[[792,232],[792,324],[807,324],[807,416]],"mid":[799.5,324]},
+          {"id":"s-notify","points":[[792,232],[792,324],[597,324],[597,416]],"mid":[694.5,324]},
+          {"id":"s-fix","points":[[792,232],[792,324],[407,324],[407,416]],"mid":[599.5,324]},
+          {"id":"s-publish-collect","points":[[732,444],[497,444],[497,466],[262,466]],"mid":[497,455]},
+          {"id":"s-notify-collect","points":[[512,463],[387,463],[387,466],[262,466]],"mid":[387,464.5]},
+          {"id":"s-fix-collect","points":[[332,444],[297,444],[297,466],[262,466]],"mid":[297,455]},
+          {"id":"s-collect-approve","points":[[242,486],[242,511],[157,511],[157,536]],"mid":[199.5,511]},
+          {"id":"s-approve-done","points":[[157,615],[157,620.5],[153,620.5],[153,626]],"mid":[155,620.5]}
+        ] }
+    ] },
+    { "file": "behavior-states.json", "views": [
+      { "id": "v-host", "kind": "StateTransitionView",
+        "rects": {
+          "HostLifecycle": {"x":32,"y":72,"w":760,"h":520},
+          "HostLifecycle.initial": {"x":82,"y":374,"w":28,"h":16},
+          "HostLifecycle.idle": {"x":132,"y":352,"w":160,"h":94},
+          "HostLifecycle.loading": {"x":412,"y":172,"w":220,"h":154},
+          "HostLifecycle.loading.fetchEntry": {"x":432,"y":220,"w":180,"h":94},
+          "HostLifecycle.running": {"x":412,"y":382,"w":300,"h":110},
+          "HostLifecycle.running.serving": {"x":428,"y":430,"w":120,"h":50},
+          "HostLifecycle.running.watching": {"x":572,"y":430,"w":120,"h":50},
+          "HostLifecycle.done": {"x":592,"y":542,"w":22,"h":22}
+        },
+        "lines": [
+          {"id":"t-initial","points":[[110,384.05172413793105],[132,387.2758620689655]],"mid":[121,385.66379310344826]},
+          {"id":"t-mount","points":[[292,360.2903225806452],[412,302.2258064516129]],"mid":[352,331.258064516129]},
+          {"id":"t-loaded","points":[[538.3829787234042,326],[550.2978723404256,382]],"mid":[544.3404255319149,354]},
+          {"id":"t-fault","points":[[412,420.7142857142857],[292,407.6857142857143]],"mid":[352,414.20000000000005]},
+          {"id":"t-unmount","points":[[581.4396551724138,492],[599.1120689655172,542]],"mid":[590.2758620689656,517]}
+        ] }
+    ] },
+    { "file": "browser.json", "views": [
+      { "id": "v-proof", "kind": "GeneralView",
+        "rects": {
+          "Page": {"x":32,"y":72,"w":760,"h":250},
+          "Page.hosts": {"x":128,"y":176,"w":180,"h":110},
+          "Page.hosts.api": {"x":300,"y":223,"w":16,"h":16,"side":"right"},
+          "Page.app": {"x":600,"y":176,"w":180,"h":110},
+          "Page.app.api": {"x":592,"y":223,"w":16,"h":16,"side":"left"},
+          "Host": {"x":32,"y":400,"w":368,"h":139},
+          "Host.api": {"x":392,"y":461.5,"w":16,"h":16,"side":"right"},
+          "App": {"x":600,"y":400,"w":368,"h":130},
+          "App.api": {"x":960,"y":457,"w":16,"h":16,"side":"right"},
+          "StrongholdApp": {"x":840,"y":72,"w":368,"h":100},
+          "ServerHost": {"x":32,"y":620,"w":368,"h":100},
+          "OnlineHost": {"x":436,"y":620,"w":368,"h":100},
+          "DevHost": {"x":840,"y":620,"w":368,"h":100}
+        },
+        "lines": [
+          {"id":"t-hosts","points":[[218,286],[218,343],[216,343],[216,400]],"mid":[217,343]},
+          {"id":"t-app","points":[[690,286],[690,343],[784,343],[784,400]],"mid":[737,343]},
+          {"id":"s-ServerHost","points":[[216,620],[216,579.5],[216,579.5],[216,539]],"mid":[216,579.5]},
+          {"id":"s-OnlineHost","points":[[620,620],[620,579.5],[216,579.5],[216,539]],"mid":[418,579.5]},
+          {"id":"s-DevHost","points":[[1024,620],[1024,579.5],[216,579.5],[216,539]],"mid":[620,579.5]},
+          {"id":"mount","points":[[317,231],[591,231]],"mid":[454,231]}
+        ] }
+    ] },
+    { "file": "format1.json", "views": [
+      { "id": "v1", "kind": "GeneralView",
+        "rects": {
+          "Page": {"x":32,"y":72,"w":760,"h":250},
+          "Page.hosts": {"x":128,"y":176,"w":180,"h":110},
+          "Page.hosts.api": {"x":300,"y":223,"w":16,"h":16,"side":"right"},
+          "Page.app": {"x":600,"y":176,"w":180,"h":110},
+          "Page.app.api": {"x":592,"y":223,"w":16,"h":16,"side":"left"},
+          "Host": {"x":32,"y":400,"w":368,"h":139},
+          "Host.api": {"x":392,"y":461.5,"w":16,"h":16,"side":"right"},
+          "App": {"x":600,"y":400,"w":368,"h":130},
+          "App.api": {"x":960,"y":457,"w":16,"h":16,"side":"right"},
+          "StrongholdApp": {"x":840,"y":72,"w":368,"h":100},
+          "ServerHost": {"x":32,"y":620,"w":368,"h":100},
+          "OnlineHost": {"x":436,"y":620,"w":368,"h":100},
+          "DevHost": {"x":840,"y":620,"w":368,"h":100}
+        },
+        "lines": [
+          {"id":"t-hosts","points":[[218,286],[218,343],[216,343],[216,400]],"mid":[217,343]},
+          {"id":"t-app","points":[[690,286],[690,343],[784,343],[784,400]],"mid":[737,343]},
+          {"id":"s-ServerHost","points":[[216,620],[216,579.5],[216,579.5],[216,539]],"mid":[216,579.5]},
+          {"id":"s-OnlineHost","points":[[620,620],[620,579.5],[216,579.5],[216,539]],"mid":[418,579.5]},
+          {"id":"s-DevHost","points":[[1024,620],[1024,579.5],[216,579.5],[216,539]],"mid":[620,579.5]},
+          {"id":"mount","points":[[317,231],[591,231]],"mid":[454,231]}
+        ] }
+    ] },
+    { "file": "geometry.json", "views": [
+      { "id": "v-structure", "kind": "GeneralView",
+        "rects": {
+          "Room": {"x":0,"y":0,"w":220,"h":109},
+          "Desk": {"x":250,"y":0,"w":220,"h":72},
+          "Cabinet": {"x":500,"y":0,"w":220,"h":72},
+          "Pillar": {"x":750,"y":0,"w":220,"h":72},
+          "room": {"x":0,"y":140,"w":760,"h":200},
+          "room.desk": {"x":20,"y":232,"w":180,"h":60},
+          "room.cabinet": {"x":230,"y":232,"w":180,"h":60},
+          "room.pillar": {"x":440,"y":232,"w":180,"h":60}
+        },
+        "lines": [
+        ] }
+    ] },
+    { "file": "grid.json", "views": [
+      { "id": "v-proof", "kind": "GeneralView",
+        "rects": {
+          "Page": {"x":32,"y":72,"w":760,"h":250},
+          "Page.hosts": {"x":128,"y":176,"w":180,"h":110},
+          "Page.hosts.api": {"x":300,"y":223,"w":16,"h":16,"side":"right"},
+          "Page.app": {"x":600,"y":176,"w":180,"h":110},
+          "Page.app.api": {"x":592,"y":223,"w":16,"h":16,"side":"left"},
+          "Host": {"x":32,"y":400,"w":368,"h":139},
+          "Host.api": {"x":392,"y":461.5,"w":16,"h":16,"side":"right"},
+          "App": {"x":600,"y":400,"w":368,"h":130},
+          "App.api": {"x":960,"y":457,"w":16,"h":16,"side":"right"},
+          "StrongholdApp": {"x":840,"y":72,"w":368,"h":100},
+          "ServerHost": {"x":32,"y":620,"w":368,"h":100},
+          "OnlineHost": {"x":436,"y":620,"w":368,"h":100},
+          "DevHost": {"x":840,"y":620,"w":368,"h":100}
+        },
+        "lines": [
+          {"id":"t-hosts","points":[[218,286],[218,343],[216,343],[216,400]],"mid":[217,343]},
+          {"id":"t-app","points":[[690,286],[690,343],[784,343],[784,400]],"mid":[737,343]},
+          {"id":"s-ServerHost","points":[[216,620],[216,579.5],[216,579.5],[216,539]],"mid":[216,579.5]},
+          {"id":"s-OnlineHost","points":[[620,620],[620,579.5],[216,579.5],[216,539]],"mid":[418,579.5]},
+          {"id":"s-DevHost","points":[[1024,620],[1024,579.5],[216,579.5],[216,539]],"mid":[620,579.5]},
+          {"id":"mount","points":[[317,231],[591,231]],"mid":[454,231]}
+        ] }
+    ] },
+    { "file": "interconnection.json", "views": [
+      { "id": "v-ic", "kind": "InterconnectionView",
+        "rects": {
+          "Fuel": {"x":32,"y":72,"w":180,"h":80},
+          "Signal": {"x":236,"y":72,"w":180,"h":80},
+          "FuelPort": {"x":440,"y":72,"w":240,"h":220},
+          "FuelPort.supply": {"x":452,"y":160,"w":160,"h":52},
+          "FuelPort.back": {"x":452,"y":220,"w":160,"h":52},
+          "CtrlPort": {"x":704,"y":72,"w":220,"h":160},
+          "CtrlPort.cmd": {"x":716,"y":160,"w":160,"h":52},
+          "FuelLine": {"x":120,"y":330,"w":240,"h":90},
+          "FuelLine.a": {"x":112,"y":367,"w":16,"h":16,"side":"left"},
+          "FuelLine.b": {"x":352,"y":367,"w":16,"h":16,"side":"right"},
+          "CtrlLink": {"x":520,"y":330,"w":220,"h":90},
+          "CtrlLink.c": {"x":512,"y":367,"w":16,"h":16,"side":"left"},
+          "CtrlLink.p": {"x":732,"y":367,"w":16,"h":16,"side":"right"},
+          "Pump": {"x":880,"y":330,"w":200,"h":80},
+          "Tank": {"x":1120,"y":330,"w":200,"h":160},
+          "Tank.stored": {"x":1132,"y":418,"w":160,"h":52},
+          "Controller": {"x":1360,"y":330,"w":200,"h":80},
+          "System": {"x":32,"y":540,"w":900,"h":400},
+          "System.outlet": {"x":924,"y":772,"w":16,"h":16,"side":"right"},
+          "System.controller": {"x":72,"y":636,"w":220,"h":90},
+          "System.controller.ctrl": {"x":174,"y":718,"w":16,"h":16,"side":"bottom"},
+          "System.tank": {"x":72,"y":810,"w":220,"h":100},
+          "System.tank.fuelOut": {"x":284,"y":837,"w":16,"h":16,"side":"right"},
+          "System.pump": {"x":552,"y":740,"w":240,"h":140},
+          "System.pump.fuelIn": {"x":544,"y":837,"w":16,"h":16,"side":"left"},
+          "System.pump.fuelOut": {"x":784,"y":802,"w":16,"h":16,"side":"right"},
+          "System.pump.ctrl": {"x":616,"y":732,"w":16,"h":16,"side":"top"}
+        },
+        "lines": [
+          {"id":"fuelLine","points":[[301,845],[543,845]],"mid":[422,845]},
+          {"id":"command","points":[[190.99548874459538,726.2849249828605],[615.0045112554046,739.7150750171395]],"mid":[403,733]},
+          {"id":"outletBinding","points":[[800.8002217266967,808.1142382014222],[923.1997782733033,781.8857617985778]],"mid":[862,795]},
+          {"id":"sensing","points":[[182,726],[182,810]],"mid":[182,768]}
+        ] },
+      { "id": "v-defs", "kind": "GeneralView",
+        "rects": {
+          "Fuel": {"x":32,"y":72,"w":180,"h":80},
+          "Signal": {"x":236,"y":72,"w":180,"h":80},
+          "FuelPort": {"x":440,"y":72,"w":240,"h":220},
+          "FuelPort.supply": {"x":452,"y":160,"w":160,"h":52},
+          "FuelPort.back": {"x":452,"y":220,"w":160,"h":52},
+          "CtrlPort": {"x":704,"y":72,"w":220,"h":160},
+          "CtrlPort.cmd": {"x":716,"y":160,"w":160,"h":52},
+          "FuelLine": {"x":120,"y":330,"w":240,"h":90},
+          "FuelLine.a": {"x":112,"y":367,"w":16,"h":16,"side":"left"},
+          "FuelLine.b": {"x":352,"y":367,"w":16,"h":16,"side":"right"},
+          "CtrlLink": {"x":520,"y":330,"w":220,"h":90},
+          "CtrlLink.c": {"x":512,"y":367,"w":16,"h":16,"side":"left"},
+          "CtrlLink.p": {"x":732,"y":367,"w":16,"h":16,"side":"right"},
+          "Pump": {"x":880,"y":330,"w":200,"h":80},
+          "Tank": {"x":1120,"y":330,"w":200,"h":160},
+          "Tank.stored": {"x":1132,"y":418,"w":160,"h":52},
+          "Controller": {"x":1360,"y":330,"w":200,"h":80}
+        },
+        "lines": [
+        ] }
+    ] },
+    { "file": "sequence.json", "views": [
+      { "id": "v-all", "kind": "GeneralView",
+        "rects": {
+          "Client": {"x":32,"y":72,"w":220,"h":79},
+          "Server": {"x":300,"y":72,"w":220,"h":72},
+          "Auth": {"x":568,"y":72,"w":220,"h":72},
+          "Login": {"x":32,"y":200,"w":760,"h":190},
+          "Login.client": {"x":56,"y":256,"w":180,"h":76},
+          "Login.client.loginSent": {"x":70,"y":304,"w":16,"h":16},
+          "Login.client.loginDone": {"x":146,"y":304,"w":16,"h":16},
+          "Login.server": {"x":322,"y":256,"w":180,"h":60},
+          "Login.auth": {"x":588,"y":256,"w":180,"h":60}
+        },
+        "lines": [
+          {"id":"m-login","points":[[86,311.377245508982],[322,293.0059880239521]],"mid":[204,302.19161676646706]},
+          {"id":"m-check","points":[[502,286],[588,286]],"mid":[545,286]},
+          {"id":"m-ok","points":[[588,286],[502,286]],"mid":[545,286]},
+          {"id":"m-done","points":[[322,295.06976744186045],[162,311.1937984496124]],"mid":[242,303.1317829457364]}
+        ] }
+    ] }
+  ],
+  "scale": {"elements":5000,"views":[{"id":"v-definitions","kind":"GeneralView","rects":1544,"lines":384,"sha256":"5164c32c8e46a8ea91056013851dcf14198b8da11fa482b1e4082134291633de"},{"id":"v-deployment","kind":"InterconnectionView","rects":1344,"lines":384,"sha256":"2fad44a94a8522594a9b4535c1f2a96e16896c5d781a24812ddb1a65f74167dc"},{"id":"v-workflows","kind":"ActionFlowView","rects":2112,"lines":1536,"sha256":"c338c4c9446aaed0a47b5fc7e21956f0c9c717aa5db1d1bf1419878a7568f61b"}]}
+}

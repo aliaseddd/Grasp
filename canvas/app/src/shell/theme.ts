@@ -9,6 +9,8 @@ export const INK = '#182630';
 export const TEAL = '#176B61';
 export const TEAL_SOFT = '#E7F1EF';
 export const GROUND = '#EEF2F4';
+/** The ground of the two strips: a tone darker than GROUND, so they read as bars of their own, and light enough for TEXT_SECONDARY on it. */
+export const STRIP = '#E3E8EC';
 export const LINE = '#E2E7EB';
 /** The lines that part the window: the sashes, and the strips' edges. Darker than the old page's, to be seen at a glance. */
 export const LINE_STRONG = '#B4BFC8';
@@ -72,6 +74,7 @@ export const cssVariables: Readonly<Record<string, string>> = {
   '--grasp-teal': TEAL,
   '--grasp-teal-soft': TEAL_SOFT,
   '--grasp-ground': GROUND,
+  '--grasp-strip': STRIP,
   '--grasp-line': LINE,
   '--grasp-line-strong': LINE_STRONG,
   '--grasp-dots': DOTS,

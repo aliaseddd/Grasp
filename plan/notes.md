@@ -2309,3 +2309,800 @@ About reads as disabled (it is, until step 12).
 - Then step 6, as session 17's outline gives it. `npm ci` first. A view's tab draws the session in its params
   (`ViewParams` in `Dock.tsx`); the sides are 312 and 352 px with their strips, so the editor is 736 px wide at 1400.
 - A test that guards something is seen to fail with that thing broken, not only before the code exists.
+
+## Session 20, November 13, 2026: step 6 of slice 1, the adapter and the planes
+
+On `claude/pensive-rubin-sjrv3g`, from `5127985`. Planned from 06:25 UTC under plan mode; Damon approved the plan at
+07:03 and the work began then. The method is session 17's ("How each step is built"), tightened by what session 19
+taught, on Damon's word.
+
+The baseline, in this container (Node 22.23.4): `npm ci` 14 s; `npm run check` passes in 5 s; `npm test` gives 77
+tests, 71 pass, 0 fail, 6 todo, in 18 s; `npm run test:old` passes 221 of 221 in 80 s.
+
+### What Damon decided
+
+1. **The shell's fourth score**, which session 19 left at 3. Before step 6's code, the two strips get a tone apart
+   from the editor's ground, and the strip's tab in front is joined to its panel. `shell.png` is retaken and rated once
+   more; that score is recorded and the step goes on. No status bar is added.
+2. **The method.** Session 17's, tightened: I outline, review and measure; Sonnet subagents at medium effort, each in a
+   git worktree, write the tests and fill in the skeletons; each test is seen to fail with the thing it guards broken;
+   and a reviewer that has not seen the outline reads the step's diff before its commit.
+
+### The order of work, by what blocks what
+
+| # | Task | Who | Needs | Beside |
+|---|---|---|---|---|
+| 0 | `npm ci`, the baseline | me | | |
+| L | The shell's look: tests first, then the strips and the tab | agent | 0 | 1a, X |
+| X | The old page's own layout of the ten files and the 5,000-element model, read from the old page | agent | 0 | 1a, L |
+| 1a | Outline, part 1: `core/adapter.ts`'s skeleton, its export, the adapter's test list | me | 0 | L, X |
+| T1 | `adapter.test.mjs` | agent | 1a, X | 1b |
+| 1b | Outline, part 2: the skeletons under `plane/`, the DOM contract, the browser's and the store's test lists | me | 1a | T1 |
+| I1 | The adapter | agent | T1 seen to fail | 1b, T2, T3 |
+| T2 | `plane.test.mjs`, `open.test.mjs`, `instant.test.mjs`, the `example` row of `shots.mjs` | agent | 1b | I1, T3 |
+| T3 | `viewStore.test.mjs` | agent | 1b | I1, T2 |
+| I2 | The planes: the store, `Plane`, the card, the nodes, the edges, the markers, the styles, the wiring | agent | I1 taken in, L landed, T2 and T3 seen to fail | my reading of I1 |
+| R | On the whole: my reading of the diff; each breakage the test lists name, made by an agent; an independent reviewer; a first `example.png` before a reviewer that sees only it | me, three agents | I2 | each other |
+| F | What the reviews found, fixed | me, or an agent at high effort | R | |
+| C | Alone: build, check, `npm test` three times, what the other test files cost the timed tests; the shots retaken if the look changed | me | F | nothing |
+| E | The step's commit, pushed | me | C | |
+
+The longest chain is 0 → 1a → T1 → I1 → I2 → R → F → C → E. The outline is in two parts so that the adapter's tests and
+code start while the planes' skeleton is still being written. The planes are not started before the adapter is real:
+their tests run against one. Two things moved after the plan was approved, on the word of the agent that checked it
+against the libraries' sources: the old page's layout is read from the start (X), and the first look at `example.png`
+comes beside the reviews, before the timed runs, which a change to the look would void.
+
+No two workers own a file at the same time, since an owned file is taken whole. L: `shell/theme.ts`, `app.css`,
+`shell.test.mjs`, `shots/shell.png`. T1: `test/adapter.test.mjs`. T2: `test/plane.test.mjs`, `open.test.mjs`,
+`instant.test.mjs`, `shots.mjs`, additions to `helpers.mjs`. T3: `test/viewStore.test.mjs`, `test/core.mjs`. I1:
+`core/adapter.ts`. I2: everything under `plane/`, `app.css`, `shell/Dock.tsx`, `shell/App.tsx`, and `shell/theme.ts`
+for a colour the planes need. Mine throughout: `plan/`, `core/index.ts`, `canvas/dist/` (a worker builds it to run its
+tests and does not hand it over), and the todo mark of check 2 in `shell.test.mjs`.
+
+A brief gives the goal, where to read, the files owned, the tests and commands, what to send back, and five rules with
+their reasons:
+
+1. Change only the files you own: another worker is changing the others.
+2. Nothing under `canvas/src`, `canvas/test` or the rest of `unchanged.json`'s list: one changed byte fails
+   `unchanged.test.mjs`.
+3. No new package, and no import that `src/vendor.ts` does not hold: the build refuses it.
+4. No test is loosened, skipped or marked todo. A signature or a test that looks wrong is a stop: say why.
+5. No colour outside `shell/theme.ts`; no test reads `window.Grasp`; no test turns on the CSS domain of the DevTools
+   protocol.
+
+The harness keeps the agents' worktrees under `.claude/worktrees/` in the repository's folder. It is named in
+`.git/info/exclude`, which is not committed, so `git status` stays quiet; never `git add -A` here.
+
+### The shell's look: the strips toned, the tab in front joined
+
+One agent, 3.7 min (26 tool calls), in a worktree at `5127985`; its commit is taken as it came. Two tests in
+`shell.test.mjs`, written first and seen to fail, each for its own reason:
+
+| Test | Failed before the change with |
+|---|---|
+| a strip is a tone apart from the editor's ground | "The left strip is rgb(238, 242, 244), the same as the editor's ground (--grasp-ground)" |
+| the tab in front is joined to its panel | "The left tab in front ends 1.0 px from its panel: its box does not reach the panel." |
+
+The second also reads a screenshot's pixels across the boundary (the PNG decoded with `node:zlib`, no library), and
+holds that the rest of the strip keeps its 1 px line and that no tab is white while its side is collapsed.
+
+- `shell/theme.ts`: `STRIP` `#E3E8EC`, as `--grasp-strip`. `TEXT_SECONDARY` on it has a contrast of 4.58 to 1; a darker
+  strip would take the names of the tabs not in front under 4.5.
+- `app.css`: the strip no longer has a border, which ran past the tab in front and parted it from its panel. Each part
+  of the strip draws its own line as an inset shadow on the panel's side: the tabs not in front, a collapsed side's
+  tab, and the empty rest. The tab in front draws none and fills the strip's 32 px.
+- Dockview colours a tab through variables that the editor's tabs share, and its own rule is stronger than a selector
+  of ours, so the strips set those variables on `.dv-edge-group`. Dockview also keeps `dv-active-tab` on a collapsed
+  side's tab: a tab is "in front" only while its group lacks `dv-edge-collapsed`.
+- Tried and dropped by the agent: a negative margin on the tab (the strip clips it).
+
+`npm test` with it: 79 tests, 73 pass, 0 fail, 6 todo. `shell.png` is retaken; its rating is under "`shell.png`, rated again" below.
+
+### What reading the code and the libraries found
+
+Three explorers read the code as step 5 left it, the old page's drawing rules, and React Flow 12.10.2; an architect
+agent then traced eight points of session 17's design through React Flow's and Dockview's sources (27 min, 89 tool
+calls; nothing ran in a browser, so its frame counts are derived). The design holds. What step 6 takes from them, each
+checked in the source it names:
+
+**Where the planes plug in**
+- A view's tab body is `ViewPanel` in `shell/Dock.tsx`, an empty `div.grasp-view-body`. It gets `params.session` and
+  `params.viewId` (`ViewParams`). `window.Grasp` holds only `session`. `vendor.ts` already holds `@xyflow/react` whole,
+  with `dist/style.css`, so it does not change.
+- The library was typed for four members. `core/adapter.ts` declares what the planes read, and `plane/*` reaches the
+  library only through the adapter's exports.
+
+**The old page's rules**
+- Its measures (`canvas/src/core/page/base.js` 22 to 29): `HEADER 40`, `HEAD_H 18`, `LEAD 15`, `PAD 12`,
+  `CHILD_TOP 48`, `PORT 16`. A compartment takes `HEAD_H + LEAD * rows + 6`.
+- Compartments are wrapped by a count of characters to the box's saved width, not its grown one: a doc at
+  `floor((w - 24) / 6.1)`, at least 12; a send or accept at `/ 6.6`, at least 10; a code link is not wrapped but cut
+  to as many characters, at least 8, keeping its tail behind `…`. Their order is doc, send or accept, code.
+- `CHILD_TOP` is no part of sizing: it only holds a box that is placed or dropped. A border item's `at` is never
+  rounded, so its position is a fraction. A view's own `x, y` are added to every rectangle on the old page's one plane.
+- A line's label sits at its middle, `labelOffset ?? 30` below (a connection's name is 30 below its line).
+- The wheel pans by the wheel's own delta, and with Ctrl or ⌘ zooms about the pointer (`pointing.js` 245).
+
+**Roboto in the old page's boxes**, measured in Chromium over the 65 docs of the eleven graph views (115 boxes):
+- Roboto at 12 px averages 5.27 px a character, so every line wrapped at the old page's counts fits its box. Six lines
+  are single words longer than their box, which no wrapping helps: a row clips those with an ellipsis. None of the 105
+  name lines is wider than its box. So the old page's counts are kept, and session 17's "about 6.3 px" is dropped.
+- Roboto at 12 px is 11 above its baseline and 3 below. In the example, `hosts` and `app` sit 104 below `Page`'s top,
+  under `Page`'s three doc lines, which the old page ends 2 px above them. With rows 16 apart and a title row of 18
+  the third line would run into `hosts`; with a title row of 16 it ends 1 px above. So `LOOK` is the old page's
+  measures with `head 16` and `lead 16`, and `OLD_LOOK` has the old `18` and `15`.
+
+**React Flow**
+- A node that carries `width`, `height`, `measured` and `handles` is initialized without being mounted
+  (`isNodeInitialized`), and is then culled by its rectangle. Every mounted node is measured once, forced: no
+  `dimensions` change comes while its size is whole numbers and unchanged, but its `handleBounds` is read again from
+  the DOM, from the elements with the bare classes `source` and `target` in its subtree. A mounted node without them
+  loses its lines, far or near; one element with both classes serves, and it must not carry `react-flow__handle`.
+- `onViewportChange` is called for a viewport that is not controlled. `minZoom` defaults to 0.5 and the first viewport
+  is clamped to it. Ctrl with the wheel zooms under `panOnScroll` with `zoomOnPinch`. `panOnScrollSpeed` defaults to
+  0.5: it is set to 1, the old page's.
+- `Controls` calls React Flow's own `fitView` before `onFitView`, a frame later, with its own padding and zoom limit:
+  the fit button is a `ControlButton` of ours, with `showFitView={false}`.
+- A string given as an edge's `markerEnd` is taken for a marker's id; `LineEdge` sets `marker-end` on its own path. A
+  path with the class `react-flow__edge-path` takes the stylesheet's grey. A node type missing from `nodeTypes` falls
+  back to `default`, with its padding and border, silently.
+- Layers: an edge's z is the larger z of its ends that have a parent, and a child's z is its parent's plus one. A line
+  between two boxes at ground level is under every node; a line with an end inside a box is over that box, and under
+  any node of the same or a higher z. In the example no line passes behind a box. In `behavior-actions.json` two
+  successions pass behind sibling actions for 150 to 170 px, where the old page drew them over the boxes. A label in
+  `EdgeLabelRenderer` would lie under every node, so a line's label is drawn in the edge's own svg.
+- A border item half outside its parent is not clipped, as long as neither `extent: 'parent'` nor `expandParent` is set.
+- Types at the hand-over, probed with `tsc`: a node's `data` must be a type alias, not an interface; `handles` cannot
+  be a readonly array; a handle's `position` is React Flow's enum. So the adapter imports React Flow's types, and only
+  its types: nothing of React Flow runs in the core.
+- Keep stable, or every node renders again: `nodes` and `edges`, each on its own; `nodeTypes` and `edgeTypes`; the
+  three callbacks; `defaultViewport`; and the `subscribe` given to `useSyncExternalStore`.
+
+**Dockview and a switch of tab**
+- A press on a tab opens its panel a frame later (`requestAnimationFrame`, under the HTML5 drag backend, the default
+  for a mouse). The plane's observer fires in that frame; its state update renders from a later task; React Flow's
+  first commit has no node, since its store starts 0 by 0, and the nodes and edges come with the next. So a switch
+  takes two frames at least, 17 to 33 ms of waiting, before any work. `timing` and `moveTiming` take one event and one
+  frame, so the switch's test has a clock of its own, from the press to the painted frame that holds every node.
+
+**Fitting**
+- Fitted into 736 by 828 with 48 px a side, no node of the eleven views or of the 5,000-element model's three is left
+  outside. The parameters' names in `behavior-actions.json` hang 48 out, so 48 is kept: the old frame's `MARGIN`.
+- With both sides collapsed the example would fit at 100% with `DevHost` under React Flow's minimap (200 by 150, 15
+  from the corner). So a fitted view also stays above the band the zoom buttons and the minimap stand in: `FIT_BAND`,
+  180 px. The example then fits at 92.6% with the sides collapsed and at 54.4% with both open.
+- `shots.mjs` hands `take` a page that has the picker, which `openStateFile` refuses: the `example` shot needs a page
+  without it, and the sides collapsed before the file is opened, since a view is fitted once.
+
+### Step 6: the outline, part 1, the adapter
+
+`canvas/app/src/core/adapter.ts` holds the contract: the types, the constants, the rules in `project()`'s comment, and
+bodies that throw. `core/index.ts` exports it, so `loadCore()` gives it to the Node tests; nothing calls it yet, and
+the page is the one step 5 left. Final already: `isDrawn`, `notDrawnText`, `markerId`, the constants.
+
+What it settles beyond session 17's design:
+- **`Look`**, the measures as a value. `project()` and `route()` take one, `LOOK` by default. Given `OLD_LOOK`, the
+  adapter must give the old page's layout exactly, which is now a test (below).
+- **`Projection.rects`**, every node's rectangle from the view's origin, beside the nodes' own positions, which are
+  from their parents. The tests and the fit read it; `LineEdge` reads React Flow's.
+- **`fit(bounds, width, height)`** is the adapter's: one fit, with `FIT_PAD` and `FIT_BAND`, never past 100%.
+- **`project()` returns `previous` itself** when nothing in it reads otherwise, so a store's snapshot stays the same
+  object.
+- **Far** empties the words in `data` and adds `far` to `className`; sizes stay.
+- **A border item's `nameAt`** is worked out by the adapter (the old page's `portName`, which moves a name clear of
+  the port's first line), from the square's corner, as a baseline's start, middle or end.
+
+Where the rules are on the old page, for whoever builds the adapter (paths under `canvas/src/`):
+
+| Rule | File and lines |
+|---|---|
+| The measures | `core/page/base.js` 22-29 |
+| `wrap` | `core/page/layout.js` 12-24 |
+| `portRect` | `core/page/layout.js` 26-34 |
+| `graphLayout`: what is shown 44; a box's parent 47-55; the order of what a box holds 56-58; `size()` 64-88; `place()` 89-96 | `core/page/layout.js` 42-108 |
+| Which lines are drawn | `core/page/layout.js` 189-193 |
+| `straight` 205-226, `elbow` 229-239, the fallback 244, `endpoints` and `mid` 249-260 | `core/page/layout.js` |
+| `nameLine` | `core/page/drawing.js` 47-58 |
+| The keyword line and the header | `core/page/drawing.js` 66-74 |
+| `lineWay` 77-87, `portName` 106-115, a port's arrow 126-149 | `core/page/drawing.js` |
+| The doc compartment and `compartmentsOf` | `core/page/drawing.js` 163-175 |
+| The far form 224-240; a line's label 298-300 | `core/page/drawing.js` |
+| An item's keyword line | `interconnection/page.js` 30-40 |
+| An action's and a state's keyword lines, the send and accept marks, the control nodes and their names | `behavior/page.js` 59-127 |
+| The send or accept compartment | `behavior/page.js` 129-137; `sendWord` in `behavior/lib.js` 489 |
+| The code compartment and `fitPath` | `annotations/page.js` 315-320 |
+| The event | `sequence/page.js` 22, 28-37 |
+| The rows: kinds, lines, view kinds, `placement`, `textName`, `typingOf`, `an`, `reading` | `core/lib/model.js` 103-109, 137, 166, 190, 216, 291, 301, 623, 727, 853; `interconnection/lib.js` 12-30, 57-61, 90-94, 119, 131, 157-161, 202-206; `behavior/lib.js` 13-41, 50, 57, 62-66, 380-383, 452-458; `sequence/lib.js` 12-31, 58-62, 80 |
+
+**The old page's layout as a fixture.** `canvas/app/test/old-layout.json` holds what the old page's `graphLayout` and
+`endpoints` worked out for every graph view of the example and the nine fixtures, from each view's own origin: 153
+rectangles and 58 lines in 11 views, one to a row. For the 5,000-element model it holds a SHA-256 of each of the three
+views' layouts (1,544, 1,344 and 2,112 rectangles; 384, 384 and 1,536 lines). `canvas/app/test/old-layout.mjs` wrote
+it, from `canvas/index.html` opened from `file://` and given each file through Import state (`node
+canvas/app/test/old-layout.mjs`, 20 s); it exports `layoutHash`, which the test uses too. Neither file is in the
+plan's list. The script reads the old page and goes when it goes; the JSON stays, as what "by `graphLayout`'s rule"
+means. An agent first read the same numbers by a script of its own, and the two readings are equal.
+
+The adapter's tests, `adapter.test.mjs`, in Node, over the example, the nine fixtures, the blank model and the
+5,000-element model. Each fails today because `project()`, `route()` or `fit()` throws "is not built yet":
+
+| # | Test | The breakage that must fail it |
+|---|---|---|
+| 1 | parents come first, and a box's parent is its nearest owner that the view shows | a node's parent taken to be its owner, shown or not |
+| 2 | every placed element is a node and every drawn line an edge, and no other | hidden lines made edges too |
+| 3 | a box holds what is inside it | the growth left out of a box's size |
+| 4 | a port lies on its owner's border | `at` measured along the wrong side |
+| 5 | given the old page's measures, the rectangles and the lines' points of the eleven views are the old page's | the rows' distance taken from `LOOK` whatever look is given |
+| 6 | given the old page's measures, the 5,000-element model's three views hash to the old page's | a port's line begun at its square's centre |
+| 7 | with the new measures a compartment's rows are 16 apart under a title row of 16 | the title row left at 18 |
+| 8 | the same reading is the same object | every call making new objects |
+| 9 | a changed element renews its own node and the nodes that name it, and keeps what React Flow set | `selected` dropped from a renewed node |
+| 10 | far leaves the words out and keeps the sizes | `far` ignored |
+| 11 | a line's route: straight, each elbow, a port's end, the middle | an elbow drawn straight |
+| 12 | what the example's boxes and ports say | the `~` of a conjugated port left out |
+| 13 | what an item, an action, a state and a control node say | the send's compartment left out |
+| 14 | a line's marker, class, label and offset come from its row | every line given `m-general` |
+| 15 | a port's name keeps clear of its line | `nameAt` the same on every side |
+| 16 | a view that places nothing, and a view of a kind no plane draws, project to nothing | |
+| 17 | the 5,000-element model's three views project in under 1 s together | the model read outside `lib.reading` |
+| 18 | a fitted view lies inside the window, clear of its sides and of the band, at no more than 100% | the band left out |
+| 19 | `isDrawn` and `notDrawnText` say which kinds a plane draws, and how the card begins | passes today, since both are final: checked by breaking |
+
+### `shell.png`, rated again
+
+A fresh reviewer, given the retaken image and section 4's list and nothing else (6 min): all seven items present.
+Alignment and spacing 4, type and contrast 4, nothing cut off or overlapping 5, boxes and lines easy to read **4**
+("regions part cleanly by tone and hairline; active tabs join their panels"). So criterion 4 holds for `shell.png` at
+this step. What it would still change, kept for slice 7: the names on the strips sit 2 to 3 px right of the strip's
+middle; About is as dim as the disabled actions (it is disabled until step 12); the tabs not in front have no bounds
+of their own; the card's edge is faint; Save and Undo are not parted. It also read "comes in step 9" as a developer's
+note, which it is until those steps.
+
+### Step 6: the outline, part 2, the planes
+
+The skeletons are under `canvas/app/src/plane/`: `viewStore.ts`, `Plane.tsx`, `NotDrawnYet.tsx`, `nodes/BoxNode.tsx`,
+`nodes/PortNode.tsx`, `nodes/SmallNode.tsx`, `edges/LineEdge.tsx`, `edges/markers.tsx`. Each holds its contract in its
+comment and a body that throws; nothing imports them, so the page is unchanged.
+
+What they settle beyond session 17's design:
+- **The store is live or stale.** With a subscriber it projects when a change can have altered its view; with none it
+  only marks itself stale. `projected` counts its projections, so a test can see that a hidden tab costs nothing.
+- **The camera is decided before React Flow mounts**: the inner component reads `store.camera(width, height)` once,
+  which fits the first time and sets far or near, so the first render is already the right form.
+- **One fit**: the adapter's, through `store.fit`, from a button of ours in `Controls`.
+- **The outline of a node is CSS on React Flow's own node element**, so a far node is that element and the one inert
+  handle element. The component draws words and marks only.
+- **A line draws its label in its own svg**, and sets `marker-end` itself.
+- **The markers are one svg for the page**, rendered by `App`.
+
+**The DOM contract**, which the browser's tests are written to:
+
+| What | How a test finds it |
+|---|---|
+| A view's tab body, drawn or card | `[data-testid="plane"][data-view="<view id>"]` (`planeOf` in `helpers.mjs`) |
+| The card | its text, inside the tab body: `notDrawnText`, then "The old page draws it until slice 2." No `.react-flow` inside. |
+| A node | `.react-flow__node.react-flow__node-<shape>[data-id="<element id>"]`, with the words `def` or `usage`, `abstract`, `far`, and React Flow's `selected` |
+| A node's outline | that element's own computed border, radius and background |
+| A box's words, near | `.grasp-node-keyword`, `.grasp-node-name`; each compartment `.grasp-compartment` with `.grasp-compartment-head` and `.grasp-compartment-row`s |
+| A border item's name, near | `.grasp-port-name` inside the item's node |
+| A small node's name, near | `.grasp-small-name` |
+| A far node | has the word `far` and no text |
+| The inert handle | `.grasp-node-handle.source.target`, one in every node, far or near |
+| An edge | `.react-flow__edge.react-flow__edge-line[data-id="<relationship id>"]`, with its row's class |
+| A line's path, its marker, its label | `path.grasp-line`, whose `marker-end` is `url(#grasp-<the row's marker>)` or absent; `text.grasp-line-label` |
+| The markers | `svg.grasp-markers marker#grasp-m-general` and the four others, once in the page |
+| The zoom buttons, the fit button, the minimap | `.react-flow__controls`; a button named "Fit the view"; `.react-flow__minimap` |
+| The zoom | a node's width on the screen over its `offsetWidth` (`boxOf`) |
+
+Numbers: the fit keeps 48 px at the left, right and top and 180 px at the bottom, at no more than 100% and no less
+than 2%; far is under 25%; the wheel pans by its own delta; a switch of tab is timed from the `pointerdown` on the tab
+to the painted frame in which the other view's plane holds all its nodes and edges.
+
+**The browser's tests.** Each fails today because no plane exists (`untilDrawn` finds no `data-testid="plane"`), and
+each names the breakage that must fail it once the planes are built.
+
+`plane.test.mjs`:
+
+| # | Test | The breakage that must fail it |
+|---|---|---|
+| 1 | a part sits inside its part def | the nodes handed over without `parentId` |
+| 2 | each line kind has its marker | `marker-end` left off the path |
+| 3 | a definition's corners are square and a usage's round | the radius rule taken out of `app.css` |
+| 4 | a sequence view's tab says it is not drawn yet | React Flow mounted whatever `store.drawn` says |
+| 5 | the view is fitted once it has a size, clear of the window's sides and of the minimap | `defaultViewport` left at React Flow's own |
+| 6 | the wheel pans by its own delta, and Ctrl with the wheel zooms about the pointer | `panOnScrollSpeed` left at React Flow's 0.5 |
+| 7 | a double click does not zoom | `zoomOnDoubleClick` left on |
+| 8 | below 25% a box is its outline and a line has no label, and both come back above it | `moved` not given to React Flow |
+| 9 | the blank model's empty view opens at 100% | the fit of nothing dividing by zero |
+| 10 | no row of a compartment and no name runs past its box, in the example and the fixtures | the ellipsis rule taken out |
+| 11 | a click selects a box and a line, and a click on the ground lets go | `nodesChanged` ignoring `select` |
+| 12 | a line's label is over the box it lies in | the label drawn in `EdgeLabelRenderer` |
+| 13 | the fit button fits the view again | `Controls` left with its own fit |
+| 14 | a tab that is hidden holds no React Flow, and shown again finds its zoom and its selection | the camera not remembered |
+| 15 | far or near, every line stays drawn | the inert handle left out of a far node |
+| 16 | the planes' words are Roboto: 13 px medium for a name, 11 px for a keyword, 12 px in a row | a font size changed in `app.css` |
+| 17 | a port's square lies across its owner's border, with its name outside the owner | the port drawn at its owner's corner |
+
+`open.test.mjs`, criterion 2: "the example and the nine fixtures each open: 17 tabs, 11 planes, 6 cards, nothing
+logged". For each file, each view's tab is brought forward; a graph view's plane has one node for each element the
+view places and one edge for each line that is not hidden and has both ends placed, the model read through
+`M.normalize` (so `format1.json`'s places count); another kind's tab has the card and no React Flow. Its breakage: a
+card shown for a state transition view.
+
+`instant.test.mjs`, criterion 6's parts for this step, each by the median of the samples it names, timed inside the
+page:
+
+| Test | Samples | The breakage that must fail it (checked alone) |
+|---|---|---|
+| the page is ready in under 500 ms | 5 loads, from the navigation's start to the first frame painted with the top bar | 600 ms of work before the first render; it passes today, so only breaking it shows it can fail |
+| the example is drawn within 1 s of the file being given | 5 openings, from the file being given to the painted frame that holds its 13 nodes and 6 edges | a second's wait before the first projection |
+| a switch between the two tabs of the interconnection fixture takes under 100 ms | 9 switches, there and back | 120 ms of work as a plane mounts |
+
+**The store's tests**, `viewStore.test.mjs`, in Node, on a session opened from the example and from
+`interconnection.json`. Each fails today because `viewStoreOf()` throws "is not built yet":
+
+| # | Test | The breakage that must fail it |
+|---|---|---|
+| 1 | a session's view has one store | a new store at each call |
+| 2 | a snapshot is the same object until something in it changes | a new snapshot object at each `getSnapshot()` |
+| 3 | a store with no subscriber only goes stale | every store projecting at each change |
+| 4 | a live store projects when its view can have changed, and tells its subscribers once | subscribers told before the projection |
+| 5 | a change to another view's places leaves the snapshot the object it was | `told.views` not read |
+| 6 | the end of a run projects nothing | `by: 'end'` treated as a change |
+| 7 | a selection renews only the node or the line it names, and is kept through the next change | `selected` set on the projection's own object in place |
+| 8 | a change React Flow sends that is not a selection changes nothing | a `remove` taken |
+| 9 | the camera is the fit the first time and what was last seen after | `moved` not remembered |
+| 10 | crossing 25% projects again, far or near, and tells; a step that does not cross it tells nobody | far decided once |
+| 11 | a view of a kind no plane draws is not drawn and has the empty snapshot | `drawn` always true |
+| 12 | the store's methods can be handed over as they are | a method reading `this` |
+
+### Step 6: the tests, written first
+
+Three writers side by side, each in a worktree, from the lists above.
+
+**The store's, `viewStore.test.mjs`** (2.7 min, 17 tool calls). All 12 fail today with `plane/viewStore.ts: viewStoreOf()
+is not built yet (step 6).`, the reason listed. `loadPlanes()` in `test/core.mjs`, beside `loadCore()`, bundles the
+core and the store from one in-memory entry, so the store and the session it is given share one copy of the core; the
+store imports React Flow's types only, so none of the library is in the bundle. What the list left open and the writer
+settled:
+- `v-ic` places every element of `interconnection.json`, so "an element the view does not place" is one the test adds
+  first, outside any layout, and then renames.
+- `projected` before the first `getSnapshot()`, and whether `moved()` before any `camera()` tells anyone, are not
+  asserted: the contract does not say.
+
+**The browser's** (8.1 min, 34 tool calls): `plane.test.mjs` (17), `open.test.mjs` (2), `instant.test.mjs` (3), and the
+`example` row of `shots.mjs`. Run today, 21 of the 22 fail and "the page is ready in under 500 ms" passes, as listed.
+The failures name what is missing: "No plane shows proofStructure (data-testid "plane", data-view "v-proof"): its tab
+has nothing drawn on it."; "No plane holds the card of loginSequence"; "The plane of view1 holds no .react-flow";
+"3025 ms after the page was given the example, its plane holds 0 nodes and 0 edges, not 13 and 6".
+- How each timed test takes its time, inside the page, judged by `measure(n, limit)`'s median, the samples in the
+  failure's message. Ready: an init script of the test's own notes the first painted frame with the top bar (a
+  MutationObserver, then an animation frame, then a message, which comes after the paint), from the navigation's
+  start; 5 loads. Drawn: the same watch for the plane's 13 nodes and 6 edges, less the mark `openStateFile` leaves
+  when the file is given; 5 pages. The switch: a capturing `pointerdown` on the window starts the clock, and the same
+  watch stops it at the painted frame in which the other view's plane holds all its nodes and edges; 9 clicks, there
+  and back.
+- `open.test.mjs` has a second test the list did not: "another file opened takes the first file's planes away", which
+  is where session 19's `ViewParams` is at last tested.
+- A shot can ask for a page without the picker (`picker: false`), which `openStateFile` needs; `shell` is unchanged.
+- `helpers.mjs` gains, appended: `lib`, `FIXTURES`, `BLANK`, `TEN`, `modelOf`, `isGraph`, `placedOf`, `linesOf`,
+  `cardOf`, `near`, `withInit`, `untilLines`, `showView`, `collapseSides`, `cssColor`, `INK`, `TEAL`, `TAKEN`,
+  `groundOf`, `groundPoint`, `rectsOf`, `zoomTo`, `headerOf`. The plan said `helpers.mjs` would gain no name: it gains
+  no `data-testid`, and these.
+- What the list left open and the writer settled: a line's label must take the pointer for `elementFromPoint` to find
+  it (test 12), which is the builder's to give; a hidden tab shown again is waited for by one node, `Pump`, since a
+  zoomed view culls the others; Ctrl with the wheel is sent 40 px and must change the zoom by more than 0.5%; the
+  corners are read on `Tank.stored`, `Release.compile`, `HostLifecycle` and `HostLifecycle.idle`.
+
+**The adapter's, `adapter.test.mjs`** (14.3 min, 54 tool calls; 909 lines). 18 of the 19 fail today, 17 with
+"core/adapter.ts: project() is not built yet (step 6)." and the route's with `route()`'s; the 19th passes, as listed.
+The writer also wrote a throwaway port of the old page's rules outside the repository and ran the tests against it:
+all 19 pass, the eleven views' rectangles and lines and the three hashes among them, the three scale views in 80 ms.
+So the tests can be met, and agree with the old page; no expected value was taken from the port, which is kept out of
+the implementer's sight and used at review as a second reading of the contract.
+- Pinned beyond the list: the items, actions, parameters, control nodes, states and the event of the fixtures, by id
+  (`FuelPort.supply` reads `«out item»` and `supply : Fuel`; `Release.notify` is a send whose rows are `new Warning()
+  to` and `maintainer`; `HostLifecycle.running` reads `«state» «parallel»`; `fetchEntry` `«entry action»`); the port
+  arrows of `interconnection.json` (`FuelLine.a` `inout`, `CtrlLink.c` `out`, `CtrlLink.p` `in`); the narrow limits
+  of the three compartments on a hand-made model; and every branch of `portName` on a hand-made part def with a port
+  on each side, 17 directions of the first line, forward and reversed.
+- What the contract left open and the writer settled by the old page's code: rectangles that touch count as wholly
+  above (the old `<=`); an elbow at a border item leaves from its square's sides, and only a straight line moves a
+  border item's end 9 px out; a box's size is asserted as exactly the largest of its saved size, its header with its
+  compartments, and the room for what it holds. Left unpinned: a border item whose owner the view does not place
+  (`normalize` drops those), and whether a renewed edge keeps `selected` (the implementer is told it does).
+
+### Step 6: the adapter, built and reviewed
+
+**Built** by one agent in 4.3 min (23 tool calls), from the skeleton, the notes' table of the old page's rules and
+the 19 tests: `core/adapter.ts`, 729 lines. `adapter.test.mjs` passes 19 of 19; the 5,000-element model's three views
+project in 37 ms together (1,544, 1,344 and 2,112 nodes), against the test's 1 s. It found no contradiction between a
+test, the contract and the old page, and dropped nothing. What it settled where the contract was silent, none of it
+met by the ten files:
+- a border item with no shown owner gets no node, as the old page's `place` never placed one, and neither does an
+  element whose nearest shown owner is a border item; an element of a kind the library has no row for is not placed
+  (the old page would throw); a walk up the owners stops after as many steps as there are elements;
+- `abstract` is a word of a box's and a small node's class, not a border item's (the old `elClass`); only a bar and a
+  diamond say `textName`, an event says its name line, a start, a done and an entry say nothing;
+- `nameAt` is worked out far and near alike; `previous` is ignored when it is another view's;
+- with no room in the window `fit` gives `MIN_ZOOM` and still centres, so the viewport stays finite.
+
+**Two readings compared.** The test writer's throwaway port and the implementer's adapter were written apart, the
+second without sight of the first. A scratch script ran both over every view of the ten files, the blank model and the
+5,000-element model, with `LOOK` and with `OLD_LOOK`, near and far (84 projections): every node, edge, rectangle and
+bound, every edge's route by each side's own `route()`, `fit` over 25 windows and bounds, and that each returns
+`previous` itself for an unchanged model. 0 differences. With tests 5 and 6, which hold the adapter to the old page's
+own numbers, that is the adapter's rectangles and lines checked three ways.
+
+**My reading of the diff**, against the outline: a port, in the old page's order of arithmetic, with nothing invented.
+One thing added by my hand, smaller than a brief: a node or edge that changed only in place or size keeps the `data`
+object it had (rule 5 says so now), so that a box's component, memoized on `data`, does not render at each step of
+step 7's drag; with a test of it, "a box that only moved is a new node with the data object it had", seen to fail
+without the two lines. `adapter.test.mjs` has 20 tests.
+
+**Each test seen to fail with its thing broken.** An agent, in a worktree (2.8 min, 16 tool calls), made each
+breakage the list names in `adapter.ts`, ran the test that guards it and then the whole file, and put the file back.
+All 19 named tests failed under their breakage. Three things it showed, each closed by my hand and then seen to fail
+under its breakage:
+
+| What was weak | What holds it now |
+|---|---|
+| The timed test's 1 s: with the model read outside `lib.reading` the three views took 1,041 ms alone and 955 ms in the whole file's run, so the test passed and failed by turns | The bound is 300 ms and the test is named for it: read as built it takes about 40 ms, read outside `lib.reading` 979 ms |
+| A renewed edge dropping `selected` failed nothing | "a changed line is a new edge that keeps what React Flow set": `mount` renamed while selected |
+| Rows wrapped to a box's grown width failed nothing: no box of the ten files is both grown wider and wrapped | "a box grown past its saved width still wraps its rows to the saved width", on a hand-made part def |
+
+`adapter.test.mjs` has 22 tests. Noticed by the agent and left: `Look.childTop` is read by nothing until step 7; the
+order of the compartments is held by the fixtures' test alone; a left port with no line has its name below its square
+and a right one above, which is the old page's own.
+
+### Step 6: the planes, built
+
+**Built** by one agent in 12 min (85 tool calls), against the real adapter and the tests: the store, `Plane`, the card,
+the three node components, `LineEdge`, the markers, 263 lines at the end of `app.css`, and the wiring (`ViewPanel` in
+`Dock.tsx` renders `Plane` with the tab's own session; `App.tsx` puts the session's stores on `window.Grasp.views` and
+renders the markers once). No colour was added to `theme.ts`, and none is written anywhere else. As it came:
+`viewStore.test.mjs` 12 of 12, `open.test.mjs` 2 of 2, `plane.test.mjs` 16 of 17, `instant.test.mjs` 3 of 3, and "the
+example shows its general view on a tab" passing under its todo mark.
+
+It stopped on the 17th, as its brief told it to, and was right: **test 10's last assertion could not pass, and the
+fault was the outline's.** The notes above say that six doc lines of the ten files are single words longer than their
+box. They are not. My measurement counted the docs of every placed element, small shapes among them, which draw no
+compartment: a fork 60 wide "overflowed" by 60 px. In the boxes that have compartments no row of the ten files is too
+long: the tightest is "Moves fuel while commanded." in `interconnection.json`, 163 px of text in 174 px of room. So the
+ten files exercise no ellipsis. The test now holds that none of their rows is cut, and exercises the rule on a part def
+made for it, 120 wide, whose doc begins with a word of 45 letters: that row is cut and stays inside its box.
+
+Where it read the contracts its own way, each kept:
+- Each node file's exported component only hands `data`, `selected` and the size to a memoized inner one. React Flow
+  calls the outer one at every move of a node; the inner one skips. `LineEdge` is built the same way, with its two
+  `useInternalNode` results as the keys.
+- The gate keeps one boolean in state, whether the root has a size, and reads the size itself where it is used (the
+  camera as React Flow mounts, the fit button at a click). So a change of the window's size renders nothing. It also
+  reads the size at once in a layout effect, so the tab in front mounts React Flow without waiting for the observer.
+- `--grasp-node-tail` joins the other `--grasp-node-*` variables, for the 6 px under a compartment's last row.
+
+**The switch of tab needed no lever.** Built the plain way, the three timed tests, run alone on the built page: the
+page ready in 182 ms (limit 500), the example drawn 50.7 ms after the file is given (limit 1,000), a switch between
+`interconnection.json`'s two tabs in 32.6 ms (limit 100), each by its median. Neither `width` and `height` on React
+Flow nor `flushSync` in the observer was tried, since nothing called for them.
+
+**Taken in.** On the adapter with the review's changes, the todo mark of check 2 taken off by my hand: `npm run check`
+passes; `npm test` gives 135 tests, 130 pass, 0 fail, 5 todo, in 35 s, the timed tests among the others.
+
+**Rows 15 apart, not 16: a departure from section 4 of the plan.** The first `example.png` showed what the
+measurement had said: with a title row of 16 and rows 16 apart, `Page`'s third doc line ends 1 px above `hosts`, and
+reads as sitting on it. The ten files were laid out by the old page, whose rows are 15 apart. `LOOK` now keeps the old
+page's 15 and differs from `OLD_LOOK` in the title row alone (16 for 18): the third line ends 3.5 px above `hosts`,
+`Host` is 137 high (139 on the old page), and no saved layout meets a compartment that the old page kept clear of.
+Section 4 says "16 px apart"; the plan is not rewritten, and this is the place that says the page is built otherwise.
+The adapter's test of the new measures is named for 15, and seven pinned sizes in its fixtures' test follow.
+
+### Step 6: the planes' and the store's tests, each seen to fail with its thing broken
+
+An agent, in a worktree (4.3 min, 39 tool calls), made each breakage the lists name, built the page, ran the test that
+guards it, and put the source back: 17 rows of `plane.test.mjs`, one of `open.test.mjs`, 12 of `viewStore.test.mjs`.
+26 of the 30 named tests failed under their breakage as worded. The four that did not:
+
+| Row | Why the test still passed | What was done |
+|---|---|---|
+| plane 15, the inert handle left out of a far box | The test zoomed out from near, and a node that is already mounted keeps the handles its own object carries; only a node that mounts while far is measured from the DOM without them | The test now holds one `.grasp-node-handle.source.target` in every node, far and near, and leaves `interconnection.json`'s first view far, shows the other, and comes back: every line must still be drawn. Seen to fail with the handle left out of far boxes |
+| store 4, subscribers told before the projection | Reordered literally (`tell(); refresh();`), a listener's own `getSnapshot()` projects the stale store, so it still reads the new snapshot | Nothing: telling before the store is even marked stale fails the test ("getSnapshot() inside the listener must already give the new snapshot"), and that is the fault the row means |
+| store 6, `by: 'end'` treated as a change | The history sends an end with `views: []`, which the store's check of `told.views` already turns away; the line that asks `by === 'end'` is a second lock on the same door | Nothing: the line stays, as the contract's words; an end sent with `views: null` projecting is caught |
+| store 12, a method reading `this` | The bundle the Node tests load runs sloppy, so a bare call's `this` is the global object and reads `undefined` without throwing | Nothing: a method that reads `this.session` fails the test |
+
+Noticed by the agent and left: `camera()` called with no size and nothing remembered gives 100% at the origin without
+remembering it; `nodesChanged` calls its subscribers without asking whether there are any.
+
+### Step 6: committed, and what is still open
+
+Committed at 135 tests, 130 pass, 0 fail, 5 todo; `npm run check` passes; check 2 is `"pass"` and `plan/status.json`
+names step 6. Damon said the context was nearly full, so the step was folded and pushed before its last reviews were
+closed. A later session must not take these as done:
+
+- **`example.png`, by a reviewer that saw only the image and the plan's list** (on the image before the last change):
+  7 of 8 items present. **Item 6, "three hollow triangles pointing at `Host`", is absent as worded**: the three
+  specializations end at one point, `Host`'s bottom middle, as the old page's `elbow` puts them, so one triangle shows
+  with three lines into it. Criterion 3 asks for every item. Damon's to decide: count the shared triangle, or spread
+  lines that arrive at one point (a rule the old page does not have).
+- **Its four scores: alignment and spacing 3, type and contrast 4, nothing cut off or overlapping 4, boxes and lines
+  4.** Criterion 4 asks 4. The 3 names the example's own saved places (`hosts` 89 px from `Page`'s left and `app` 11
+  from its right; `Host` and `App` of unequal height), which the page may not change, and two things it may: a 2 px
+  step in the line from `hosts` to `Host`, and `mount` 30 px from its line. The step is gone: `Look.snap` (4; 0 in
+  `OLD_LOOK`) draws an elbow whose ends are that little out of line as one straight stroke. `mount` keeps the old
+  page's 30, which keeps it clear of the ports' names. The retaken image has not been rated.
+- **The independent code review was still running** at the commit; its findings are not in.
+- **Not done:** the timed tests' own breakages (alone); three runs of `npm test` in a row; what the other test files
+  cost the timed tests; `Look.snap` has no test of its own; the worktrees under `.claude/worktrees/` and the local
+  branch `wip/step-6` are not removed.
+
+The method's log: test writers 2.7, 8.1 and 14.3 min; the adapter 4.3 min; the planes 12 min; breakage passes 2.8 and
+4.3 min; the shell's look 3.7 min. Rework: one test, on a wrong claim of the outline's (mine); five weak or missing
+tests found by the breakage passes, written by me. Nothing went back to an implementer.
+
+### Step 6: the independent review, which came after the commit
+
+A reviewer on this session's model, given the diff and the plan's step 6 and section 4 but not the outline, with its
+scripts and screenshots in the session's scratchpad (gone with the container). The five test files passed for it, 56
+of 56. **None of these is fixed.** Each was reproduced in the built page unless it says otherwise.
+
+1. **Step 8's pan limit will not hold with the minimap drawn.** `scale.test.mjs` at this commit: a pan step of 21,
+   17.5 and 30 ms for the three views, against 16. On scratch builds, by the median of 5 rounds (definitions,
+   deployment, workflows): as built 14.7, 13.6, 34.7 ms; without `<MiniMap>` 11.0, 9.8, 25.6; without it and with no
+   lines while far 8.4, 7.2, 14.7; with it and no lines while far, workflows 18.8. The time is React Flow's
+   subscriptions per node and per edge; `app.js` takes 0.4 ms a step. So step 8 needs both levers: a minimap of our
+   own, which session 17 kept in reserve, and no lines below 25%.
+2. **A floated tab shows nothing usable.** Dockview passes the plane through 100 by 244 px, where a view never shown is
+   fitted, at 2%, for good; one shown before keeps the big tab's camera and draws no node. Fit then gives 3.8%, since
+   `FIT_PAD` and `FIT_BAND` keep 228 of 244 px free whatever the plane's size.
+3. **Under about 256 px of width the minimap covers the zoom and fit buttons.** At 800 by 600 in a fresh browser the
+   plane is 168 px wide; the example opens there at 6%, and at 1024 by 700 at 22%, as wordless outlines.
+4. After a split or a change of the window's size the view stays cut off until Fit is clicked: the contract's "a
+   later change of size fits nothing", reported for judging.
+5. **A port's name takes no click**, and a click on it clears the selection (`.grasp-port-svg` takes no pointer); the
+   square is 8.7 px at the fitted zoom.
+6. **The scale test's drag check passes with no dragging built** (4.0 ms): the press pans, and the test only asks
+   where the box is on screen. Step 7 or 8 takes its todo mark off and must make it fail first.
+7. The build defines `NODE_ENV` as production, which strips React's and React Flow's warnings, so "nothing logged"
+   cannot see them. A development copy logged nothing in the same scenarios: a blind spot, not a fault.
+8. The three control buttons show the browser's focus ring, not the theme's teal one.
+
+What held up: tabs switched, closed and shown again; eleven files opened over one another and the same one twice,
+with sessions, stores and planes all collected and no listener left; the first fit in 7 window sizes; both zoom
+limits; far and near at exactly 25%; clicks on a box, a nested box, a port, a line, a label and the ground; the
+5,000-element model opening in 0.56 s with every node and edge drawn, none of the application's components rendering
+on a pan and nothing projected. A switch of tab there takes 0.5 to 1.4 s, and crossing 25% one frame of 85 to 130 ms.
+
+### For the next session
+
+- Damon's word on `example.png`'s item 6 (one shared triangle, or lines spread), then the retaken image rated.
+- Faults 2, 3, 5 and 8 above are step 6's to fix: fit margins that follow the plane's size, a refit when a view was
+  fitted into less than it is shown in, a minimap that gives way in a narrow plane, a port's name that takes the
+  click, the teal ring on the controls. 1 and 6 belong to steps 8 and 7.
+- A test of `Look.snap`; the timed tests' breakages; three runs of `npm test` in a row.
+- Pull request #46 carries the branch.
+## Session 21, November 13, 2026: step 6 closed
+
+On `claude/pensive-rubin-sjrv3g`. The baseline, in this container (Node 22.23.4): `npm ci` 13 s; `npm run check` passes;
+`npm test` gives 135 tests, 130 pass, 0 fail, 5 todo, in 35 s, as session 20 left it.
+
+### The branch: step 6 was merged into main and reverted there
+
+Pull request #46 merged this branch into `main` at 08:05 UTC, a minute after session 20's last commit (`fdcfb64`),
+while step 6 still had its reviews open; pull request #47 reverted the merge at 08:06. So `main` (`488d11d`) holds
+`fdcfb64` in its history and none of step 6 in its files, session 20's notes among them. A later merge of this branch
+would then leave step 6's files out, since `main` counts `fdcfb64` as merged. The branch is therefore moved forward onto
+`main` (a fast-forward, nothing rewritten) and one commit, `e191ddf`, reverts the revert: its tree is `fdcfb64`'s, byte
+for byte. The session's work is on top of it, and the branch's difference from `main` is the whole of step 6.
+
+A worktree an agent is given by the harness (`isolation: worktree`) is made from `main`, not from this branch: the
+first agent of the session found no step 6 in its worktree, and stopped. A worktree for an agent is made by hand, from
+the branch's commit (`git worktree add --detach <path> <commit>`, outside the repository's folder), and removed after.
+
+### What Damon decided
+
+Asked on November 13, with the retaken `example.png` rated by a reviewer that saw only the image and its list:
+
+1. **Item 6 of `example.png`'s list, "three hollow triangles pointing at `Host`".** The shared triangle counts. The
+   three specializations are drawn as the old page draws them, three lines that join into one trunk with one hollow
+   triangle at `Host`'s bottom middle, and the item is read as "the three specializations end in a hollow triangle at
+   `Host`". No rule spreads lines that arrive at one point. `plan/slice-1.md` is not rewritten; this is the place that
+   says how the item is read.
+2. **The score of 3 for alignment and spacing.** Doc text is wrapped by Roboto's real widths now, not by the old
+   page's count of characters; the image is rated once more, that score is recorded, and step 6 closes. The routing
+   of lines and the places of a connection's name and of the ports' names stay the old page's.
+
+### The outline: a compartment's rows wrapped by the font's own widths
+
+A departure from session 17's design ("Compartment text is wrapped in the adapter by character count, as `graphLayout`
+does") and from session 20's finding ("So the old page's counts are kept"), on Damon's word. What stays of that design:
+a box's height is known without the DOM, in Node as in the page, and a row is plain text.
+
+- **`canvas/app/src/core/roboto.ts`** holds Roboto regular's advance width for each of the 230 characters the page's
+  font file draws, in units of 1/2048 em, and `textWidth(text, px)`, their sum; a character the file has no glyph
+  for counts one em. It is written by **`canvas/app/test/roboto-widths.mjs`** (`node canvas/app/test/roboto-widths.mjs`,
+  2 s; `--check` fails when the file is not what the font gives), which opens the built page and asks Chromium for
+  each width at a font size of 2048 px with kerning off. Neither file is in the plan's list.
+- **Why a table is exact.** Measured in this Chromium at device scales 1, 1.25, 1.5 and 2, plain and under a scaled
+  transform, on seven lines of 37 to 212 characters: with `font-kerning: none` a line's width in the page is the sum
+  of the font's widths to a hundredth of a pixel (1130.53 for the 212 characters of `Page`'s first two doc lines);
+  with kerning on it is 1.3 px less there, and 11 px less on a line of `AV`, `To` and `We`. So the rows are drawn
+  with kerning and ligatures off. A plane's zoom is a transform, which lays text out at 12 px whatever the zoom.
+- **What is not known.** Whether Chrome on Windows at 100% rounds each character's width to a whole pixel, as it once
+  did. So a row's right padding in the page is 4 px, not the 12 the wrap leaves: a row up to 8 px longer than the
+  table says is still drawn whole.
+- **`Look.rowType`**, 12 in `LOOK` and 0 in `OLD_LOOK`: the size of a row's text, or 0 for the old page's counts.
+  `rowRoom(look, width)` is the room of a row: the box's saved width less `pad` at each side, at least `ROW_LEAST`
+  (56, the room of the narrowest box). Rule 2 of `project()`'s comment says how a doc, a send or accept, and a code
+  link are fitted.
+
+The tests, written before the rule is built (today `LOOK` still wraps by the count, so each fails for that):
+
+| # | Test | The breakage that must fail it |
+|---|---|---|
+| `adapter.test.mjs` 1 | a compartment's rows are as long as the box's saved width allows, by Roboto's widths: over the eleven views, no row of two words or more is wider than its room, no row could take the next row's first word, and the rows hold the text's words in order | `LOOK` wrapping by the count of characters |
+| 2 | a word wider than its box stands on a row by itself; a blank line is an empty row; the room is never under 56 | the least room left out |
+| 3 | a character the font does not draw counts one em | an unknown character counted as nothing |
+| 4 | a code link too wide for its box keeps the longest tail that fits behind `…` | the path cut by a count of characters |
+| 5 | `textWidth` is the sum of the font's widths | a width halved |
+| 6 | given the old page's measures, rows are still wrapped by the old page's counts (the two tests of the old layout, which stand) | `OLD_LOOK` given `rowType` 12 |
+| `plane.test.mjs` 1 | a row is as wide in the page as the adapter measured it, and ends `pad` short of its box's side or sooner | `font-kerning: none` taken out of `app.css` |
+| 2 | the table of widths is what the page's font gives | a width changed in `roboto.ts` |
+
+**The tests, written** by one agent in a worktree at the outline's commit (6.1 min, 33 tool calls), while the rule was
+built apart from it, by my hand: `wrapWidth` and `fitTail` in `adapter.ts`, 40 lines, and four lines of `app.css`.
+Against the outline, 9 tests failed for the count, or for kerning still on. The rest passed, as they must: the table
+is final, so `textWidth`'s test and the table's own are checked by breaking a width, and the two tests of the old
+layout stand (given `rowType` 12, `OLD_LOOK` fails both). The writer checked its tests against a throwaway rule of its own; taken into the
+main tree they met mine for the first time: `adapter.test.mjs` 28 of 28, `plane.test.mjs` 19 of 19. Two rules written
+apart agree on every row of the eleven views.
+
+- Four existing tests pinned the count under `LOOK` and are restated by the contract: the rows' distance (`Host` is
+  now its saved 130 high with a doc of 4 rows, where the count gave 5 rows and 137; a box made for the test shows
+  the title row, 107 high against the old measures' 109), the box grown past its saved width, what the example's
+  boxes say (the rows of `Page` and `Host` pinned as text, worked out by the writer's own greedy wrap), and the
+  fixtures' rows. The narrow limits of 12, 10 and 8 characters are the old page's, and are now tested under
+  `OLD_LOOK`.
+- `Page`'s doc is 2 rows where it was 3, its first row 734.67 px in a room of 736; `StrongholdApp`'s is 1.
+- "At least the path's last character" cannot be reached at 12 px, where `…` and two characters always fit 56 px:
+  its test gives a look of its own, `rowType` 36.
+- `lib.normalize` lifts a saved width to 80, so the least room is tested on a layout changed after it.
+
+### What the reviews found, and what was done
+
+Three readings of step 6 came in this session: session 20's own reviewer, whose eight findings that session wrote
+down above ("Step 6: the independent review") from a container that still ran; a second reviewer of this session, on
+the same model, given the diff and the files' own contracts (16 min, 51 tool calls); and the reviewer of
+`example.png`. The second found no wrong drawing for a model the library has normalized.
+
+| Finding | From | What was done |
+|---|---|---|
+| A view fitted into a small plane stays tiny: a floated tab passes through 100 by 244, a pane 208 high has no room at all, and the margins keep 228 px free whatever the plane's size | both | `fitMargins(width, height)`: `pad` is 48 or a twelfth of the plane's smaller side, whichever is less; `band` is 180 only where the minimap is shown, else `pad`. `store.sized(width, height)`: a view that is still as fitted is fitted again when its plane's size changes; one somebody has panned or zoomed stays, until Fit. A floated tab of 298 by 244 now shows the whole example, at 21.9% |
+| After a split or a change of the window's size the view stays cut off | session 20 | the same `sized`: a fitted view follows its plane. The contract's "a later change of size fits nothing" is gone |
+| Under 256 px of width the minimap covers the zoom buttons | session 20 | `hasMinimap(width, height)`: only in a plane at least 480 by 480 |
+| A port's name takes no click, and a click on it lets the selection go | session 20 | a border item's name and a small node's name take the pointer; a click selects their node |
+| The control buttons show the browser's focus ring | session 20 | the theme's ring, inside the button |
+| A name or a label leaves the plane while still in the window: React Flow culls a node by its own rectangle and a line by its two nodes', with no margin, and a port's name, a control node's name and a line's label stand outside those | this session | a view is culled only when it has more than 300 nodes (`CULL_OVER` in `Plane.tsx`). A larger view, near, still loses a name at the window's edge a moment early: React Flow has no margin to give |
+| `Plane` read `store.drawn` once: a view whose kind changes, or that leaves the model, kept an empty React Flow | this session | `store.watch(listener)`, called when `drawn` changes; it does not make a store live, so a hidden tab still costs nothing |
+| One store's projection throwing kept the session's other stores from hearing the change | this session | each store hears it; the first error goes on to the history, which reports it. A place that is not an object is no longer read (`layout[id] = null` threw) |
+| Shift with a drag drew React Flow's selection rectangle, which then lay over the boxes and took their clicks | this session | `selectionKeyCode={null}` until step 9 gives the marquee its meaning |
+| A press that moved 2 px before its release panned and selected nothing | this session | `paneClickDistance={4}`. The view still moves those pixels: a press on a box pans the ground until step 7 |
+| A bullseye saved with no size logged two errors (a negative radius) | this session | the radii are never under 0. No test: `normalize` gives every place a size, so no file reaches it |
+| Rule 1 said "one node for each element the layout places" and the code, like the old page, leaves several out | this session | the rule now names them |
+
+Left as they are, and why. **To step 8:** the pan limit does not hold with the minimap drawn (session 20's
+measurements). **To step 7:** the scale test's drag check passes with nothing dragged, so step 7 must see it fail
+first. **Known and kept:** the build defines `NODE_ENV` as production, so React's and React Flow's own warnings cannot
+be seen by "nothing logged"; a selection is lost when a view is removed and the removal undone; a view whose first
+fit is far projects twice as it mounts; a store whose projection throws shows what it showed until the next change
+(it is not asked again at the next read, which is React's render, where a throw takes the page down); in a plane too
+small for the minimap the zoom buttons stand over a fitted view's bottom left corner.
+
+Tried and put back: the reviewer's "set `stale` only after `project` returns". A stale store is projected at every
+read, and React reads in its render.
+
+### `example.png`, rated
+
+Each time by a fresh reviewer given the image and its list and nothing else, the list as eight items.
+
+| Image | Items present | Alignment and spacing | Type and contrast | Nothing cut off or overlapping | Boxes and lines easy to read |
+|---|---|---|---|---|---|
+| As session 20 left it (rows by the count, `snap` in) | 7 of 8: item 6 absent as worded, one shared triangle | 3 | 4 | 4 | 4 |
+| With rows by the font's widths, item 6 read as Damon decided | 8 of 8 | 4 | 4 | 5 | 4 |
+
+So criteria 3 and 4 hold for `example.png` at step 6. The first reviewer's 3 named, of the page's own doing: doc text
+that ends up to 115 px short of its box, `mount` 25 px under its line with the two ports' names above and below it,
+the `doc` title 2 px under its rule, the turn in the line from `app` to `App`, and the view not centred down the
+plane (the band the minimap stands in). The second still names `mount` and the ports' names first, then the two dots
+of a defined-by line (about 2 px on screen at 92.6%), the `doc` title, the grey of the keywords and of the strips'
+names, and the minimap 15 px from `DevHost`. Those are kept for slice 7, with session 20's list for `shell.png`.
+
+### The review's fixes: tests, each seen to fail
+
+The fixes were built by my hand, each smaller than its brief, in `adapter.ts`, `viewStore.ts`, `Plane.tsx`,
+`SmallNode.tsx` and `app.css`. Their tests were written by two agents, each in a worktree of its own, in new files so that no two
+writers shared one.
+
+**`fit.test.mjs` (Node, 5) and `small.test.mjs` (the page, 5)**, written against stubs before the fixes existed (3.7
+min, 22 tool calls); all ten failed on the stubs for the reason listed, and passed against my fixes when the two met.
+
+| Test | Failed before the fix with |
+|---|---|
+| a fitted view's margins follow its plane | the pad 48 and the band 180 whatever the size |
+| a view fitted into any plane lies inside it, clear of its margins | the bounds pushed out of the small planes |
+| a view still as fitted is fitted again when its plane's size changes | `sized` giving nothing |
+| a view somebody has placed stays when its plane's size changes, until it is fitted again | the same; and with `moved` never marking the view as placed |
+| a refit that crosses 25% tells the plane, far or near | no refit, no far snapshot |
+| a view nobody has moved follows its plane's size | the zoom staying at 54.4% when the sides collapse, not 92.6% |
+| a view somebody has panned stays where it was put when its plane's size changes | after Fit, the view not following again |
+| a narrow plane has no minimap, and a wide one has | the minimap always drawn |
+| a click on a port's name selects the port, and on a control node's name the node | nothing selected |
+| the zoom buttons and the fit button show the theme's focus ring | the browser's ring |
+
+One existing test changed: the adapter's test of `fit` took 90 by 828 and four more windows for ones with no room,
+which they no longer are; it now takes windows with no side, or too small for 2%.
+
+**`sturdy.test.mjs` (Node, 3) and `gestures.test.mjs` (the page, 5)**, written after the fixes, so each was seen to
+fail the other way round, with its fix broken (3.8 min, 20 tool calls). All eight passed as built and failed broken:
+
+| Test | Its fix broken | Failed with |
+|---|---|---|
+| a place that is not an object places nothing and throws nothing | the check of the place taken out of `build()` | "Cannot read properties of null (reading 'w')" |
+| a store whose projection throws does not keep the session's other stores from hearing the change | the try around each store's hearing taken out | "The other view's subscriber must be called once although v-ic's projection threw before it." |
+| a watcher is told when its view stops being drawn, and watching does not make the store live | the watchers never called; `watch` adding to the subscribers | "A view that becomes a kind no plane draws must call its watcher once."; "A rename must call no watcher." |
+| a name outside its node stays drawn while its node is just outside the plane | every view culled | "The node of System.tank.fuelOut left the document … while its name, 93 px wide, is still partly inside it." |
+| a view of thousands of nodes mounts only what its window shows | `CULL_OVER` a thousand million | "mounts 1544 of the 1544 nodes the view places" |
+| Shift with a drag draws no rectangle and leaves nothing over the boxes | `selectionKeyCode` left at React Flow's | "the plane draws a selection rectangle" |
+| a press that moves 3 px before its release still selects the box | `paneClickDistance` left at React Flow's | "did not select the box" |
+| a hidden tab's body is out of the document and holds no React Flow | the gate mounting whatever the size | "The plane of a hidden tab, out of the document, still holds 1 React Flow." |
+
+The last is the test the second reviewer asked for: `plane.test.mjs`'s "a tab that is hidden holds no React Flow"
+counts nodes through the document, which a hidden tab's body has left, so it passes with or without the gate. The
+stores hear the history in the order they were made, so the second test makes the failing view's store first, and
+says so.
+
+### What session 20 left not done, done
+
+- **`Look.snap` has a test**: "an elbow whose ends are no more than `snap` out of line is one straight stroke, at the
+  far end's centre", over the four directions at 1, 2 and 4 px out of line, the step at 4.5 and 5, the old page's
+  measures, and the example's line from `hosts` to `Host`. Seen to fail with `snap` ignored, and with `<` for `<=`.
+  The rule changes seven lines of the ten files, two of them in `behavior-actions.json`.
+- **The timed tests' own breakages**, by an agent in a worktree (1.9 min): 600 ms of work before the first render
+  gives 803.5 ms against 500; a second's wait before the first projection 1,056.2 ms against 1,000; 120 ms of work
+  as a plane mounts 149.5 ms against 100. Each failed its own test and no other. The second fails by the 50 ms the
+  drawing takes: a wait of 950 ms would pass.
+- **What the other test files cost the timed tests.** The three tests now say their median and samples as a `#` line
+  of the runner's output. By the median of three runs, with nothing else running on the machine:
+
+  | | Limit | Alone (`node --test canvas/app/test/instant.test.mjs`) | In `npm test` |
+  |---|---|---|---|
+  | The page is ready | 500 ms | 208.5 ms | 238.5 ms |
+  | The example is drawn | 1,000 ms | 49.8 ms | 77.1 ms |
+  | A switch of tab | 100 ms | 33.7 ms | 35.1 ms |
+
+  So the files go on running side by side, and `package.json` does not change.
+- **Three runs of `npm test` in a row**, at the step's last code: 161 tests, 156 pass, 0 fail, 5 todo each, in 41, 38
+  and 39 s. The suite was 135 tests when the session began; the 26 more are 1 for `snap`, 7 for the wrap, 10 for
+  session 20's review and 8 for this session's.
+- The worktrees and the local branch `wip/step-6` went with session 20's container.
+- **The step's last commit by itself** (criterion 7): `b1f5bba`, checked out into a new worktree, passes `npm ci &&
+  npm run check && npm test` with 161 tests, 156 pass, 0 fail, 5 todo; `plan/status.json` names step 6 and has 5
+  checks still `"todo"`. This entry's own commit comes after it and changes only this file.
+
+### For the next session
+
+- Step 7, from `plan/slice-1.md` and session 17's design ("The four steps"). Nothing waits for Damon.
+- Before step 7 takes the todo mark off "a drag step takes under 16 ms at 5,000 elements", it must see that test
+  fail: today it passes with nothing dragged (session 20's review, item 6).
+- Step 7 makes boxes draggable: `paneClickDistance` and the 2 or 3 px a press still pans can then go, and a drag's
+  steps must leave a view "as fitted" or not on purpose (`store.sized` reads only what `moved` was told).
+- Step 8 needs both levers session 20 measured: a minimap of our own, and no lines below 25%.
+- Step 9 turns the marquee on: `selectionKeyCode` is `null` until then.
+- If `@fontsource/roboto` changes version, `node canvas/app/test/roboto-widths.mjs` writes the table again; a test
+  fails until it does.
+- The branch is one commit of history ahead of what `main` reverted (`e191ddf`), then this session's commits. No
+  pull request is open: #46 was merged and reverted. A new one carries the whole of step 6.
+
+The method's log, this session: three test writers (6.1, 3.7 and 3.8 min), one breakage pass (1.9 min), two reviewers
+of the image (2.1 and 2.2 min) and one of the code (16 min); every fix and the wrap's rule written by me. Rework:
+none went back to an agent. One agent was sent out three times before it could start, on a worktree made from `main`.
