@@ -3555,3 +3555,52 @@ The baseline, in this container (Node 22.23.4, 4 processors), before anything wa
   9.8 / 13.0, of `deployment` 8.5 / 8.6, 10.7 / 7.7, 10.0 / 11.7, of `workflows` 16.5 / 13.7, 13.7 / 17.1, 12.9 / 13.4.
   The two todo tests (checks 8 and 10) are the drag's and the pan's, which sit at the limit in this container: one run in
   three is over 16 ms for each; they keep their marks (below, "The two limits").
+
+### Step 11: the Tools view and the right-click palettes
+
+- **Taken in**: the owned files of the eight finished tasks, from `session-25-wip/11-*/`, on step 10's tree. `Plane.tsx` was
+  checked first against step 9's version (the kept one adds 43 lines to it; `viewStore.ts` is step 9's unchanged), so
+  nothing of steps 8 and 9 was lost. `commands.test.mjs` 26 of 26 and `tools-panel.test.mjs` 11 of 11 as taken in;
+  `palette.test.mjs` 11 of 12 and `tools.test.mjs` 9 of 14: the five that failed were faults of the tests, as session 25
+  said, and are fixed (each then seen to pass against the unchanged code): `tools.test.mjs` 1 to 4 compared a library
+  array (`problemsOf`) with a plain one, so `problemsOf` now copies it with `Array.from`; 10 waited for
+  `.grasp-details[data-picked]` with nothing picked, where Details shows only its sentence, so it reads `shownIn(page)`;
+  `palette.test.mjs` 7 clicked the bar's file name by a Playwright locator, whose actionability wait the menu's
+  backdrop defeats, so it clicks at the element's position, as a person does.
+- **`11-checks-break`** (Sonnet, medium; 23.6 min): all 63 rows tried; 57 failed their tests as they should. Six
+  passed: (1) c23, `choose` that arms the kind (a toggle) instead of putting down and taking it: the test never chose
+  a kind already in hand: **fixed**, four lines at the end of `commands.test.mjs` 23, seen to fail under the breakage;
+  (2) l5, a nested element placed at the clamped corner: the test clicked at (184, 100), which a part at (12, 48) also
+  holds: **fixed**, it clicks at (260, 100), seen to fail ("The new part is drawn at 367, 448, 98 by 33, which does not
+  hold the right-click's point 501, 477"); (3) t1, `clicked()` picking the first end before the tool: walk 1 passes
+  alone, since the tool's own pick overwrites it, but `tools.test.mjs` 9 and 10 fail under it, so it is guarded;
+  (4) l7, `stopPropagation` on the menu root's `onContextMenu`: dead protection (the menu is a sibling of the flow, not
+  inside it), no test can see it; (5) p6 as worded (the explicit `aria-pressed` line: MUI's ToggleButton sets it itself;
+  the real breakage, `aria-pressed={undefined}`, fails five tests); (6) p11 as worded (a cleanup on unmount: Dockview
+  detaches the element without unmounting the component; the real breakage, the tool put down when the panel's element
+  leaves the document, fails the target alone). 3, 4, 5 and 6 are kept.
+- **`11-review-code`** (Opus, high; 9.6 min): no serious defect; one small, **kept**: with two views side by side, a
+  click on the plane of a view whose kind lacks the tool in hand puts the tool down without a word and picks the view
+  (Dockview activates the other group on pointerdown, so the tools' listener for the view in front puts the tool down
+  before the click comes, and the click's own sentence, "A general view has no item def tool, so the tool was put
+  down.", can only be reached in the core). `commands.ts`'s contract says that a change of the view in front puts the tool
+  down and says nothing, so the page does what it says. It found sound: every tool of all four kinds from the palette
+  with Undo, Redo and `canvas/check.sh` on the saved files (three tools, interface def, flow and initial node, make a
+  new problem by themselves, which `tools.test.mjs` takes as `adds`); each refusal in the rule's own sentence; Escape
+  from every place the focus can be; an undo in the middle of a line; another file opened; a drag and a marquee with a
+  tool in hand; a right-click on everything a plane holds; the palette at the window's edge (kept 16 px inside); the
+  5,000-element model with a tool in hand (arming about 100 ms; a placement 210 to 240 ms, one long task of 140 to 170
+  ms, since `project()` works the whole view out again; no limit covers it). Its scripts were in `/tmp/review11/` of
+  this container and are not kept.
+- **`palette.png`**, taken by `npm run shots -- palette`, rated by two fresh reviewers (Sonnet) with the image and its list
+  only. The first marked item 2 absent: the list said `Host` is headed `«part def»`, and the example's `Host` is abstract,
+  so the box is headed `«abstract part def»` with its name in italics, as the plan and the old page have it. The list was
+  wrong, not the picture: the wording is corrected in `step-11.md` and in the brief, and a second reviewer, given the
+  corrected list, marked 8 of 8 present. Its other notes, none of them items: Details says "Nothing is picked" under an
+  open menu (a right-click picks nothing, by design); the menu covers the ServerHost box's header; the minimap shows no
+  rectangle of the view.
+- **`npm test` three times in a row, nothing else running**: 420 tests, 418 pass, 0 fail, 2 todo each time (4 min 11 s
+  to 4 min 17 s). By run, in ms: the keystroke 27.9 / 20.5, 28.6 / 26.6, 28.9 / 21.3 (opening / joining); a drag step
+  11.1 / 8.4, 10.2 / 9.0, 15.1 / 11.4 (starting / following); a pan step of `definitions` 9.1 / 8.8, 13.4 / 14.0,
+  9.1 / 8.1, of `deployment` 9.2 / 8.2, 9.5 / 13.1, 9.7 / 8.7, of `workflows` 21.6 / 18.6, 19.6 / 16.1, 13.0 / 12.0.
+  Checks 8 and 10 keep their todo marks (the two limits, below); no check changes status at this step.

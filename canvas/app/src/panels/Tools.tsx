@@ -3,6 +3,12 @@
 // panel 'tools' (shell/Dock.tsx, COMPONENTS); it reads the open file, and what else the dock hands on, through useDock()
 // (shell/dockContext.ts), and is put into the dock inside SidePanel (panels/SidePanel.tsx).
 
+import { Box, Divider, ToggleButton, Tooltip } from '@mui/material';
+import { useEffect, useSyncExternalStore } from 'react';
+import { isDrawn, selectionOf, toolGroups, toolsOf, TOOL_TITLE } from '../core';
+import type { Session } from '../core';
+import { useDock } from '../shell/dockContext';
+import { FONT_SIZE, SMALL_FONT_SIZE, TEAL, TEAL_SOFT } from '../shell/theme';
 import { SidePanel, SideText } from './SidePanel';
 
 /** What the panel says while it has no tools to list. `an` is the view kind's label with its article: 'A sequence view'. */
@@ -78,9 +84,87 @@ export const TOOL_ROW = 28;
  * toast leaves (shell/Toasts.tsx).
  */
 export function ToolsPanel(): JSX.Element {
+  const { session } = useDock();
+  // The tool in hand is the session's: its hint and armed tool are read, and Escape is heard, for the open file.
+  useEffect(() => {
+    if (!session) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const tools = toolsOf(session);
+      if (!tools.armed) return;
+      const target = event.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
+      if (document.querySelector('[role="dialog"][aria-modal="true"]') !== null) return;
+      tools.putDown();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [session]);
+
   return (
     <SidePanel testId="tools" title="Tools">
-      <SideText>The view's tools come in step 11.</SideText>
+      {session ? <Body session={session} /> : <SideText>{TOOLS_TEXT.noFile}</SideText>}
     </SidePanel>
+  );
+}
+
+function Body({ session }: { session: Session }): JSX.Element {
+  const selection = selectionOf(session);
+  const tools = toolsOf(session);
+  const viewId = useSyncExternalStore(selection.listen, () => selection.view);
+  const armed = useSyncExternalStore(tools.listen, () => tools.armed);
+  const hint = useSyncExternalStore(tools.listen, () => tools.hint);
+  // The name and kind are read from the model at each render; the snapshot is their text, so a rename renders again.
+  const found = viewId === null ? undefined : session.model.views.find((one) => one.id === viewId);
+  useSyncExternalStore(session.listen, () => (found ? `${found.name} : ${found.kind}` : null));
+  const view = found;
+  if (!view) return <SideText>{TOOLS_TEXT.noView}</SideText>;
+  const lib = session.lib;
+  const an = lib.an(lib.VIEW_KINDS[view.kind]?.label ?? view.kind, true);
+  if (!isDrawn(lib, view.kind)) return <SideText>{TOOLS_TEXT.notDrawn(an)}</SideText>;
+  const groups = toolGroups(lib, view.kind);
+  if (groups.length === 0) return <SideText>{TOOLS_TEXT.none(an)}</SideText>;
+
+  const children: JSX.Element[] = [];
+  groups.forEach((group, g) => {
+    if (g > 0) children.push(<Divider key={`rule-${g}`} component="div" sx={{ my: 0.5 }} />);
+    for (const tool of group) {
+      const title = TOOL_TITLE[tool.kind];
+      const button = (
+        <ToggleButton
+          key={tool.kind}
+          value={tool.kind}
+          data-testid="tool"
+          data-tool={tool.kind}
+          selected={armed?.kind === tool.kind}
+          aria-pressed={armed?.kind === tool.kind}
+          onClick={() => tools.arm(tool.kind)}
+          sx={{
+            width: '100%', height: TOOL_ROW, minHeight: TOOL_ROW, justifyContent: 'flex-start', px: 1.5, py: 0,
+            border: 0, borderRadius: 0, textTransform: 'none', fontSize: FONT_SIZE, flex: 'none',
+            '&.Mui-selected, &.Mui-selected:hover': { color: TEAL, bgcolor: TEAL_SOFT },
+          }}
+        >
+          {tool.label}
+        </ToggleButton>
+      );
+      children.push(title
+        ? <Tooltip key={tool.kind} title={title} placement="right" describeChild>{button}</Tooltip>
+        : button);
+    }
+  });
+
+  return (
+    <>
+      <Box data-testid="tools-view" sx={{ fontSize: SMALL_FONT_SIZE, color: 'text.secondary', px: 1.5, py: 0.75 }}>
+        {`${view.name} : ${view.kind}`}
+      </Box>
+      <Box data-testid="tool-list" role="group" aria-label="Tools" sx={{ display: 'flex', flexDirection: 'column' }}>
+        {children}
+      </Box>
+      {armed && hint ? (
+        <Box data-testid="tool-hint" sx={{ fontSize: SMALL_FONT_SIZE, color: 'text.secondary', px: 1.5, py: 0.75 }}>{hint}</Box>
+      ) : null}
+    </>
   );
 }

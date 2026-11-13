@@ -5,7 +5,7 @@
   "slices": [
     {
       "id": 1, "name": "The shell and the planes", "status": "in progress",
-      "plan": "plan/slice-1.md", "criteria": "plan/slice-1.md, section 10", "step": 10,
+      "plan": "plan/slice-1.md", "criteria": "plan/slice-1.md, section 10", "step": 11,
       "checks": [
         { "id": 1, "check": "opened from the file system in Chromium with no console error", "test": "shell.test.mjs › from file://, the page opens with no console error", "status": "pass" },
         { "id": 2, "check": "the example shows its general view on a tab", "test": "shell.test.mjs › the example shows its general view on a tab", "status": "pass" },
