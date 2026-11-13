@@ -53,39 +53,6 @@ async function bundle() {
   return module.exports;
 }
 
-let planes = null;
-/**
- * The core AND a view's store (canvas/app/src/plane/viewStore.ts) in one bundle, run in this realm, once for a test
- * file: the entry is an in-memory module that re-exports both, so the store and the session it is given share one copy
- * of the core. Its exports hold `viewStoreOf`, `viewStoresOf`, `openText`, `fit`, `FAR` and the rest of the core. The
- * store imports React Flow's types only (`import type`), which esbuild erases, so nothing of React Flow is bundled.
- */
-export function loadPlanes() {
-  planes ??= bundlePlanes();
-  return planes;
-}
-async function bundlePlanes() {
-  const result = await esbuild.build({
-    absWorkingDir: ROOT,
-    stdin: {
-      contents: "export * from './core/index'; export * from './plane/viewStore';",
-      resolveDir: path.join(ROOT, 'canvas', 'app', 'src'),
-      sourcefile: 'planes-entry.ts',
-      loader: 'ts',
-    },
-    bundle: true,
-    format: 'cjs',
-    platform: 'neutral',
-    target: 'es2022',
-    write: false,
-    logLevel: 'silent',
-  });
-  const module = { exports: {} };
-  const run = vm.runInThisContext(`(function (module, exports) {${result.outputFiles[0].text}\n})`, { filename: 'canvas/app/src/plane/viewStore.ts (bundled with the core)' });
-  run(module, module.exports);
-  return module.exports;
-}
-
 /**
  * The state files the core's tests open: the example, then every fixture, each `{ name, file, pinned }`, where pinned
  * is the file that holds the text the state file exports. A fixture's is the .sysml file beside it. The example's is
