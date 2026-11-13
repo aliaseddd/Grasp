@@ -220,7 +220,7 @@ body,
 
 /* ---- The planes -------------------------------------------------------------------------------------------------------- */
 
-/* A view's tab body. Plane.tsx sets --grasp-node-header, -head, -lead, -tail, -pad and -port on it from the adapter's
+/* A view's tab body. Plane.tsx sets --grasp-node-header, -head, -lead, -tail, -pad, -port and -row-type on it from the adapter's
    LOOK, so that each measure is written once. */
 .grasp-plane {
   position: relative;
@@ -247,6 +247,11 @@ body,
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
+}
+/* Where the keyboard's focus is, on a zoom button or the fit button: the theme's ring, inside the button. */
+.grasp-plane .react-flow__controls-button:focus-visible {
+  outline: var(--grasp-focus-width) solid var(--grasp-teal);
+  outline-offset: calc(-1 * var(--grasp-focus-width));
 }
 
 /* The five markers, once for the page, out of the layout; each takes its line's colour. */
@@ -406,8 +411,13 @@ body,
   box-sizing: border-box;
   height: var(--grasp-node-lead);
   line-height: var(--grasp-node-lead);
-  padding: 0 var(--grasp-node-pad);
-  font-size: 12px;
+  /* The adapter wraps a row to end --grasp-node-pad short of the box's side, by the font's own widths: with kerning
+     and ligatures off a row is exactly as wide as that sum. The padding at the right is less than the pad, so that a
+     row a browser draws a few pixels wider than the font's widths say is still whole. */
+  padding: 0 4px 0 var(--grasp-node-pad);
+  font-size: var(--grasp-node-row-type);
+  font-kerning: none;
+  font-variant-ligatures: none;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
@@ -437,6 +447,8 @@ body,
 .grasp-plane .grasp-small-name {
   font-size: 12px;
   fill: var(--grasp-ink);
+  /* A name takes the pointer, though its svg does not: a click on it selects its node. */
+  pointer-events: all;
 }
 .grasp-plane .grasp-small-fill {
   fill: var(--grasp-ink);

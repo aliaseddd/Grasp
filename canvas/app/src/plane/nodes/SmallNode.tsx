@@ -48,8 +48,8 @@ const Small = memo(function Small({ data, shape, width, height }: SmallViewProps
   } else if (shape === 'bullseye') {
     form = (
       <>
-        <circle className="grasp-small-outline" cx={cx} cy={cy} r={cx - 0.5} />
-        <circle className="grasp-small-fill" cx={cx} cy={cy} r={cx - 5} />
+        <circle className="grasp-small-outline" cx={cx} cy={cy} r={Math.max(0, cx - 0.5)} />
+        <circle className="grasp-small-fill" cx={cx} cy={cy} r={Math.max(0, cx - 5)} />
       </>
     );
   } else if (shape === 'entry') {

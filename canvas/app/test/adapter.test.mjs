@@ -8,6 +8,11 @@
 // OLD_LOOK the adapter must give it back. Every expected value here comes from the contract, a fixture or the old
 // page's rule, worked out by hand; where a test names a rule, the comment says where the old page has it.
 //
+// A compartment's rows are wrapped by Roboto's real widths under LOOK (plan/notes.md, session 21, "The outline: a
+// compartment's rows wrapped by the font's own widths"; rule 2 of project()'s comment), and by the old page's counts of
+// characters under OLD_LOOK. The tests of the first rule work out what they expect with textWidth() and with literal
+// rows worked out by hand beforehand; none is taken from the adapter's own output.
+//
 // The model library runs in another realm than this file: its objects are compared as JSON (plain). What the adapter
 // returns belongs to this realm.
 
@@ -21,7 +26,7 @@ import { OLD_LAYOUT, layoutHash } from './old-layout.mjs';
 const core = await loadCore();
 const {
   project, route, fit, isDrawn, notDrawnText, markerId,
-  LOOK, OLD_LOOK, MIN_ZOOM, FIT_PAD, FIT_BAND, BOX_SHAPES, BORDER_SHAPES, SHAPES, HANDLES,
+  LOOK, OLD_LOOK, ROW_LEAST, rowRoom, textWidth, robotoHas, ROBOTO_EM, ROBOTO_UNKNOWN, MIN_ZOOM, FIT_PAD, FIT_BAND, BOX_SHAPES, BORDER_SHAPES, SHAPES, HANDLES,
 } = core;
 
 // ---- What the tests open.
@@ -54,6 +59,22 @@ function hand(elements, relationships, layout) {
   });
   return { model, view: model.views[0] };
 }
+
+/**
+ * The rows of the example's Page and Host docs by Roboto's widths, worked out beforehand by a greedy wrap of a scratch
+ * script with textWidth(), a word at a time: Page in a room of 736 px (760 less 24), Host in 344 (368 less 24). Page's
+ * first row is 734.67 px wide, 1.33 under its room.
+ */
+const PAGE_ROWS = [
+  'A page with Stronghold on it: a SharePoint Server page, a SharePoint Online page, a Teams tab, or the dev page. Every Stronghold web part',
+  'on the page mounts the same app, because the first entry file to load wins (app/src/host/load-app.ts).',
+];
+const HOST_ROWS = [
+  'hosts/: the small piece of code that plugs the app into one',
+  'place. It works out where its package\'s files are, loads the entry',
+  'file with the shared loader, and calls mount. It has no settings: it',
+  'only ever loads the app from its own package.',
+];
 
 const idsOf = (model) => new Map(model.elements.map((el) => [el.id, el]));
 const nodesById = (projection) => new Map(projection.nodes.map((node) => [node.id, node]));
@@ -290,14 +311,30 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
     const projection = project(lib, EXAMPLE_MODEL, view);
     assert.deepEqual(plain(projection.look), plain(LOOK), 'A projection should keep the look it was made with, the new one by default.');
     const nodes = nodesById(projection);
-    // Host: 40 for the header, and its doc, 5 rows: a title row of 16, 5 rows of 15, 6 below.
-    assert.deepEqual([nodes.get('Host').width, nodes.get('Host').height], [368, 40 + 16 + 5 * 15 + 6], 'Host should be 368 by 137.');
-    assert.equal(nodes.get('Host').height, 137, 'Host should be 137 high.');
-    // Page: its doc ends at 107, and what it holds needs 226, under its saved 250.
+    // Host: 40 for the header, and its doc, which Roboto's widths wrap to 4 rows in the 344 px of its 368 (not the old
+    // page's 5): a title row of 16, 4 rows of 15, 6 below, 122, under its saved 130.
+    assert.equal(nodes.get('Host').data.compartments[0].lines.length, 4, 'Host\'s doc should be 4 rows at 344 px.');
+    assert.deepEqual([nodes.get('Host').width, nodes.get('Host').height], [368, Math.max(130, 40 + 16 + 4 * 15 + 6)], 'Host should be 368 by 130: its 122 under its saved 130.');
+    // A box whose rows decide its height: 80 wide (a room of 56) and 40 high, a doc of 3 rows by Roboto's widths
+    // ('one two' 42.6 px, 'six ten' 35.0, 'four five' 43.9; 'one two six' is 66 and does not fit), as against the old
+    // page's 3 other rows of 12 characters ('one two six', 'ten four', 'five'): 40 + 16 + 3 * 15 + 6 = 107, where the
+    // old measures give 40 + 18 + 3 * 15 + 6 = 109.
+    const { model: rowsModel, view: rowsView } = hand(
+      [{ id: 'R', kind: 'PartDefinition', name: 'R', doc: 'one two six ten four five' }],
+      [],
+      { R: { x: 0, y: 0, w: 80, h: 40 } },
+    );
+    const rowsBox = nodesById(project(lib, rowsModel, rowsView)).get('R');
+    same(rowsBox.data.compartments, [{ head: 'doc', lines: ['one two', 'six ten', 'four five'] }], 'R\'s doc should be 3 rows by Roboto\'s widths.');
+    assert.deepEqual([rowsBox.width, rowsBox.height], [80, 107], 'R should be 80 by 107: its header, a title row of 16, 3 rows of 15 and 6 below.');
+    const oldBox = nodesById(project(lib, rowsModel, rowsView, { look: OLD_LOOK })).get('R');
+    same(oldBox.data.compartments, [{ head: 'doc', lines: ['one two six', 'ten four', 'five'] }], 'Given the old measures R\'s doc should be wrapped to 12 characters.');
+    assert.equal(oldBox.height, 109, 'Given the old measures R should be 109 high.');
+    // Page: its doc is 2 rows now and ends at 92, and what it holds needs 226, under its saved 250.
     assert.deepEqual([nodes.get('Page').width, nodes.get('Page').height], [760, 250], 'Page should keep its saved 760 by 250.');
     // A box with neither compartment nor box inside it keeps its saved size; a port inside it makes no room.
     assert.deepEqual([nodes.get('Page.app').width, nodes.get('Page.app').height], [180, 110], 'Page.app has no doc and no box inside it, so it should keep its saved 180 by 110.');
-    assert.deepEqual([nodes.get('StrongholdApp').width, nodes.get('StrongholdApp').height], [368, 100], 'StrongholdApp should keep its saved size: its doc is two rows, and ends at 92.');
+    assert.deepEqual([nodes.get('StrongholdApp').width, nodes.get('StrongholdApp').height], [368, 100], 'StrongholdApp should keep its saved size: its doc is one row now, and ends at 77.');
     // The old measures give the old page's 139: 40 + 18 + 5 * 15 + 6.
     const old = project(lib, EXAMPLE_MODEL, view, { look: OLD_LOOK });
     assert.equal(nodesById(old).get('Host').height, 139, 'Given the old measures Host should be 139 high.');
@@ -405,15 +442,235 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
     );
     const box = nodesById(project(lib, model, view)).get('W');
     assert.equal(box.width, 300 + 180 + LOOK.pad, 'The box should grow to hold the part at x 300, 180 wide, with the pad to spare.');
-    const chars = Math.floor((220 - 2 * LOOK.pad) / LOOK.docChar);
+    // By Roboto's widths: the room is the saved 220 less a pad at each side, 196 px, not the grown 492 less 24.
+    const room = 220 - 2 * LOOK.pad;
+    assert.equal(rowRoom(LOOK, 220), room, 'The room of a box 220 wide should be 196.');
     const rows = box.data.compartments[0].lines;
     assert.equal(rows.join(' '), doc, 'The rows should hold the doc, word for word.');
+    assert.ok(rows.length > 1, 'The doc should need more than one row at 196 px.');
     rows.forEach((row, i) => {
-      assert.ok(row.length <= chars, `Row ${i + 1}, "${row}", has ${row.length} characters; the saved width of 220 holds ${chars}.`);
+      assert.ok(textWidth(row, LOOK.rowType) <= room, `Row ${i + 1}, "${row}", is ${textWidth(row, LOOK.rowType).toFixed(1)} px wide; the saved width of 220 holds ${room}.`);
       if (i + 1 < rows.length) {
-        assert.ok(`${row} ${rows[i + 1].split(' ')[0]}`.length > chars, `Row ${i + 1}, "${row}", should have taken the next word: the rows are wrapped to ${chars} characters, the saved width's count.`);
+        const taken = `${row} ${rows[i + 1].split(' ')[0]}`;
+        assert.ok(textWidth(taken, LOOK.rowType) > room, `Row ${i + 1}, "${row}", should have taken the next word: the rows are wrapped to ${room} px, the saved width's room.`);
       }
     });
+  });
+
+  // ---- A compartment's rows by the font's own widths (plan/notes.md, session 21; rule 2 of project()).
+
+  /** The width of a row of text in the page's Roboto, at the size LOOK gives a row's text. */
+  const widthOf = (text) => textWidth(text, LOOK.rowType);
+  const wordsIn = (text) => String(text).split(/\s+/).filter(Boolean);
+
+  /**
+   * Checks a compartment's rows against the three properties of rule 2, a paragraph (a line of the text) at a time, in
+   * a room `room` px wide: a row of two or more words is no wider than the room; a row that another row of its
+   * paragraph follows could not have taken that row's first word; the rows, joined, are the paragraph's words in order.
+   * A blank line is an empty row, the blank lines at the end are dropped. Returns how many rows it checked, and how
+   * many of those were followed by a row of their paragraph.
+   */
+  function checkRows(text, rows, room, where) {
+    let at = 0;
+    let checked = 0;
+    let followed = 0;
+    const paragraphs = String(text).replace(/\r\n?/g, '\n').split('\n');
+    while (paragraphs.length && paragraphs[paragraphs.length - 1].trim() === '') paragraphs.pop();
+    for (const [number, paragraph] of paragraphs.entries()) {
+      const words = wordsIn(paragraph);
+      const here = `${where}, line ${number + 1} of the text`;
+      if (words.length === 0) {
+        assert.equal(rows[at], '', `${here}: a blank line should be an empty row, not ${JSON.stringify(rows[at])}.`);
+        at += 1;
+        continue;
+      }
+      const mine = [];
+      let taken = 0;
+      while (taken < words.length) {
+        const row = rows[at + mine.length];
+        assert.ok(row !== undefined && row !== '', `${here}: the rows run out, or are blank, before the words ${JSON.stringify(words.slice(taken).join(' '))}.`);
+        const rowWords = wordsIn(row);
+        assert.equal(row, rowWords.join(' '), `${here}: the row ${JSON.stringify(row)} should have its words one space apart.`);
+        assert.deepEqual(rowWords, words.slice(taken, taken + rowWords.length), `${here}: the row ${JSON.stringify(row)} should hold the next words of the paragraph, in order.`);
+        mine.push(row);
+        taken += rowWords.length;
+      }
+      at += mine.length;
+      mine.forEach((row, i) => {
+        checked += 1;
+        if (wordsIn(row).length >= 2) {
+          assert.ok(widthOf(row) <= room, `${here}: the row ${JSON.stringify(row)} is ${widthOf(row).toFixed(2)} px wide and has two words or more; its room is ${room}.`);
+        }
+        if (i + 1 < mine.length) {
+          followed += 1;
+          const first = mine[i + 1].split(' ')[0];
+          assert.ok(widthOf(`${row} ${first}`) > room, `${here}: the row ${JSON.stringify(row)} should have taken ${JSON.stringify(first)}: it is ${widthOf(`${row} ${first}`).toFixed(2)} px wide with it, and the room is ${room}.`);
+        }
+      });
+    }
+    assert.equal(at, rows.length, `${where}: there are ${rows.length - at} more rows than the text's lines need.`);
+    return { checked, followed };
+  }
+
+  test('a compartment\'s rows are as long as the box\'s saved width allows, by Roboto\'s widths', () => {
+    let boxes = 0;
+    let checked = 0;
+    let followed = 0;
+    const seen = new Set();
+    for (const { label, model, view } of GRAPH_VIEWS) {
+      const projection = project(lib, model, view);
+      const ids = idsOf(model);
+      for (const node of projection.nodes) {
+        const compartments = node.data.compartments ?? [];
+        if (compartments.length === 0) continue;
+        const el = ids.get(node.id);
+        const saved = view.layout[node.id].w;
+        const room = Math.max(56, saved - 24);
+        assert.equal(rowRoom(LOOK, saved), room, `${label}: the room of ${node.id}, saved ${saved} wide, should be ${room}.`);
+        boxes += 1;
+        for (const compartment of compartments) {
+          seen.add(compartment.head);
+          let text;
+          if (compartment.head === 'doc') text = el.doc;
+          else if (compartment.head === 'send' || compartment.head === 'accept') {
+            const target = String(el.target ?? '').trim();
+            const word = compartment.head === 'accept' ? 'via' : lib.sendWord(model, target);
+            text = String(el.payload ?? '').trim() + (target ? ` ${word} ${target}` : '');
+          } else continue;
+          const got = checkRows(text, compartment.lines, room, `${label}: the ${compartment.head} of ${node.id} (saved ${saved} wide)`);
+          checked += got.checked;
+          followed += got.followed;
+        }
+      }
+    }
+    assert.ok(boxes >= 20, `The eleven views should hold many boxes with a compartment; only ${boxes} do.`);
+    assert.ok(checked >= 20 && followed >= 5, `The rows checked (${checked}, ${followed} followed by another of their paragraph) are too few to show the rule.`);
+    assert.ok(seen.has('doc') && seen.has('send') && seen.has('accept'), `The views should hold a doc, a send and an accept compartment; they hold ${[...seen].join(', ')}.`);
+
+    // The example's two docs, as literal rows worked out beforehand with textWidth() by a greedy wrap of a scratch
+    // script: Host in 344 px, Page in 736.
+    const nodes = nodesById(project(lib, EXAMPLE_MODEL, viewOf(EXAMPLE_MODEL, 'v-proof')));
+    same(nodes.get('Page').data.compartments[0].lines, PAGE_ROWS, 'Page\'s doc should be these 2 rows.');
+    same(nodes.get('Host').data.compartments[0].lines, HOST_ROWS, 'Host\'s doc should be these 4 rows.');
+  });
+
+  test('a word wider than its box stands on a row by itself, a blank line is an empty row, and the room is never under 56', () => {
+    const long = 'supercalifragilisticexpialidocious';
+    const { model, view } = hand(
+      [
+        // 120 wide: a room of 96. The long word is 175 px, and rows around it do not take it, nor it them.
+        { id: 'A', kind: 'PartDefinition', name: 'A', doc: `go ${long} on` },
+        // A blank line in the middle is an empty row; blank lines at the end are dropped.
+        { id: 'B', kind: 'PartDefinition', name: 'B', doc: 'one\n\ntwo\n\n\n' },
+        // 60 wide: a room of 56, not 36. At 36 px the doc would be 4 rows; at 56, 3.
+        { id: 'C', kind: 'PartDefinition', name: 'C', doc: 'an ox is in it, so go on' },
+        // 20 wide: the room is 56 all the same.
+        { id: 'D', kind: 'PartDefinition', name: 'D', doc: 'an ox is in it, so go on' },
+        // A doc of blank lines only has no compartment.
+        { id: 'E', kind: 'PartDefinition', name: 'E', doc: '\n \n' },
+      ],
+      [],
+      { A: { x: 0, y: 0, w: 120, h: 40 }, B: { x: 200, y: 0, w: 120, h: 40 }, C: { x: 400, y: 0, w: 60, h: 40 }, D: { x: 600, y: 0, w: 20, h: 40 }, E: { x: 800, y: 0, w: 120, h: 40 } },
+    );
+    // The library's normalize holds a saved width to 80 at least; a file edited by hand may say less, and the adapter
+    // reads the layout as it stands, so the narrow widths are put in after the model is made.
+    view.layout.C.w = 60;
+    view.layout.D.w = 20;
+    assert.equal(ROW_LEAST, 56, 'The least room of a row should be 56.');
+    assert.equal(rowRoom(LOOK, 120), 96, 'A box 120 wide should have a room of 96.');
+    assert.equal(rowRoom(LOOK, 60), 56, 'A box 60 wide should have a room of 56, not 36.');
+    assert.equal(rowRoom(LOOK, 20), 56, 'A box 20 wide should have a room of 56.');
+    assert.equal(rowRoom(LOOK, 80), 56, 'A box 80 wide should have a room of 56.');
+    assert.equal(rowRoom(LOOK, 81), 57, 'A box 81 wide should have a room of 57.');
+    assert.ok(widthOf(long) > 96, `The word should be wider than 96 px; it is ${widthOf(long).toFixed(1)}.`);
+    const nodes = nodesById(project(lib, model, view));
+    same(nodes.get('A').data.compartments, [{ head: 'doc', lines: ['go', long, 'on'] }], 'A word wider than its room should stand on a row by itself, and the words around it on rows of their own.');
+    same(nodes.get('B').data.compartments, [{ head: 'doc', lines: ['one', '', 'two'] }], 'A blank line should be an empty row, and blank lines at the end should be dropped.');
+    assert.equal(nodes.get('B').height, 40 + (LOOK.head + 3 * LOOK.lead + LOOK.tail) , 'B should be as high as its header and a compartment of 3 rows, the empty row counted.');
+    const three = ['an ox is in', 'it, so go', 'on'];
+    // 'an ox is in' is 53.5 px, 'an ox is in it,' would not fit 56; at a room of 36 it would be 'an ox', 'is in it,', ...
+    assert.ok(widthOf('an ox is in') <= 56 && widthOf('an ox is in') > 36, 'The first row should fit 56 px and not 36.');
+    same(nodes.get('C').data.compartments, [{ head: 'doc', lines: three }], 'A box 60 wide should wrap its rows to 56 px, not 36.');
+    same(nodes.get('D').data.compartments, [{ head: 'doc', lines: three }], 'A box 20 wide should wrap its rows to 56 px.');
+    assert.equal(nodes.get('C').height, 40 + (LOOK.head + 3 * LOOK.lead + LOOK.tail), 'C should be as high as its header and a compartment of 3 rows.');
+    assert.deepEqual([nodes.get('C').width, nodes.get('D').width], [60, 20], 'The boxes keep their saved widths: the least room is a rule of wrapping, not of size.');
+    same(nodes.get('E').data.compartments, [], 'A doc of blank lines should make no compartment.');
+  });
+
+  test('a character the font does not draw counts one em', () => {
+    // 日本語 is not in Roboto's Latin file: each character is LOOK.rowType px wide (an em at that size).
+    assert.ok(![...'日本語'].some(robotoHas), 'The font should draw none of 日本語.');
+    assert.equal(LOOK.rowType, 12, 'A row\'s text is 12 px.');
+    assert.equal(widthOf('日本語'), 36, 'Three characters the font does not draw should be 36 px wide at 12.');
+    const space = widthOf(' ');
+    // 120 wide: a room of 96. Two 36 px words and a space are 74.98 px; three would be 113.95.
+    const { model, view } = hand(
+      [
+        { id: 'K', kind: 'PartDefinition', name: 'K', doc: '日本語 日本語 日本語 日本語 日本語' },
+        { id: 'L', kind: 'PartDefinition', name: 'L', doc: '日本語日本語 日 日 日本語' },
+        // A send whose payload and target wrap by the same rule, at 120 wide: 12 px for each character, 36 per word.
+        { id: 'S', kind: 'ActionUsage', name: 'S', actionKind: 'send', payload: '日本語 日本語', target: '日本語' },
+      ],
+      [],
+      { K: { x: 0, y: 0, w: 120, h: 40 }, L: { x: 200, y: 0, w: 120, h: 40 }, S: { x: 400, y: 0, w: 120, h: 40 } },
+    );
+    near(widthOf('日本語 日本語'), 2 * 36 + space, 1e-9, 'Two words of 日本語 and a space');
+    assert.ok(widthOf('日本語 日本語') <= 96 && widthOf('日本語 日本語 日本語') > 96, 'Two such words should fit 96 px and three not.');
+    const nodes = nodesById(project(lib, model, view));
+    same(nodes.get('K').data.compartments, [{ head: 'doc', lines: ['日本語 日本語', '日本語 日本語', '日本語'] }], 'Each character the font does not draw should count 12 px, so two words of three fit a row.');
+    // 日本語日本語 is 72 px, and with a space and 日 86.98; one more 日 would be 101.95.
+    same(nodes.get('L').data.compartments, [{ head: 'doc', lines: ['日本語日本語 日', '日 日本語'] }], 'A word of six such characters, a space and one more fit 96 px; a seventh does not.');
+    // 'to' is two letters of the font: the send says "日本語 日本語 to 日本語".
+    const to = widthOf('日本語 日本語 to');
+    assert.ok(to <= 96 && widthOf('日本語 日本語 to 日本語') > 96, 'The send should wrap after "to": its first row is under 96 px and the whole is not.');
+    same(nodes.get('S').data.compartments, [{ head: 'send', lines: ['日本語 日本語 to', '日本語'] }], 'A send\'s payload and target should wrap by the same rule.');
+    assert.equal(ROBOTO_UNKNOWN, ROBOTO_EM, 'A character the font has no glyph for should count one em.');
+  });
+
+  test('a code link too wide for its box keeps the longest tail that fits behind an ellipsis', () => {
+    const whole = 'a/b.ts';
+    const cut = 'src/components/very/long/path/main.ts';
+    const { model, view } = hand(
+      [
+        { id: 'X', kind: 'PartDefinition', name: 'X', code: [{ path: whole, language: 'typescript', text: '' }, { path: cut, language: 'typescript', text: '' }] },
+        { id: 'Y', kind: 'PartDefinition', name: 'Y', code: [{ path: 'MMMMMWWWW', language: 'typescript', text: '' }] },
+      ],
+      [],
+      { X: { x: 0, y: 0, w: 120, h: 40 }, Y: { x: 400, y: 0, w: 60, h: 40 } },
+    );
+    // 120 wide: a room of 96. 'a/b.ts' is 31.5 px, so it is whole; the long path is 217 px.
+    assert.ok(widthOf(whole) <= 96, 'The short path should fit 96 px.');
+    assert.ok(widthOf(cut) > 96, 'The long path should be wider than 96 px.');
+    const got = nodesById(project(lib, model, view)).get('X').data.compartments;
+    same(got.map((c) => c.head), ['code'], 'A box with code links and no doc should have a code compartment only.');
+    const [shortRow, longRow] = got[0].lines;
+    assert.equal(shortRow, whole, 'A path that fits should be a row whole, with no ellipsis.');
+    // '…' and the longest tail of the path that fits, by hand: '…ng/path/main.ts' is 94.97 px, '…ong/path/main.ts' 101.8.
+    assert.equal(longRow, '…ng/path/main.ts', 'A path too wide should be an ellipsis and the longest tail that fits.');
+    assert.ok(widthOf(longRow) <= 96, 'The cut path should fit 96 px.');
+    assert.ok(widthOf('…' + cut.slice(cut.length - longRow.length + 1 - 1)) > 96, 'One more character of the tail should not fit.');
+    assert.equal(got[0].lines.length, 2, 'A code link is one row, never wrapped.');
+    // The least: so narrow that not even '…' and two characters fit. Here the row's text is 36 px, so that '…W' is
+    // 56.02 px and the room 56 (the least, as for any box up to 80 wide): '…' and the path's last character remain, whatever the room.
+    const big = { ...LOOK, rowType: 36 };
+    assert.ok(textWidth('…W', 36) > rowRoom(big, 60), 'An ellipsis and one W should be wider than the room, or the test shows nothing.');
+    const narrow = nodesById(project(lib, model, view, { look: big })).get('Y').data.compartments;
+    same(narrow, [{ head: 'code', lines: ['…W'] }], 'A path no tail of which fits should keep an ellipsis and its last character.');
+  });
+
+  test('textWidth is the sum of the font\'s widths', () => {
+    assert.equal(textWidth('i', 2048), 498, 'An i is 498 units of 2048 to an em.');
+    assert.equal(textWidth('', 12), 0, 'An empty string is 0 px wide.');
+    assert.equal(textWidth('il', 2048), 996, 'An i and an l are 498 units each.');
+    const text = 'Hello, World! (app/src/host/load-app.ts)';
+    const sum = [...text].reduce((total, ch) => total + textWidth(ch, 12), 0);
+    near(textWidth(text, 12), sum, 1e-9, 'A string should be as wide as its characters together');
+    near(textWidth(text, 24), 2 * textWidth(text, 12), 1e-9, 'The width should grow with the size');
+    assert.equal(textWidth('日', 12), 12, 'A character the font does not draw should be an em wide: 12 px at 12.');
+    assert.equal(textWidth('日', 2048), ROBOTO_EM, 'An em is 2048 units.');
+    assert.equal(robotoHas('a'), true, 'The font should draw an a.');
+    assert.equal(robotoHas('日'), false, 'The font should not draw 日.');
+    assert.ok(textWidth(' ', 2048) > 0, 'A space has a width.');
   });
 
   test('far leaves the words out and keeps the sizes', () => {
@@ -594,20 +851,13 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
     const projection = project(lib, EXAMPLE_MODEL, EXAMPLE_MODEL.views[0]);
     const nodes = nodesById(projection);
     const box = (keyword, name, compartments) => ({ form: 'box', far: false, keyword, name, compartments, glyph: null, least: { width: 80, height: 40 } });
-    const hostDoc = [
-      'hosts/: the small piece of code that plugs the app into',
-      'one place. It works out where its package\'s files are,',
-      'loads the entry file with the shared loader, and calls',
-      'mount. It has no settings: it only ever loads the app',
-      'from its own package.',
-    ];
     const hostEl = EXAMPLE_MODEL.elements.find((el) => el.id === 'Host');
 
-    // Host: an abstract part def, its doc in a 56-character compartment (floor((368 - 24) / 6.1)).
+    // Host: an abstract part def, its doc in a room of 344 px (368 less a pad at each side), by Roboto's widths.
     const host = nodes.get('Host');
     assert.equal(host.type, 'rect', 'A part def should be a rect.');
-    same(host.data, box('«abstract part def»', 'Host', [{ head: 'doc', lines: hostDoc }]), 'Host should say «abstract part def», Host, and its doc in 5 rows.');
-    assert.ok(host.data.compartments[0].lines.every((line) => line.length <= 56), 'Host\'s rows should be at most 56 characters.');
+    same(host.data, box('«abstract part def»', 'Host', [{ head: 'doc', lines: HOST_ROWS }]), 'Host should say «abstract part def», Host, and its doc in 4 rows.');
+    assert.ok(host.data.compartments[0].lines.every((line) => textWidth(line, LOOK.rowType) <= 344), 'Host\'s rows should be at most 344 px wide.');
     assert.equal(host.data.compartments[0].lines.join(' '), hostEl.doc.split(/\s+/).join(' '), 'Host\'s rows, joined by spaces, should give its doc\'s words.');
     assert.deepEqual(wordsOf(host).sort(), ['abstract', 'def'], 'Host\'s className should be def and abstract.');
 
@@ -617,11 +867,7 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
     assert.equal(page.data.name, 'Page', 'Page should say Page.');
     assert.equal(page.data.compartments.length, 1, 'Page should have one compartment.');
     assert.equal(page.data.compartments[0].head, 'doc', 'Page\'s compartment should be its doc.');
-    same(page.data.compartments[0].lines, [
-      'A page with Stronghold on it: a SharePoint Server page, a SharePoint Online page, a Teams tab, or the dev page. Every',
-      'Stronghold web part on the page mounts the same app, because the first entry file to load wins',
-      '(app/src/host/load-app.ts).',
-    ], 'Page\'s doc should be 3 rows of at most 120 characters (floor((760 - 24) / 6.1)).');
+    same(page.data.compartments[0].lines, PAGE_ROWS, 'Page\'s doc should be 2 rows of at most 736 px (760 less a pad at each side), by Roboto\'s widths.');
     assert.deepEqual(page.data.least, { width: 80, height: 40 }, 'A part def\'s least size is 80 by 40.');
     assert.deepEqual(wordsOf(page), ['def'], 'Page\'s className should be def.');
 
@@ -683,8 +929,8 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
     expectNode(inter, 'System.pump.ctrl', { type: 'port', parent: 'System.pump', position: { x: 64, y: -8 }, size: [16, 16], data: port('top', 'in', 'ctrl : CtrlPort', { x: 20, y: 2, anchor: 'start' }) });
 
     // An action (behavior/page.js 59-80): «action», «send action», «accept action», «entry action»; a send or accept
-    // has its compartment (129-137) and its mark. The rows hold floor((width - 24) / 6.6) characters, 22 at 170 and
-    // 20 for a doc at 150 (6.1). A compartment is 16 + 16 per row + 6 under the header's 40.
+    // has its compartment (129-137) and its mark. The rows are wrapped by Roboto's widths to the width less 24: 146 px at
+    // 170, 126 at 150. A compartment is 16 + 15 per row + 6 under the header's 40.
     const actions = fileNamed('behavior-actions.json');
     const flow = project(lib, actions, viewOf(actions, 'v-release'));
     expectNode(flow, 'Release.compile', {
@@ -692,7 +938,7 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
       data: box('«action»', 'compile', [{ head: 'doc', lines: ['webpack 5 and', 'TypeScript 5.9.'] }]), words: ['usage'],
     });
     expectNode(flow, 'Release.test', { type: 'action', parent: 'Release', position: { x: 410, y: 92 }, size: [150, 56], data: box('«action»', 'test', []) });
-    // 'new Warning() to maintainer', for maintainer is no port of this model (sendWord): two rows of at most 22.
+    // 'new Warning() to maintainer' (151.2 px), for maintainer is no port of this model (sendWord): two rows, the room being 146.
     expectNode(flow, 'Release.notify', {
       type: 'action', parent: 'Release', position: { x: 480, y: 344 }, size: [170, 40 + 16 + 2 * 15 + 6],
       data: box('«send action»', 'notify', [{ head: 'send', lines: ['new Warning() to', 'maintainer'] }], 'send'),
@@ -729,7 +975,7 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
     expectNode(machine, 'HostLifecycle.loading', { type: 'state', parent: 'HostLifecycle', position: { x: 380, y: 100 }, size: [220, 48 + (40 + 16 + 2 * 15 + 6) + 12], data: box('«state»', 'loading', []) });
     expectNode(machine, 'HostLifecycle.loading.fetchEntry', {
       type: 'action', parent: 'HostLifecycle.loading', position: { x: 20, y: 48 }, size: [180, 40 + 16 + 2 * 15 + 6],
-      data: box('«entry action»', 'fetchEntry', [{ head: 'doc', lines: ['Loads the entry file with', 'the shared loader.'] }]),
+      data: box('«entry action»', 'fetchEntry', [{ head: 'doc', lines: ['Loads the entry file with the', 'shared loader.'] }]),
     });
     // A parallel state, grown to hold its two states: 48 + 50 + 12 high.
     expectNode(machine, 'HostLifecycle.running', { type: 'state', parent: 'HostLifecycle', position: { x: 380, y: 310 }, size: [300, 110], data: box('«state» «parallel»', 'running', []) });
@@ -752,9 +998,10 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
     const docRows = code.get('Host').data.compartments[0].lines.length;
     assert.equal(code.get('Host').height, 40 + (16 + 15 * docRows + 6) + (16 + 15 + 6), 'Host should be as high as its header and its two compartments.');
 
-    // Where the limits bite, in a model made by hand. A box is wrapped to its saved width: at 80 wide a doc's rows hold
-    // at least 12 characters (layout.js 12-24, drawing.js 163-165), a send's at least 10, and a code link is cut to at
-    // least 8, with an ellipsis in front (fitPath).
+    // Where the OLD PAGE'S limits bite, in a model made by hand and given OLD_LOOK, which counts characters (the new
+    // rule's limits are those of the tests of the font's widths below). A box is wrapped to its saved width: at 80 wide
+    // a doc's rows hold at least 12 characters (layout.js 12-24, drawing.js 163-165), a send's at least 10, and a code
+    // link is cut to at least 8, with an ellipsis in front (fitPath).
     const { model, view } = hand(
       [
         { id: 'C', kind: 'PartDefinition', name: 'C', doc: 'aaaa bbbb cccc dddd', code: [{ path: 'src/a/very/long/path/main.ts', language: 'typescript', text: '' }, { path: 'a/b/c.ts', language: 'typescript', text: '' }] },
@@ -773,12 +1020,12 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
         S1: { x: 0, y: 300, w: 80, h: 40 }, S2: { x: 200, y: 300 }, S3: { x: 400, y: 300 }, S4: { x: 600, y: 300 }, S5: { x: 800, y: 300 },
       },
     );
-    const made = nodesById(project(lib, model, view));
+    const made = nodesById(project(lib, model, view, { look: OLD_LOOK }));
     same(made.get('C').data.compartments, [
       { head: 'doc', lines: ['aaaa bbbb', 'cccc dddd'] },
       { head: 'code', lines: ['…main.ts', 'a/b/c.ts'] },
     ], 'At 80 wide a doc wraps to 12 characters and a code path is cut to 8, its end kept after an ellipsis.');
-    assert.equal(made.get('C').height, 40 + (16 + 2 * 15 + 6) + (16 + 2 * 15 + 6), 'C should be as high as its header and two compartments of two rows.');
+    assert.equal(made.get('C').height, 40 + (OLD_LOOK.head + 2 * 15 + 6) + (OLD_LOOK.head + 2 * 15 + 6), 'C should be as high as its header and two compartments of two rows.');
     same(made.get('N').data.compartments, [{ head: 'doc', lines: ['one', '', 'two'] }], 'A blank line of a doc should be a row.');
     same(made.get('S1').data.compartments, [{ head: 'send', lines: ['aaaa bbbb', 'cccc'] }], 'At 80 wide a send\'s rows hold 10 characters.');
     same(made.get('S2').data.compartments, [
@@ -786,7 +1033,7 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
       { head: 'send', lines: ['go via gate'] },
       { head: 'code', lines: ['a/b/c.ts'] },
     ], 'Compartments should come in the order doc, send, code, and a send to a port should go via it.');
-    assert.equal(made.get('S2').height, 40 + 3 * (16 + 15 + 6), 'S2 should be as high as its header and three compartments of one row.');
+    assert.equal(made.get('S2').height, 40 + 3 * (OLD_LOOK.head + 15 + 6), 'S2 should be as high as its header and three compartments of one row.');
     same(made.get('S3').data.compartments, [{ head: 'send', lines: ['go to elsewhere'] }], 'A send to what is no port should go to it.');
     same(made.get('S4').data.compartments, [{ head: 'accept', lines: ['req : Req via gate'] }], 'An accept should always say via.');
     same([made.get('S5').data.compartments, made.get('S5').data.glyph, made.get('S5').height], [[], 'send', 60], 'A send with no payload and no target has no compartment, and keeps its mark.');
@@ -1000,7 +1247,9 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
 
     assert.deepEqual(plain(fit(null, 1336, 828)), { x: 0, y: 0, zoom: 1 }, 'With nothing to fit the viewport should be 100% at the origin.');
     assert.equal(fit({ x: 0, y: 0, w: 1e6, h: 1e6 }, 800, 600).zoom, MIN_ZOOM, 'Bounds too large for any zoom should fit at MIN_ZOOM.');
-    for (const [width, height] of [[90, 828], [96, 828], [1336, 200], [1336, 228], [50, 50]]) {
+    // The margins follow the window (a twelfth of its smaller side under 48), so only a window with no side at all, or
+    // one so small that its room's zoom is under MIN_ZOOM, has no room.
+    for (const [width, height] of [[0, 828], [1336, 0], [10, 10], [20, 20], [0, 0]]) {
       const got = fit(bounds, width, height);
       assert.equal(got.zoom, MIN_ZOOM, `A window ${width} by ${height} has no room, so the zoom should be exactly MIN_ZOOM.`);
       assert.ok(Number.isFinite(got.x) && Number.isFinite(got.y), `A window ${width} by ${height} should still give a viewport.`);

@@ -5,12 +5,16 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { after, afterEach, before, describe, test } from 'node:test';
+import { loadCore } from './core.mjs';
 import {
   BLANK, boxOf, cardOf, collapseSides, closePages, cssColor, EDGE, EXAMPLE, finish, frame, groundPoint, headerOf, INK, isGraph,
   launch, lib, linesOf, modelOf, near, NODE, nodeOf, openPage, openStateFile, placedOf, planeOf, rectsOf, selectBox, showView, soon,
   stateFileAt, stateFileOf, TEAL, TEN, TESTIDS, viewTab, zoomTo,
+  ROOT,
 } from './helpers.mjs';
+import { ROBOTO_TS, measureRoboto, robotoSource } from './roboto-widths.mjs';
 
+const { textWidth } = await loadCore();
 const EX = modelOf(EXAMPLE);
 const VIEW = EX.views[0];
 const LINES = linesOf(EX, VIEW).length;
@@ -343,10 +347,11 @@ describe('the planes', () => {
       await finish(opened);
     }
     assert.ok(rows > 0, 'No compartment row (.grasp-compartment-row) is drawn in any view, so nothing was checked.');
-    assert.equal(cut, 0, `${cut} rows of the ten files are cut by an ellipsis. At the old page's counts every one of their rows fits its box in Roboto (plan/notes.md, session 20).`);
+    assert.equal(cut, 0, `${cut} rows of the ten files are cut by an ellipsis. Wrapped by Roboto's widths every one of their rows fits its room (plan/notes.md, session 21).`);
 
     // No row of the ten files is too long for its box, so the rule is exercised on a part def made for it: wrapping
-    // keeps a word whole, and this doc's first word is far wider than its box.
+    // keeps a word whole, however wide, and this doc's first word is far wider than its room (a box 120 wide has a
+    // room of 96 px; the word is some 300 px), so its row stands by itself and the page cuts it with an ellipsis.
     const long = 'Pneumonoultramicroscopicsilicovolcanoconiosis';
     const state = JSON.parse(fs.readFileSync(BLANK, 'utf8'));
     const view = state.model.views[0];
@@ -364,6 +369,74 @@ describe('the planes', () => {
     }, [planeOf(view.id), long]), `The plane of ${view.name} draws no row that begins "${long}".`);
     assert.ok(row.cut, `The row "${long}" is not cut (scrollWidth > clientWidth), though the word is far wider than its 120 px box.`);
     assert.ok(row.inside, `The row "${long}" runs from ${row.row[0].toFixed(1)} to ${row.row[1].toFixed(1)}, past its box, ${row.box[0].toFixed(1)} to ${row.box[1].toFixed(1)}.`);
+    await finish(opened);
+  });
+
+  test('a row is as wide in the page as the adapter measured it, and ends a pad short of its box\'s side or sooner', async () => {
+    let rows = 0;
+    let views = 0;
+    for (const file of TEN) {
+      const model = modelOf(file);
+      const opened = await openFile(file);
+      const { page } = opened;
+      for (const view of model.views.filter(isGraph)) {
+        await showView(page, view, linesOf(model, view).length);
+        views += 1;
+        // Near, the plane is above 25%: where the fit leaves it under, zoom in on a node of the view.
+        const first = Object.keys(view.layout)[0];
+        const start = await boxOf(page, view.id, first);
+        if (start && start.zoom < 0.3) await zoomTo(page, view, first, 0.5);
+        const found = await soon(page, async () => {
+          const now = await page.evaluate((plane) => [...document.querySelectorAll(`${plane} .react-flow__node`)].map((node) => {
+            const n = node.getBoundingClientRect();
+            const zoom = node.offsetWidth ? n.width / node.offsetWidth : 1;
+            return {
+              id: node.getAttribute('data-id'),
+              zoom,
+              right: n.right,
+              rows: [...node.querySelectorAll('.grasp-compartment-row')].map((row) => {
+                const range = document.createRange();
+                range.selectNodeContents(row);
+                const r = range.getBoundingClientRect();
+                return { text: row.textContent, width: r.width, right: r.right };
+              }),
+            };
+          }), planeOf(view.id));
+          return now.length > 0 && now.every((node) => node.zoom > 0.25) ? now : null;
+        }, `The plane of ${view.name} (${file.split('/').pop()}) is not drawn above 25%.`);
+        for (const node of found) {
+          for (const row of node.rows) {
+            rows += 1;
+            const where = `the row "${row.text}" of ${node.id} in ${view.name} (${file.split('/').pop()}), at ${(node.zoom * 100).toFixed(0)}%`;
+            const wanted = textWidth(row.text, 12);
+            assert.ok(near(row.width / node.zoom, wanted, 0.5),
+              `${where} is ${(row.width / node.zoom).toFixed(2)} px wide, over the zoom; the adapter measures it at ${wanted.toFixed(2)} px (with kerning on, the page draws it narrower).`);
+            const limit = node.right - 12 * node.zoom + 0.5;
+            assert.ok(row.right <= limit,
+              `${where} ends at ${row.right.toFixed(2)}, past ${limit.toFixed(2)}: its box's right side, ${node.right.toFixed(2)}, less 12 px at this zoom, plus 0.5.`);
+          }
+        }
+      }
+      await finish(opened);
+    }
+    assert.ok(views >= 11, `Only ${views} of the eleven graph views were checked.`);
+    assert.ok(rows >= 20, `Only ${rows} rows were measured; the ten files hold many more.`);
+  });
+
+  test('the table of widths is what the page\'s font gives', async () => {
+    const opened = await openPage(browser, { picker: false });
+    const { page } = opened;
+    const version = JSON.parse(fs.readFileSync(`${ROOT}/node_modules/@fontsource/roboto/package.json`, 'utf8')).version;
+    const { widths } = await measureRoboto(page);
+    assert.ok(widths.length > 200, `Chromium gave the widths of only ${widths.length} characters.`);
+    const made = robotoSource(widths, version);
+    const kept = fs.readFileSync(ROBOTO_TS, 'utf8');
+    if (made !== kept) {
+      const a = made.split('\n');
+      const b = kept.split('\n');
+      const at = a.findIndex((line, i) => line !== b[i]);
+      assert.fail(`canvas/app/src/core/roboto.ts is not what the page's Roboto gives. First difference at line ${at + 1}: the font gives ${JSON.stringify(a[at])}, the file has ${JSON.stringify(b[at])}.`);
+    }
     await finish(opened);
   });
 

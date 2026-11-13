@@ -2948,3 +2948,55 @@ The tests, written before the rule is built (today `LOOK` still wraps by the cou
 | 6 | given the old page's measures, rows are still wrapped by the old page's counts (the two tests of the old layout, which stand) | `OLD_LOOK` given `rowType` 12 |
 | `plane.test.mjs` 1 | a row is as wide in the page as the adapter measured it, and ends `pad` short of its box's side or sooner | `font-kerning: none` taken out of `app.css` |
 | 2 | the table of widths is what the page's font gives | a width changed in `roboto.ts` |
+
+**The tests, written** by one agent in a worktree at the outline's commit (6.1 min, 33 tool calls), while the rule was
+built apart from it, by my hand: `wrapWidth` and `fitTail` in `adapter.ts`, 40 lines, and four lines of `app.css`.
+Against the outline, 9 of the tests failed for the count and three passed, as they must: the table is final, so
+`textWidth` and the table's own test are checked by breaking a width, and the two tests of the old layout stand (given
+`rowType` 12, `OLD_LOOK` fails both). The writer checked its tests against a throwaway rule of its own; taken into the
+main tree they met mine for the first time: `adapter.test.mjs` 28 of 28, `plane.test.mjs` 19 of 19. Two rules written
+apart agree on every row of the eleven views.
+
+- Four existing tests pinned the count under `LOOK` and are restated by the contract: the rows' distance (`Host` is
+  now its saved 130 high with a doc of 4 rows, where the count gave 5 rows and 137; a box made for the test shows
+  the title row, 107 high against the old measures' 109), the box grown past its saved width, what the example's
+  boxes say (the rows of `Page` and `Host` pinned as text, worked out by the writer's own greedy wrap), and the
+  fixtures' rows. The narrow limits of 12, 10 and 8 characters are the old page's, and are now tested under
+  `OLD_LOOK`.
+- `Page`'s doc is 2 rows where it was 3, its first row 734.67 px in a room of 736; `StrongholdApp`'s is 1.
+- "At least the path's last character" cannot be reached at 12 px, where `…` and two characters always fit 56 px:
+  its test gives a look of its own, `rowType` 36.
+- `lib.normalize` lifts a saved width to 80, so the least room is tested on a layout changed after it.
+
+### What the reviews found, and what was done
+
+Three readings of step 6 came in this session: session 20's own reviewer, whose eight findings that session wrote
+down above ("Step 6: the independent review") from a container that still ran; a second reviewer of this session, on
+the same model, given the diff and the files' own contracts (16 min, 51 tool calls); and the reviewer of
+`example.png`. The second found no wrong drawing for a model the library has normalized.
+
+| Finding | From | What was done |
+|---|---|---|
+| A view fitted into a small plane stays tiny: a floated tab passes through 100 by 244, a pane 208 high has no room at all, and the margins keep 228 px free whatever the plane's size | both | `fitMargins(width, height)`: `pad` is 48 or a twelfth of the plane's smaller side, whichever is less; `band` is 180 only where the minimap is shown, else `pad`. `store.sized(width, height)`: a view that is still as fitted is fitted again when its plane's size changes; one somebody has panned or zoomed stays, until Fit. A floated tab of 298 by 244 now shows the whole example, at 21.9% |
+| After a split or a change of the window's size the view stays cut off | session 20 | the same `sized`: a fitted view follows its plane. The contract's "a later change of size fits nothing" is gone |
+| Under 256 px of width the minimap covers the zoom buttons | session 20 | `hasMinimap(width, height)`: only in a plane at least 480 by 480 |
+| A port's name takes no click, and a click on it lets the selection go | session 20 | a border item's name and a small node's name take the pointer; a click selects their node |
+| The control buttons show the browser's focus ring | session 20 | the theme's ring, inside the button |
+| A name or a label leaves the plane while still in the window: React Flow culls a node by its own rectangle and a line by its two nodes', with no margin, and a port's name, a control node's name and a line's label stand outside those | this session | a view is culled only when it has more than 300 nodes (`CULL_OVER` in `Plane.tsx`). A larger view, near, still loses a name at the window's edge a moment early: React Flow has no margin to give |
+| `Plane` read `store.drawn` once: a view whose kind changes, or that leaves the model, kept an empty React Flow | this session | `store.watch(listener)`, called when `drawn` changes; it does not make a store live, so a hidden tab still costs nothing |
+| One store's projection throwing kept the session's other stores from hearing the change | this session | each store hears it; the first error goes on to the history, which reports it. A place that is not an object is no longer read (`layout[id] = null` threw) |
+| Shift with a drag drew React Flow's selection rectangle, which then lay over the boxes and took their clicks | this session | `selectionKeyCode={null}` until step 9 gives the marquee its meaning |
+| A press that moved 2 px before its release panned and selected nothing | this session | `paneClickDistance={4}`. The view still moves those pixels: a press on a box pans the ground until step 7 |
+| A bullseye saved with no size logged two errors (a negative radius) | this session | the radii are never under 0. No test: `normalize` gives every place a size, so no file reaches it |
+| Rule 1 said "one node for each element the layout places" and the code, like the old page, leaves several out | this session | the rule now names them |
+
+Left as they are, and why. **To step 8:** the pan limit does not hold with the minimap drawn (session 20's
+measurements). **To step 7:** the scale test's drag check passes with nothing dragged, so step 7 must see it fail
+first. **Known and kept:** the build defines `NODE_ENV` as production, so React's and React Flow's own warnings cannot
+be seen by "nothing logged"; a selection is lost when a view is removed and the removal undone; a view whose first
+fit is far projects twice as it mounts; a store whose projection throws shows what it showed until the next change
+(it is not asked again at the next read, which is React's render, where a throw takes the page down); in a plane too
+small for the minimap the zoom buttons stand over a fitted view's bottom left corner.
+
+Tried and put back: the reviewer's "set `stale` only after `project` returns". A stale store is projected at every
+read, and React reads in its render.

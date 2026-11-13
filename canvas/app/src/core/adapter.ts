@@ -139,10 +139,29 @@ export const FAR = 0.25;
 /** A plane's zoom limits, which the fit and React Flow share. */
 export const MIN_ZOOM = 0.02;
 export const MAX_ZOOM = 4;
-/** What a fitted view keeps free at the window's left, right and top: the old page's frame margin. */
+/** The most a fitted view keeps free at the window's left, right and top: the old page's frame margin. */
 export const FIT_PAD = 48;
-/** What a fitted view keeps free at the bottom, where the zoom buttons and the minimap stand: 15 + 150 + 15. */
+/** What a fitted view keeps free at the bottom while the minimap is shown, where it and the zoom buttons stand: 15 + 150 + 15. */
 export const FIT_BAND = 180;
+/** The minimap's size on a plane. */
+export const MINIMAP = { width: 200, height: 150 } as const;
+/** The least plane the minimap is shown in. In a narrower one it would cover the zoom buttons or most of the view. */
+export const MINIMAP_LEAST = { width: 480, height: 480 } as const;
+
+/** Whether a plane `width` by `height` shows the minimap: when it is at least MINIMAP_LEAST each way. */
+export function hasMinimap(width: number, height: number): boolean {
+  return width >= MINIMAP_LEAST.width && height >= MINIMAP_LEAST.height;
+}
+
+/**
+ * What a fitted view keeps free in a plane `width` by `height`: `pad` at the left, the right and the top, and `band`
+ * at the bottom. `pad` is FIT_PAD, or a twelfth of the plane's smaller side (rounded down) where that is less, so
+ * that a small plane is not all margin. `band` is FIT_BAND where the plane shows the minimap (hasMinimap), else `pad`.
+ */
+export function fitMargins(width: number, height: number): { pad: number; band: number } {
+  const pad = Math.min(FIT_PAD, Math.max(0, Math.floor(Math.min(width, height) / 12)));
+  return { pad, band: hasMinimap(width, height) ? FIT_BAND : pad };
+}
 
 // ---- What crosses to the store and to React Flow.
 
@@ -311,6 +330,48 @@ function fitPath(path: string, chars: number): string {
   return path.length <= chars ? path : '…' + path.slice(path.length - chars + 1);
 }
 
+/**
+ * The rows of a text in a room `room` wide, by the font's own widths at `px`: as many whole words to a row as fit,
+ * one space apart; a word wider than the room on a row by itself. Paragraphs, blank rows and the end as `wrap` has them.
+ */
+function wrapWidth(text: unknown, room: number, px: number): string[] {
+  const space = textWidth(' ', px);
+  const out: string[] = [];
+  for (const para of String(text || '').replace(/\r\n?/g, '\n').split('\n')) {
+    let line = '';
+    let width = 0;
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      const w = textWidth(word, px);
+      if (line && width + space + w > room) {
+        out.push(line);
+        line = word;
+        width = w;
+      } else {
+        width = line ? width + space + w : w;
+        line = line ? line + ' ' + word : word;
+      }
+    }
+    if (line || !para.trim()) out.push(line);
+  }
+  while (out.length && !out[out.length - 1]) out.pop();
+  return out;
+}
+
+/** A path in a room `room` wide: whole when it fits, else `…` and its longest tail that fits with it, a character at least. */
+function fitTail(path: string, room: number, px: number): string {
+  if (textWidth(path, px) <= room) return path;
+  const chars = [...path];
+  let width = textWidth('…', px);
+  let from = chars.length;
+  while (from > 0) {
+    const w = textWidth(chars[from - 1], px);
+    if (width + w > room && from < chars.length) break;
+    width += w;
+    from--;
+  }
+  return '…' + chars.slice(from).join('');
+}
+
 /** Whether two values read the same, by value: plain data only, which is what a node's `data` holds. */
 function sameValue(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -411,9 +472,11 @@ function portName(side: Side, way: Point | null, port: number): BorderData['name
 /** What an element's compartments hold in a box `width` wide: doc, then send or accept, then code. */
 function compartmentsOf(lib: SysMLModelLibrary, model: Model, el: ModelElement, row: KindRow, width: number, look: Look): Compartment[] {
   const out: Compartment[] = [];
+  const px = look.rowType;
+  const room = rowRoom(look, width);
   const doc = str(el.doc);
   if (row.fields.includes('doc') && doc.trim() !== '') {
-    const lines = wrap(doc, Math.max(12, Math.floor((width - 2 * look.pad) / look.docChar)));
+    const lines = px ? wrapWidth(doc, room, px) : wrap(doc, Math.max(12, Math.floor((width - 2 * look.pad) / look.docChar)));
     if (lines.length) out.push({ head: 'doc', lines });
   }
   if (el.kind === 'ActionUsage' && (el.actionKind === 'send' || el.actionKind === 'accept')) {
@@ -421,7 +484,8 @@ function compartmentsOf(lib: SysMLModelLibrary, model: Model, el: ModelElement, 
     const target = str(el.target).trim();
     if (payload || target) {
       const word = el.actionKind === 'accept' ? 'via' : lib.sendWord(model, target);
-      const lines = wrap(payload + (target ? ' ' + word + ' ' + target : ''), Math.max(10, Math.floor((width - 2 * look.pad) / look.codeChar)));
+      const said = payload + (target ? ' ' + word + ' ' + target : '');
+      const lines = px ? wrapWidth(said, room, px) : wrap(said, Math.max(10, Math.floor((width - 2 * look.pad) / look.codeChar)));
       if (lines.length) out.push({ head: el.actionKind, lines });
     }
   }
@@ -429,7 +493,7 @@ function compartmentsOf(lib: SysMLModelLibrary, model: Model, el: ModelElement, 
     const chars = Math.max(8, Math.floor((width - 2 * look.pad) / look.codeChar));
     const lines = (el.code as unknown[]).map((link) => {
       const path = link && typeof link === 'object' ? str((link as { path?: unknown }).path) : '';
-      return fitPath(path.trim() || '(no path)', chars);
+      return px ? fitTail(path.trim() || '(no path)', room, px) : fitPath(path.trim() || '(no path)', chars);
     });
     out.push({ head: 'code', lines });
   }
@@ -474,7 +538,8 @@ function build(lib: SysMLModelLibrary, model: Model, view: ModelView, far: boole
   const shown = new Set<string>();
   for (const id of Object.keys(layout)) {
     const el = ids.get(id);
-    if (el && lib.KINDS[el.kind]) shown.add(id);
+    const lay: unknown = layout[id];
+    if (el && lib.KINDS[el.kind] && lay !== null && typeof lay === 'object') shown.add(id);
   }
   if (shown.size === 0) return none;
 
@@ -663,8 +728,11 @@ function sameEdge(a: PlaneEdge, b: PlaneEdge): boolean {
 /**
  * Projects one view of the model: the plan's six rules.
  *
- * 1. One node for each element the view's layout places, whose id names an element; owners before what they hold; a
- *    box's parent is its nearest owner that the view shows.
+ * 1. One node for each element the view's layout places, owners before what they hold; a box's parent is its
+ *    nearest owner that the view shows. As on the old page, nothing is drawn for a place that is not an object or
+ *    whose id names no element, for an element of a kind the library has no row for, for a border item with no
+ *    shown owner, for anything whose nearest shown owner is a border item, or for elements that own each other in a
+ *    ring; nor for a line with such an end.
  * 2. A box's position is its saved x, y. Its size is its saved w, h, or more: with the shape's header (BOX_SHAPES)
  *    and its compartments, `header + sum(head + lead * rows + tail)` high; and to hold each box inside it,
  *    `x + w + pad` wide and `y + h + pad` high, each inner box at its own grown size (graphLayout's size()).
@@ -760,17 +828,19 @@ export function route(how: 'straight' | 'elbow', a: End, b: End, look: Look = LO
 
 /**
  * The viewport that fits `bounds` into a window `width` by `height`: at no more than 100% and no less than MIN_ZOOM,
- * FIT_PAD clear of the window's left, right and top and FIT_BAND clear of its bottom, centred in the room that
- * leaves. With nothing to fit (`bounds` null), 100% at the origin. A window too small for any room fits at MIN_ZOOM.
+ * clear of the window's sides by fitMargins(width, height) (`pad` at the left, the right and the top, `band` at the
+ * bottom), centred in the room that leaves. With nothing to fit (`bounds` null), 100% at the origin. A window too
+ * small for any room fits at MIN_ZOOM.
  */
 export function fit(bounds: Rect | null, width: number, height: number): Viewport {
   if (!bounds) return { x: 0, y: 0, zoom: 1 };
-  const roomW = width - 2 * FIT_PAD;
-  const roomH = height - FIT_PAD - FIT_BAND;
+  const { pad, band } = fitMargins(width, height);
+  const roomW = width - 2 * pad;
+  const roomH = height - pad - band;
   const zoom = roomW <= 0 || roomH <= 0 ? MIN_ZOOM : Math.max(MIN_ZOOM, Math.min(1, roomW / bounds.w, roomH / bounds.h));
   return {
-    x: FIT_PAD + (roomW - bounds.w * zoom) / 2 - bounds.x * zoom,
-    y: FIT_PAD + (roomH - bounds.h * zoom) / 2 - bounds.y * zoom,
+    x: pad + (roomW - bounds.w * zoom) / 2 - bounds.x * zoom,
+    y: pad + (roomH - bounds.h * zoom) / 2 - bounds.y * zoom,
     zoom,
   };
 }
