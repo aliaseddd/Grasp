@@ -10,12 +10,15 @@
 // compartmentsOf, portName and the far form in canvas/src/core/page/drawing.js; the item's line in
 // canvas/src/interconnection/page.js; the action's and the state's lines, the send or accept compartment and the
 // control nodes in canvas/src/behavior/page.js; the code compartment in canvas/src/annotations/page.js; the event in
-// canvas/src/sequence/page.js. Two measures differ from the old page's, both in Look: a compartment's title row, 16
-// where the old page has 18, and `snap`, which draws an elbow between two boxes a few pixels out of line as one
-// straight stroke. Given OLD_LOOK, project() and route() give the old page's rectangles and points exactly.
+// canvas/src/sequence/page.js. Three measures differ from the old page's, all in Look: a compartment's title row, 16
+// where the old page has 18; `snap`, which draws an elbow between two boxes a few pixels out of line as one straight
+// stroke; and `rowType`, by which a compartment's rows are as long as their box is wide, by Roboto's own widths
+// (core/roboto.ts), where the old page counts characters. Given OLD_LOOK, project() and route() give the old page's
+// rectangles and points exactly.
 
 import type { Edge, Node, Position } from '@xyflow/react';
 import type { Model, ModelElement, ModelRelationship, ModelView, Place } from './history';
+import { textWidth } from './roboto';
 
 // ---- The model library, as far as the adapter reads it.
 
@@ -98,9 +101,15 @@ export type Look = {
   childTop: number;
   /** The side of a border item's square. */
   port: number;
-  /** A doc's rows hold floor((the box's saved width - 2 * pad) / docChar) characters, at least 12. */
+  /**
+   * The size, in px, of the text of a compartment's rows, which the page draws in Roboto regular with kerning and
+   * ligatures off. A row is then as long as its box allows: rowRoom() wide at most, by textWidth() of core/roboto.ts.
+   * 0 is the old page's rule instead, a count of characters by docChar and codeChar.
+   */
+  rowType: number;
+  /** With rowType 0: a doc's rows hold floor((the box's saved width - 2 * pad) / docChar) characters, at least 12. */
   docChar: number;
-  /** A send or accept's rows hold as many by codeChar, at least 10; a code link is cut to as many, at least 8. */
+  /** With rowType 0: a send or accept's rows hold as many by codeChar, at least 10; a code link is cut to as many, at least 8. */
   codeChar: number;
   /**
    * How far out of line the two ends of an elbow may be and still be joined by one straight stroke, which then runs
@@ -111,8 +120,19 @@ export type Look = {
 
 // The rows stay the old page's 15 apart, not the 16 of plan/slice-1.md, section 4: the saved files were laid out for
 // 15, and in the example `hosts` sits straight under `Page`'s three doc rows (plan/notes.md, session 20).
-export const LOOK: Look = { header: 40, head: 16, lead: 15, tail: 6, pad: 12, childTop: 48, port: 16, docChar: 6.1, codeChar: 6.6, snap: 4 };
-export const OLD_LOOK: Look = { ...LOOK, head: 18, snap: 0 };
+export const LOOK: Look = { header: 40, head: 16, lead: 15, tail: 6, pad: 12, childTop: 48, port: 16, rowType: 12, docChar: 6.1, codeChar: 6.6, snap: 4 };
+export const OLD_LOOK: Look = { ...LOOK, head: 18, snap: 0, rowType: 0 };
+
+/** The least room a row is wrapped to, whatever its box's saved width: the room of the narrowest box, 80 wide. */
+export const ROW_LEAST = 56;
+
+/**
+ * The room of a compartment's row in a box whose saved width is `width`, when rows are wrapped by the font's widths
+ * (look.rowType is not 0): the width less `pad` at each side, and at least ROW_LEAST.
+ */
+export function rowRoom(look: Look, width: number): number {
+  return Math.max(ROW_LEAST, width - 2 * look.pad);
+}
 
 /** Below this zoom a plane is far: a box is its outline, and names and labels are left out. */
 export const FAR = 0.25;
@@ -648,7 +668,14 @@ function sameEdge(a: PlaneEdge, b: PlaneEdge): boolean {
  * 2. A box's position is its saved x, y. Its size is its saved w, h, or more: with the shape's header (BOX_SHAPES)
  *    and its compartments, `header + sum(head + lead * rows + tail)` high; and to hold each box inside it,
  *    `x + w + pad` wide and `y + h + pad` high, each inner box at its own grown size (graphLayout's size()).
- *    Compartments are wrapped by a count of characters to the box's saved width, not its grown one.
+ *    Compartments are wrapped to the box's saved width, not its grown one. With `look.rowType` (LOOK), by the font's
+ *    own widths: a row of a doc, or of a send or accept, holds as many whole words, one space apart, as are together
+ *    no wider than rowRoom(look, the saved width) by textWidth(row, look.rowType); a word wider than that stands on a
+ *    row by itself, which the page cuts with an ellipsis; a line break in the text ends a row, a blank line is an
+ *    empty row, and the blank rows at the end are dropped. A code link is one row and is never wrapped: its path
+ *    whole when that is no wider than the room, else `…` and the longest tail of the path that is, with the `…`, no
+ *    wider than the room (at least the path's last character). With `look.rowType` 0 (OLD_LOOK), by the old page's
+ *    counts of characters, docChar and codeChar.
  * 3. A border item is a child node of its owner: its square, `look.port` a side, centred on the owner's border at
  *    `at` along its `side` (portRect).
  * 4. One edge for each relationship that is not hidden and has both ends placed. Its route, marker, class, label and

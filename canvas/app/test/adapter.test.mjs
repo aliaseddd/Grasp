@@ -542,6 +542,54 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
     assert.deepEqual(plain(route('elbow', a, box(150, 220, 100, 50))), plain(route('straight', a, box(150, 220, 100, 50))), 'An elbow between boxes that overlap should be the straight line.');
   });
 
+  test('an elbow whose ends are no more than `snap` out of line is one straight stroke, at the far end\'s centre', () => {
+    const box = (x, y, w, h) => ({ x, y, w, h, border: false });
+    const points = (got, want, label) => same(got.points.map((p) => [p.x, p.y]), want, `${label}: the line's points`);
+    assert.equal(LOOK.snap, 4, 'The new page joins ends up to 4 out of line.');
+    assert.equal(OLD_LOOK.snap, 0, 'The old page has no such rule.');
+
+    // a is (100, 200, 100, 50): centre (150, 225). b's centre is `off` to the side of it.
+    const a = box(100, 200, 100, 50);
+    const below = (off) => box(100 + off, 400, 100, 50);
+    const above = (off) => box(100 + off, 0, 100, 50);
+    const right = (off) => box(400, 200 + off, 100, 50);
+    const left = (off) => box(-300, 200 + off, 100, 50);
+    for (const off of [1, 2, 4, -1, -4]) {
+      points(route('elbow', a, below(off)), [[150 + off, 250], [150 + off, 325], [150 + off, 325], [150 + off, 400]], `b below, ${off} out of line`);
+      points(route('elbow', a, above(off)), [[150 + off, 200], [150 + off, 125], [150 + off, 125], [150 + off, 50]], `b above, ${off} out of line`);
+      points(route('elbow', a, right(off)), [[200, 225 + off], [300, 225 + off], [300, 225 + off], [400, 225 + off]], `b to the right, ${off} out of line`);
+      points(route('elbow', a, left(off)), [[100, 225 + off], [-50, 225 + off], [-50, 225 + off], [-200, 225 + off]], `b to the left, ${off} out of line`);
+      // The middle, where a label goes, is on the stroke.
+      nearPoint(route('elbow', a, below(off)).mid, { x: 150 + off, y: 325 }, 1e-9, `b below, ${off} out of line: the middle`);
+      nearPoint(route('elbow', a, right(off)).mid, { x: 300, y: 225 + off }, 1e-9, `b to the right, ${off} out of line: the middle`);
+    }
+    // One more than `snap`, and the step is drawn, as on the old page.
+    for (const off of [5, -5, 4.5]) {
+      points(route('elbow', a, below(off)), [[150, 250], [150, 325], [150 + off, 325], [150 + off, 400]], `b below, ${off} out of line`);
+      points(route('elbow', a, right(off)), [[200, 225], [300, 225], [300, 225 + off], [400, 225 + off]], `b to the right, ${off} out of line`);
+    }
+    // In line already: the same either way. Out of line the other way (a box below is not moved sideways for its height).
+    points(route('elbow', a, below(0)), [[150, 250], [150, 325], [150, 325], [150, 400]], 'b below, in line');
+    points(route('elbow', a, box(300, 402, 100, 50)), [[150, 250], [150, 326], [350, 326], [350, 402]], 'b below and far to the right');
+    // Given the old page's measures, or a look of one's own, the rule is that look's.
+    points(route('elbow', a, below(2), OLD_LOOK), [[150, 250], [150, 325], [152, 325], [152, 400]], 'b below, 2 out of line, by the old page\'s measures');
+    points(route('elbow', a, right(-3), OLD_LOOK), [[200, 225], [300, 225], [300, 222], [400, 222]], 'b to the right, 3 out of line, by the old page\'s measures');
+    points(route('elbow', a, below(9), { ...LOOK, snap: 10 }), [[159, 250], [159, 325], [159, 325], [159, 400]], 'b below, 9 out of line, given a snap of 10');
+    // A straight line is not an elbow: `snap` leaves it alone.
+    same(route('straight', a, below(2)), route('straight', a, below(2), OLD_LOOK), 'A straight line is the same whatever `snap` is.');
+
+    // The example: `hosts` is 2 to the right of `Host`, and its defined-by line comes down in one stroke at Host's centre.
+    const view = viewOf(EXAMPLE_MODEL, 'v-proof');
+    const lineOf = (look) => linesOf(project(lib, EXAMPLE_MODEL, view, { look }), look).find((line) => line.id === 't-hosts').points;
+    same(lineOf(LOOK), [[216, 286], [216, 343], [216, 343], [216, 400]], 'The line from hosts to Host, by the new measures');
+    same(lineOf(OLD_LOOK), [[218, 286], [218, 343], [216, 343], [216, 400]], 'The line from hosts to Host, by the old page\'s measures');
+    // Its other elbows, further out of line, keep their turns: `app` to `App`, and the three specializations.
+    const stepped = linesOf(project(lib, EXAMPLE_MODEL, view), LOOK).filter((line) => new Set(line.points.map((p) => p[0])).size > 1 && new Set(line.points.map((p) => p[1])).size > 1);
+    same(stepped.map((line) => line.id).sort(), linesOf(project(lib, EXAMPLE_MODEL, view, { look: OLD_LOOK }), OLD_LOOK)
+      .filter((line) => line.id !== 't-hosts' && new Set(line.points.map((p) => p[0])).size > 1 && new Set(line.points.map((p) => p[1])).size > 1).map((line) => line.id).sort(),
+    'Only the line from hosts to Host loses its turn.');
+  });
+
   test('what the example\'s boxes and ports say', () => {
     const projection = project(lib, EXAMPLE_MODEL, EXAMPLE_MODEL.views[0]);
     const nodes = nodesById(projection);

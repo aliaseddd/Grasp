@@ -73,9 +73,15 @@ function watchSwitch() {
   new MutationObserver(look).observe(document, { childList: true, subtree: true });
 }
 
-/** The verdict of one measure: its median must be under `limit`. */
-const verdict = (m, limit, what) => assert.ok(m.median < limit,
-  `${what}: the median of ${m.samples.length} samples is ${m.median.toFixed(1)} ms, not under ${limit} ms. The samples, in ms: ${m}.`);
+/**
+ * The verdict of one measure: its median must be under `limit`. Passing or failing, the test says its median and its
+ * samples (a `#` line of the runner's output), so that a run of the whole suite shows what the other files cost it.
+ */
+const verdict = (t, m, limit, what) => {
+  t.diagnostic(`${what}: median ${m.median.toFixed(1)} ms of ${m.samples.length} samples (${m}), limit ${limit} ms`);
+  assert.ok(m.median < limit,
+    `${what}: the median of ${m.samples.length} samples is ${m.median.toFixed(1)} ms, not under ${limit} ms. The samples, in ms: ${m}.`);
+};
 
 describe('how fast the page answers', () => {
   let browser;
@@ -83,7 +89,7 @@ describe('how fast the page answers', () => {
   afterEach(() => closePages(browser));
   after(async () => { await browser?.close(); });
 
-  test('the page is ready in under 500 ms', async () => {
+  test('the page is ready in under 500 ms', async (t) => {
     const m = measure(5, READY_LIMIT);
     while (!m.settled) {
       const opened = await openPage(withInit(browser, recordReady));
@@ -92,10 +98,10 @@ describe('how fast the page answers', () => {
       m.add({ total: await page.evaluate(() => window.__ready) });
       await finish(opened);
     }
-    verdict(m, READY_LIMIT, 'From the start of the navigation to the first painted frame with the top bar');
+    verdict(t, m, READY_LIMIT, 'From the start of the navigation to the first painted frame with the top bar');
   });
 
-  test('the example is drawn within 1 s of the file being given', async () => {
+  test('the example is drawn within 1 s of the file being given', async (t) => {
     const model = modelOf(EXAMPLE);
     const view = model.views[0];
     const nodes = Object.keys(view.layout).length;
@@ -114,10 +120,10 @@ describe('how fast the page answers', () => {
       m.add({ total: at - given });
       await finish(opened);
     }
-    verdict(m, DRAWN_LIMIT, `From the example being given to the painted frame with its ${nodes} nodes and ${edges} lines`);
+    verdict(t, m, DRAWN_LIMIT, `From the example being given to the painted frame with its ${nodes} nodes and ${edges} lines`);
   });
 
-  test('a switch between the two tabs of the interconnection fixture takes under 100 ms', async () => {
+  test('a switch between the two tabs of the interconnection fixture takes under 100 ms', async (t) => {
     const file = TEN.find((name) => name.endsWith('interconnection.json'));
     const model = modelOf(file);
     const views = model.views;
@@ -144,6 +150,6 @@ describe('how fast the page answers', () => {
       m.add({ total: at - start });
     }
     await finish(opened);
-    verdict(m, SWITCH_LIMIT, 'From the pointerdown on a tab to the painted frame with the other view\'s nodes and lines');
+    verdict(t, m, SWITCH_LIMIT, 'From the pointerdown on a tab to the painted frame with the other view\'s nodes and lines');
   });
 });

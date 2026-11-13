@@ -2881,3 +2881,70 @@ on a pan and nothing projected. A switch of tab there takes 0.5 to 1.4 s, and cr
   click, the teal ring on the controls. 1 and 6 belong to steps 8 and 7.
 - A test of `Look.snap`; the timed tests' breakages; three runs of `npm test` in a row.
 - Pull request #46 carries the branch.
+## Session 21, November 13, 2026: step 6 closed
+
+On `claude/pensive-rubin-sjrv3g`. The baseline, in this container (Node 22.23.4): `npm ci` 13 s; `npm run check` passes;
+`npm test` gives 135 tests, 130 pass, 0 fail, 5 todo, in 35 s, as session 20 left it.
+
+### The branch: step 6 was merged into main and reverted there
+
+Pull request #46 merged this branch into `main` at 08:05 UTC, a minute after session 20's last commit (`fdcfb64`),
+while step 6 still had its reviews open; pull request #47 reverted the merge at 08:06. So `main` (`488d11d`) holds
+`fdcfb64` in its history and none of step 6 in its files, session 20's notes among them. A later merge of this branch
+would then leave step 6's files out, since `main` counts `fdcfb64` as merged. The branch is therefore moved forward onto
+`main` (a fast-forward, nothing rewritten) and one commit, `e191ddf`, reverts the revert: its tree is `fdcfb64`'s, byte
+for byte. The session's work is on top of it, and the branch's difference from `main` is the whole of step 6.
+
+A worktree an agent is given by the harness (`isolation: worktree`) is made from `main`, not from this branch: the
+first agent of the session found no step 6 in its worktree, and stopped. A worktree for an agent is made by hand, from
+the branch's commit (`git worktree add --detach <path> <commit>`, outside the repository's folder), and removed after.
+
+### What Damon decided
+
+Asked on November 13, with the retaken `example.png` rated by a reviewer that saw only the image and its list:
+
+1. **Item 6 of `example.png`'s list, "three hollow triangles pointing at `Host`".** The shared triangle counts. The
+   three specializations are drawn as the old page draws them, three lines that join into one trunk with one hollow
+   triangle at `Host`'s bottom middle, and the item is read as "the three specializations end in a hollow triangle at
+   `Host`". No rule spreads lines that arrive at one point. `plan/slice-1.md` is not rewritten; this is the place that
+   says how the item is read.
+2. **The score of 3 for alignment and spacing.** Doc text is wrapped by Roboto's real widths now, not by the old
+   page's count of characters; the image is rated once more, that score is recorded, and step 6 closes. The routing
+   of lines and the places of a connection's name and of the ports' names stay the old page's.
+
+### The outline: a compartment's rows wrapped by the font's own widths
+
+A departure from session 17's design ("Compartment text is wrapped in the adapter by character count, as `graphLayout`
+does") and from session 20's finding ("So the old page's counts are kept"), on Damon's word. What stays of that design:
+a box's height is known without the DOM, in Node as in the page, and a row is plain text.
+
+- **`canvas/app/src/core/roboto.ts`** holds Roboto regular's advance width for each of the 230 characters the page's
+  font file draws, in units of 1/2048 em, and `textWidth(text, px)`, their sum; a character the file has no glyph
+  for counts one em. It is written by **`canvas/app/test/roboto-widths.mjs`** (`node canvas/app/test/roboto-widths.mjs`,
+  2 s; `--check` fails when the file is not what the font gives), which opens the built page and asks Chromium for
+  each width at a font size of 2048 px with kerning off. Neither file is in the plan's list.
+- **Why a table is exact.** Measured in this Chromium at device scales 1, 1.25, 1.5 and 2, plain and under a scaled
+  transform, on seven lines of 37 to 212 characters: with `font-kerning: none` a line's width in the page is the sum
+  of the font's widths to a hundredth of a pixel (1130.53 for the 212 characters of `Page`'s first two doc lines);
+  with kerning on it is 1.3 px less there, and 11 px less on a line of `AV`, `To` and `We`. So the rows are drawn
+  with kerning and ligatures off. A plane's zoom is a transform, which lays text out at 12 px whatever the zoom.
+- **What is not known.** Whether Chrome on Windows at 100% rounds each character's width to a whole pixel, as it once
+  did. So a row's right padding in the page is 4 px, not the 12 the wrap leaves: a row up to 8 px longer than the
+  table says is still drawn whole.
+- **`Look.rowType`**, 12 in `LOOK` and 0 in `OLD_LOOK`: the size of a row's text, or 0 for the old page's counts.
+  `rowRoom(look, width)` is the room of a row: the box's saved width less `pad` at each side, at least `ROW_LEAST`
+  (56, the room of the narrowest box). Rule 2 of `project()`'s comment says how a doc, a send or accept, and a code
+  link are fitted.
+
+The tests, written before the rule is built (today `LOOK` still wraps by the count, so each fails for that):
+
+| # | Test | The breakage that must fail it |
+|---|---|---|
+| `adapter.test.mjs` 1 | a compartment's rows are as long as the box's saved width allows, by Roboto's widths: over the eleven views, no row of two words or more is wider than its room, no row could take the next row's first word, and the rows hold the text's words in order | `LOOK` wrapping by the count of characters |
+| 2 | a word wider than its box stands on a row by itself; a blank line is an empty row; the room is never under 56 | the least room left out |
+| 3 | a character the font does not draw counts one em | an unknown character counted as nothing |
+| 4 | a code link too wide for its box keeps the longest tail that fits behind `…` | the path cut by a count of characters |
+| 5 | `textWidth` is the sum of the font's widths | a width halved |
+| 6 | given the old page's measures, rows are still wrapped by the old page's counts (the two tests of the old layout, which stand) | `OLD_LOOK` given `rowType` 12 |
+| `plane.test.mjs` 1 | a row is as wide in the page as the adapter measured it, and ends `pad` short of its box's side or sooner | `font-kerning: none` taken out of `app.css` |
+| 2 | the table of widths is what the page's font gives | a width changed in `roboto.ts` |
