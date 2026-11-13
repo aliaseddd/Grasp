@@ -10,6 +10,11 @@ import * as XYFlow from '@xyflow/react';
 import * as Dockview from 'dockview-react';
 import * as MUI from '@mui/material';
 import * as TreeView from '@mui/x-tree-view';
+import * as FolderOpenOutlined from '@mui/icons-material/FolderOpenOutlined';
+import * as SaveOutlined from '@mui/icons-material/SaveOutlined';
+import * as Undo from '@mui/icons-material/Undo';
+import * as Redo from '@mui/icons-material/Redo';
+import * as InfoOutlined from '@mui/icons-material/InfoOutlined';
 
 import '@xyflow/react/dist/style.css';
 import 'dockview-react/dist/styles/dockview.css';
@@ -23,4 +28,9 @@ window.GraspVendor = {
   'dockview-react': Dockview,
   '@mui/material': MUI,
   '@mui/x-tree-view': TreeView,
+  '@mui/icons-material/FolderOpenOutlined': FolderOpenOutlined,
+  '@mui/icons-material/SaveOutlined': SaveOutlined,
+  '@mui/icons-material/Undo': Undo,
+  '@mui/icons-material/Redo': Redo,
+  '@mui/icons-material/InfoOutlined': InfoOutlined,
 };
