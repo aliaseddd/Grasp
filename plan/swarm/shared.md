@@ -129,3 +129,29 @@ What every test keeps to (the reasons are in `helpers.mjs` and in `plan/notes.md
 ## 9. The model library's types
 
 `window.SysMLModel` is typed by the global interface `SysMLModelLibrary`, which several files add to with `declare global` (`core/session.ts`, `core/adapter.ts`, `core/checks.ts`, `panels/explorerRows.ts`). TypeScript merges those, and two files that declare one member must agree to the letter, or `tsc` fails once both are in the tree. So a file that reads more of the library than is declared takes it through a type of its own and a cast, as `core/commands.ts` does (`CommandsLibrary`, `libOf`) and `panels/fieldHooks.ts` (`FieldLibrary`, `fieldLibOf`). A task adds no member to the global interface.
+
+## 10. Where each "Done when" test and each criterion is
+
+Every test that a step's "Done when" names (`plan/slice-1.md`, section 5) and every check of section 10's criteria belongs to a task. A step's file gives each test its row; this table says which task writes or runs it.
+
+| What the plan asks | Where it is | Task |
+|---|---|---|
+| Step 8: "a 5,000-element model opens", "a drag step takes under 16 ms at 5,000 elements in 3 views", "a pan step of a fitted view takes under 16 ms at 5,000 elements", three runs in a row | `scale.test.mjs`, rows 1 to 3 of `step-8.md` | `8-tests-scale` takes the todo marks off; `8-checks-close` runs them three times |
+| Step 8: `scale.png` | `test/shots/scale.mjs`; `step-8.md`, section 7 | `8-tests-scale`, `8-review-shot-scale` |
+| Step 9: the six of `selection.test.mjs` | rows S1 to S6 of `step-9.md` | `9-tests-selection` |
+| Step 9: "The three scale tests of step 8 still pass" | | `9-checks-close` |
+| Step 10: every field one undo step, undone and redone; a rename on the box, the tab and the row; another definition moves the typing's end | `details.test.mjs`, rows 1 to 9 of `step-10.md`; the walk of every item in Node, `fieldHooks.test.mjs` | `10-tests-details`, `10-tests-hooks` |
+| Step 10: "a keystroke in a name takes under 50 ms at 5,000 elements" without its todo mark | `scale.test.mjs` | `10-checks-close` |
+| Step 11: every tool used once; a port on the ground refused; a specialization to a port def refused; Escape | `tools.test.mjs`, rows 1 to 7 of `step-11.md` | `11-tests-tools` |
+| Step 11: `palette.png` | `test/shots/palette.mjs`; `step-11.md`, section 5 | `11-tests-palette`, `11-review-shot-palette` |
+| Step 12: the three of `validation.test.mjs`, the two of `about.test.mjs` | `step-12.md`, section 4 | `12-tests-validation`, `12-tests-about` |
+| Step 12: `about.png` | `test/shots/about.mjs`; `step-12.md`, section 5 | `12-tests-about`, `12-review-shot-about` |
+| Step 13: the documents, and "Done when" from a clean clone | `briefs/13-checks-close.md` | `13-checks-close` |
+| Criterion 1: every "Done when" passes; at the end of step 12 `# fail 0`, `# todo 0`, ten checks `"pass"` | | each `N-checks-close`; the whole in `12-checks-close` |
+| Criterion 2: all ten files open | `open.test.mjs`, written at step 6 | every `N-checks-close` runs it in `npm test` |
+| Criterion 3: a list per screenshot, by a reviewer who sees only the image and the list | | `8-review-shot-scale`, `11-review-shot-palette`, `12-review-shot-about`, and `12-review-shot-shell` and `12-review-shot-example` for the two retaken |
+| Criterion 4: `shell.png` and `example.png` rated on four points, each 4 or more, as retaken at the end of step 12 | | `12-review-shot-shell`, `12-review-shot-example`; judged in `12-checks-close` |
+| Criterion 5: the four scale limits by the median in three runs of `npm test` in a row | | `8-checks-close` (three of them), `10-checks-close` (the keystroke), `12-checks-close` (all four) |
+| Criterion 6: small models feel instant | `instant.test.mjs`: the page ready, the example drawn, a switch of tab (step 6), a drag step (step 7), a keystroke in a name (step 10) | `10-tests-instant` writes the keystroke's test; `12-checks-close` runs the whole |
+| Criterion 7: every step ends green | | each `N-checks-close` checks its own commit by itself; `13-checks-close` runs all eight again |
+| Criterion 8: notes a stranger can use | | each `N-checks-close` writes its part of `plan/notes.md`; `13-checks-close` asks the five questions |
