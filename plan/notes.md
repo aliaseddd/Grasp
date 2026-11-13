@@ -2755,3 +2755,45 @@ under its breakage:
 `adapter.test.mjs` has 22 tests. Noticed by the agent and left: `Look.childTop` is read by nothing until step 7; the
 order of the compartments is held by the fixtures' test alone; a left port with no line has its name below its square
 and a right one above, which is the old page's own.
+
+### Step 6: the planes, built
+
+**Built** by one agent in 12 min (85 tool calls), against the real adapter and the tests: the store, `Plane`, the card,
+the three node components, `LineEdge`, the markers, 263 lines at the end of `app.css`, and the wiring (`ViewPanel` in
+`Dock.tsx` renders `Plane` with the tab's own session; `App.tsx` puts the session's stores on `window.Grasp.views` and
+renders the markers once). No colour was added to `theme.ts`, and none is written anywhere else. As it came:
+`viewStore.test.mjs` 12 of 12, `open.test.mjs` 2 of 2, `plane.test.mjs` 16 of 17, `instant.test.mjs` 3 of 3, and "the
+example shows its general view on a tab" passing under its todo mark.
+
+It stopped on the 17th, as its brief told it to, and was right: **test 10's last assertion could not pass, and the
+fault was the outline's.** The notes above say that six doc lines of the ten files are single words longer than their
+box. They are not. My measurement counted the docs of every placed element, small shapes among them, which draw no
+compartment: a fork 60 wide "overflowed" by 60 px. In the boxes that have compartments no row of the ten files is too
+long: the tightest is "Moves fuel while commanded." in `interconnection.json`, 163 px of text in 174 px of room. So the
+ten files exercise no ellipsis. The test now holds that none of their rows is cut, and exercises the rule on a part def
+made for it, 120 wide, whose doc begins with a word of 45 letters: that row is cut and stays inside its box.
+
+Where it read the contracts its own way, each kept:
+- Each node file's exported component only hands `data`, `selected` and the size to a memoized inner one. React Flow
+  calls the outer one at every move of a node; the inner one skips. `LineEdge` is built the same way, with its two
+  `useInternalNode` results as the keys.
+- The gate keeps one boolean in state, whether the root has a size, and reads the size itself where it is used (the
+  camera as React Flow mounts, the fit button at a click). So a change of the window's size renders nothing. It also
+  reads the size at once in a layout effect, so the tab in front mounts React Flow without waiting for the observer.
+- `--grasp-node-tail` joins the other `--grasp-node-*` variables, for the 6 px under a compartment's last row.
+
+**The switch of tab needed no lever.** Built the plain way, the three timed tests, run alone on the built page: the
+page ready in 182 ms (limit 500), the example drawn 50.7 ms after the file is given (limit 1,000), a switch between
+`interconnection.json`'s two tabs in 32.6 ms (limit 100), each by its median. Neither `width` and `height` on React
+Flow nor `flushSync` in the observer was tried, since nothing called for them.
+
+**Taken in.** On the adapter with the review's changes, the todo mark of check 2 taken off by my hand: `npm run check`
+passes; `npm test` gives 135 tests, 130 pass, 0 fail, 5 todo, in 35 s, the timed tests among the others.
+
+**Rows 15 apart, not 16: a departure from section 4 of the plan.** The first `example.png` showed what the
+measurement had said: with a title row of 16 and rows 16 apart, `Page`'s third doc line ends 1 px above `hosts`, and
+reads as sitting on it. The ten files were laid out by the old page, whose rows are 15 apart. `LOOK` now keeps the old
+page's 15 and differs from `OLD_LOOK` in the title row alone (16 for 18): the third line ends 3.5 px above `hosts`,
+`Host` is 137 high (139 on the old page), and no saved layout meets a compartment that the old page kept clear of.
+Section 4 says "16 px apart"; the plan is not rewritten, and this is the place that says the page is built otherwise.
+The adapter's test of the new measures is named for 15, and seven pinned sizes in its fixtures' test follow.
