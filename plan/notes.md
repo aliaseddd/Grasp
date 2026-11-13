@@ -2309,3 +2309,92 @@ About reads as disabled (it is, until step 12).
 - Then step 6, as session 17's outline gives it. `npm ci` first. A view's tab draws the session in its params
   (`ViewParams` in `Dock.tsx`); the sides are 312 and 352 px with their strips, so the editor is 736 px wide at 1400.
 - A test that guards something is seen to fail with that thing broken, not only before the code exists.
+
+## Session 20, November 13, 2026: step 6 of slice 1, the adapter and the planes
+
+On `claude/pensive-rubin-sjrv3g`, from `5127985`. Planned from 06:25 UTC under plan mode; Damon approved the plan at
+07:03 and the work began then. The method is session 17's ("How each step is built"), tightened by what session 19
+taught, on Damon's word.
+
+The baseline, in this container (Node 22.23.4): `npm ci` 14 s; `npm run check` passes in 5 s; `npm test` gives 77
+tests, 71 pass, 0 fail, 6 todo, in 18 s; `npm run test:old` passes 221 of 221 in 80 s.
+
+### What Damon decided
+
+1. **The shell's fourth score**, which session 19 left at 3. Before step 6's code, the two strips get a tone apart
+   from the editor's ground, and the strip's tab in front is joined to its panel. `shell.png` is retaken and rated once
+   more; that score is recorded and the step goes on. No status bar is added.
+2. **The method.** Session 17's, tightened: I outline, review and measure; Sonnet subagents at medium effort, each in a
+   git worktree, write the tests and fill in the skeletons; each test is seen to fail with the thing it guards broken;
+   and a reviewer that has not seen the outline reads the step's diff before its commit.
+
+### The order of work, by what blocks what
+
+| # | Task | Who | Needs | Beside |
+|---|---|---|---|---|
+| 0 | `npm ci`, the baseline | me | | |
+| L | The shell's look: tests first, then the strips and the tab | agent | 0 | 1a, X |
+| X | The old page's own layout of the ten files and the 5,000-element model, read from the old page | agent | 0 | 1a, L |
+| 1a | Outline, part 1: `core/adapter.ts`'s skeleton, its export, the adapter's test list | me | 0 | L, X |
+| T1 | `adapter.test.mjs` | agent | 1a, X | 1b |
+| 1b | Outline, part 2: the skeletons under `plane/`, the DOM contract, the browser's and the store's test lists | me | 1a | T1 |
+| I1 | The adapter | agent | T1 seen to fail | 1b, T2, T3 |
+| T2 | `plane.test.mjs`, `open.test.mjs`, `instant.test.mjs`, the `example` row of `shots.mjs` | agent | 1b | I1, T3 |
+| T3 | `viewStore.test.mjs` | agent | 1b | I1, T2 |
+| I2 | The planes: the store, `Plane`, the card, the nodes, the edges, the markers, the styles, the wiring | agent | I1 taken in, L landed, T2 and T3 seen to fail | my reading of I1 |
+| R | On the whole: my reading of the diff; each breakage the test lists name, made by an agent; an independent reviewer; a first `example.png` before a reviewer that sees only it | me, three agents | I2 | each other |
+| F | What the reviews found, fixed | me, or an agent at high effort | R | |
+| C | Alone: build, check, `npm test` three times, what the other test files cost the timed tests; the shots retaken if the look changed | me | F | nothing |
+| E | The step's commit, pushed | me | C | |
+
+The longest chain is 0 → 1a → T1 → I1 → I2 → R → F → C → E. The outline is in two parts so that the adapter's tests and
+code start while the planes' skeleton is still being written. The planes are not started before the adapter is real:
+their tests run against one. Two things moved after the plan was approved, on the word of the agent that checked it
+against the libraries' sources: the old page's layout is read from the start (X), and the first look at `example.png`
+comes beside the reviews, before the timed runs, which a change to the look would void.
+
+No two workers own a file at the same time, since an owned file is taken whole. L: `shell/theme.ts`, `app.css`,
+`shell.test.mjs`, `shots/shell.png`. T1: `test/adapter.test.mjs`. T2: `test/plane.test.mjs`, `open.test.mjs`,
+`instant.test.mjs`, `shots.mjs`, additions to `helpers.mjs`. T3: `test/viewStore.test.mjs`, `test/core.mjs`. I1:
+`core/adapter.ts`. I2: everything under `plane/`, `app.css`, `shell/Dock.tsx`, `shell/App.tsx`, and `shell/theme.ts`
+for a colour the planes need. Mine throughout: `plan/`, `core/index.ts`, `canvas/dist/` (a worker builds it to run its
+tests and does not hand it over), and the todo mark of check 2 in `shell.test.mjs`.
+
+A brief gives the goal, where to read, the files owned, the tests and commands, what to send back, and five rules with
+their reasons:
+
+1. Change only the files you own: another worker is changing the others.
+2. Nothing under `canvas/src`, `canvas/test` or the rest of `unchanged.json`'s list: one changed byte fails
+   `unchanged.test.mjs`.
+3. No new package, and no import that `src/vendor.ts` does not hold: the build refuses it.
+4. No test is loosened, skipped or marked todo. A signature or a test that looks wrong is a stop: say why.
+5. No colour outside `shell/theme.ts`; no test reads `window.Grasp`; no test turns on the CSS domain of the DevTools
+   protocol.
+
+The harness keeps the agents' worktrees under `.claude/worktrees/` in the repository's folder. It is named in
+`.git/info/exclude`, which is not committed, so `git status` stays quiet; never `git add -A` here.
+
+### The shell's look: the strips toned, the tab in front joined
+
+One agent, 3.7 min (26 tool calls), in a worktree at `5127985`; its commit is taken as it came. Two tests in
+`shell.test.mjs`, written first and seen to fail, each for its own reason:
+
+| Test | Failed before the change with |
+|---|---|
+| a strip is a tone apart from the editor's ground | "The left strip is rgb(238, 242, 244), the same as the editor's ground (--grasp-ground)" |
+| the tab in front is joined to its panel | "The left tab in front ends 1.0 px from its panel: its box does not reach the panel." |
+
+The second also reads a screenshot's pixels across the boundary (the PNG decoded with `node:zlib`, no library), and
+holds that the rest of the strip keeps its 1 px line and that no tab is white while its side is collapsed.
+
+- `shell/theme.ts`: `STRIP` `#E3E8EC`, as `--grasp-strip`. `TEXT_SECONDARY` on it has a contrast of 4.58 to 1; a darker
+  strip would take the names of the tabs not in front under 4.5.
+- `app.css`: the strip no longer has a border, which ran past the tab in front and parted it from its panel. Each part
+  of the strip draws its own line as an inset shadow on the panel's side: the tabs not in front, a collapsed side's
+  tab, and the empty rest. The tab in front draws none and fills the strip's 32 px.
+- Dockview colours a tab through variables that the editor's tabs share, and its own rule is stronger than a selector
+  of ours, so the strips set those variables on `.dv-edge-group`. Dockview also keeps `dv-active-tab` on a collapsed
+  side's tab: a tab is "in front" only while its group lacks `dv-edge-collapsed`.
+- Tried and dropped by the agent: a negative margin on the tab (the strip clips it).
+
+`npm test` with it: 79 tests, 73 pass, 0 fail, 6 todo. `shell.png` is retaken; its rating comes with the next commit.

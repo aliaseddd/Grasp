@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { after, afterEach, before, describe, test } from 'node:test';
 import { buildFiles } from '../build.mjs';
 import {
@@ -296,6 +297,136 @@ describe('the shell', () => {
     assert.ok(after > 0, 'the Explorer is shown again');
     await soon(page, async () => (await colourOf('Explorer')) === TEAL,
       async () => `With the Explorer opened again, its name on the strip is ${await colourOf('Explorer')}, not teal (${TEAL}).`);
+    await finish(opened);
+  });
+
+  // The strips are bars of their own: on both sides the strip's colour is not the editor ground's, and the name of a
+  // tab that is not in front can be read on it (4.5 to 1, WCAG's bar for text of this size).
+  test('a strip is a tone apart from the editor\'s ground', async () => {
+    const opened = await openPage(browser);
+    const { page } = opened;
+    const tab = (name) => page.getByRole('tab', { name, exact: true });
+    await soon(page, async () => (await tab('Explorer').count()) > 0 && (await tab('Details').count()) > 0, 'The page has no strip tabs named Explorer and Details (role "tab").');
+    // Runs in the page: the strip of a side, its colour, the editor ground's colour, and the colour of a name on it.
+    const read = ([side, name]) => {
+      const strip = document.querySelector(`.dv-edge-group.dv-groupview-header-${side} > .dv-tabs-and-actions-container`);
+      const probe = document.createElement('div');
+      probe.style.background = 'var(--grasp-ground)';
+      document.body.appendChild(probe);
+      const ground = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      const el = [...document.querySelectorAll('[role="tab"]')].find((t) => t.textContent.trim() === name);
+      const inner = el && [el, ...el.querySelectorAll('*')].filter((e) => e.textContent.trim() === name).pop();
+      return { strip: strip && getComputedStyle(strip).backgroundColor, ground, name: inner && getComputedStyle(inner).color, front: el && el.classList.contains('dv-active-tab') && !el.closest('.dv-edge-group').classList.contains('dv-edge-collapsed') };
+    };
+    const channels = (css) => css.match(/[\d.]+/g).slice(0, 3).map(Number);
+    const luminance = (css) => {
+      const [r, g, b] = channels(css).map((c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const contrast = (a, b) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+    // The left side has Tools, not in front; the right side's one name is in front until its side is collapsed.
+    await tab('Details').click();
+    await soon(page, async () => !(await page.evaluate(read, ['right', 'Details'])).front, 'A click on Details did not collapse the right side.');
+    for (const [side, name] of [['left', 'Tools'], ['right', 'Details']]) {
+      const now = await page.evaluate(read, [side, name]);
+      assert.ok(now.strip, `The ${side} strip (.dv-edge-group.dv-groupview-header-${side} > .dv-tabs-and-actions-container) was not found.`);
+      assert.notEqual(now.strip, now.ground, `The ${side} strip is ${now.strip}, the same as the editor's ground (--grasp-ground): it does not read as a bar of its own.`);
+      const ratio = contrast(now.name, now.strip);
+      assert.ok(ratio >= 4.5, `On the ${side} strip (${now.strip}), the name "${name}" (${now.name}) has a contrast of ${ratio.toFixed(2)} to 1, under 4.5 to 1.`);
+    }
+    await finish(opened);
+  });
+
+  // With a side open, the tab in front is white like its panel, and no line parts them: its box reaches the panel,
+  // neither it nor the strip draws a border or a shadow on that side, and the pixels across the boundary are all the
+  // panel's white. The rest of the strip keeps its 1 px line on that side. A collapsed side has no white tab.
+  test('the tab in front is joined to its panel', async () => {
+    const opened = await openPage(browser);
+    const { page } = opened;
+    const tab = (name) => page.getByRole('tab', { name, exact: true });
+    await soon(page, async () => (await tab('Explorer').count()) > 0 && (await tab('Details').count()) > 0, 'The page has no strip tabs named Explorer and Details (role "tab").');
+    // Runs in the page: the pieces of a side, with what each draws on the panel's side.
+    const read = ([side, name]) => {
+      const group = document.querySelector(`.dv-edge-group.dv-groupview-header-${side}`);
+      const strip = group.querySelector('.dv-tabs-and-actions-container');
+      const panel = group.querySelector('.dv-content-container').getBoundingClientRect();
+      const tabs = [...group.querySelectorAll('.dv-tab')];
+      const el = tabs.find((t) => t.textContent.trim() === name);
+      const rect = (e) => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
+      const toward = side === 'left' ? 'Right' : 'Left'; // the panel's side of the strip
+      const drawn = (e) => {
+        const s = getComputedStyle(e);
+        // A 1 px inset shadow towards the panel's side is a line too: x of -1 draws on the right edge, 1 on the left.
+        const shadows = (s.boxShadow === 'none' ? [] : s.boxShadow.match(/rgba?\([^)]*\)[^,]*/g) || []).map((part) => {
+          const colour = part.match(/rgba?\([^)]*\)/)[0];
+          const [x] = part.replace(colour, '').match(/-?[\d.]+px/g).map(parseFloat);
+          return { colour, x, inset: part.includes('inset') };
+        });
+        const line = shadows.filter((sh) => sh.inset && (toward === 'Right' ? sh.x < 0 : sh.x > 0)).length + shadows.filter((sh) => !sh.inset).length;
+        return { border: parseFloat(s[`border${toward}Width`]) || 0, shadowLines: line, bg: s.backgroundColor };
+      };
+      const void_ = group.querySelector('.dv-void-container');
+      return {
+        panel: { left: panel.left, right: panel.right, top: panel.top }, strip: drawn(strip), front: el && el.classList.contains('dv-active-tab') && !group.classList.contains('dv-edge-collapsed'),
+        tab: el && { ...rect(el), ...drawn(el) }, inactive: tabs.filter((t) => t !== el && !t.classList.contains('dv-active-tab')).map((t) => ({ name: t.textContent.trim(), ...drawn(t) })),
+        voidLine: void_ && drawn(void_), allTabs: tabs.map((t) => ({ name: t.textContent.trim(), bg: getComputedStyle(t).backgroundColor })),
+      };
+    };
+    // A minimal reader of the PNG Chromium writes: 8 bits a channel, no interlace; returns [r, g, b] by row of pixels.
+    const pixelsOf = (png) => {
+      let at = 8; let width = 0; let height = 0; let type = 0; const data = [];
+      while (at < png.length) {
+        const length = png.readUInt32BE(at); const kind = png.toString('latin1', at + 4, at + 8);
+        if (kind === 'IHDR') { width = png.readUInt32BE(at + 8); height = png.readUInt32BE(at + 12); type = png[at + 17]; }
+        if (kind === 'IDAT') data.push(png.subarray(at + 8, at + 8 + length));
+        at += 12 + length;
+      }
+      const bpp = type === 6 ? 4 : 3; const raw = zlib.inflateSync(Buffer.concat(data)); const stride = width * bpp;
+      const rows = []; let prev = Buffer.alloc(stride);
+      for (let y = 0; y < height; y++) {
+        const filter = raw[y * (stride + 1)]; const row = Buffer.from(raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1)));
+        for (let i = 0; i < stride; i++) {
+          const a = i >= bpp ? row[i - bpp] : 0; const b = prev[i]; const c = i >= bpp ? prev[i - bpp] : 0;
+          const p = a + b - c; const pa = Math.abs(p - a); const pb = Math.abs(p - b); const pc = Math.abs(p - c);
+          const add = [0, a, b, (a + b) >> 1, pa <= pb && pa <= pc ? a : pb <= pc ? b : c][filter];
+          row[i] = (row[i] + add) & 255;
+        }
+        rows.push(row); prev = row;
+      }
+      return rows.map((row) => Array.from({ length: width }, (_, x) => [row[x * bpp], row[x * bpp + 1], row[x * bpp + 2]]));
+    };
+    for (const [side, name] of [['left', 'Explorer'], ['right', 'Details']]) {
+      const now = await page.evaluate(read, [side, name]);
+      const edge = side === 'left' ? 'right' : 'left'; // the tab's edge on the panel's side
+      const panelEdge = side === 'left' ? now.panel.left : now.panel.right; // the panel's own edge, on the strip's side
+      assert.ok(now.front && now.tab, `With the ${side} side open, "${name}" is not the tab in front.`);
+      assert.equal(now.tab.bg, WHITE, `With the ${side} side open, the tab in front is ${now.tab.bg}, not white like its panel.`);
+      const gap = Math.abs(now.tab[edge] - panelEdge);
+      assert.ok(gap < 0.5, `The ${side} tab in front ends ${gap.toFixed(1)} px from its panel: its box does not reach the panel.`);
+      assert.equal(now.strip.border, 0, `The ${side} strip draws a ${now.strip.border} px border on its panel's side along the whole strip, the tab in front included.`);
+      assert.equal(now.strip.shadowLines, 0, 'The strip draws a shadow line on its panel\'s side.');
+      assert.equal(now.tab.border, 0, `The ${side} tab in front has a ${now.tab.border} px border on its panel's side.`);
+      assert.equal(now.tab.shadowLines, 0, `The ${side} tab in front has a shadow line on its panel's side.`);
+      // The pixels across the boundary, over the tab's top rows (above its name): the panel's white and nothing else.
+      const clip = { x: Math.round(panelEdge) - 6, y: Math.round(now.tab.top) + 1, width: 12, height: 4 };
+      const rows = pixelsOf(await page.screenshot({ clip }));
+      const odd = rows.flat().filter(([r, g, b]) => r !== 255 || g !== 255 || b !== 255).length;
+      assert.equal(odd, 0, `Across the boundary of the ${side} tab in front and its panel (x ${clip.x} to ${clip.x + clip.width}), ${odd} of ${clip.width * clip.height} pixels are not white: a line, or a gap.`);
+      // The rest of the strip keeps its line against the panel.
+      const lines = [...now.inactive, ...(now.voidLine ? [{ name: 'the empty rest of the strip', ...now.voidLine }] : [])];
+      assert.ok(lines.length > 0, `The ${side} strip has no empty rest.`);
+      for (const part of lines) {
+        assert.ok(part.border === 1 || part.shadowLines === 1, `On the ${side} strip, ${part.name} draws no 1 px line against the panel (border ${part.border} px, ${part.shadowLines} shadow lines).`);
+      }
+    }
+    // Collapsed, a side has no white tab.
+    for (const [side, name] of [['left', 'Explorer'], ['right', 'Details']]) {
+      await tab(name).click();
+      await soon(page, async () => !(await page.evaluate(read, [side, name])).front, `A click on ${name} did not collapse the ${side} side.`);
+      const now = await page.evaluate(read, [side, name]);
+      for (const t of now.allTabs) assert.notEqual(t.bg, WHITE, `With the ${side} side collapsed, the tab "${t.name}" is white.`);
+    }
     await finish(opened);
   });
 

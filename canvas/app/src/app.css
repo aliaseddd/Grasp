@@ -102,14 +102,30 @@ body,
   background: var(--grasp-white);
 }
 .grasp-dock .dv-edge-group > .dv-tabs-and-actions-container {
-  background: var(--grasp-ground);
-  border-color: var(--grasp-line-strong);
+  background: var(--grasp-strip);
 }
-.grasp-dock .dv-groupview-header-left > .dv-tabs-and-actions-container {
-  border-right: 1px solid var(--grasp-line-strong);
+/* Dockview colours a tab by its variables, which the editor's tabs share: the strips' tabs not in front, and, while the
+   side is collapsed, every tab, take the strip's ground. */
+.grasp-dock .dv-edge-group {
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--grasp-strip);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--grasp-strip);
 }
-.grasp-dock .dv-groupview-header-right > .dv-tabs-and-actions-container {
-  border-left: 1px solid var(--grasp-line-strong);
+.grasp-dock .dv-edge-group.dv-edge-collapsed {
+  --dv-activegroup-visiblepanel-tab-background-color: var(--grasp-strip);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--grasp-strip);
+}
+/* The strip's line against its panel is not a border of the strip, which would run past the tab in front and part it
+   from its panel: each part of the strip draws its own, as an inset shadow on the panel's side. The tab in front draws
+   none, so that it runs into its panel. */
+.grasp-dock .dv-groupview-header-left .dv-tab:not(.dv-active-tab),
+.grasp-dock .dv-groupview-header-left.dv-edge-collapsed .dv-tab.dv-active-tab,
+.grasp-dock .dv-groupview-header-left .dv-void-container {
+  box-shadow: inset -1px 0 0 var(--grasp-line-strong);
+}
+.grasp-dock .dv-groupview-header-right .dv-tab:not(.dv-active-tab),
+.grasp-dock .dv-groupview-header-right.dv-edge-collapsed .dv-tab.dv-active-tab,
+.grasp-dock .dv-groupview-header-right .dv-void-container {
+  box-shadow: inset 1px 0 0 var(--grasp-line-strong);
 }
 .grasp-dock .dv-edge-group .dv-right-actions-container {
   display: none;
@@ -138,7 +154,7 @@ body,
   color: var(--grasp-teal);
 }
 .grasp-dock .dv-edge-group.dv-edge-collapsed .dv-tab.dv-active-tab {
-  background: var(--grasp-ground);
+  background: var(--grasp-strip);
 }
 /* The name of the view that is shown also has a teal bar at the window's edge, as an editor tab has one on top. */
 .grasp-dock .dv-edge-group.dv-groupview-header-left:not(.dv-edge-collapsed) .dv-tab.dv-active-tab {
