@@ -1,0 +1,199 @@
+[
+  {
+    "id": "11-tests-commands",
+    "step": 11,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/11-tests-commands.md",
+    "owns": [
+      "canvas/app/test/commands.test.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "11-tests-panel",
+    "step": 11,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/11-tests-panel.md",
+    "owns": [
+      "canvas/app/test/tools-panel.test.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "11-tests-tools",
+    "step": 11,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/11-tests-tools.md",
+    "owns": [
+      "canvas/app/test/tools.test.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "11-tests-palette",
+    "step": 11,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/11-tests-palette.md",
+    "owns": [
+      "canvas/app/test/palette.test.mjs",
+      "canvas/app/test/shots/palette.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "11-impl-commands",
+    "step": 11,
+    "kind": "implement",
+    "brief": "plan/swarm/briefs/11-impl-commands.md",
+    "owns": [
+      "canvas/app/src/core/commands.ts"
+    ],
+    "needs": [
+      "9-impl-selection",
+      "11-tests-commands"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "11-impl-tools",
+    "step": 11,
+    "kind": "implement",
+    "brief": "plan/swarm/briefs/11-impl-tools.md",
+    "owns": [
+      "canvas/app/src/panels/Tools.tsx",
+      "canvas/app/src/panels/tools.css"
+    ],
+    "needs": [
+      "11-impl-commands",
+      "9-impl-dock",
+      "11-tests-panel"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "11-impl-toasts",
+    "step": 11,
+    "kind": "implement",
+    "brief": "plan/swarm/briefs/11-impl-toasts.md",
+    "owns": [
+      "canvas/app/src/shell/Toasts.tsx"
+    ],
+    "needs": [
+      "11-impl-commands"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "11-impl-plane",
+    "step": 11,
+    "kind": "implement",
+    "brief": "plan/swarm/briefs/11-impl-plane.md",
+    "owns": [
+      "canvas/app/src/plane/Plane.tsx",
+      "canvas/app/src/plane/viewStore.ts",
+      "canvas/app/src/plane/Palette.tsx",
+      "canvas/app/src/plane/palette.css"
+    ],
+    "needs": [
+      "9-impl-plane",
+      "9-impl-dock",
+      "9-impl-explorer",
+      "10-impl-details",
+      "11-impl-commands",
+      "11-impl-tools",
+      "11-impl-toasts",
+      "11-tests-tools",
+      "11-tests-palette"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "11-checks-break",
+    "step": 11,
+    "kind": "checks",
+    "brief": "plan/swarm/briefs/11-checks-break.md",
+    "owns": [],
+    "needs": [
+      "11-impl-plane"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "11-review-code",
+    "step": 11,
+    "kind": "review",
+    "brief": "plan/swarm/briefs/11-review-code.md",
+    "owns": [],
+    "needs": [
+      "11-impl-plane"
+    ],
+    "model": "fable",
+    "effort": "high",
+    "status": "open"
+  },
+  {
+    "id": "11-review-shot-palette",
+    "step": 11,
+    "kind": "review",
+    "brief": "plan/swarm/briefs/11-review-shot-palette.md",
+    "owns": [],
+    "needs": [
+      "11-impl-plane"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "11-checks-close",
+    "step": 11,
+    "kind": "checks",
+    "brief": "plan/swarm/briefs/11-checks-close.md",
+    "owns": [
+      "canvas/dist/",
+      "canvas/app/shots/palette.png",
+      "plan/status.json",
+      "plan/notes.md",
+      "plan/swarm/tasks.json"
+    ],
+    "needs": [
+      "10-checks-close",
+      "11-tests-commands",
+      "11-tests-panel",
+      "11-tests-tools",
+      "11-tests-palette",
+      "11-impl-commands",
+      "11-impl-tools",
+      "11-impl-toasts",
+      "11-impl-plane",
+      "11-checks-break",
+      "11-review-code",
+      "11-review-shot-palette"
+    ],
+    "model": "lead",
+    "effort": "high",
+    "status": "open"
+  }
+]

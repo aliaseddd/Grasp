@@ -82,10 +82,22 @@ export interface PlaneProps {
  *   selectionOf(session).click(hit). React Flow's own `select` changes pick nothing; a marquee (Shift + drag) is the
  *   one gesture whose picks come from React Flow, and step-9.md says how. What is selected on the plane is what the
  *   store's snapshot says, from the session's selection.
- * - **Step 11, the tool in hand and the palette** (plan/swarm/step-11.md). `clicked(hit)` offers the click to the
- *   tool first: `if (!toolsOf(session).click(hit)) selectionOf(session).click(hit)`. A right-click on the ground, on
- *   a node or on a line (React Flow's onPaneContextMenu, onNodeContextMenu, onEdgeContextMenu) prevents the browser's
- *   menu and opens the palette (Palette.tsx) at the pointer, for the Hit of that right-click.
+ * - **Step 11, the tool in hand and the palette** (plan/swarm/step-11.md, "The plane's part"; core/commands.ts, Tools).
+ *   - `clicked(hit)` offers the click to the tool first: `if (!toolsOf(session).click(hit)) selectionOf(session).click(hit)`.
+ *     Nothing else of step 9's picking changes.
+ *   - While a tool is in hand (`toolsOf(session).armed`, read through useSyncExternalStore(tools.listen, ...)) the root
+ *     carries `data-tool`, the tool's kind, and plane/palette.css makes the pointer a crosshair over the ground, the
+ *     nodes and the lines. A press that moves is still a drag or a pan; only a click is the tool's.
+ *   - While a line's first end is taken (`tools.first`) the root carries `data-first`, that element's id, and holds one
+ *     `<style>` element whose one rule gives that element's node on this plane a dashed teal outline:
+ *     `[data-testid="plane"][data-view="<view id>"] .react-flow__node[data-id="<element id>"] { outline: 2px dashed
+ *     var(--grasp-teal); outline-offset: 3px; }`. With no first end: no attribute and no `<style>`.
+ *   - The plane renders again only when `armed` or `first` changes: nothing more on a pan or a drag step.
+ *   - The root's own onContextMenu prevents the browser's menu for every right-click inside it (the zoom buttons, the
+ *     minimap, a marquee's rectangle and the card of a view no plane draws included). React Flow's onPaneContextMenu,
+ *     onNodeContextMenu and onEdgeContextMenu open the palette at the pointer (clientX, clientY) with the Hit of that
+ *     right-click: `at` from screenToFlowPosition, `add` false. A right-click picks nothing and is no click for the tool.
+ *   - One `<Palette session at onClose />` (Palette.tsx) for the plane; `at` is the plane's state, null while closed.
  * - **Steps 10 and 12** change nothing in this file.
  */
 export function Plane({ session, viewId }: PlaneProps): JSX.Element {

@@ -82,6 +82,7 @@ export interface ViewSnapshot {
  *   object for each node or edge whose `selected` differs, in a new array, every other the object it was. A live
  *   store then tells its subscribers, once; a store with no subscriber sets it at its next getSnapshot(). A `select`
  *   change from React Flow changes nothing by itself: step-9.md says which of them the store turns into picks.
+ * - **Step 11** changes nothing in this file: a first end's mark is the plane's own (Plane.tsx).
  * - **A projection that throws** (a model the adapter cannot read) leaves the store showing what it showed, until
  *   the next change that can have altered its view projects again. It does not keep the session's other stores from
  *   hearing the change: each store hears it, and the first error is thrown on to the history, which reports it.
