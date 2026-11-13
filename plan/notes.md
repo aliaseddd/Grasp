@@ -3311,7 +3311,8 @@ the files (28 min, most of it on the flaky download). Each test written first an
   pan test's from session 20's review (the minimap of our own, no lines below 25%).
 - The two things the second image reviewer saw are not step 7's: the dark line under the tab bar past the tab in front,
   and a flow's head touching its port's square.
-- No pull request is open. The step is one commit on `claude/charming-archimedes-i2vi31`.
+- Pull request #49 (aliaseddd/Grasp) carries the branch: the outline, `695a789`, and the step, one commit on
+  `claude/charming-archimedes-i2vi31`.
 
 The method's log, this session: test writers 4.0, 4.4 and 5.1 min; implementers 2.1 (adapter), 2.3 (bar) and 7.3
 (planes); reviewers of the image 0.7 and 0.5, of the code 8.6; rework 6.4 and 28. Rework, by whose fault: the review's
