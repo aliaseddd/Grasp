@@ -2670,3 +2670,45 @@ settled:
   first, outside any layout, and then renames.
 - `projected` before the first `getSnapshot()`, and whether `moved()` before any `camera()` tells anyone, are not
   asserted: the contract does not say.
+
+**The browser's** (8.1 min, 34 tool calls): `plane.test.mjs` (17), `open.test.mjs` (2), `instant.test.mjs` (3), and the
+`example` row of `shots.mjs`. Run today, 21 of the 22 fail and "the page is ready in under 500 ms" passes, as listed.
+The failures name what is missing: "No plane shows proofStructure (data-testid "plane", data-view "v-proof"): its tab
+has nothing drawn on it."; "No plane holds the card of loginSequence"; "The plane of view1 holds no .react-flow";
+"3025 ms after the page was given the example, its plane holds 0 nodes and 0 edges, not 13 and 6".
+- How each timed test takes its time, inside the page, judged by `measure(n, limit)`'s median, the samples in the
+  failure's message. Ready: an init script of the test's own notes the first painted frame with the top bar (a
+  MutationObserver, then an animation frame, then a message, which comes after the paint), from the navigation's
+  start; 5 loads. Drawn: the same watch for the plane's 13 nodes and 6 edges, less the mark `openStateFile` leaves
+  when the file is given; 5 pages. The switch: a capturing `pointerdown` on the window starts the clock, and the same
+  watch stops it at the painted frame in which the other view's plane holds all its nodes and edges; 9 clicks, there
+  and back.
+- `open.test.mjs` has a second test the list did not: "another file opened takes the first file's planes away", which
+  is where session 19's `ViewParams` is at last tested.
+- A shot can ask for a page without the picker (`picker: false`), which `openStateFile` needs; `shell` is unchanged.
+- `helpers.mjs` gains, appended: `lib`, `FIXTURES`, `BLANK`, `TEN`, `modelOf`, `isGraph`, `placedOf`, `linesOf`,
+  `cardOf`, `near`, `withInit`, `untilLines`, `showView`, `collapseSides`, `cssColor`, `INK`, `TEAL`, `TAKEN`,
+  `groundOf`, `groundPoint`, `rectsOf`, `zoomTo`, `headerOf`. The plan said `helpers.mjs` would gain no name: it gains
+  no `data-testid`, and these.
+- What the list left open and the writer settled: a line's label must take the pointer for `elementFromPoint` to find
+  it (test 12), which is the builder's to give; a hidden tab shown again is waited for by one node, `Pump`, since a
+  zoomed view culls the others; Ctrl with the wheel is sent 40 px and must change the zoom by more than 0.5%; the
+  corners are read on `Tank.stored`, `Release.compile`, `HostLifecycle` and `HostLifecycle.idle`.
+
+**The adapter's, `adapter.test.mjs`** (14.3 min, 54 tool calls; 909 lines). 18 of the 19 fail today, 17 with
+"core/adapter.ts: project() is not built yet (step 6)." and the route's with `route()`'s; the 19th passes, as listed.
+The writer also wrote a throwaway port of the old page's rules outside the repository and ran the tests against it:
+all 19 pass, the eleven views' rectangles and lines and the three hashes among them, the three scale views in 80 ms.
+So the tests can be met, and agree with the old page; no expected value was taken from the port, which is kept out of
+the implementer's sight and used at review as a second reading of the contract.
+- Pinned beyond the list: the items, actions, parameters, control nodes, states and the event of the fixtures, by id
+  (`FuelPort.supply` reads `«out item»` and `supply : Fuel`; `Release.notify` is a send whose rows are `new Warning()
+  to` and `maintainer`; `HostLifecycle.running` reads `«state» «parallel»`; `fetchEntry` `«entry action»`); the port
+  arrows of `interconnection.json` (`FuelLine.a` `inout`, `CtrlLink.c` `out`, `CtrlLink.p` `in`); the narrow limits
+  of the three compartments on a hand-made model; and every branch of `portName` on a hand-made part def with a port
+  on each side, 17 directions of the first line, forward and reversed.
+- What the contract left open and the writer settled by the old page's code: rectangles that touch count as wholly
+  above (the old `<=`); an elbow at a border item leaves from its square's sides, and only a straight line moves a
+  border item's end 9 px out; a box's size is asserted as exactly the largest of its saved size, its header with its
+  compartments, and the room for what it holds. Left unpinned: a border item whose owner the view does not place
+  (`normalize` drops those), and whether a renewed edge keeps `selected` (the implementer is told it does).
