@@ -1,0 +1,11 @@
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+const { chromium } = createRequire(import.meta.url)('playwright');
+const browser = await chromium.launch();
+const page = await (await browser.newContext()).newPage();
+await page.goto(pathToFileURL(path.resolve('tree/canvas/dist/index.html')).href);
+await page.waitForSelector('[data-testid="app"]');
+console.log(await page.evaluate(() => { const M = window.SysMLModel; const d = Object.getOwnPropertyDescriptor(M, 'validate'); return [Object.isFrozen(M), Object.isSealed(M), Object.isExtensible(M), d && { writable: d.writable, configurable: d.configurable, get: !!d.get }, Object.getPrototypeOf(M) === Object.prototype]; }));
+console.log(await page.evaluate(() => { const d = Object.getOwnPropertyDescriptor(window, 'SysMLModel'); return { writable: d.writable, configurable: d.configurable }; }));
+await browser.close();

@@ -1,0 +1,11 @@
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+const { chromium } = createRequire(import.meta.url)('playwright');
+const browser = await chromium.launch();
+const page = await (await browser.newContext()).newPage();
+const logs = []; page.on('console', (m) => logs.push(m.text())); page.on('pageerror', (e) => logs.push(e.message));
+await page.goto(pathToFileURL(path.resolve('dist/index.html')).href);
+await page.waitForSelector('[data-testid="app"]');
+console.log(JSON.stringify(await page.evaluate(() => window.__libs)), logs);
+await browser.close();

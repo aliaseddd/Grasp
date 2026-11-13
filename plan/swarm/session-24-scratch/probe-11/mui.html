@@ -1,0 +1,28 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../wt-11/canvas/dist/vendor.css"></head>
+<body style="margin:0"><div id="root" style="height:100vh"></div>
+<script src="../wt-11/canvas/dist/vendor.js"></script>
+<script>
+const V = window.GraspVendor; const React = V['react']; const h = React.createElement; const M = V['@mui/material'];
+function App() {
+  const [menu, setMenu] = React.useState(null);
+  const [said, setSaid] = React.useState(null);
+  const [pressed, setPressed] = React.useState(false);
+  window.__say = (text) => setSaid({ text, n: (window.__n = (window.__n || 0) + 1) });
+  window.__unsay = () => setSaid(null);
+  window.__closed = window.__closed || [];
+  return h('div', { id: 'area', style: { height: '100%' }, onContextMenu: (e) => { e.preventDefault(); setMenu({ left: e.clientX, top: e.clientY }); } },
+    h(M.Tooltip, { title: 'A part definition: square corners', describeChild: true, placement: 'right' },
+      h(M.ToggleButton, { value: 'PartDefinition', selected: pressed, onChange: () => setPressed(!pressed), 'data-testid': 'tool', 'data-tool': 'PartDefinition', size: 'small' }, 'part def')),
+    h(M.Menu, { open: !!menu, onClose: (e, reason) => { window.__closed.push(reason); setMenu(null); }, anchorReference: 'anchorPosition', anchorPosition: menu || undefined, transitionDuration: 0,
+        slotProps: { list: { 'data-testid': 'palette', dense: true }, root: { onContextMenu: (e) => { e.preventDefault(); e.stopPropagation(); window.__closed.push('contextmenu'); setMenu(null); } } } },
+      [h(M.MenuItem, { key: 'a', 'data-tool': 'PartUsage', onClick: () => { window.__chose = 'PartUsage'; setMenu(null); } }, 'part'),
+       h(M.MenuItem, { key: 'b', 'data-tool': 'PortUsage' }, 'port'),
+       h(M.Divider, { key: 'd', component: 'li' }),
+       h(M.MenuItem, { key: 'c', 'data-tool': 'Specialization' }, 'specializes'),
+       h(M.MenuItem, { key: 'e', disabled: true }, 'Nothing can be made here.')]),
+    said ? h(M.Snackbar, { key: said.n, open: true, autoHideDuration: 1500, disableWindowBlurListener: true, transitionDuration: 0, anchorOrigin: { vertical: 'bottom', horizontal: 'center' },
+      onClose: (e, reason) => { window.__closed.push('toast:' + reason); if (reason !== 'clickaway') setSaid(null); }, message: said.text,
+      slotProps: { content: { 'data-testid': 'toast', role: 'status' } } }) : null);
+}
+V['react-dom/client'].createRoot(document.getElementById('root')).render(h(App));
+</script></body></html>
