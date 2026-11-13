@@ -3833,6 +3833,16 @@ from about 7.7 ms (session 25) to about 2. So, as Damon chose:
   `plan/status.json`'s check 10 carries a note. Section 10's criterion 5 in `plan/slice-1.md` still says 16 for every
   view: the plan is not rewritten, and this entry and `plan/direction.md` are where the restated limit is.
 
+### The clean clone
+
+`git clone` of this branch at `3b15075` into the scratchpad, then `npm ci && npm run build && npm run check && npm test
+&& npm run test:old`, nothing else running: **470 tests, 470 pass, 0 fail, 0 todo**; the old suite 221 of 221; the build
+left the clone unchanged. Its timed medians, in ms: the model opens in 555.4; a drag step 11.9 / 10.6; a pan step of
+`definitions` 11.4 / 10.7, `deployment` 9.8 / 10.0, `workflows` 20.1 / 23.3. The last is under its restated 25 with
+less room than the three runs gave: on this container the 2,112-node view's pan step ranges from about 10 to 23 ms by
+the median from one run to the next, so a run on a busier machine may cross 25. If it does, the lever left is the far
+view drawn as one picture (`plan/direction.md`).
+
 ### `canvas/check.sh` on a file the new page saved
 
 A probe (in the scratchpad): the example opened through the file input, Host dragged 60 by 30 px, Ctrl + S, the
