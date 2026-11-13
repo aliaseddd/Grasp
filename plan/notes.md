@@ -3085,6 +3085,9 @@ says so.
   and 39 s. The suite was 135 tests when the session began; the 26 more are 1 for `snap`, 7 for the wrap, 10 for
   session 20's review and 8 for this session's.
 - The worktrees and the local branch `wip/step-6` went with session 20's container.
+- **The step's last commit by itself** (criterion 7): `b1f5bba`, checked out into a new worktree, passes `npm ci &&
+  npm run check && npm test` with 161 tests, 156 pass, 0 fail, 5 todo; `plan/status.json` names step 6 and has 5
+  checks still `"todo"`. This entry's own commit comes after it and changes only this file.
 
 ### For the next session
 
