@@ -230,11 +230,7 @@ describe('the planes at scale', () => {
   });
 
   // A box of the general view, at 100%, is dragged three times, there and back and there again, four moves each.
-  test('a drag step takes under 16 ms at 5,000 elements in 3 views', {
-    todo: 'a step that follows holds (9 to 13 ms), but a drag\'s first drawn step, timed apart since session 25, takes 15 to 27 ms ' +
-      'in the first drag of a page and 7 to 14 in later ones, and its median of three was over 16 ms in 3 of 6 runs alone with steps 8 ' +
-      'and 9 built (1 of 4 with step 8): the limit goes to Damon with the pan step\'s (plan/notes.md, session 25)',
-  }, async (t) => {
+  test('a drag step takes under 16 ms at 5,000 elements in 3 views', async (t) => {
     const view = VIEW.definitions;
     const id = SERVICE;
     const opened = await openModel(browser);
@@ -323,11 +319,7 @@ describe('the planes at scale', () => {
 
   // Each view in turn, fitted to its tab as it opens, is panned by its ground three times, there and back and there
   // again, four moves each. Every view must hold the limit: the action flow view has the most boxes and lines.
-  test('a pan step of a fitted view takes under 16 ms at 5,000 elements', {
-    todo: 'with step 8 built, definitions and deployment hold (9 to 12 ms) but workflows, 2,112 nodes fitted at 4.3%, ' +
-      'takes 17.8 to 23.4 ms starting and 18.1 to 19.4 ms following, by the median of three runs alone (plan/notes.md, session 25): ' +
-      'the limit is Damon\'s to restate or to keep',
-  }, async (t) => {
+  test('a pan step of a fitted view takes under 16 ms at 5,000 elements', async (t) => {
     const opened = await openModel(browser);
     const { page } = opened;
     const time = await moveTiming(page);
