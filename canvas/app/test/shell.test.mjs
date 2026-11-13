@@ -158,7 +158,7 @@ describe('the shell', () => {
 
   // The example's one view, proofStructure, on its tab: every element the view places is a node of the tab's plane,
   // every line that is not hidden is an edge, and each box says its name.
-  test('the example shows its general view on a tab', { todo: 'step 6 draws a view on its tab\'s plane' }, async () => {
+  test('the example shows its general view on a tab', async () => {
     const { model } = JSON.parse(fs.readFileSync(EXAMPLE, 'utf8'));
     const view = model.views[0];
     const placed = Object.keys(view.layout);

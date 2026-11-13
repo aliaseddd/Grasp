@@ -1,8 +1,11 @@
 // The edge of every relationship a plane draws (plan/slice-1.md, step 6, rule 4, and section 4). It works out its own
 // two ends from the rectangles of its two nodes, as the old page's straight and elbow do: the adapter's route().
 
-import type { EdgeProps } from '@xyflow/react';
-import type { PlaneEdge } from '../../core';
+import { memo } from 'react';
+import { useInternalNode } from '@xyflow/react';
+import type { EdgeProps, InternalNode } from '@xyflow/react';
+import { route } from '../../core';
+import type { EdgeData, End, PlaneEdge } from '../../core';
 
 export type LineEdgeProps = EdgeProps<PlaneEdge>;
 
@@ -21,7 +24,38 @@ export type LineEdgeProps = EdgeProps<PlaneEdge>;
  *   the class `react-flow__edge-path`, which the library's stylesheet paints grey.
  * - A selected line is teal, and its marker with it (the markers paint with `context-stroke`).
  */
-export function LineEdge(props: LineEdgeProps): JSX.Element {
-  void props;
-  throw new Error('plane/edges/LineEdge.tsx: LineEdge is not built yet (step 6).');
+export function LineEdge({ source, target, data }: LineEdgeProps): JSX.Element {
+  const a = useInternalNode(source);
+  const b = useInternalNode(target);
+  return <Line data={data} a={a} b={b} />;
+}
+
+interface LineViewProps {
+  data: EdgeData;
+  a: InternalNode | undefined;
+  b: InternalNode | undefined;
+}
+
+// Memoized below the component React Flow calls: it draws again when its data or one of its two nodes changes.
+const Line = memo(function Line({ data, a, b }: LineViewProps): JSX.Element {
+  if (!a || !b) return <></>;
+  const { points, mid } = route(data.route, end(a, data.sourceBorder), end(b, data.targetBorder));
+  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${round(p.x)},${round(p.y)}`).join(' ');
+  return (
+    <>
+      <path className="grasp-line" d={d} markerEnd={data.marker ? `url(#${data.marker})` : undefined} />
+      <path className="grasp-line-hit" d={d} />
+      {data.label !== '' && (
+        <text className="grasp-line-label" x={round(mid.x)} y={round(mid.y + data.labelOffset)} textAnchor="middle">{data.label}</text>
+      )}
+    </>
+  );
+}, (x, y) => x.data === y.data && x.a === y.a && x.b === y.b);
+
+const round = (n: number): number => Math.round(n * 100) / 100;
+
+/** A node's rectangle from the view's origin, as the adapter's route() takes it: React Flow's absolute position and size. */
+function end(node: InternalNode, border: boolean): End {
+  const { x, y } = node.internals.positionAbsolute;
+  return { x, y, w: node.measured.width ?? node.width ?? 0, h: node.measured.height ?? node.height ?? 0, border };
 }

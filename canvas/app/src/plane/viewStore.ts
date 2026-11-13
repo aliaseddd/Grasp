@@ -8,7 +8,8 @@
 // (canvas/app/test/core.mjs).
 
 import type { EdgeChange, NodeChange } from '@xyflow/react';
-import type { PlaneEdge, PlaneNode, Session, Viewport } from '../core';
+import { FAR, fit, isDrawn, notDrawnText, project } from '../core';
+import type { PlaneEdge, PlaneNode, Projection, Session, Told, Viewport } from '../core';
 
 /** What a plane renders. A new object only when something in it changed; `nodes` and `edges` each likewise. */
 export interface ViewSnapshot {
@@ -60,18 +61,176 @@ export interface ViewStore {
   edgesChanged(changes: EdgeChange<PlaneEdge>[]): void;
 }
 
+const EMPTY: ViewSnapshot = { nodes: [], edges: [], far: false };
+
+type Hear = (told: Told) => void;
+
+/** What a session's stores are: by view id, and what each hears of the history, through one shared listener. */
+interface Stores {
+  readonly byView: Map<string, ViewStore>;
+  readonly hear: Map<string, Hear>;
+}
+const KEPT = new WeakMap<Session, Stores>();
+
+function storesOf(session: Session): Stores {
+  let kept = KEPT.get(session);
+  if (!kept) {
+    const made: Stores = { byView: new Map(), hear: new Map() };
+    kept = made;
+    KEPT.set(session, made);
+    session.history.listen((told) => { for (const hear of [...made.hear.values()]) hear(told); });
+  }
+  return kept;
+}
+
+interface Item { id: string; selected?: boolean }
+interface Select { type: string; id?: string; selected?: boolean }
+
+/** The list with the items the `select` changes name set as they say: a new array, new objects for those; null if none differs. */
+function selected<T extends Item>(list: T[], changes: readonly Select[]): T[] | null {
+  let out: T[] | null = null;
+  for (const change of changes) {
+    if (change.type !== 'select' || change.id === undefined) continue;
+    const current: T[] = out ?? list;
+    const at = current.findIndex((item) => item.id === change.id);
+    if (at < 0 || (current[at].selected ?? false) === (change.selected ?? false)) continue;
+    out ??= [...list];
+    out[at] = { ...current[at], selected: change.selected ?? false };
+  }
+  return out;
+}
+
+function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewStore {
+  const listeners = new Set<() => void>();
+  let projection: Projection | null = null;
+  let snapshot: ViewSnapshot = EMPTY;
+  let stale = true;
+  let far = false;
+  let viewport: Viewport | null = null;
+  let projected = 0;
+
+  const viewOf = () => session.model.views.find((view) => view.id === viewId);
+
+  /** Makes the snapshot of the projection: the object it was while its nodes, edges and far are the same. */
+  const adopt = (): void => {
+    const p = projection;
+    if (!p) { snapshot = EMPTY; return; }
+    if (snapshot.nodes !== p.nodes || snapshot.edges !== p.edges || snapshot.far !== p.far) snapshot = { nodes: p.nodes, edges: p.edges, far: p.far };
+  };
+
+  /** Projects again when stale. Returns whether the snapshot is a new object. */
+  const refresh = (): boolean => {
+    if (!stale && projection) return false;
+    stale = false;
+    const before = snapshot;
+    const view = viewOf();
+    if (!view) {
+      projection = null;
+    } else {
+      projected++;
+      projection = project(session.lib, session.model, view, { far, previous: projection });
+    }
+    adopt();
+    return snapshot !== before;
+  };
+
+  const tell = (): void => { for (const listener of [...listeners]) listener(); };
+
+  /** Remembers a viewport. When it crosses FAR, the view is far or near from then on, and a live store tells. */
+  const see = (next: Viewport): Viewport => {
+    viewport = { x: next.x, y: next.y, zoom: next.zoom };
+    const now = next.zoom < FAR;
+    if (now !== far) {
+      far = now;
+      stale = true;
+      if (listeners.size > 0 && refresh()) tell();
+    }
+    return viewport;
+  };
+
+  const getSnapshot = (): ViewSnapshot => {
+    refresh();
+    return snapshot;
+  };
+
+  const subscribe = (listener: () => void): (() => void) => {
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
+  };
+
+  const camera = (width?: number, height?: number): Viewport => {
+    if (viewport) return viewport;
+    refresh();
+    if (width === undefined || height === undefined) return { x: 0, y: 0, zoom: 1 };
+    return see(fit(projection ? projection.bounds : null, width, height));
+  };
+
+  const fitNow = (width: number, height: number): Viewport => {
+    refresh();
+    return see(fit(projection ? projection.bounds : null, width, height));
+  };
+
+  const moved = (next: Viewport): void => { see(next); };
+
+  const nodesChanged = (changes: NodeChange<PlaneNode>[]): void => {
+    refresh();
+    if (!projection) return;
+    const nodes = selected(projection.nodes, changes);
+    if (!nodes) return;
+    projection = { ...projection, nodes };
+    adopt();
+    tell();
+  };
+
+  const edgesChanged = (changes: EdgeChange<PlaneEdge>[]): void => {
+    refresh();
+    if (!projection) return;
+    const edges = selected(projection.edges, changes);
+    if (!edges) return;
+    projection = { ...projection, edges };
+    adopt();
+    tell();
+  };
+
+  hear.set(viewId, (told) => {
+    if (told.by === 'end') return;
+    if (told.views !== null && !told.views.includes(viewId)) return;
+    stale = true;
+    if (listeners.size > 0 && refresh()) tell();
+  });
+
+  return {
+    session,
+    viewId,
+    get drawn() { const view = viewOf(); return !!view && isDrawn(session.lib, view.kind); },
+    get notDrawn() { const view = viewOf(); return view ? notDrawnText(session.lib, view.kind) : 'This view is not in the model.'; },
+    get projected() { return projected; },
+    subscribe,
+    getSnapshot,
+    camera,
+    fit: fitNow,
+    moved,
+    nodesChanged,
+    edgesChanged,
+  };
+}
+
 /**
  * The store of a session's view: the same one each time it is asked for. A session's stores share one listener on
  * its history, added with the first store. Stores are kept by the session object itself, weakly, so a session that is
  * replaced takes its stores with it.
  */
 export function viewStoreOf(session: Session, viewId: string): ViewStore {
-  void [session, viewId];
-  throw new Error('plane/viewStore.ts: viewStoreOf() is not built yet (step 6).');
+  const kept = storesOf(session);
+  let store = kept.byView.get(viewId);
+  if (!store) {
+    store = make(session, viewId, kept.hear);
+    kept.byView.set(viewId, store);
+  }
+  return store;
 }
 
 /** The stores made so far for a session, by view id: what window.Grasp.views shows. */
 export function viewStoresOf(session: Session): ReadonlyMap<string, ViewStore> {
-  void session;
-  throw new Error('plane/viewStore.ts: viewStoresOf() is not built yet (step 6).');
+  return storesOf(session).byView;
 }

@@ -10,8 +10,9 @@
 // compartmentsOf, portName and the far form in canvas/src/core/page/drawing.js; the item's line in
 // canvas/src/interconnection/page.js; the action's and the state's lines, the send or accept compartment and the
 // control nodes in canvas/src/behavior/page.js; the code compartment in canvas/src/annotations/page.js; the event in
-// canvas/src/sequence/page.js. Two measures differ from the old page's, both in Look: a compartment's title row and
-// the distance between its rows. Given OLD_LOOK, project() gives the old page's rectangles exactly.
+// canvas/src/sequence/page.js. Two measures differ from the old page's, both in Look: a compartment's title row, 16
+// where the old page has 18, and `snap`, which draws an elbow between two boxes a few pixels out of line as one
+// straight stroke. Given OLD_LOOK, project() and route() give the old page's rectangles and points exactly.
 
 import type { Edge, Node, Position } from '@xyflow/react';
 import type { Model, ModelElement, ModelRelationship, ModelView, Place } from './history';
@@ -101,10 +102,17 @@ export type Look = {
   docChar: number;
   /** A send or accept's rows hold as many by codeChar, at least 10; a code link is cut to as many, at least 8. */
   codeChar: number;
+  /**
+   * How far out of line the two ends of an elbow may be and still be joined by one straight stroke, which then runs
+   * at the far end's centre. The old page has no such rule (0): two boxes 2 px out of line get a 2 px step.
+   */
+  snap: number;
 };
 
-export const LOOK: Look = { header: 40, head: 16, lead: 16, tail: 6, pad: 12, childTop: 48, port: 16, docChar: 6.1, codeChar: 6.6 };
-export const OLD_LOOK: Look = { ...LOOK, head: 18, lead: 15 };
+// The rows stay the old page's 15 apart, not the 16 of plan/slice-1.md, section 4: the saved files were laid out for
+// 15, and in the example `hosts` sits straight under `Page`'s three doc rows (plan/notes.md, session 20).
+export const LOOK: Look = { header: 40, head: 16, lead: 15, tail: 6, pad: 12, childTop: 48, port: 16, docChar: 6.1, codeChar: 6.6, snap: 4 };
+export const OLD_LOOK: Look = { ...LOOK, head: 18, snap: 0 };
 
 /** Below this zoom a plane is far: a box is its outline, and names and labels are left out. */
 export const FAR = 0.25;
@@ -256,6 +264,382 @@ export function markerId(name: string): string {
   return `grasp-${name}`;
 }
 
+// ---- The helpers, ported from the old page (the file header says where each one is).
+
+const str = (value: unknown): string => (typeof value === 'string' ? value : '');
+const num = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
+
+/** layout.js `wrap`: words kept whole, a blank line kept as a row, the trailing blank rows dropped. */
+function wrap(text: unknown, maxChars: number): string[] {
+  const out: string[] = [];
+  for (const para of String(text || '').replace(/\r\n?/g, '\n').split('\n')) {
+    let line = '';
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      if (line && (line + ' ' + word).length > maxChars) {
+        out.push(line);
+        line = word;
+      } else line = line ? line + ' ' + word : word;
+    }
+    if (line || !para.trim()) out.push(line);
+  }
+  while (out.length && !out[out.length - 1]) out.pop();
+  return out;
+}
+
+/** annotations/page.js `fitPath`: a path that fits a row, its end kept behind an ellipsis. */
+function fitPath(path: string, chars: number): string {
+  return path.length <= chars ? path : '…' + path.slice(path.length - chars + 1);
+}
+
+/** Whether two values read the same, by value: plain data only, which is what a node's `data` holds. */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    const other = b as unknown[];
+    if (a.length !== other.length) return false;
+    for (let i = 0; i < a.length; i++) if (!sameValue(a[i], other[i])) return false;
+    return true;
+  }
+  const x = a as Record<string, unknown>;
+  const y = b as Record<string, unknown>;
+  const keys = Object.keys(x);
+  if (keys.length !== Object.keys(y).length) return false;
+  for (const key of keys) if (!(key in y) || !sameValue(x[key], y[key])) return false;
+  return true;
+}
+
+function sameLook(a: Look, b: Look): boolean {
+  if (a === b) return true;
+  const keys = Object.keys(a) as (keyof Look)[];
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+}
+
+type SavedPlace = { x?: unknown; y?: unknown; w?: unknown; h?: unknown; side?: unknown; at?: unknown };
+
+/** layout.js `portRect`: the square of a border item, centred on its owner's border `at` along its side. */
+function portRect(place: SavedPlace, r: Rect, port: number): { rect: Rect; side: Side } {
+  const at = num(place.at);
+  let cx: number;
+  let cy: number;
+  let side: Side;
+  if (place.side === 'top') { side = 'top'; cx = r.x + at * r.w; cy = r.y; }
+  else if (place.side === 'bottom') { side = 'bottom'; cx = r.x + at * r.w; cy = r.y + r.h; }
+  else if (place.side === 'left') { side = 'left'; cx = r.x; cy = r.y + at * r.h; }
+  else { side = 'right'; cx = r.x + r.w; cy = r.y + at * r.h; }
+  return { rect: { x: cx - port / 2, y: cy - port / 2, w: port, h: port }, side };
+}
+
+const centre = (r: Rect): Point => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
+
+/** layout.js `edgePoint`: where a line from the middle of box `r` toward `toward` leaves the box. */
+function edgePoint(r: Rect, toward: Point): Point {
+  const c = centre(r);
+  const dx = toward.x - c.x;
+  const dy = toward.y - c.y;
+  if (!dx && !dy) return { x: c.x, y: r.y };
+  const t = Math.min(dx ? r.w / 2 / Math.abs(dx) : Infinity, dy ? r.h / 2 / Math.abs(dy) : Infinity);
+  return { x: c.x + dx * t, y: c.y + dy * t };
+}
+
+/** layout.js `straight`. */
+function straight(ra: End, rb: End, look: Look): Point[] {
+  const ca = centre(ra);
+  const cb = centre(rb);
+  let a = ra.border ? ca : edgePoint(ra, cb);
+  let b = rb.border ? cb : edgePoint(rb, ca);
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const u = { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
+  if (ra.border) a = { x: a.x + u.x * (look.port / 2 + 1), y: a.y + u.y * (look.port / 2 + 1) };
+  if (rb.border) b = { x: b.x - u.x * (look.port / 2 + 1), y: b.y - u.y * (look.port / 2 + 1) };
+  return [a, b];
+}
+
+/**
+ * layout.js `elbow`: null when the two rectangles overlap in both directions. With `snap`, two ends no further out of
+ * line than that are joined at the far end's centre, so the stroke has no step.
+ */
+function elbow(ra: Rect, rb: Rect, snap: number): Point[] | null {
+  const bx = rb.x + rb.w / 2;
+  const by = rb.y + rb.h / 2;
+  const upright = rb.y + rb.h <= ra.y || rb.y >= ra.y + ra.h;
+  const ax = upright && Math.abs(ra.x + ra.w / 2 - bx) <= snap ? bx : ra.x + ra.w / 2;
+  const ay = !upright && Math.abs(ra.y + ra.h / 2 - by) <= snap ? by : ra.y + ra.h / 2;
+  if (rb.y + rb.h <= ra.y) { const m = (ra.y + rb.y + rb.h) / 2; return [{ x: ax, y: ra.y }, { x: ax, y: m }, { x: bx, y: m }, { x: bx, y: rb.y + rb.h }]; }
+  if (rb.y >= ra.y + ra.h) { const m = (ra.y + ra.h + rb.y) / 2; return [{ x: ax, y: ra.y + ra.h }, { x: ax, y: m }, { x: bx, y: m }, { x: bx, y: rb.y }]; }
+  if (rb.x >= ra.x + ra.w) { const m = (ra.x + ra.w + rb.x) / 2; return [{ x: ra.x + ra.w, y: ay }, { x: m, y: ay }, { x: m, y: by }, { x: rb.x, y: by }]; }
+  if (rb.x + rb.w <= ra.x) { const m = (ra.x + rb.x + rb.w) / 2; return [{ x: ra.x, y: ay }, { x: m, y: ay }, { x: m, y: by }, { x: rb.x + rb.w, y: by }]; }
+  return null;
+}
+
+/** An element's shape as a node type: its kind's shape when it is one of SHAPES, else `port` on a border, else `rect`. */
+function shapeOf(row: KindRow): Shape {
+  return (SHAPES as readonly string[]).includes(row.shape) ? (row.shape as Shape) : row.onBorder ? 'port' : 'rect';
+}
+
+/** drawing.js `portName`, from the square's top left: a name goes clear of the first line drawn from its border item. */
+function portName(side: Side, way: Point | null, port: number): BorderData['nameAt'] {
+  const c = port / 2;
+  if (side === 'right') return way && way.y < 0 && way.x > 0 ? { x: c + 12, y: c + 15, anchor: 'start' } : { x: c + 12, y: c - 6, anchor: 'start' };
+  if (side === 'left') return way && way.y > 0 && way.x < 0 ? { x: c - 12, y: c - 6, anchor: 'end' } : { x: c - 12, y: c + 15, anchor: 'end' };
+  const y = side === 'top' ? c - 6 : c + 15;
+  if (way && (side === 'top' ? way.y < 0 : way.y > 0)) return way.x > 0 ? { x: c - 12, y, anchor: 'end' } : { x: c + 12, y, anchor: 'start' };
+  return side === 'top' ? { x: c, y: c - 13, anchor: 'middle' } : { x: c, y: c + 22, anchor: 'middle' };
+}
+
+/** What an element's compartments hold in a box `width` wide: doc, then send or accept, then code. */
+function compartmentsOf(lib: SysMLModelLibrary, model: Model, el: ModelElement, row: KindRow, width: number, look: Look): Compartment[] {
+  const out: Compartment[] = [];
+  const doc = str(el.doc);
+  if (row.fields.includes('doc') && doc.trim() !== '') {
+    const lines = wrap(doc, Math.max(12, Math.floor((width - 2 * look.pad) / look.docChar)));
+    if (lines.length) out.push({ head: 'doc', lines });
+  }
+  if (el.kind === 'ActionUsage' && (el.actionKind === 'send' || el.actionKind === 'accept')) {
+    const payload = str(el.payload).trim();
+    const target = str(el.target).trim();
+    if (payload || target) {
+      const word = el.actionKind === 'accept' ? 'via' : lib.sendWord(model, target);
+      const lines = wrap(payload + (target ? ' ' + word + ' ' + target : ''), Math.max(10, Math.floor((width - 2 * look.pad) / look.codeChar)));
+      if (lines.length) out.push({ head: el.actionKind, lines });
+    }
+  }
+  if (Array.isArray(el.code) && el.code.length > 0) {
+    const chars = Math.max(8, Math.floor((width - 2 * look.pad) / look.codeChar));
+    const lines = (el.code as unknown[]).map((link) => {
+      const path = link && typeof link === 'object' ? str((link as { path?: unknown }).path) : '';
+      return fitPath(path.trim() || '(no path)', chars);
+    });
+    out.push({ head: 'code', lines });
+  }
+  return out;
+}
+
+/** The keyword line of a box, by its shape. */
+function keywordOf(shape: Shape, el: ModelElement, row: KindRow): string {
+  if (shape === 'item') return '«' + (str(el.direction) ? str(el.direction) + ' ' : '') + row.keyword + '»';
+  if (shape === 'action') {
+    const what = el.actionKind === 'send' || el.actionKind === 'accept' ? el.actionKind + ' ' : '';
+    return '«' + (str(el.role) ? str(el.role) + ' ' : '') + what + 'action»';
+  }
+  if (shape === 'state') return '«' + (el.abstract ? 'abstract ' : '') + row.keyword + '»' + (el.parallel ? ' «parallel»' : '');
+  return '«' + (el.abstract ? 'abstract ' : '') + row.keyword + '»';
+}
+
+/** drawing.js `nameLine`: the name, its definition's after a colon, the multiplicity in brackets. */
+function nameLine(lib: SysMLModelLibrary, model: Model, ids: Map<string, ModelElement>, el: ModelElement, row: KindRow): string {
+  let s = lib.textName(el) || '(unnamed)';
+  if (row.usage) {
+    const typing = lib.typingOf(model, el);
+    if (typing) {
+      const def = ids.get(typing.to);
+      s += ' : ' + (el.conjugated ? '~' : '') + (def ? lib.textName(def) || '(unnamed)' : '?');
+    }
+    if (el.multiplicity) s += ' [' + String(el.multiplicity) + ']';
+  }
+  return s;
+}
+
+const EMPTY_ROW: LineRow = { route: 'straight', marker: null, cls: '', label: null };
+
+/** What one reading of a view makes, before the words of far and the objects of `previous` are settled. */
+type Made = { nodes: PlaneNode[]; edges: PlaneEdge[]; rects: Map<string, Rect>; bounds: Rect | null };
+
+function build(lib: SysMLModelLibrary, model: Model, view: ModelView, far: boolean, look: Look): Made {
+  const none: Made = { nodes: [], edges: [], rects: new Map(), bounds: null };
+  const ids = new Map<string, ModelElement>();
+  for (const el of model.elements) ids.set(el.id, el);
+  const layout = view.layout as Record<string, SavedPlace>;
+  const shown = new Set<string>();
+  for (const id of Object.keys(layout)) {
+    const el = ids.get(id);
+    if (el && lib.KINDS[el.kind]) shown.add(id);
+  }
+  if (shown.size === 0) return none;
+
+  // A box's parent is its nearest owner that the view shows; what a box holds, boxes and border items apart, in the
+  // model's order (graphLayout 44-58).
+  type Group = { boxes: ModelElement[]; ports: ModelElement[] };
+  const groups = new Map<string | undefined, Group>();
+  const limit = model.elements.length;
+  for (const el of model.elements) {
+    if (!shown.has(el.id)) continue;
+    let p = el.owner;
+    let steps = 0;
+    while (p !== undefined && !shown.has(p)) {
+      const o = ids.get(p);
+      p = o && ++steps <= limit ? o.owner : undefined;
+    }
+    let group = groups.get(p);
+    if (!group) groups.set(p, (group = { boxes: [], ports: [] }));
+    (lib.KINDS[el.kind].onBorder ? group.ports : group.boxes).push(el);
+  }
+
+  // graphLayout size(): a box is its saved size, or what its header and compartments need, or what holds each box in it.
+  type Size = { w: number; h: number; comps: Compartment[] };
+  const sizes = new Map<string, Size>();
+  const sizeOf = (el: ModelElement): Size => {
+    const kept = sizes.get(el.id);
+    if (kept) return kept;
+    const lay = layout[el.id];
+    const row = lib.KINDS[el.kind];
+    const isBox = BOX_SHAPES.includes(shapeOf(row));
+    const comps = isBox ? compartmentsOf(lib, model, el, row, num(lay.w), look) : [];
+    let bottom = (isBox ? look.header : 0) + comps.reduce((h, c) => h + look.head + look.lead * c.lines.length + look.tail, 0);
+    let right = 0;
+    for (const kid of groups.get(el.id)?.boxes ?? []) {
+      const s = sizeOf(kid);
+      const kl = layout[kid.id];
+      bottom = Math.max(bottom, num(kl.y) + s.h + look.pad);
+      right = Math.max(right, num(kl.x) + s.w + look.pad);
+    }
+    const size = { w: Math.max(num(lay.w), right), h: Math.max(num(lay.h), bottom), comps };
+    sizes.set(el.id, size);
+    return size;
+  };
+
+  // graphLayout place(): rectangles from the view's origin; the nodes in order: a box, the boxes in it, its border items.
+  type Entry = { el: ModelElement; row: KindRow; shape: Shape; parent: string | undefined; rect: Rect; comps: Compartment[]; side?: Side };
+  const entries: Entry[] = [];
+  const rects = new Map<string, Rect>();
+  const borders = new Set<string>();
+  const place = (el: ModelElement, ox: number, oy: number, parent: string | undefined): void => {
+    const lay = layout[el.id];
+    const s = sizeOf(el);
+    const r: Rect = { x: ox + num(lay.x), y: oy + num(lay.y), w: s.w, h: s.h };
+    const row = lib.KINDS[el.kind];
+    rects.set(el.id, r);
+    entries.push({ el, row, shape: shapeOf(row), parent, rect: r, comps: s.comps });
+    const group = groups.get(el.id);
+    if (!group) return;
+    for (const kid of group.boxes) place(kid, r.x, r.y, el.id);
+    for (const port of group.ports) {
+      const square = portRect(layout[port.id], r, look.port);
+      const prow = lib.KINDS[port.kind];
+      rects.set(port.id, square.rect);
+      borders.add(port.id);
+      entries.push({ el: port, row: prow, shape: shapeOf(prow), parent: el.id, rect: square.rect, comps: [], side: square.side });
+    }
+  };
+  for (const el of groups.get(undefined)?.boxes ?? []) place(el, 0, 0, undefined);
+  if (entries.length === 0) return none;
+
+  let x = Infinity;
+  let y = Infinity;
+  let x2 = -Infinity;
+  let y2 = -Infinity;
+  for (const r of rects.values()) {
+    x = Math.min(x, r.x);
+    y = Math.min(y, r.y);
+    x2 = Math.max(x2, r.x + r.w);
+    y2 = Math.max(y2, r.y + r.h);
+  }
+  const bounds: Rect = { x, y, w: x2 - x, h: y2 - y };
+
+  // The lines: not hidden, both ends placed, in the model's order. Their points are made when a border item asks.
+  type Line = { rel: ModelRelationship; row: LineRow; a: End; b: End; how: 'straight' | 'elbow'; points?: Point[] };
+  const lines: Line[] = [];
+  const byEnd = new Map<string, Line[]>();
+  const addEnd = (id: string, line: Line): void => {
+    const list = byEnd.get(id);
+    if (list) list.push(line);
+    else byEnd.set(id, [line]);
+  };
+  for (const rel of model.relationships) {
+    if (rel.hidden) continue;
+    const ra = rects.get(rel.from);
+    const rb = rects.get(rel.to);
+    if (!ra || !rb) continue;
+    const row = lib.RELATIONSHIPS[rel.kind]?.line ?? EMPTY_ROW;
+    const line: Line = { rel, row, a: { ...ra, border: borders.has(rel.from) }, b: { ...rb, border: borders.has(rel.to) }, how: row.route === 'elbow' ? 'elbow' : 'straight' };
+    lines.push(line);
+    addEnd(rel.from, line);
+    if (rel.to !== rel.from) addEnd(rel.to, line);
+  }
+  const pointsOf = (line: Line): Point[] => (line.points ??= route(line.how, line.a, line.b, look).points);
+  // drawing.js lineWay: which way the first line drawn from a border item leaves it.
+  const lineWay = (id: string): Point | null => {
+    for (const line of byEnd.get(id) ?? []) {
+      const pts = pointsOf(line);
+      const n = pts.length;
+      const d = line.rel.from === id
+        ? { x: pts[1].x - pts[0].x, y: pts[1].y - pts[0].y }
+        : { x: pts[n - 2].x - pts[n - 1].x, y: pts[n - 2].y - pts[n - 1].y };
+      if (d.x || d.y) return d;
+    }
+    return null;
+  };
+
+  const nodes: PlaneNode[] = entries.map(({ el, row, shape, parent, rect, comps, side }) => {
+    const words = [row.definition ? 'def' : 'usage'];
+    if (el.abstract && side === undefined) words.push('abstract');
+    if (far) words.push('far');
+    const base = { id: el.id, type: shape, handles: HANDLES, className: words.join(' ') };
+    const sized = (width: number, height: number) => ({ width, height, measured: { width, height } });
+    const withParent = parent === undefined ? {} : { parentId: parent };
+    let data: NodeData;
+    if (BOX_SHAPES.includes(shape)) {
+      data = {
+        form: 'box',
+        far,
+        keyword: far ? '' : keywordOf(shape, el, row),
+        name: far ? '' : nameLine(lib, model, ids, el, row),
+        compartments: far ? [] : comps,
+        glyph: far ? null : shape === 'action' && (el.actionKind === 'send' || el.actionKind === 'accept') ? el.actionKind : null,
+        least: { width: Math.min(80, row.size[0]), height: Math.min(40, row.size[1]) },
+      };
+      const lay = layout[el.id];
+      return { ...base, ...withParent, position: { x: num(lay.x), y: num(lay.y) }, ...sized(rect.w, rect.h), data } as PlaneNode;
+    }
+    if (side !== undefined && parent !== undefined) {
+      const raw = row.glyph ? row.glyph(model, el) : 'inout';
+      data = {
+        form: 'border',
+        far,
+        side,
+        glyph: far ? null : raw === 'in' || raw === 'out' || raw === 'inout' ? raw : null,
+        name: far ? '' : nameLine(lib, model, ids, el, row),
+        nameAt: portName(side, lineWay(el.id), look.port),
+      };
+      const owner = rects.get(parent) as Rect;
+      return { ...base, ...withParent, position: { x: rect.x - owner.x, y: rect.y - owner.y }, ...sized(rect.w, rect.h), data } as PlaneNode;
+    }
+    const lay = layout[el.id];
+    const named = shape === 'event' ? nameLine(lib, model, ids, el, row) : shape === 'bar' || shape === 'diamond' ? lib.textName(el) || '' : '';
+    data = { form: 'small', far, name: far ? '' : named };
+    return { ...base, ...withParent, position: { x: num(lay.x), y: num(lay.y) }, ...sized(rect.w, rect.h), data } as PlaneNode;
+  });
+
+  const edges: PlaneEdge[] = lines.map(({ rel, row, how, a, b }) => ({
+    id: rel.id,
+    source: rel.from,
+    target: rel.to,
+    type: 'line',
+    className: row.cls,
+    data: {
+      route: how,
+      marker: row.marker ? markerId(row.marker) : null,
+      label: far || !row.label ? '' : row.label(rel, model, ids),
+      labelOffset: row.labelOffset ?? 30,
+      far,
+      sourceBorder: a.border,
+      targetBorder: b.border,
+    },
+  }));
+  return { nodes, edges, rects, bounds };
+}
+
+/** Whether a new node reads the same as the one before it: everything but `selected` and `dragging`. */
+function sameNode(a: PlaneNode, b: PlaneNode): boolean {
+  return a.type === b.type && a.parentId === b.parentId && a.width === b.width && a.height === b.height && a.className === b.className
+    && a.position.x === b.position.x && a.position.y === b.position.y && sameValue(a.data, b.data);
+}
+
+function sameEdge(a: PlaneEdge, b: PlaneEdge): boolean {
+  return a.type === b.type && a.source === b.source && a.target === b.target && a.className === b.className && sameValue(a.data, b.data);
+}
+
 /**
  * Projects one view of the model: the plan's six rules.
  *
@@ -270,8 +654,9 @@ export function markerId(name: string): string {
  * 4. One edge for each relationship that is not hidden and has both ends placed. Its route, marker, class, label and
  *    label offset come from its row's `line`.
  * 5. A node or edge that reads the same as in `previous` is the same object, and its `data` too. A changed one is a
- *    new object that keeps `selected` and `dragging` from the one before. When every node and edge is the same
- *    object, in the same order, and `far` and `look` are the same, the result is `previous` itself.
+ *    new object that keeps `selected` and `dragging` from the one before, and its `data` object too when only its
+ *    place or size changed. When every node and edge is the same object, in the same order, and `far` and `look` are
+ *    the same, the result is `previous` itself.
  * 6. Far: words are left out (BoxData, BorderData, SmallData, EdgeData say which), sizes stay, and every node's
  *    className gains `far`.
  *
@@ -279,8 +664,54 @@ export function markerId(name: string): string {
  * milliseconds, and it writes nothing to the model. A view of a kind no plane draws projects to nothing.
  */
 export function project(lib: SysMLModelLibrary, model: Model, view: ModelView, options: ProjectOptions = {}): Projection {
-  void [lib, model, view, options];
-  throw new Error('core/adapter.ts: project() is not built yet (step 6).');
+  const far = options.far === true;
+  const look = options.look ?? LOOK;
+  const previous = options.previous && options.previous.view === view.id ? options.previous : null;
+  const made: Made = isDrawn(lib, view.kind)
+    ? lib.reading(model, () => build(lib, model, view, far, look))
+    : { nodes: [], edges: [], rects: new Map(), bounds: null };
+
+  // Rule 5: what reads the same as before is the object it was; what changed keeps what React Flow set on it.
+  let same = previous !== null && previous.far === far && sameLook(previous.look, look)
+    && previous.nodes.length === made.nodes.length && previous.edges.length === made.edges.length;
+  let nodes = made.nodes;
+  let edges = made.edges;
+  if (previous) {
+    const was = new Map<string, PlaneNode>();
+    for (const node of previous.nodes) was.set(node.id, node);
+    nodes = made.nodes.map((node, i) => {
+      const old = was.get(node.id);
+      let out = node;
+      if (old) {
+        if (sameNode(old, node)) out = old;
+        else {
+          // A node that only moved or grew says what it said: its component, memoized on `data`, does not render again.
+          if (sameValue(old.data, node.data)) node.data = old.data;
+          if (old.selected !== undefined) node.selected = old.selected;
+          if (old.dragging !== undefined) node.dragging = old.dragging;
+        }
+      }
+      if (out !== previous.nodes[i]) same = false;
+      return out;
+    });
+    const wasEdge = new Map<string, PlaneEdge>();
+    for (const edge of previous.edges) wasEdge.set(edge.id, edge);
+    edges = made.edges.map((edge, i) => {
+      const old = wasEdge.get(edge.id);
+      let out = edge;
+      if (old) {
+        if (sameEdge(old, edge)) out = old;
+        else {
+          if (sameValue(old.data, edge.data)) edge.data = old.data;
+          if (old.selected !== undefined) edge.selected = old.selected;
+        }
+      }
+      if (out !== previous.edges[i]) same = false;
+      return out;
+    });
+    if (same) return previous;
+  }
+  return { view: view.id, far, look, nodes, edges, rects: made.rects, bounds: made.bounds };
 }
 
 /**
@@ -290,11 +721,14 @@ export function project(lib: SysMLModelLibrary, model: Model, view: ModelView, o
  *   centre when the two centres are one point). A border item's end is `port / 2 + 1` out from its square's centre.
  * - `elbow`: four points, when `b` lies wholly above `a`, wholly below, wholly right or wholly left of it, asked in
  *   that order: out of the facing sides at the two centres, with the turn halfway between. Otherwise as `straight`.
+ *   When the two centres are no more than `look.snap` out of line, both ends are at `b`'s centre and the four points
+ *   lie on one straight stroke.
  * - `mid` is the middle of the segment from point `floor(n / 2) - 1` to the next: of the middle one for an elbow.
  */
 export function route(how: 'straight' | 'elbow', a: End, b: End, look: Look = LOOK): { points: Point[]; mid: Point } {
-  void [how, a, b, look];
-  throw new Error('core/adapter.ts: route() is not built yet (step 6).');
+  const points = (how === 'elbow' ? elbow(a, b, look.snap) : null) ?? straight(a, b, look);
+  const i = Math.floor(points.length / 2) - 1;
+  return { points, mid: { x: (points[i].x + points[i + 1].x) / 2, y: (points[i].y + points[i + 1].y) / 2 } };
 }
 
 /**
@@ -303,6 +737,13 @@ export function route(how: 'straight' | 'elbow', a: End, b: End, look: Look = LO
  * leaves. With nothing to fit (`bounds` null), 100% at the origin. A window too small for any room fits at MIN_ZOOM.
  */
 export function fit(bounds: Rect | null, width: number, height: number): Viewport {
-  void [bounds, width, height];
-  throw new Error('core/adapter.ts: fit() is not built yet (step 6).');
+  if (!bounds) return { x: 0, y: 0, zoom: 1 };
+  const roomW = width - 2 * FIT_PAD;
+  const roomH = height - FIT_PAD - FIT_BAND;
+  const zoom = roomW <= 0 || roomH <= 0 ? MIN_ZOOM : Math.max(MIN_ZOOM, Math.min(1, roomW / bounds.w, roomH / bounds.h));
+  return {
+    x: FIT_PAD + (roomW - bounds.w * zoom) / 2 - bounds.x * zoom,
+    y: FIT_PAD + (roomH - bounds.h * zoom) / 2 - bounds.y * zoom,
+    zoom,
+  };
 }

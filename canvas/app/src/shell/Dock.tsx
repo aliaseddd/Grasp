@@ -9,6 +9,7 @@ import type {
   DockviewApi, DockviewGroupPanelApi, DockviewReadyEvent, IDockviewPanelHeaderProps, IDockviewPanelProps, IWatermarkPanelProps,
 } from 'dockview-react';
 import type { ModelView, Session } from '../core';
+import { Plane } from '../plane/Plane';
 import { EmptyCard } from './EmptyCard';
 import { TAB_BAR_HEIGHT } from './theme';
 
@@ -219,8 +220,8 @@ const ExplorerPanel = (): JSX.Element => <EmptyState testId="explorer" title="Ex
 const ToolsPanel = (): JSX.Element => <EmptyState title="Tools" text="The view's tools come in step 11." />;
 const ValidationPanel = (): JSX.Element => <EmptyState title="Validation" text="The model's problems come in step 12." />;
 const DetailsPanel = (): JSX.Element => <EmptyState testId="details" title="Details" text="The selection's fields come in step 10." />;
-// Step 6 draws `params.session`'s view `params.viewId` here (ViewParams says why not the context's session).
-const ViewPanel = (_props: IDockviewPanelProps<ViewParams>): JSX.Element => <div className="grasp-view-body" />;
+// A view's tab draws `params.session`'s view `params.viewId` (ViewParams says why not the context's session).
+const ViewPanel = ({ params }: IDockviewPanelProps<ViewParams>): JSX.Element => <Plane session={params.session} viewId={params.viewId} />;
 
 const COMPONENTS = {
   explorer: ExplorerPanel, tools: ToolsPanel, validation: ValidationPanel, details: DetailsPanel, view: ViewPanel,

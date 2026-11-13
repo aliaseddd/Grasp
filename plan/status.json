@@ -4,10 +4,10 @@
   "slices": [
     {
       "id": 1, "name": "The shell and the planes", "status": "in progress",
-      "plan": "plan/slice-1.md", "criteria": "plan/slice-1.md, section 10", "step": 5,
+      "plan": "plan/slice-1.md", "criteria": "plan/slice-1.md, section 10", "step": 6,
       "checks": [
         { "id": 1, "check": "opened from the file system in Chromium with no console error", "test": "shell.test.mjs › from file://, the page opens with no console error", "status": "pass" },
-        { "id": 2, "check": "the example shows its general view on a tab", "test": "shell.test.mjs › the example shows its general view on a tab", "status": "todo" },
+        { "id": 2, "check": "the example shows its general view on a tab", "test": "shell.test.mjs › the example shows its general view on a tab", "status": "pass" },
         { "id": 3, "check": "no header palette or button row exists", "test": "shell.test.mjs › no header palette or button row exists", "status": "pass" },
         { "id": 4, "check": "a sash drag resizes the Explorer", "test": "shell.test.mjs › a sash drag resizes the Explorer", "status": "pass" },
         { "id": 5, "check": "a box resized by its handles keeps its size after save and reload", "test": "resize.test.mjs › a box resized by its handles keeps its size after save and reload", "status": "todo" },

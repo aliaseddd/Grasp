@@ -2813,3 +2813,29 @@ guards it, and put the source back: 17 rows of `plane.test.mjs`, one of `open.te
 
 Noticed by the agent and left: `camera()` called with no size and nothing remembered gives 100% at the origin without
 remembering it; `nodesChanged` calls its subscribers without asking whether there are any.
+
+### Step 6: committed, and what is still open
+
+Committed at 135 tests, 130 pass, 0 fail, 5 todo; `npm run check` passes; check 2 is `"pass"` and `plan/status.json`
+names step 6. Damon said the context was nearly full, so the step was folded and pushed before its last reviews were
+closed. A later session must not take these as done:
+
+- **`example.png`, by a reviewer that saw only the image and the plan's list** (on the image before the last change):
+  7 of 8 items present. **Item 6, "three hollow triangles pointing at `Host`", is absent as worded**: the three
+  specializations end at one point, `Host`'s bottom middle, as the old page's `elbow` puts them, so one triangle shows
+  with three lines into it. Criterion 3 asks for every item. Damon's to decide: count the shared triangle, or spread
+  lines that arrive at one point (a rule the old page does not have).
+- **Its four scores: alignment and spacing 3, type and contrast 4, nothing cut off or overlapping 4, boxes and lines
+  4.** Criterion 4 asks 4. The 3 names the example's own saved places (`hosts` 89 px from `Page`'s left and `app` 11
+  from its right; `Host` and `App` of unequal height), which the page may not change, and two things it may: a 2 px
+  step in the line from `hosts` to `Host`, and `mount` 30 px from its line. The step is gone: `Look.snap` (4; 0 in
+  `OLD_LOOK`) draws an elbow whose ends are that little out of line as one straight stroke. `mount` keeps the old
+  page's 30, which keeps it clear of the ports' names. The retaken image has not been rated.
+- **The independent code review was still running** at the commit; its findings are not in.
+- **Not done:** the timed tests' own breakages (alone); three runs of `npm test` in a row; what the other test files
+  cost the timed tests; `Look.snap` has no test of its own; the worktrees under `.claude/worktrees/` and the local
+  branch `wip/step-6` are not removed.
+
+The method's log: test writers 2.7, 8.1 and 14.3 min; the adapter 4.3 min; the planes 12 min; breakage passes 2.8 and
+4.3 min; the shell's look 3.7 min. Rework: one test, on a wrong claim of the outline's (mine); five weak or missing
+tests found by the breakage passes, written by me. Nothing went back to an implementer.

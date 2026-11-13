@@ -1,6 +1,7 @@
 // The node of the five shapes with a header and compartments: rect, rounded, item, action, state (plan/slice-1.md,
 // section 4, "A node on a plane"). It draws one node from its `data`, and knows no model, no session and no store.
 
+import { memo } from 'react';
 import type { Node, NodeProps } from '@xyflow/react';
 import type { BoxData, Shape } from '../../core';
 
@@ -26,7 +27,44 @@ export type BoxNodeProps = NodeProps<Node<BoxData, Shape>>;
  *   loses its lines. Nothing else in a node carries the class `source` or `target`, and none `react-flow__handle`.
  * - Memoized: it renders again only when its `data`, `selected` or size changes, not when the node moves.
  */
-export function BoxNode(props: BoxNodeProps): JSX.Element {
-  void props;
-  throw new Error('plane/nodes/BoxNode.tsx: BoxNode is not built yet (step 6).');
+export function BoxNode({ data, selected, width, height }: BoxNodeProps): JSX.Element {
+  return <Box data={data} selected={selected} width={width} height={height} />;
 }
+
+interface BoxViewProps {
+  data: BoxData;
+  selected: boolean;
+  width: number | undefined;
+  height: number | undefined;
+}
+
+// The notation's marks, from the old page (behavior/page.js 64-65): a send's convex pentagon and an accept's notched one.
+const GLYPHS = { send: 'M8,8 h10 l5,5 l-5,5 h-10 Z', accept: 'M8,8 h15 v10 h-15 l5,-5 Z' } as const;
+
+// Memoized here, below the component React Flow calls, which is called again at every move of the node.
+const Box = memo(function Box({ data }: BoxViewProps): JSX.Element {
+  return (
+    <>
+      <span className="grasp-node-handle source target" />
+      {!data.far && (
+        <>
+          {data.glyph && (
+            <svg className="grasp-node-glyph" width="26" height="26" aria-hidden="true">
+              <path d={GLYPHS[data.glyph]} />
+            </svg>
+          )}
+          <div className="grasp-node-header">
+            <div className="grasp-node-keyword">{data.keyword}</div>
+            <div className="grasp-node-name">{data.name}</div>
+          </div>
+          {data.compartments.map((compartment, i) => (
+            <div className="grasp-compartment" key={i}>
+              <div className="grasp-compartment-head">{compartment.head}</div>
+              {compartment.lines.map((line, j) => <div className="grasp-compartment-row" key={j}>{line}</div>)}
+            </div>
+          ))}
+        </>
+      )}
+    </>
+  );
+}, (a, b) => a.data === b.data && a.selected === b.selected && a.width === b.width && a.height === b.height);

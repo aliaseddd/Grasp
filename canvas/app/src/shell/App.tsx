@@ -5,6 +5,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Box } from '@mui/material';
 import { openFile } from '../core';
 import type { Session } from '../core';
+import { Markers } from '../plane/edges/markers';
+import { viewStoresOf } from '../plane/viewStore';
+import type { ViewStore } from '../plane/viewStore';
 import { Dock } from './Dock';
 import { TopBar } from './TopBar';
 
@@ -12,6 +15,8 @@ import { TopBar } from './TopBar';
 export interface GraspGlobal {
   /** The open file, or null. */
   readonly session: Session | null;
+  /** The open file's view stores by view id (those made so far), or null with no file. */
+  readonly views: ReadonlyMap<string, ViewStore> | null;
 }
 
 declare global {
@@ -35,7 +40,7 @@ export function App(): JSX.Element {
   const [problem, setProblem] = useState<string | null>(null);
 
   useEffect(() => {
-    window.Grasp = { session };
+    window.Grasp = { session, views: session ? viewStoresOf(session) : null };
   }, [session]);
 
   // Called from the click itself, so the browser opens its picker or the input's dialog.
@@ -53,6 +58,7 @@ export function App(): JSX.Element {
   return (
     <Box data-testid="app" sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <TopBar session={session} onOpen={onOpen} />
+      <Markers />
       <Box sx={{ flex: '1 1 0', minHeight: 0, position: 'relative' }}>
         <Dock session={session} onOpen={onOpen} />
         {problem !== null && (
