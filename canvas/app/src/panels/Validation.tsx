@@ -10,6 +10,11 @@
 // list of problems (canvas/src/validation/page.js; core/page/panel.js, nextProblem), ported. It draws no badge on
 // a plane: badges are slice 2's.
 
+import { memo, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Box, ListItemButton } from '@mui/material';
+import { aboutDiagnostic, aboutProblem, checksOf, selectionOf } from '../core';
+import type { Diagnostic, EntryAbout, PickedType, Problem, Session } from '../core';
+import { useDock } from '../shell/dockContext';
 import { SidePanel, SideText } from './SidePanel';
 
 /** What the panel says while no file is open. */
@@ -63,7 +68,13 @@ export const rulesNote = (checked: number): string =>
  * - **A click on an entry** whose `pick` is not empty calls `selectionOf(session).set(pick)`, and nothing else: no
  *   tab is opened or brought forward and no camera moves. Such an entry is a button (MUI's ListItemButton: role
  *   "button", in the tab order, Enter and Space click it). An entry whose `pick` is empty (the package, 'none') is
- *   no button and takes no click.
+ *   no button and takes no click. What an entry is about is worked out once per result, and again at the click,
+ *   against the model as it is then: while the lists are stale, an entry whose element or relationship has left the
+ *   model since stays a button, and a click on it changes nothing (step 12's review, defect 2).
+ * - **Cost.** The entries are worked out once per result (`state.found`), and each list is memoized on them, so a
+ *   change that only turns the lists stale re-renders the lists' element and not one entry: at 5,000 elements with
+ *   150 problems shown, the first keystroke of a name took 57 to 72 ms when it redrew every entry (step 12's review,
+ *   defect 1; scale.test.mjs, the keystroke with Validation shown).
  * - **The entry of what is picked.** An entry whose `type` and `id` the selection holds
  *   (`selectionOf(session).has(type, id)`, re-read through the selection's `listen`) carries `aria-current="true"`
  *   and MUI's selected look; the others carry no `aria-current`.
@@ -71,9 +82,114 @@ export const rulesNote = (checked: number): string =>
  *   no stylesheet of its own and names no colour.
  */
 export function ValidationPanel(): JSX.Element {
+  const { session } = useDock();
+  const root = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!el || !session) { setShown(false); return undefined; }
+    setShown(el.clientWidth > 0);
+    const observer = new ResizeObserver((entries) => {
+      const next = entries[entries.length - 1].contentRect.width > 0;
+      setShown((was) => (was === next ? was : next));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [session]);
+
   return (
     <SidePanel testId="validation" title="Validation">
-      <SideText>The model's problems come in step 12.</SideText>
+      <div ref={root} className="grasp-validation">
+        {session ? (shown ? <Lists session={session} /> : null) : <SideText>{NO_FILE}</SideText>}
+      </div>
     </SidePanel>
   );
 }
+
+const TITLE_ROW = { display: 'flex', alignItems: 'baseline', gap: 1, px: 1.5, pt: 1.5, pb: 0.5 } as const;
+const SECONDARY = { color: 'text.secondary' } as const;
+
+function Lists({ session }: { session: Session }): JSX.Element {
+  const checks = checksOf(session);
+  const state = useSyncExternalStore(checks.listen, () => checks.state);
+  const found = state.found;
+  // Once per result: a change that only turns the lists stale reuses these arrays, and the memoized lists skip.
+  const problems = useMemo<Entry[]>(() => (found ? found.problems.map((p) => problemEntry(session, p)) : []), [session, found]);
+  const rules = useMemo<Entry[]>(() => (found ? found.diagnostics.map((d) => ruleEntry(session, d)) : []), [session, found]);
+  return (
+    <div
+      className="grasp-validation-lists"
+      data-stale={state.stale ? 'true' : 'false'}
+      aria-busy={state.stale ? 'true' : 'false'}
+      style={{ opacity: state.stale ? 0.6 : 1 }}
+    >
+      {found ? (
+        <>
+          <List session={session} name="problems" title={PROBLEMS_TITLE} none={NO_PROBLEMS} entries={problems} />
+          <List
+            session={session} name="rules" title={RULES_TITLE} none={NO_RULES}
+            note={rulesNote(session.lib.SPEC_RULES.length)} entries={rules}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+const problemEntry = (session: Session, p: Problem): Entry =>
+  ({ text: p.message, about: aboutProblem(session.model, p), again: () => aboutProblem(session.model, p), size: 13 });
+const ruleEntry = (session: Session, d: Diagnostic): Entry =>
+  ({ text: d.text, about: aboutDiagnostic(session.model, d), again: () => aboutDiagnostic(session.model, d), size: 12 });
+
+interface Entry {
+  text: string;
+  /** What the entry is about, as the result was worked out. */
+  about: EntryAbout;
+  /** What it is about in the model as it is now: what a click picks. */
+  again: () => EntryAbout;
+  size: number;
+}
+
+const List = memo(function List({ session, name, title, none, note, entries }: {
+  session: Session; name: string; title: string; none: string; note?: string; entries: Entry[];
+}): JSX.Element {
+  const selection = selectionOf(session);
+  const seen = new Map<string, number>();
+  // Re-read at each change of the selection: items is a new array then.
+  useSyncExternalStore(selection.listen, () => selection.items);
+  return (
+    <section data-list={name} data-count={entries.length}>
+      <Box sx={TITLE_ROW}>
+        <Box className="grasp-validation-title" sx={{ fontSize: 13, fontWeight: 500 }}>{title}</Box>
+        <Box className="grasp-validation-count" sx={{ fontSize: 12, ...SECONDARY }}>{entries.length}</Box>
+      </Box>
+      {note ? <Box className="grasp-validation-note" sx={{ fontSize: 12, px: 1.5, pb: 0.5, ...SECONDARY }}>{note}</Box> : null}
+      {entries.length === 0 ? (
+        <Box className="grasp-validation-none" sx={{ fontSize: 13, px: 1.5, py: 0.5, ...SECONDARY }}>{none}</Box>
+      ) : entries.map((entry) => {
+        const { about } = entry;
+        const sx = { fontSize: entry.size, overflowWrap: 'anywhere', px: 1.5, py: 0.5 } as const;
+        const data = `${about.type}:${about.id}`;
+        // Keyed by what it is about, and by its text and how many alike came before, never by its place in the list:
+        // an entry that stays keeps its element, and the focus with it, when an entry before it goes or comes.
+        const alike = `${data}\u0000${entry.text}`;
+        const n = (seen.get(alike) ?? 0) + 1;
+        seen.set(alike, n);
+        const key = `${alike}\u0000${n}`;
+        if (about.pick.length === 0) {
+          return <Box key={key} data-entry={data} sx={sx}>{entry.text}</Box>;
+        }
+        const current = selection.has(about.type as PickedType, about.id);
+        return (
+          <ListItemButton
+            key={key} data-entry={data} selected={current} aria-current={current ? 'true' : undefined}
+            onClick={() => { const now = entry.again(); if (now.pick.length > 0) selection.set(now.pick); }} sx={sx}
+          >
+            {entry.text}
+          </ListItemButton>
+        );
+      })}
+    </section>
+  );
+});

@@ -36,7 +36,7 @@ export interface TopBarProps {
   onOpen: () => void;
   /** Called by Save and by Ctrl or ⌘ + S (step 7). */
   onSave: () => void;
-  /** Called by About (step 12): App opens the About panel. Until step 12 the button is disabled and never calls it. */
+  /** Called by About: App opens the About panel. */
   onAbout: () => void;
 }
 
@@ -53,8 +53,7 @@ export interface TopBarProps {
  *   tooltip, as MUI asks. Open, Save, Undo, Redo sit together after the file name; About at the right end. The
  *   keyboard's focus is a white ring inside the button, since the theme's teal one would not show on the ink.
  * - Open calls `onOpen` (from a click, so the browser opens its picker or the file input's dialog). About is
- *   disabled until step 12, which enables it, with or without a file open, and has it call `onAbout`
- *   (plan/swarm/step-12.md).
+ *   enabled, with or without a file open, and calls `onAbout` (plan/swarm/step-12.md).
  * - **Save, Undo, Redo** (step 7). Save is enabled while a file is open and `session.unsaved`, and calls `onSave`.
  *   Undo is enabled while the history has a step (`history.steps`), Redo while it has one undone
  *   (`history.undone`); each calls the history's undo() or redo(). Undo's tooltip names the step it takes back,
@@ -76,7 +75,7 @@ export interface TopBarProps {
  *   While the page shows a modal dialog (an element with role "dialog" and aria-modal "true": the question before
  *   Open) the keys change nothing behind it: no undo, no redo, no save. Save's default is prevented then too.
  */
-export function TopBar({ session, onOpen, onSave, onAbout: _onAbout }: TopBarProps): JSX.Element {
+export function TopBar({ session, onOpen, onSave, onAbout }: TopBarProps): JSX.Element {
   const subscribe = useCallback((tell: () => void) => (session ? session.listen(tell) : () => {}), [session]);
   // One snapshot, a string so equal states compare equal: unsaved, the newest step's words, the newest undone's.
   const key = useSyncExternalStore(subscribe, () => {
@@ -159,7 +158,7 @@ export function TopBar({ session, onOpen, onSave, onAbout: _onAbout }: TopBarPro
       {action('undo', undoWhat ? `Undo ${undoWhat}` : 'Undo', <Undo fontSize="small" />, undoWhat !== null, undo)}
       {action('redo', redoWhat ? `Redo ${redoWhat}` : 'Redo', <Redo fontSize="small" />, redoWhat !== null, redo)}
       <Box sx={{ flex: '1 0 0', minWidth: 0 }} />
-      {action('about', 'About Grasp', <InfoOutlined fontSize="small" />, false)}
+      {action('about', 'About Grasp', <InfoOutlined fontSize="small" />, true, onAbout)}
     </Box>
   );
 }

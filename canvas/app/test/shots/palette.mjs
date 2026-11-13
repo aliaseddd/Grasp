@@ -19,7 +19,6 @@ export default {
   name: 'palette',
   step: 11,
   picker: false,
-  pending: true,
   /** Gets the page as it opens, 1400 x 900 at device scale 2, without the file picker; writes `${out}/palette.png`. */
   take: async (page, out) => {
     await openStateFile(page, stateFileAt(EXAMPLE));
