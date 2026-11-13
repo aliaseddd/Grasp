@@ -18,11 +18,20 @@ import { after, afterEach, before, describe, test } from 'node:test';
 import { VIEWS, middleService, scaleState } from '../../test/scale-model.mjs';
 import {
   boxOf, byTestId, closePages, EDGE, finish, launch, measure, moveTiming, NODE, nodeOf, openPage, openStateFile, planeOf, selectBox,
-  sinceGiven, soon, stateFileOf, TESTIDS, timing, untilDrawn, viewTab, frame, zoomTo,
+  showSide, sinceGiven, soon, stateFileOf, TESTIDS, timing, untilDrawn, viewTab, frame, zoomTo,
 } from './helpers.mjs';
 
 const ELEMENTS = 5000;
 const STATE = scaleState(ELEMENTS);
+const TWINS = 150; // part defs given one name for the keystroke with Validation shown: 150 problems
+/** The scale model with the first `n` top-level part defs Store<k> all named Store. */
+function twinsState(n) {
+  const state = structuredClone(STATE);
+  const stores = state.model.elements.filter((el) => el.owner === undefined && el.kind === 'PartDefinition' && /^Store\d/.test(el.id));
+  assert.ok(stores.length >= n, `the scale model has ${stores.length} top-level part defs Store<k>, fewer than ${n}`);
+  for (const el of stores.slice(0, n)) el.name = 'Store';
+  return state;
+}
 const FILE = stateFileOf(`scale-${ELEMENTS}.json`, STATE);
 const VIEW = Object.fromEntries(Object.entries(VIEWS).map(([name, id]) => [name, STATE.model.views.find((view) => view.id === id)]));
 /** The service in the middle of the model, and a box of it in each view with nothing drawn over its middle. */
@@ -252,11 +261,29 @@ describe('the planes at scale', () => {
 
   // Three names of three letters each are typed after the name of a selected box, in the name field of Details.
   test('a keystroke in a name takes under 50 ms at 5,000 elements', async (t) => {
+    const opened = await openModel(browser);
+    await typeNames(t, opened, false);
+  });
+
+  // The same, with the Validation panel shown beside Details and 150 part defs given one name, so that its lists hold
+  // 150 entries: a keystroke turns the lists stale, which must not cost a redraw of every entry (step 12's review).
+  test('a keystroke in a name takes under 50 ms at 5,000 elements with Validation shown and 150 problems', async (t) => {
+    const opened = await openPage(browser, { picker: false });
+    await openStateFile(opened.page, stateFileOf(`scale-${ELEMENTS}-twins.json`, twinsState(TWINS)));
+    await typeNames(t, opened, true);
+  });
+
+  /** Types NAMES names of KEYS letters after the name of SERVICE in Details, each keystroke timed; Validation shown or not. */
+  async function typeNames(t, opened, validation) {
     const view = VIEW.definitions;
     const id = SERVICE;
-    const opened = await openModel(browser);
     const { page } = opened;
     await showView(page, view);
+    if (validation) {
+      await showSide(page, 'Validation');
+      await soon(page, () => page.evaluate((n) => document.querySelectorAll('[data-testid="validation"] section[data-list="problems"] [data-entry]').length >= n, TWINS),
+        `The Validation panel does not list the ${TWINS} part defs named Store.`, 600);
+    }
     await lookAt(page, view, id);
     await selectBox(page, view, id);
     const field = byTestId(TESTIDS.field('name'));
@@ -270,6 +297,12 @@ describe('the planes at scale', () => {
     const opening = measure(NAMES, KEY_LIMIT);
     const joining = measure(NAMES * (KEYS - 1), KEY_LIMIT);
     for (let n = 0; n < NAMES && !(opening.settled && joining.settled); n++) {
+      // With Validation shown, each name starts on lists that are up to date, as after a person's pause: its first
+      // keystroke is then the one that turns them stale.
+      if (validation) {
+        await soon(page, () => page.evaluate(() => document.querySelector('[data-testid="validation"] .grasp-validation-lists')?.dataset.stale === 'false'),
+          'The Validation panel\'s lists are not up to date again after a pause.', 600);
+      }
       await name.click();
       await page.keyboard.press('End');
       for (let k = 0; k < KEYS; k++) {
@@ -286,7 +319,7 @@ describe('the planes at scale', () => {
       `against ${KEY_LIMIT} ms.\nOpening, in ms: ${opening}\nJoining, in ms: ${joining}`;
     hold(t, opening.median < KEY_LIMIT && joining.median < KEY_LIMIT, said);
     await finish(opened);
-  });
+  }
 
   // Each view in turn, fitted to its tab as it opens, is panned by its ground three times, there and back and there
   // again, four moves each. Every view must hold the limit: the action flow view has the most boxes and lines.

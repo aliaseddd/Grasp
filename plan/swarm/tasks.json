@@ -988,7 +988,7 @@
       ],
       "model": "sonnet",
       "effort": "medium",
-      "status": "open"
+      "status": "done"
     },
     {
       "id": "12-review-shot-example",
@@ -1006,7 +1006,7 @@
       ],
       "model": "sonnet",
       "effort": "medium",
-      "status": "open"
+      "status": "done"
     },
     {
       "id": "12-checks-close",
@@ -1041,7 +1041,7 @@
       ],
       "model": "lead",
       "effort": "high",
-      "status": "open"
+      "status": "done"
     },
     {
       "id": "13-checks-close",

@@ -259,8 +259,17 @@ export interface ProbeEnv {
  * empty one gives SAID.notTold.
  */
 export function browserOf(userAgent: string): string {
-  void userAgent;
-  throw new Error('browserOf: step 12 builds it');
+  const text = userAgent.trim();
+  if (!text) return SAID.notTold;
+  const edge = /Edg\/(\d[\d.]*)/.exec(text);
+  if (edge) return `Edge ${edge[1]}`;
+  const chrome = /(?:Headless)?Chrome\/(\d[\d.]*)/.exec(text);
+  if (chrome) return `Chrome ${chrome[1]}`;
+  const firefox = /Firefox\/(\d[\d.]*)/.exec(text);
+  if (firefox) return `Firefox ${firefox[1]}`;
+  const safari = /Version\/(\d[\d.]*).*Safari\//.exec(text);
+  if (safari) return `Safari ${safari[1]}`;
+  return text;
 }
 
 /**
@@ -318,6 +327,10 @@ export function browserOf(userAgent: string): string {
  *   'no' notRemembered(reasonOf(error)). The promise resolves once the line is set, and never rejects. While it
  *   waits for the person the line stays as it was. A round's answer for the `folder` line is dropped when
  *   remember() was called after that round began: the click's own answer is the newer one.
+ * - **`close()`** is the panel's closing. While the loop's wait has not run, it calls the wait off, so that a panel
+ *   closed within LOOP_DELAY does not freeze the page after it has gone (step 12's review, defect 3); the `wasm` line
+ *   stays 'pending', and the next ask() starts the wait again. Once the loop has run, or before any ask(), it does
+ *   nothing. A round's other questions go on and are answered as ask() says.
  * - **`listen(listener)`** calls listener after every change of `lines`; it returns what stops it. Every listener
  *   is called even when another throws; the first error is thrown on once all have been told, out of ask() when it
  *   was ask() that changed the lines.
@@ -327,12 +340,264 @@ export interface Probe {
   ask(): void;
   remember(): Promise<void>;
   listen(listener: () => void): () => void;
+  close(): void;
 }
 
 /** A probe that asks `env`. Making it asks nothing. */
 export function createProbe(env: ProbeEnv): Probe {
-  void env;
-  throw new Error('createProbe: step 12 builds it');
+  let lines: readonly ProbeLine[] = PROBE_LINES.map((l) => ({ id: l.id, label: l.label, state: 'pending' as ProbeState, value: SAID.asking }));
+  const listeners = new Set<() => void>();
+  let round = 0;
+  // Counts the answers the folder's click has given; a round that began before one of them drops its folder answer.
+  let clicks = 0;
+  let loopStarted = false;
+  let loopDone = false;
+  // Calls off the loop's wait while it has not run yet; null otherwise.
+  let loopOff: (() => void) | null = null;
+
+  /** Tells every listener, even when one throws; the first error is thrown on at the end when `rethrow`. */
+  const tell = (rethrow: boolean): void => {
+    let failed = false;
+    let first: unknown;
+    for (const listener of [...listeners]) {
+      try {
+        listener();
+      } catch (error) {
+        if (!failed) { failed = true; first = error; }
+      }
+    }
+    if (failed && rethrow) throw first;
+  };
+
+  /** Applies answers in one new array, keeping each line that did not change; returns whether any did. */
+  const apply = (answers: ReadonlyArray<readonly [ProbeLineId, ProbeState, string]>): boolean => {
+    let next: ProbeLine[] | null = null;
+    for (const [id, state, value] of answers) {
+      const at = PROBE_LINES.findIndex((l) => l.id === id);
+      const old = (next ?? lines)[at];
+      if (old.state === state && old.value === value) continue;
+      next ??= [...lines];
+      next[at] = { id, label: old.label, state, value };
+    }
+    if (next === null) return false;
+    lines = next;
+    return true;
+  };
+
+  /** An answer that comes later: dropped when a newer round has begun, and a listener's error stays inside. */
+  const answer = (mine: number, id: ProbeLineId, state: ProbeState, value: string): void => {
+    if (mine !== round) return;
+    if (apply([[id, state, value]])) tell(false);
+  };
+
+  const askDatabase = async (mine: number): Promise<void> => {
+    try {
+      await env.kept.put(PROBE_KEY, 1);
+      const back = await env.kept.get(PROBE_KEY);
+      await env.kept.remove(PROBE_KEY);
+      if (back === 1) answer(mine, 'indexed-db', 'yes', SAID.works);
+      else answer(mine, 'indexed-db', 'no', blocked('what was written did not come back'));
+    } catch (error) {
+      answer(mine, 'indexed-db', 'no', blocked(reasonOf(error)));
+    }
+  };
+
+  const askWorker = async (mine: number): Promise<void> => {
+    try {
+      await env.tryWorker();
+      answer(mine, 'worker', 'yes', SAID.works);
+    } catch (error) {
+      answer(mine, 'worker', 'no', blocked(reasonOf(error)));
+    }
+  };
+
+  const askGithub = async (mine: number): Promise<void> => {
+    const fetcher = env.fetch;
+    if (fetcher === null) {
+      answer(mine, 'github', 'no', notReached('this browser has no fetch'));
+      return;
+    }
+    const controller = new AbortController();
+    let over = false;
+    const finish = (state: ProbeState, value: string): void => {
+      if (over) return;
+      over = true;
+      cancel();
+      answer(mine, 'github', state, value);
+    };
+    const cancel = env.later(() => {
+      if (over) return;
+      over = true;
+      controller.abort();
+      answer(mine, 'github', 'no', SAID.noAnswer);
+    }, GITHUB_WAIT);
+    try {
+      const response = await fetcher(GITHUB_URL, { cache: 'no-store', signal: controller.signal });
+      if (!response.ok) {
+        finish('no', answered(response.status));
+        return;
+      }
+      let value: string = SAID.reached;
+      try {
+        const body = (await response.json()) as { resources?: { core?: { remaining?: unknown; limit?: unknown } } } | null;
+        const core = body?.resources?.core;
+        if (core && Number.isInteger(core.remaining) && Number.isInteger(core.limit)) {
+          value = reachedWith(core.remaining as number, core.limit as number);
+        }
+      } catch {
+        // an answer whose body cannot be read still reached GitHub
+      }
+      finish('yes', value);
+    } catch (error) {
+      finish('no', notReached(reasonOf(error)));
+    }
+  };
+
+  const askFolder = async (mine: number, epoch: number): Promise<void> => {
+    const put = (state: ProbeState, value: string): void => {
+      if (epoch !== clicks) return;
+      answer(mine, 'folder', state, value);
+    };
+    try {
+      const record = (await env.kept.get(FOLDER_KEY)) as Partial<FolderRecord> | undefined;
+      if (record === undefined || record === null || typeof record !== 'object' || typeof record.name !== 'string') {
+        put('told', SAID.noFolder);
+        return;
+      }
+      if (record.load === env.load) {
+        put('told', rememberedNow(record.name));
+        return;
+      }
+      let permission = 'not told';
+      try {
+        const query = record.handle?.queryPermission;
+        if (typeof query === 'function') permission = String(await query.call(record.handle, { mode: 'readwrite' }));
+      } catch {
+        permission = 'not told';
+      }
+      put('yes', survived(record.name, String(record.at), permission));
+    } catch (error) {
+      put('no', notRead(reasonOf(error)));
+    }
+  };
+
+  const runLoop = async (): Promise<void> => {
+    let state: ProbeState;
+    let value: string;
+    try {
+      if (env.wasm === null) {
+        state = 'no';
+        value = SAID.missing;
+      } else {
+        const { instance } = await env.wasm.instantiate(WASM_LOOP);
+        const run = instance.exports.run as (n: number) => number;
+        const t0 = env.now();
+        const got = run(LOOP_STEPS);
+        const t1 = env.now();
+        const expected = jsLoop(LOOP_STEPS);
+        const t2 = env.now();
+        if (got === expected) {
+          state = 'yes';
+          value = runs(t1 - t0, t2 - t1);
+        } else {
+          state = 'no';
+          value = SAID.wrongLoop;
+        }
+      }
+    } catch (error) {
+      state = 'no';
+      value = blocked(reasonOf(error));
+    }
+    loopDone = true;
+    if (apply([['wasm', state, value]])) tell(false);
+  };
+
+  const ask = (): void => {
+    round += 1;
+    const mine = round;
+    const epoch = clicks;
+    const answers: Array<readonly [ProbeLineId, ProbeState, string]> = [
+      ['browser', 'told', browserOf(env.userAgent)],
+      ['secure', env.secure ? 'yes' : 'no', env.secure ? SAID.secure : SAID.notSecure],
+      ['open-picker', env.openPicker ? 'yes' : 'no', env.openPicker ? SAID.present : SAID.noOpenPicker],
+      ['save-picker', env.savePicker ? 'yes' : 'no', env.savePicker ? SAID.present : SAID.missing],
+      ['folder-picker', env.pickFolder !== null ? 'yes' : 'no', env.pickFolder !== null ? SAID.present : SAID.noFolderPicker],
+      ['file-input', env.fileInput ? 'yes' : 'no', env.fileInput ? SAID.present : SAID.missing],
+      ['download', env.download ? 'yes' : 'no', env.download ? SAID.present : SAID.missing],
+    ];
+    try {
+      env.tryStorage();
+      answers.push(['local-storage', 'yes', SAID.works]);
+    } catch (error) {
+      answers.push(['local-storage', 'no', blocked(reasonOf(error))]);
+    }
+    for (const id of ['indexed-db', 'worker', 'github', 'folder'] as const) answers.push([id, 'pending', SAID.asking]);
+    const startLoop = !loopStarted;
+    if (startLoop) {
+      loopStarted = true;
+      answers.push(['wasm', 'pending', SAID.asking]);
+    }
+    const changed = apply(answers);
+    // The waiting questions begin before the listeners are told, so that a throwing listener cannot keep them from asking.
+    void askDatabase(mine);
+    void askWorker(mine);
+    void askGithub(mine);
+    void askFolder(mine, epoch);
+    if (startLoop) loopOff = env.later(() => { loopOff = null; void runLoop(); }, LOOP_DELAY);
+    if (changed) tell(true);
+  };
+
+  const remember = async (): Promise<void> => {
+    const pick = env.pickFolder;
+    if (pick === null) return;
+    // Asked here, before anything waits: the browser opens a picker only for the click itself.
+    let picked: Promise<FolderHandle>;
+    try {
+      picked = pick();
+    } catch (error) {
+      picked = Promise.reject(error);
+    }
+    const set = (state: ProbeState, value: string): void => {
+      clicks += 1;
+      if (apply([['folder', state, value]])) tell(false);
+    };
+    let handle: FolderHandle;
+    try {
+      handle = await picked;
+    } catch (error) {
+      if (error !== null && typeof error === 'object' && (error as { name?: unknown }).name === 'AbortError') return;
+      set('no', notRemembered(reasonOf(error)));
+      return;
+    }
+    try {
+      const record: FolderRecord = { handle, name: handle.name, at: env.date(), load: env.load };
+      await env.kept.put(FOLDER_KEY, record);
+      set('told', rememberedNow(handle.name));
+    } catch (error) {
+      set('no', notRemembered(reasonOf(error)));
+    }
+  };
+
+  const listen = (listener: () => void): (() => void) => {
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
+  };
+
+  const close = (): void => {
+    if (loopOff === null || loopDone) return;
+    const off = loopOff;
+    loopOff = null;
+    loopStarted = false;
+    off();
+  };
+
+  return {
+    get lines() { return lines; },
+    ask,
+    remember,
+    listen,
+    close,
+  };
 }
 
 // ---- What asks the browser.
@@ -345,5 +610,119 @@ export function createProbe(env: ProbeEnv): Probe {
  * this function (about.test.mjs).
  */
 export function browserEnv(): ProbeEnv {
-  throw new Error('browserEnv: step 12 builds it');
+  const STORAGE_KEY = 'grasp-app:probe';
+  const WORKER_SOURCE = 'onmessage = (event) => { postMessage(event.data * 2); };';
+  const win = window as Window & { showOpenFilePicker?: unknown; showSaveFilePicker?: unknown; showDirectoryPicker?: unknown };
+
+  const fileInput = ((): boolean => {
+    try {
+      const input = document.createElement('input');
+      input.type = 'file';
+      return input.type === 'file' && 'files' in input;
+    } catch {
+      return false;
+    }
+  })();
+  const download = ((): boolean => {
+    try {
+      return 'download' in document.createElement('a') && typeof URL.createObjectURL === 'function';
+    } catch {
+      return false;
+    }
+  })();
+
+  /** Opens the database, runs `use` on its store in a transaction, and closes it after: the answer is given when the transaction completes. */
+  const inStore = <T>(mode: IDBTransactionMode, use: (store: IDBObjectStore) => IDBRequest | null): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      if (typeof indexedDB === 'undefined' || indexedDB === null) {
+        reject(new Error('IndexedDB is not available'));
+        return;
+      }
+      const open = indexedDB.open('grasp-app', 1);
+      open.onupgradeneeded = () => { open.result.createObjectStore('kept'); };
+      open.onerror = () => reject(open.error ?? new Error('the database could not be opened'));
+      open.onblocked = () => reject(new Error('the database is blocked'));
+      open.onsuccess = () => {
+        const db = open.result;
+        try {
+          const tx = db.transaction('kept', mode);
+          const request = use(tx.objectStore('kept'));
+          tx.oncomplete = () => { db.close(); resolve(request ? (request.result as T) : (undefined as T)); };
+          tx.onerror = () => { db.close(); reject(tx.error ?? request?.error ?? new Error('the transaction failed')); };
+          tx.onabort = () => { db.close(); reject(tx.error ?? new Error('the transaction was aborted')); };
+        } catch (error) {
+          db.close();
+          reject(error);
+        }
+      };
+    });
+
+  const kept: Kept = {
+    get: (key) => inStore<unknown>('readonly', (store) => store.get(key)),
+    put: (key, value) => inStore<void>('readwrite', (store) => { store.put(value, key); return null; }),
+    remove: (key) => inStore<void>('readwrite', (store) => { store.delete(key); return null; }),
+  };
+
+  return {
+    userAgent: navigator.userAgent,
+    secure: window.isSecureContext,
+    openPicker: typeof win.showOpenFilePicker === 'function',
+    savePicker: typeof win.showSaveFilePicker === 'function',
+    pickFolder: typeof win.showDirectoryPicker === 'function'
+      ? (win.showDirectoryPicker as () => Promise<FolderHandle>).bind(window)
+      : null,
+    fileInput,
+    download,
+    tryStorage() {
+      localStorage.setItem(STORAGE_KEY, '1');
+      let back: string | null = null;
+      try {
+        back = localStorage.getItem(STORAGE_KEY);
+      } finally {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+      if (back !== '1') throw new Error('what was written did not come back');
+    },
+    kept,
+    tryWorker() {
+      return new Promise<void>((resolve, reject) => {
+        let url: string | null = null;
+        let worker: Worker | null = null;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const end = (): void => {
+          if (timer !== null) clearTimeout(timer);
+          if (worker !== null) worker.terminate();
+          if (url !== null) URL.revokeObjectURL(url);
+        };
+        try {
+          url = URL.createObjectURL(new Blob([WORKER_SOURCE], { type: 'text/javascript' }));
+          worker = new Worker(url);
+          timer = setTimeout(() => { end(); reject(new Error('no answer within 3 s')); }, 3000);
+          worker.onmessage = (event: MessageEvent) => {
+            end();
+            if (event.data === 42) resolve();
+            else reject(new Error('the worker answered wrongly'));
+          };
+          worker.onerror = (event: ErrorEvent) => { end(); reject(new Error(event.message || 'the worker failed')); };
+          worker.postMessage(21);
+        } catch (error) {
+          end();
+          reject(error);
+        }
+      });
+    },
+    wasm: typeof WebAssembly === 'undefined'
+      ? null
+      : {
+        instantiate: (bytes) => WebAssembly.instantiate(bytes as BufferSource) as unknown as Promise<{ instance: { exports: Record<string, unknown> } }>,
+      },
+    fetch: typeof window.fetch === 'function' ? (url, init) => window.fetch(url, init) : null,
+    now: () => performance.now(),
+    date: () => new Date().toISOString(),
+    load: String(performance.timeOrigin),
+    later: (run, ms) => {
+      const timer = setTimeout(run, ms);
+      return () => clearTimeout(timer);
+    },
+  };
 }

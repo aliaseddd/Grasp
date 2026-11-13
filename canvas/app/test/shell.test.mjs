@@ -602,14 +602,14 @@ describe('the shell', () => {
     await finish(opened);
   });
 
-  // Tab, pressed in a fresh page, goes to the bar's Open, then to the Explorer's name on its strip, then to the card's
-  // button. Each shows where the focus is by a solid outline of at least 2 px: white on the ink bar, teal elsewhere.
+  // Tab, pressed in a fresh page, goes to the bar's Open, then to its About (step 12), then to the Explorer's name on its
+  // strip, then to the card's button. Each shows where the focus is by a solid outline of at least 2 px: white on the ink bar, teal elsewhere.
   // The strip's name draws it on its ::after, as Dockview does for a tab.
   test('keyboard focus can be seen', async () => {
     const opened = await openPage(browser);
     const { page } = opened;
     const button = page.getByRole('button', { name: 'Open a file…', exact: true });
-    await soon(page, async () => (await button.count()) > 0, 'The empty editor shows no card with a button named "Open a file…", so there are not three stops for Tab.');
+    await soon(page, async () => (await button.count()) > 0, 'The empty editor shows no card with a button named "Open a file…", so there are not four stops for Tab.');
     const stop = async (what, is, colour, pseudo = null) => {
       await page.keyboard.press('Tab');
       await frame(page);
@@ -621,6 +621,8 @@ describe('the shell', () => {
         `With the keyboard's focus on ${where}, its outline is ${ring.style} ${ring.width}px ${ring.color}: not solid, 2 px or more, and ${colour}, so the focus cannot be seen.`);
     };
     await stop('the bar\'s Open', (ring) => ring.testid === TESTIDS.open, WHITE);
+    // Save, Undo and Redo are disabled with no file; About, enabled since step 12, is the bar's next stop.
+    await stop('the bar\'s About', (ring) => ring.testid === TESTIDS.about, WHITE);
     await stop('the Explorer\'s name on its strip', (ring) => ring.role === 'tab' && ring.text === 'Explorer', TEAL, '::after');
     await stop('the card\'s button "Open a file…"', (ring) => ring.role === 'button' && ring.text === 'Open a file…', TEAL);
     await finish(opened);

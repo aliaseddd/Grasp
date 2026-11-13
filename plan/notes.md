@@ -3604,3 +3604,118 @@ The baseline, in this container (Node 22.23.4, 4 processors), before anything wa
   11.1 / 8.4, 10.2 / 9.0, 15.1 / 11.4 (starting / following); a pan step of `definitions` 9.1 / 8.8, 13.4 / 14.0,
   9.1 / 8.1, of `deployment` 9.2 / 8.2, 9.5 / 13.1, 9.7 / 8.7, of `workflows` 21.6 / 18.6, 19.6 / 16.1, 13.0 / 12.0.
   Checks 8 and 10 keep their todo marks (the two limits, below); no check changes status at this step.
+
+## Session 27, November 13, 2026: step 11 looked at again, and step 12 closed
+
+On `claude/great-fermat-qo3k66`, from `6839c7d` (main, with session 26's pull request merged). Damon's word: "Review the
+work from the last commit and fix any issues. Continue with the rest of slice 1." The lead is Claude; agents beside it:
+three screenshot reviewers (Sonnet) and one review workflow (below).
+
+The baseline, in this container (Node 22.23.4, 4 processors): `npm run check` passes; `npm test` gives 420 tests, 418
+pass, 0 fail, 2 todo: step 11's commit as its notes say.
+
+### Step 11, looked at again
+
+Its diff (`ef57d40`) was read whole against `plan/swarm/step-11.md`. The code holds what its contracts say; one thing of
+the closing was missed: **`canvas/app/test/shots/palette.mjs` still carried `pending: true`**, which item 8 of
+`plan/swarm/briefs/11-checks-close.md` says to take off, so `npm run shots` left `palette.png` out. Taken off here, with
+step 12's; `npm run shots` now writes all six.
+
+### Step 12: Validation and About
+
+- **Taken in**: the owned files of the nine finished tasks, from `session-25-wip/12-*/`, on step 11's tree.
+  `TopBar.tsx` was merged three ways (`git merge-file`: base session 25's step 10 bar, ours step 10's closing with the
+  history's keys in Details, theirs `12-impl-bar`), with no conflict: About is enabled and calls `onAbout`, and the
+  Undo and Redo keys of step 10's closing stay. As taken in, every test of the step passed (`checks` 13, `probe` 16,
+  `validation` 6, `about` 7) but one of `shell.test.mjs`, as session 25 said.
+- **`shell.test.mjs` › "keyboard focus can be seen"** is restated with About as a stop: Tab goes to the bar's Open, then
+  About (white ring on the ink), then the Explorer's name on its strip, then the card's button (Save, Undo and Redo are
+  disabled with no file).
+- **What `12-review-code` found, and what was done**, each with a test seen to fail first against session 25's code:
+  1. *A keystroke with Validation shown at 5,000 elements and about 150 problems took 59 to 93 ms.* Measured: the
+     keystroke that turns fresh lists stale redrew every entry. New test, `scale.test.mjs` › "a keystroke in a name takes
+     under 50 ms at 5,000 elements with Validation shown and 150 problems" (150 part defs named Store; it waits for fresh
+     lists before each name, so each name's first keystroke is the one that turns them stale). Failed: "A keystroke
+     takes 64.4 ms when it opens a name's undo step" (57.3, 71.4). Fixed in `Validation.tsx`: the entries are worked
+     out once per result (`useMemo` on `state.found`) and each list is `memo`, so turning stale re-renders the lists'
+     element and no entry: 30.5 / 24.2 ms alone.
+  2. *While the lists are stale, an entry whose relationship left the model stays a button, and a click on it emptied
+     the selection.* With the entries kept per result, a click now works out what the entry is about again against the
+     model as it is (`again()`), and picks nothing when that is nothing. Test: `validation.test.mjs` › "while the lists
+     are stale, a click on an entry whose relationship has left the model changes nothing" (DevHost specializing a port
+     def; renamed, then its Specializes emptied, within one pause). Failed: "A click on the stale entry of s-DevHost,
+     which the model no longer holds, let DevHost go".
+  3. *About opened and closed within 0.4 s still ran the timing loop after it had gone.* `Probe` has `close()`: while
+     the loop's wait has not run it calls it off, and the next `ask()` starts it again; About calls it when it closes.
+     Tests: `probe.test.mjs` › "a close before the loop has run calls its wait off, and the next round starts it again"
+     (failed: "probe.close is not a function"), and, from this session's review (below), `about.test.mjs` › "About closed
+     before the timing loop has run lets the loop go, and the next opening runs it" (seen to fail with About's
+     `close()` call taken out: "the WebAssembly line reads ["yes", ...]: the loop ran after the panel was closed").
+  4. *Undo with an entry focused drops the focus to the body.* **Kept**: the entry focused is the one Undo takes away;
+     where the focus goes then (the next entry, the list, the plane) is a choice the plan does not make, and slice 2's
+     editing is where it belongs. An entry that stays keeps its focus (below).
+  5. *"Remember a folder…" stayed enabled with IndexedDB blocked*, where the folder is kept. Disabled while the
+     `indexed-db` line is `no`; the row of `step-12.md` and About's contract say so. Test: `about.test.mjs` › "with
+     IndexedDB taken away, Remember a folder… is disabled" (failed: "Remember a folder… is enabled although IndexedDB
+     ... is blocked").
+- **`12-checks-break`** (session 25): 42 of 42 breakages failed their tests; nothing to settle.
+- **This session's review** (one workflow, ultracode: three reviewers at the session's model, on the checks and
+  Validation, on the probe and About, and on the step's tests; each finding then put to two verifiers told to refute
+  it; 11 agents, 19.6 min). The probe and About: nothing. Confirmed by both verifiers: *an entry that stays listed
+  lost the keyboard focus when an entry before it went or came*, since an entry's key held its index; now the key is
+  what it is about, its text and how many alike came before. Test: `validation.test.mjs` › "an entry keeps the
+  keyboard focus when an entry before it goes or comes" (failed: "Undo took an entry before el:DevHost away, and
+  el:DevHost, still listed, lost the focus."). Three gaps in the tests, which the verifiers judged no defect of the code
+  (split 0/2, 1/2, 0/2): no browser test sees About's `close()` (the test above now does); no test sees a check run
+  again for a second listener while the result is up to date (`checks.test.mjs` › "a listener that comes while the
+  result is up to date checks nothing", seen to fail with the guard taken out); the throwing-listener tests have one
+  thrower, so the first error is not told from the last (kept: the contract's "the first" is worded, not tested).
+- **Screenshots**: `npm run shots`, all six written. Reviewed by fresh Sonnet agents with the image and its brief only.
+  `about.png`: 11 of 11 present. `shell.png`: 7 of 7 present; scores 4, 4, 5, 4 (alignment, type, nothing cut,
+  boxes and lines); its notes, none an item: the right strip's teal edge stops short beside Details, the strip and
+  panel edges read as a double line on the left, the card names repository paths. `example.png`: 8 of 8 present;
+  scores 4, 4, 4, 4; its notes: `mount` and `api : StrongholdApp` sit apart from the line they name, the defined-by
+  lines' dots are small beside their triangles, the minimap's blocks are blank.
+- **Criterion 1's names** of step 12 are there, in `validation.test.mjs` and `about.test.mjs`, as `12-checks-close`
+  item 7 lists them.
+
+### Step 12's runs, nothing else on the machine
+
+`npm test` three times in a row on the tree as committed (after the closing's last fixes; three runs before them, on
+the tree with defects 1, 2, 3 and 5 fixed, gave 466 tests, 464 pass, 0 fail, 2 todo each): **469 tests, 467 pass, 0
+fail, 2 todo each time** (4 min 50 s to 5 min 8 s). `open.test.mjs`, "the example and the nine fixtures each open: 17
+tabs, 11 planes, 6 cards, nothing logged", passes in each (criterion 2). By run, the medians, in ms:
+
+| | Limit | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|---|
+| The 5,000-element model opens (one sample) | 5,000 | 529.7 | 557.7 | 571.4 |
+| A drag step at 5,000, starting / following | 16 | 14.7 / 11.2 | 11.6 / 8.8 | 11.9 / 9.6 |
+| A pan step, `definitions`, starting / following | 16 | 11.1 / 10.7 | 9.2 / 8.7 | 10.6 / 11.2 |
+| A pan step, `deployment` | 16 | 12.5 / 11.8 | 11.4 / 9.0 | 8.4 / 8.6 |
+| A pan step, `workflows` (2,112 nodes at 4.3%) | 16 | **24.8 / 18.0** | 13.5 / 13.9 | 12.3 / 12.3 |
+| A keystroke at 5,000, opening / joining | 50 | 31.9 / 24.2 | 27.3 / 26.4 | 39.6 / 26.0 |
+| The same, Validation shown with 150 problems (new) | 50 | 31.1 / 22.8 | 23.6 / 19.3 | 32.6 / 25.5 |
+| The page ready (criterion 6) | 500 | 178.6 | 188.4 | 163.3 |
+| The example drawn after it is given | 1,000 | 101.9 | 81.8 | 78.9 |
+| A drag step of the example | 16 | 3.4 | 3.1 | 3.7 |
+| A keystroke in a name of the example | 16 | 9.1 | 6.9 | 7.9 |
+| A switch between the interconnection fixture's tabs | 100 | 33.2 | 31.9 | 31.9 |
+
+The command: `npm test`, from the repository's root, three times, one after another, with nothing else running; the
+figures are the lines the timed tests print (`scale.test.mjs`, `instant.test.mjs`).
+
+### The two limits, still Damon's
+
+Checks 8 and 10 of `plan/status.json` stay `"todo"` with their notes, and their tests keep their todo marks: so
+`npm test` reports `# todo 2`, not the `# todo 0` that `12-checks-close` (items 3 and 11) and criterion 1 ask for. The
+drag's first step and the action flow view's pan step sit at the limit in this container: in the six runs of this
+session the drag's starting median was 14.1, 11.8, 11.5, 14.7, 11.6 and 11.9 ms (all under 16 this time) and the workflows pan's starting median 14.3, 14.3, 17.0, 24.8, 13.5 and 12.3 ms (2 of 6 over). Session 25's two
+proposals stand (`plan/notes.md`, session 25, "The two limits that go to Damon"). Nothing else of step 12 waits.
+
+### For the next session
+
+- **Damon's answer on the two limits** decides checks 8 and 10, and so `# todo 0`, which step 13 needs: its "done
+  when" is a clean clone with `# todo 0`, and slice 1 is marked done only then.
+- **Step 13** (`plan/swarm/briefs/13-checks-close.md`): criterion 7 over the eight step commits (5 to 12; step 12's is
+  this session's), criterion 8's stranger, the four documents and `plan/direction.md`'s one item. Its documents can be
+  written before Damon answers; marking the slice done cannot.

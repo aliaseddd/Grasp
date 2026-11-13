@@ -131,7 +131,7 @@ Numbers: the pause is 800 ms (`PAUSE`). The first check of a panel that is shown
 | Closing | The button named **`Close`** inside the panel; Escape; a click outside the panel (at 20, 450 in a 1400 by 900 window). |
 | A line | `[data-line="<id>"]` inside the panel, thirteen, in this order: `browser`, `secure`, `open-picker`, `save-picker`, `folder-picker`, `file-input`, `download`, `local-storage`, `indexed-db`, `worker`, `wasm`, `github`, `folder`. `data-state` is `pending`, `yes`, `no` or `told`. |
 | A line's label and value | `.grasp-about-label` and `.grasp-about-value` inside the line; the table below has the words. |
-| The button that remembers a folder | `[data-testid="about-remember"]`, named **`Remember a folder…`**. Disabled unless the `folder-picker` line is `yes`. |
+| The button that remembers a folder | `[data-testid="about-remember"]`, named **`Remember a folder…`**. Disabled unless the `folder-picker` line is `yes`, and while the `indexed-db` line is `no` (step 12's closing, from the review). |
 | A library | `[data-library="<package name>"]`, one for each dependency of `package.json`, in the order of their names; inside it `.grasp-about-library-name`, `.grasp-about-library-version`, `.grasp-about-library-licence`. |
 | The credit to React Flow | `[data-testid="about-react-flow"]`: **`The planes are drawn with React Flow (@xyflow/react).`** Its link reads "React Flow" and has `href="https://reactflow.dev"`. |
 | The notices file | `[data-testid="about-notices"]`: **`Every library's licence is in THIRD-PARTY-NOTICES.txt, beside the page.`** Its link reads "THIRD-PARTY-NOTICES.txt" and has `href="THIRD-PARTY-NOTICES.txt"`. |
