@@ -3604,3 +3604,31 @@ The baseline, in this container (Node 22.23.4, 4 processors), before anything wa
   11.1 / 8.4, 10.2 / 9.0, 15.1 / 11.4 (starting / following); a pan step of `definitions` 9.1 / 8.8, 13.4 / 14.0,
   9.1 / 8.1, of `deployment` 9.2 / 8.2, 9.5 / 13.1, 9.7 / 8.7, of `workflows` 21.6 / 18.6, 19.6 / 16.1, 13.0 / 12.0.
   Checks 8 and 10 keep their todo marks (the two limits, below); no check changes status at this step.
+
+### Step 12: taken in, not closed (where session 26 stopped)
+
+Damon asked the session to stop once step 11 was finished and synced. After that the lead began step 12 and was stopped
+by the permission classifier (a Workflow call for the fix tracks, and a measuring script); the work in the tree at that
+point is committed here as a work in progress, and **`plan/status.json` still says step 11**: step 12 is not closed.
+
+- **In the tree**: the owned files of the nine finished step 12 tasks from `session-25-wip/12-*/` (`core/checks.ts`,
+  `core/probe.ts`, `panels/Validation.tsx`, `shell/About.tsx`, `shell/TopBar.tsx`, the four test files, `test/shots/about.mjs`),
+  with `TopBar.tsx` merged by hand: step 12's copy (About enabled, `onAbout` called) was built on step 10's bar without
+  session 26's `data-history-keys` rule, so its four changed lines were applied to the current bar. `canvas/dist/` is built
+  and `npm run check` passes. Run one file at a time, as taken in: `checks.test.mjs` 13 of 13, `probe.test.mjs` 16 of 16,
+  `validation.test.mjs` 6 of 6, `about.test.mjs` 7 of 7. The whole suite was **not** run with step 12 in.
+- **`shell.test.mjs` › "keyboard focus can be seen"** now has About as a stop: the Tab order is Open, About, the Explorer's
+  name on its strip, the card's "Open a file…" (four stops; About's ring is white on the bar). Passes.
+- **Still to do for step 12**, from session 25's `12-review-code` (its probes are in `session-25-wip/probes/12-review-code/`):
+  (1, medium) with Validation shown on the 5,000-element model with 151 problems (100 names made equal), a name's first
+  keystroke took 59 to 93 ms: turning the checks stale redraws every entry, and `aboutProblem` and `aboutDiagnostic` search
+  `model.elements` through the Proxy for each entry: make the lookups from one index per result; (2) while the lists are
+  stale an entry whose relationship has left the model stays a button, and a click on it empties the selection; (4) Undo
+  with an entry focused drops the focus to the body (the entries' keys use their index); (3) About opened and closed within
+  0.4 s still runs its timing loop afterwards, freezing the page about half a second; (5) "Remember a folder…" stays
+  enabled when IndexedDB is not there. Each wants a test seen to fail first. Then `12-checks-break` (42 of 42 breakages
+  failed their tests in session 25; the fixes' tests need theirs), a fresh code review of the fixes, `npm run shots` for
+  `about`, `shell` and `example` with the three reviewers (`about.png` 11 of 11 present in session 25; `shell.png` and
+  `example.png` rated 4 or more on four points), and the closing as `plan/swarm/briefs/12-checks-close.md` says: three
+  runs of `npm test` in a row alone, `step` 12 in `plan/status.json`, this entry finished, one commit.
+- **Not yet decided by Damon**: the two limits (checks 8 and 10), which keep step 13's `# todo 0` out of reach.

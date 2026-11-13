@@ -120,15 +120,82 @@ export interface Checks {
   listen(listener: () => void): () => void;
 }
 
+const KEPT = new WeakMap<Session, Checks>();
+
 /**
  * The checks of a session: the same object each time it is asked for, kept by the session object itself, weakly, as
  * its selection is (core/selection.ts), so a session that is replaced takes its checks with it. The first call makes
  * them, with `options`, and adds their one listener to the session's history; later calls ignore `options`.
  */
 export function checksOf(session: Session, options?: ChecksOptions): Checks {
-  void session;
-  void options;
-  throw new Error('checksOf: step 12 builds it');
+  const kept = KEPT.get(session);
+  if (kept) return kept;
+  const later = options?.later ?? ((run: () => void, ms: number) => {
+    const id = setTimeout(run, ms);
+    return () => clearTimeout(id);
+  });
+  const listeners = new Set<() => void>();
+  let state: ChecksState = { found: null, stale: true };
+  let off: (() => void) | null = null;   // calls off the wait that is running
+
+  const calloff = (): void => {
+    const stop = off;
+    off = null;
+    if (stop) stop();
+  };
+  // Works out both lists; returns whether the state changed. A throw leaves the state as it was.
+  const check = (): boolean => {
+    const { lib, model } = session;
+    const next = lib.reading(model, () => ({ problems: lib.validate(model), diagnostics: lib.validateSpec(model) }));
+    const same = state.found !== null && JSON.stringify(state.found) === JSON.stringify(next);
+    const before = state;
+    state = { found: same ? state.found : next, stale: false };
+    if (same && !before.stale) { state = before; return false; }
+    return true;
+  };
+  const tellAll = (): void => {
+    let failed: { error: unknown } | null = null;
+    for (const listener of Array.from(listeners)) {
+      try { listener(); } catch (error) { if (!failed) failed = { error }; }
+    }
+    if (failed) throw failed.error;
+  };
+  const wait = (): void => {
+    calloff();
+    off = later(() => {
+      off = null;
+      if (check()) tellAll();
+    }, PAUSE);
+  };
+
+  session.history.listen((told) => {
+    if (told.by === 'end') return;
+    const live = listeners.size > 0;
+    if (live && told.by !== 'edit') {
+      calloff();
+      if (check()) tellAll();
+      return;
+    }
+    const changed = !state.stale;
+    if (changed) state = { found: state.found, stale: true };
+    if (live) wait();
+    if (changed) tellAll();
+  });
+
+  const listen = (listener: () => void): (() => void) => {
+    if (listeners.size === 0 && state.stale) check();
+    // A listener is kept per call, so the same function added twice is two listeners, and each stop takes only its own.
+    const mine = () => listener();
+    listeners.add(mine);
+    return () => {
+      if (!listeners.delete(mine)) return;
+      if (listeners.size === 0) calloff();
+    };
+  };
+
+  const checks: Checks = { get state() { return state; }, listen };
+  KEPT.set(session, checks);
+  return checks;
 }
 
 /**
@@ -154,9 +221,12 @@ export interface EntryAbout {
  * an id found in none of the three is 'none'.
  */
 export function aboutProblem(model: Model, problem: Problem): EntryAbout {
-  void model;
-  void problem;
-  throw new Error('aboutProblem: step 12 builds it');
+  const id = problem.id;
+  if (id === null) return PACKAGE;
+  if (model.elements.some((e) => e.id === id)) return about('el', id);
+  if (model.relationships.some((r) => r.id === id)) return about('rel', id, model);
+  if (model.views.some((v) => v.id === id)) return about('view', id);
+  return { type: 'none', id, pick: [] };
 }
 
 /**
@@ -164,7 +234,20 @@ export function aboutProblem(model: Model, problem: Problem): EntryAbout {
  * model no longer holds is 'none'.
  */
 export function aboutDiagnostic(model: Model, diagnostic: Diagnostic): EntryAbout {
-  void model;
-  void diagnostic;
-  throw new Error('aboutDiagnostic: step 12 builds it');
+  const { type, id } = diagnostic;
+  if (type === null || id === null) return PACKAGE;
+  if (type === 'el' && model.elements.some((e) => e.id === id)) return about('el', id);
+  if (type === 'rel' && model.relationships.some((r) => r.id === id)) return about('rel', id, model);
+  return { type: 'none', id, pick: [] };
+}
+
+const PACKAGE: EntryAbout = { type: 'package', id: '', pick: [] };
+
+function about(type: 'el' | 'rel' | 'view', id: string, model?: Model): EntryAbout {
+  const pick: Picked[] = [{ type, id }];
+  if (type === 'rel' && model) {
+    const rel = model.relationships.find((r) => r.id === id);
+    if (rel && rel.hidden && model.elements.some((e) => e.id === rel.from)) pick.push({ type: 'el', id: rel.from });
+  }
+  return { type, id, pick };
 }

@@ -10,6 +10,11 @@
 // list of problems (canvas/src/validation/page.js; core/page/panel.js, nextProblem), ported. It draws no badge on
 // a plane: badges are slice 2's.
 
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Box, ListItemButton } from '@mui/material';
+import { aboutDiagnostic, aboutProblem, checksOf, selectionOf } from '../core';
+import type { EntryAbout, PickedType, Session } from '../core';
+import { useDock } from '../shell/dockContext';
 import { SidePanel, SideText } from './SidePanel';
 
 /** What the panel says while no file is open. */
@@ -71,9 +76,97 @@ export const rulesNote = (checked: number): string =>
  *   no stylesheet of its own and names no colour.
  */
 export function ValidationPanel(): JSX.Element {
+  const { session } = useDock();
+  const root = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!el || !session) { setShown(false); return undefined; }
+    setShown(el.clientWidth > 0);
+    const observer = new ResizeObserver((entries) => {
+      const next = entries[entries.length - 1].contentRect.width > 0;
+      setShown((was) => (was === next ? was : next));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [session]);
+
   return (
     <SidePanel testId="validation" title="Validation">
-      <SideText>The model's problems come in step 12.</SideText>
+      <div ref={root} className="grasp-validation">
+        {session ? (shown ? <Lists session={session} /> : null) : <SideText>{NO_FILE}</SideText>}
+      </div>
     </SidePanel>
+  );
+}
+
+const TITLE_ROW = { display: 'flex', alignItems: 'baseline', gap: 1, px: 1.5, pt: 1.5, pb: 0.5 } as const;
+const SECONDARY = { color: 'text.secondary' } as const;
+
+function Lists({ session }: { session: Session }): JSX.Element {
+  const checks = checksOf(session);
+  const state = useSyncExternalStore(checks.listen, () => checks.state);
+  const found = state.found;
+  return (
+    <div
+      className="grasp-validation-lists"
+      data-stale={state.stale ? 'true' : 'false'}
+      aria-busy={state.stale ? 'true' : 'false'}
+      style={{ opacity: state.stale ? 0.6 : 1 }}
+    >
+      {found ? (
+        <>
+          <List
+            session={session} name="problems" title={PROBLEMS_TITLE} none={NO_PROBLEMS}
+            entries={found.problems.map((p) => ({ text: p.message, about: aboutProblem(session.model, p), size: 13 }))}
+          />
+          <List
+            session={session} name="rules" title={RULES_TITLE} none={NO_RULES}
+            note={rulesNote(session.lib.SPEC_RULES.length)}
+            entries={found.diagnostics.map((d) => ({ text: d.text, about: aboutDiagnostic(session.model, d), size: 12 }))}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+interface Entry { text: string; about: EntryAbout; size: number }
+
+function List({ session, name, title, none, note, entries }: {
+  session: Session; name: string; title: string; none: string; note?: string; entries: Entry[];
+}): JSX.Element {
+  const selection = selectionOf(session);
+  // Re-read at each change of the selection: items is a new array then.
+  useSyncExternalStore(selection.listen, () => selection.items);
+  return (
+    <section data-list={name} data-count={entries.length}>
+      <Box sx={TITLE_ROW}>
+        <Box className="grasp-validation-title" sx={{ fontSize: 13, fontWeight: 500 }}>{title}</Box>
+        <Box className="grasp-validation-count" sx={{ fontSize: 12, ...SECONDARY }}>{entries.length}</Box>
+      </Box>
+      {note ? <Box className="grasp-validation-note" sx={{ fontSize: 12, px: 1.5, pb: 0.5, ...SECONDARY }}>{note}</Box> : null}
+      {entries.length === 0 ? (
+        <Box className="grasp-validation-none" sx={{ fontSize: 13, px: 1.5, py: 0.5, ...SECONDARY }}>{none}</Box>
+      ) : entries.map((entry, i) => {
+        const { about } = entry;
+        const sx = { fontSize: entry.size, overflowWrap: 'anywhere', px: 1.5, py: 0.5 } as const;
+        const key = `${i}:${about.type}:${about.id}`;
+        const data = `${about.type}:${about.id}`;
+        if (about.pick.length === 0) {
+          return <Box key={key} data-entry={data} sx={sx}>{entry.text}</Box>;
+        }
+        const current = selection.has(about.type as PickedType, about.id);
+        return (
+          <ListItemButton
+            key={key} data-entry={data} selected={current} aria-current={current ? 'true' : undefined}
+            onClick={() => selection.set(about.pick)} sx={sx}
+          >
+            {entry.text}
+          </ListItemButton>
+        );
+      })}
+    </section>
   );
 }

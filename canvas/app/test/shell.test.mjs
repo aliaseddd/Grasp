@@ -609,7 +609,7 @@ describe('the shell', () => {
     const opened = await openPage(browser);
     const { page } = opened;
     const button = page.getByRole('button', { name: 'Open a file…', exact: true });
-    await soon(page, async () => (await button.count()) > 0, 'The empty editor shows no card with a button named "Open a file…", so there are not three stops for Tab.');
+    await soon(page, async () => (await button.count()) > 0, 'The empty editor shows no card with a button named "Open a file…", so there are not four stops for Tab.');
     const stop = async (what, is, colour, pseudo = null) => {
       await page.keyboard.press('Tab');
       await frame(page);
@@ -621,6 +621,7 @@ describe('the shell', () => {
         `With the keyboard's focus on ${where}, its outline is ${ring.style} ${ring.width}px ${ring.color}: not solid, 2 px or more, and ${colour}, so the focus cannot be seen.`);
     };
     await stop('the bar\'s Open', (ring) => ring.testid === TESTIDS.open, WHITE);
+    await stop('the bar\'s About (enabled since step 12, with or without a file; Save, Undo and Redo are disabled and are no stops)', (ring) => ring.testid === TESTIDS.about, WHITE);
     await stop('the Explorer\'s name on its strip', (ring) => ring.role === 'tab' && ring.text === 'Explorer', TEAL, '::after');
     await stop('the card\'s button "Open a file…"', (ring) => ring.role === 'button' && ring.text === 'Open a file…', TEAL);
     await finish(opened);
