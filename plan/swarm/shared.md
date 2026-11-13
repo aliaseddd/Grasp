@@ -119,3 +119,7 @@ What every test keeps to (the reasons are in `helpers.mjs` and in `plan/notes.md
 | 11 | 11 | all ten | 0 |
 | 12 | 12 | all ten | 0 |
 | 13 | slice 1 `done`, `next` 2 | all ten | 0 |
+
+## 9. The model library's types
+
+`window.SysMLModel` is typed by the global interface `SysMLModelLibrary`, which several files add to with `declare global` (`core/session.ts`, `core/adapter.ts`, `core/checks.ts`, `panels/explorerRows.ts`). TypeScript merges those, and two files that declare one member must agree to the letter, or `tsc` fails once both are in the tree. So a file that reads more of the library than is declared takes it through a type of its own and a cast, as `core/commands.ts` does (`CommandsLibrary`, `libOf`) and `panels/fieldHooks.ts` (`FieldLibrary`, `fieldLibOf`). A task adds no member to the global interface.

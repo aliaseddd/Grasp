@@ -1,0 +1,72 @@
+/* The Explorer's tree (panels/Explorer.tsx, which imports this file once step 9 builds it; plan/swarm/step-9.md, "The
+   contract between tests and code"). Every colour is a variable of shell/theme.ts. The rows are our own elements, on
+   Tree View's useTreeItem, so these rules name our own classes and override nothing of a library's. */
+
+/* The tree never makes its panel wider: without this, a long row's words are the least width of the side panel's
+   body, which Dockview's side then grows to, over the editor's edge. */
+.grasp-explorer {
+  contain: inline-size;
+}
+
+.grasp-explorer .grasp-row-item,
+.grasp-explorer .grasp-row-group {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  outline: 0;
+}
+
+/* A row: 28 px high, one line, stepped in 16 px a level (Tree View sets the two variables: the tree's
+   itemChildrenIndentation, and each item's depth). */
+.grasp-explorer .grasp-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 8px 0 calc(8px + var(--TreeView-itemChildrenIndentation) * var(--TreeView-itemDepth));
+  cursor: pointer;
+  font-size: var(--grasp-font-size);
+}
+.grasp-explorer .grasp-row:hover {
+  background: var(--grasp-ground);
+}
+.grasp-explorer .grasp-row[data-selected] {
+  background: var(--grasp-teal-soft);
+}
+/* Where the keyboard's focus is: the theme's ring, inside the row. */
+.grasp-explorer .grasp-row-item:focus-visible > .grasp-row {
+  outline: var(--grasp-focus-width) solid var(--grasp-teal);
+  outline-offset: calc(0px - var(--grasp-focus-width));
+}
+
+/* The fold control: a 16 px square that every row has, empty on a row with nothing inside it, so the words line up. */
+.grasp-explorer .grasp-row-icon {
+  flex: 0 0 16px;
+  height: 16px;
+}
+.grasp-explorer .grasp-row-chevron {
+  fill: none;
+  stroke: var(--grasp-text-secondary);
+  stroke-width: 1.5;
+}
+
+/* The words: one line, cut with an ellipsis where the panel is too narrow for them. */
+.grasp-explorer .grasp-row-words {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.grasp-explorer .grasp-row-kw,
+.grasp-explorer .grasp-row-type {
+  color: var(--grasp-text-secondary);
+}
+.grasp-explorer .grasp-row-name {
+  font-weight: 500;
+}
+/* The row of the view in front has its name in teal, as the strip's name of the panel that is shown. */
+.grasp-explorer .grasp-row-item[aria-current="true"] > .grasp-row .grasp-row-name {
+  color: var(--grasp-teal);
+}
