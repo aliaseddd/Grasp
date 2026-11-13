@@ -3478,7 +3478,7 @@ Built by its ten tasks as `plan/swarm/step-9.md` lays it out, with nothing built
 - **Step 8's review, defect 2**, checked on step 9's build with the reviewer's probe (`p5-lines.mjs`, its paths pointed at the main tree): the line clicked at 100%, the view taken far, a box clicked and then the ground clicked: near again, no line is selected; a click on a box while far picks the box alone.
 - **The timed Node tests of step 9**, in the three runs of `npm test`: 100 renames reword the Explorer's rows in 22.3, 21.7 and 34.6 ms (under 200; 175 to 190 before the rework); 2,000 picks take 7 ms (under 300).
 - **No screenshot** at step 9, as its file says.
-- **Each step's commit, checked out by itself** into a new worktree, `npm ci && npm run check && npm test` (criterion 7): step 8's, `5a5f38e`, 245 tests, 243 pass, 0 fail, 2 todo, as its `plan/status.json` says; step 9's, `857bd90`, 308 tests, 305 pass, 0 fail, 3 todo, as its says. Both pushed.
+- **Each step's commit, checked out by itself** into a new worktree, `npm ci && npm run check && npm test` (criterion 7): step 8's, `5a5f38e`, 245 tests, 243 pass, 0 fail, 2 todo, as its `plan/status.json` says; step 9's, `857bd90`, 308 tests, 305 pass, 0 fail, 3 todo, as its says. Both pushed, and carried with the session's notes by pull request #51 (https://github.com/aliaseddd/Grasp/pull/51).
 
 ### Steps 10 to 12: built, partly reviewed, and kept aside
 
