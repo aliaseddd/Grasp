@@ -17,6 +17,8 @@ export const LINE_STRONG = '#B4BFC8';
 export const DOTS = '#B9C3CB';
 export const TEXT_SECONDARY = '#5B6973';
 export const WHITE = '#FFFFFF';
+/** What a plane's minimap lays over the part of its picture that is outside the plane's window: the ground, let through. */
+export const MINIMAP_MASK = 'rgba(238, 242, 244, 0.7)';
 /** A disabled icon on the ink bar. */
 export const BAR_DISABLED = 'rgba(255, 255, 255, 0.35)';
 
@@ -80,6 +82,7 @@ export const cssVariables: Readonly<Record<string, string>> = {
   '--grasp-dots': DOTS,
   '--grasp-text-secondary': TEXT_SECONDARY,
   '--grasp-white': WHITE,
+  '--grasp-minimap-mask': MINIMAP_MASK,
   '--grasp-bar-height': `${BAR_HEIGHT}px`,
   '--grasp-tab-bar-height': `${TAB_BAR_HEIGHT}px`,
   '--grasp-font-size': `${FONT_SIZE}px`,

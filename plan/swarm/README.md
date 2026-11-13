@@ -11,9 +11,8 @@ Nothing in this folder is implementation. The page built from the scaffold behav
 | `README.md` | This file: the method, the fields of `tasks.json`, the rules every brief carries. |
 | `shared.md` | The contracts that more than one step builds on: the selection, the tool in hand, how a side panel is put into the dock, what the plane takes from each step, which task owns each file that several steps touch, and what the tests share. |
 | `step-8.md` to `step-12.md` | One step's scaffold each: what the plan left open and how it is settled, the contract between tests and code (test ids, roles, accessible names, words), the test list of each test file, and each screenshot's scenario with the list its reviewer checks. |
-| `step-13.md` | The changes to the documents that close the slice, and the two checks that section 10 of the plan asks for after step 12. |
 | `tasks.json` | Every task of the swarm. |
-| `briefs/<task-id>.md` | One brief per task. A brief stands alone: an agent given the brief and the files it names can do the task. |
+| `briefs/<task-id>.md` | One brief per task. A brief stands alone: an agent given the brief and the files it names can do the task. Step 13 changes documents only, so its one brief, `briefs/13-checks-close.md`, is its whole scaffold: each change, and the two checks that section 10 of the plan asks for after step 12. |
 
 The skeletons are in the code, not here: each new file a step creates exists under `canvas/app/`, with its exported types and signatures and each contract written as a comment. A function nothing calls yet has a body that throws `"<name>: step N builds it"`. A file the page already loads (a side panel's body, the toasts, the About panel, the minimap) holds what the page shows today, and its step replaces that.
 
@@ -69,8 +68,10 @@ A step's tasks follow one pattern, and `tasks.json` holds the exact needs:
 | `N-impl-…` | implement | Fills in the skeletons it owns until the tests the brief names pass. |
 | `N-checks-break` | checks | For each test of the step, makes the breakage the test list names in the built code, runs the test, and puts the code back. Sends back every test that still passed. |
 | `N-review-code` | review | Reads the step's whole diff against the plan's text for the step, without the outline, and tries what it doubts in the built page. Sends back defects, each reproduced. |
-| `N-review-shot-…` | review | Looks at one screenshot with its list and nothing else, and marks each item present or absent. |
+| `N-review-shot-…` | review | Looks at one screenshot with its list and nothing else, and marks each item present or absent. Just before it starts, the lead builds the page from the tasks it needs and takes the image with `npm run shots -- <name>`. |
 | `N-checks-close` | checks | The lead's closing of the step (7 above). |
+
+Step 8 has one task more, `8-checks-measure`, the lead's: it measures each of the step's changes alone and keeps it only if the numbers move.
 
 ## The rules every brief carries
 

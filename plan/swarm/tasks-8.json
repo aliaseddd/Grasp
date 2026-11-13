@@ -1,0 +1,169 @@
+[
+  {
+    "id": "8-tests-step",
+    "step": 8,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/8-tests-step.md",
+    "owns": [
+      "canvas/app/test/step.test.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "8-tests-minimap",
+    "step": 8,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/8-tests-minimap.md",
+    "owns": [
+      "canvas/app/test/minimap.test.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "8-tests-scale",
+    "step": 8,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/8-tests-scale.md",
+    "owns": [
+      "canvas/app/test/scale.test.mjs",
+      "canvas/app/test/shots/scale.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "8-impl-step",
+    "step": 8,
+    "kind": "implement",
+    "brief": "plan/swarm/briefs/8-impl-step.md",
+    "owns": [
+      "canvas/app/src/core/adapter.ts"
+    ],
+    "needs": [
+      "8-tests-step",
+      "8-tests-scale"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "8-impl-minimap",
+    "step": 8,
+    "kind": "implement",
+    "brief": "plan/swarm/briefs/8-impl-minimap.md",
+    "owns": [
+      "canvas/app/src/plane/MiniMap.tsx",
+      "canvas/app/src/plane/minimap.css"
+    ],
+    "needs": [
+      "8-tests-minimap"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "8-checks-measure",
+    "step": 8,
+    "kind": "checks",
+    "brief": "plan/swarm/briefs/8-checks-measure.md",
+    "owns": [],
+    "needs": [
+      "8-tests-scale",
+      "8-impl-step",
+      "8-impl-minimap"
+    ],
+    "model": "lead",
+    "effort": "high",
+    "status": "open"
+  },
+  {
+    "id": "8-checks-break",
+    "step": 8,
+    "kind": "checks",
+    "brief": "plan/swarm/briefs/8-checks-break.md",
+    "owns": [],
+    "needs": [
+      "8-tests-step",
+      "8-tests-minimap",
+      "8-tests-scale",
+      "8-impl-step",
+      "8-impl-minimap",
+      "8-checks-measure"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "8-review-code",
+    "step": 8,
+    "kind": "review",
+    "brief": "plan/swarm/briefs/8-review-code.md",
+    "owns": [],
+    "needs": [
+      "8-tests-step",
+      "8-tests-minimap",
+      "8-tests-scale",
+      "8-impl-step",
+      "8-impl-minimap",
+      "8-checks-measure"
+    ],
+    "model": "fable",
+    "effort": "high",
+    "status": "open"
+  },
+  {
+    "id": "8-review-shot-scale",
+    "step": 8,
+    "kind": "review",
+    "brief": "plan/swarm/briefs/8-review-shot-scale.md",
+    "owns": [],
+    "needs": [
+      "8-tests-scale",
+      "8-impl-step",
+      "8-impl-minimap",
+      "8-checks-measure"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "8-checks-close",
+    "step": 8,
+    "kind": "checks",
+    "brief": "plan/swarm/briefs/8-checks-close.md",
+    "owns": [
+      "package.json",
+      "canvas/app/shots/scale.png",
+      "canvas/dist/",
+      "plan/status.json",
+      "plan/notes.md",
+      "plan/swarm/tasks.json"
+    ],
+    "needs": [
+      "8-tests-step",
+      "8-tests-minimap",
+      "8-tests-scale",
+      "8-impl-step",
+      "8-impl-minimap",
+      "8-checks-measure",
+      "8-checks-break",
+      "8-review-code",
+      "8-review-shot-scale"
+    ],
+    "model": "lead",
+    "effort": "high",
+    "status": "open"
+  }
+]
