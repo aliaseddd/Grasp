@@ -86,6 +86,40 @@ async function bundlePlanes() {
   return module.exports;
 }
 
+const bundles = new Map();
+/**
+ * The core AND other modules of the application in one bundle, run in this realm, once for a test file and a list:
+ * `files` are paths under canvas/app/src without their extension ('plane/viewStore', 'panels/fieldHooks'). The entry
+ * is an in-memory module that re-exports the core and each of them, so they share one copy of the core, as
+ * loadPlanes() says. Only modules that need no browser and import no library but for its types can be loaded so.
+ */
+export function loadWith(...files) {
+  const key = files.join('\n');
+  if (!bundles.has(key)) bundles.set(key, bundleWith(files));
+  return bundles.get(key);
+}
+async function bundleWith(files) {
+  const result = await esbuild.build({
+    absWorkingDir: ROOT,
+    stdin: {
+      contents: ["export * from './core/index';", ...files.map((file) => `export * from './${file}';`)].join(' '),
+      resolveDir: path.join(ROOT, 'canvas', 'app', 'src'),
+      sourcefile: 'with-entry.ts',
+      loader: 'ts',
+    },
+    bundle: true,
+    format: 'cjs',
+    platform: 'neutral',
+    target: 'es2022',
+    write: false,
+    logLevel: 'silent',
+  });
+  const module = { exports: {} };
+  const run = vm.runInThisContext(`(function (module, exports) {${result.outputFiles[0].text}\n})`, { filename: `canvas/app/src/{core, ${files.join(', ')}} (bundled)` });
+  run(module, module.exports);
+  return module.exports;
+}
+
 /**
  * The state files the core's tests open: the example, then every fixture, each `{ name, file, pinned }`, where pinned
  * is the file that holds the text the state file exports. A fixture's is the .sysml file beside it. The example's is

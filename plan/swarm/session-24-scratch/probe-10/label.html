@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="../wt-10/canvas/dist/vendor.css"></head>
+<body><div id="root"></div>
+<script src="../wt-10/canvas/dist/vendor.js"></script>
+<script>
+const V = window.GraspVendor; const React = V['react']; const h = React.createElement; const M = V['@mui/material'];
+const dense = { '& .MuiInputBase-root': { height: 32, fontSize: 13 }, '& .MuiInputBase-input': { paddingTop: 0, paddingBottom: 0 } };
+function App() {
+  const id = React.useId(); const id2 = React.useId();
+  const [v, setV] = React.useState({ id: 'Host', label: 'Host' });
+  const opts = Array.from({ length: 600 }, (_, i) => ({ id: 'D' + i, label: 'Def' + i }));
+  return h('div', { style: { width: 296 } },
+    h('label', { htmlFor: id, className: 'grasp-field-label' }, 'Declared Name'),
+    h(M.TextField, { id, size: 'small', fullWidth: true, defaultValue: 'Host', sx: dense, slotProps: { htmlInput: { 'data-testid': 'field-name' } } }),
+    h('label', { htmlFor: id2, className: 'grasp-field-label' }, 'Typed by'),
+    h(M.Autocomplete, { id: id2, size: 'small', fullWidth: true, disableClearable: true, options: [v].concat(opts), value: v, onChange: (e, o) => setV(o), sx: { '& .MuiInputBase-root': { height: 32, paddingTop: 0, paddingBottom: 0, fontSize: 13 } },
+      getOptionLabel: (o) => o.label, isOptionEqualToValue: (a, b) => a.id === b.id,
+      renderOption: (props, o) => { const { key, ...rest } = props; return h('li', { key, ...rest, 'data-option': o.id }, o.label); },
+      renderInput: (params) => h(M.TextField, { ...params, slotProps: { htmlInput: { ...params.inputProps, 'data-testid': 'field-type', 'data-value': v.id } } }) }),
+    h(M.Tabs, { value: 'Core', sx: { minHeight: 32, '& .MuiTab-root': { minHeight: 32, py: 0 } } }, h(M.Tab, { value: 'Core', label: 'Core' }), h(M.Tab, { value: 'Advanced', label: 'Advanced' })),
+  );
+}
+V['react-dom/client'].createRoot(document.getElementById('root')).render(h(App));
+</script></body></html>

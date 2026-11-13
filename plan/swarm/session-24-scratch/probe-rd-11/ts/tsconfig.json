@@ -1,0 +1,1 @@
+{ "extends": "../../rd-all/canvas/app/tsconfig.json", "compilerOptions": { "noEmit": true, "ignoreDeprecations": "6.0", "baseUrl": "../../rd-all/node_modules", "paths": { "*": ["*", "@types/*"] }, "typeRoots": ["../../rd-all/node_modules/@types"] }, "include": ["probe.tsx"] }

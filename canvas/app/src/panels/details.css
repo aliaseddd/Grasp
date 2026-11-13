@@ -1,0 +1,5 @@
+/* The Details panel's own rules (panels/Details.tsx imports this file; plan/swarm/step-10.md has the classes). The
+   bundle puts this stylesheet before app.css, so every rule here is for a class of Details's own, each beginning
+   grasp-details, grasp-detail or grasp-field, and none counts on overriding app.css. It names no colour: colours are
+   the CSS variables shell/theme.ts gives (--grasp-ink, --grasp-text-secondary, --grasp-line), and what Material UI
+   draws takes its colours from the theme. Step 10 writes the rules. */

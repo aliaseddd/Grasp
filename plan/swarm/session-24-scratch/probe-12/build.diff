@@ -1,0 +1,33 @@
+diff --git a/canvas/app/build.mjs b/canvas/app/build.mjs
+index ba068ef..466ee0f 100644
+--- a/canvas/app/build.mjs
++++ b/canvas/app/build.mjs
+@@ -134,6 +134,18 @@ function notices(metafiles) {
+ 
+ const DEFINE = { 'process.env.NODE_ENV': '"production"' };
+ 
++/**
++ * The libraries About names (src/core/probe.ts, LIBRARIES), as JSON text: the dependencies of package.json, in the
++ * order of their names, each with the version and the licence of the package as it is installed.
++ */
++function libraries() {
++  const { dependencies } = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
++  return JSON.stringify(Object.keys(dependencies).sort().map((name) => {
++    const { version, licence } = describePackage(name, `node_modules/${name}`);
++    return { name, version, licence };
++  }));
++}
++
+ /** The vendor bundle, recording the package paths vendor.ts itself imports (stylesheets excepted). */
+ async function buildVendor() {
+   const entry = path.join(APP, 'src', 'vendor.ts');
+@@ -200,7 +212,8 @@ async function buildApp(vendorModules) {
+     jsx: 'automatic',
+     minifyWhitespace: true,
+     minifySyntax: true,
+-    define: DEFINE,
++    // A text, so that esbuild puts it where the name stands; src/core/probe.ts parses it.
++    define: { ...DEFINE, __GRASP_LIBRARIES__: JSON.stringify(libraries()) },
+     outdir: DIST,
+     write: false,
+     metafile: true,

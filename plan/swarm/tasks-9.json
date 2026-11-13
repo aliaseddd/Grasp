@@ -1,0 +1,221 @@
+[
+  {
+    "id": "9-tests-core",
+    "step": 9,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/9-tests-core.md",
+    "owns": [
+      "canvas/app/test/selection-core.test.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "9-tests-store",
+    "step": 9,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/9-tests-store.md",
+    "owns": [
+      "canvas/app/test/viewStore.test.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "9-tests-rows",
+    "step": 9,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/9-tests-rows.md",
+    "owns": [
+      "canvas/app/test/explorer-rows.test.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "9-tests-selection",
+    "step": 9,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/9-tests-selection.md",
+    "owns": [
+      "canvas/app/test/selection.test.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "9-tests-picking",
+    "step": 9,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/9-tests-picking.md",
+    "owns": [
+      "canvas/app/test/picking.test.mjs",
+      "canvas/app/test/gestures.test.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "9-tests-explorer",
+    "step": 9,
+    "kind": "tests",
+    "brief": "plan/swarm/briefs/9-tests-explorer.md",
+    "owns": [
+      "canvas/app/test/explorer.test.mjs"
+    ],
+    "needs": [],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "9-impl-selection",
+    "step": 9,
+    "kind": "implement",
+    "brief": "plan/swarm/briefs/9-impl-selection.md",
+    "owns": [
+      "canvas/app/src/core/selection.ts"
+    ],
+    "needs": [
+      "9-tests-core"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "9-impl-plane",
+    "step": 9,
+    "kind": "implement",
+    "brief": "plan/swarm/briefs/9-impl-plane.md",
+    "owns": [
+      "canvas/app/src/plane/Plane.tsx",
+      "canvas/app/src/plane/viewStore.ts",
+      "canvas/app/src/plane/marquee.css"
+    ],
+    "needs": [
+      "9-impl-selection",
+      "9-tests-store",
+      "9-tests-picking"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "9-impl-explorer",
+    "step": 9,
+    "kind": "implement",
+    "brief": "plan/swarm/briefs/9-impl-explorer.md",
+    "owns": [
+      "canvas/app/src/panels/Explorer.tsx",
+      "canvas/app/src/panels/explorerRows.ts",
+      "canvas/app/src/panels/explorer.css"
+    ],
+    "needs": [
+      "9-impl-selection",
+      "9-tests-rows",
+      "9-tests-explorer"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "9-impl-dock",
+    "step": 9,
+    "kind": "implement",
+    "brief": "plan/swarm/briefs/9-impl-dock.md",
+    "owns": [
+      "canvas/app/src/shell/Dock.tsx",
+      "canvas/app/src/shell/App.tsx"
+    ],
+    "needs": [
+      "9-impl-plane",
+      "9-impl-explorer",
+      "9-tests-selection"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "9-checks-break",
+    "step": 9,
+    "kind": "checks",
+    "brief": "plan/swarm/briefs/9-checks-break.md",
+    "owns": [],
+    "needs": [
+      "9-tests-core",
+      "9-tests-store",
+      "9-tests-rows",
+      "9-tests-selection",
+      "9-tests-picking",
+      "9-tests-explorer",
+      "9-impl-selection",
+      "9-impl-plane",
+      "9-impl-explorer",
+      "9-impl-dock"
+    ],
+    "model": "sonnet",
+    "effort": "medium",
+    "status": "open"
+  },
+  {
+    "id": "9-review-code",
+    "step": 9,
+    "kind": "review",
+    "brief": "plan/swarm/briefs/9-review-code.md",
+    "owns": [],
+    "needs": [
+      "9-tests-core",
+      "9-tests-store",
+      "9-tests-rows",
+      "9-tests-selection",
+      "9-tests-picking",
+      "9-tests-explorer",
+      "9-impl-selection",
+      "9-impl-plane",
+      "9-impl-explorer",
+      "9-impl-dock"
+    ],
+    "model": "fable",
+    "effort": "high",
+    "status": "open"
+  },
+  {
+    "id": "9-checks-close",
+    "step": 9,
+    "kind": "checks",
+    "brief": "plan/swarm/briefs/9-checks-close.md",
+    "owns": [],
+    "needs": [
+      "9-tests-core",
+      "9-tests-store",
+      "9-tests-rows",
+      "9-tests-selection",
+      "9-tests-picking",
+      "9-tests-explorer",
+      "9-impl-selection",
+      "9-impl-plane",
+      "9-impl-explorer",
+      "9-impl-dock",
+      "9-checks-break",
+      "9-review-code",
+      "8-checks-close"
+    ],
+    "model": "lead",
+    "effort": "high",
+    "status": "open"
+  }
+]

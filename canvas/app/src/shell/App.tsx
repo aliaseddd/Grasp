@@ -8,7 +8,9 @@ import type { Session } from '../core';
 import { Markers } from '../plane/edges/markers';
 import { viewStoresOf } from '../plane/viewStore';
 import type { ViewStore } from '../plane/viewStore';
+import { About } from './About';
 import { Dock } from './Dock';
+import { Toasts } from './Toasts';
 import { TopBar } from './TopBar';
 
 /** What the page puts on window.Grasp for the tests and for Claude's own looking, as the old page has window.SysMLCanvas. */
@@ -43,12 +45,21 @@ declare global {
  *   chooser and say nothing. Without unsaved changes Open goes straight to openFile. And while a session has unsaved changes the page asks before it is left or reloaded
  *   (askBeforeLeaving in files.ts), so the browser's own question comes up; once saved, or with no file, nothing is
  *   asked.
+ * - **The toasts and About** are rendered here once, each from its own file: Toasts (step 11) with the session, over
+ *   the dock; About (step 12) with whether it is open, which the bar's About button sets through `onAbout` and the
+ *   panel's own closing clears.
+ * - **Step 9** (plan/swarm/step-9.md): `window.Grasp.selection` is the open file's selection (selectionOf(session)),
+ *   or null with no file.
  */
 export function App(): JSX.Element {
   const [session, setSession] = useState<Session | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   /** Whether the question before Open is up. */
   const [asking, setAsking] = useState(false);
+  /** Whether the About panel is open. */
+  const [about, setAbout] = useState(false);
+  const onAbout = useCallback(() => setAbout(true), []);
+  const closeAbout = useCallback(() => setAbout(false), []);
 
   useEffect(() => {
     window.Grasp = { session, views: session ? viewStoresOf(session) : null };
@@ -90,16 +101,18 @@ export function App(): JSX.Element {
 
   return (
     <Box data-testid="app" sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <TopBar session={session} onOpen={onOpen} onSave={onSave} />
+      <TopBar session={session} onOpen={onOpen} onSave={onSave} onAbout={onAbout} />
       <Markers />
       <Box sx={{ flex: '1 1 0', minHeight: 0, position: 'relative' }}>
         <Dock session={session} onOpen={onOpen} />
+        <Toasts session={session} />
         {problem !== null && (
           <Alert severity="error" onClose={() => setProblem(null)} sx={{ position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 10000, maxWidth: 'calc(100% - 16px)', boxShadow: 3 }}>
             {problem}
           </Alert>
         )}
       </Box>
+      <About open={about} onClose={closeAbout} />
       <Dialog open={asking && session !== null} onClose={() => setAsking(false)} aria-labelledby="lose-question">
         <DialogContent>
           <DialogContentText id="lose-question" sx={{ color: 'text.primary' }}>{session ? LOSE_QUESTION(session.name) : ''}</DialogContentText>

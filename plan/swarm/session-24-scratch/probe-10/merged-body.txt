@@ -1,0 +1,63 @@
+function mergedFixtures(lib) {
+  const model = { format: lib.FORMAT, package: { name: 'Fields', doc: '' }, elements: [], relationships: [], views: [] };
+  const refs = (row) => row.fields.filter((f) => lib.FIELDS[f] && lib.FIELDS[f].type === 'ref' && lib.FIELDS[f].stored !== false);
+  const has = new Set();
+  const kindsOf = (m) => [].concat(m.elements.map((e) => e.kind), m.relationships.map((r) => r.kind), m.views.map((v) => 'view ' + v.kind));
+  fs.readdirSync(FIXTURES).filter((name) => name.endsWith('.json')).sort().forEach((name, i) => {
+    const m = JSON.parse(JSON.stringify(lib.normalize(JSON.parse(fs.readFileSync(path.join(FIXTURES, name), 'utf8')).model)));
+    if (kindsOf(m).every((k) => has.has(k))) return;
+    const p = String.fromCharCode(97 + i) + '-';
+    const ids = new Set(m.elements.map((e) => e.id));
+    const id = (x) => (ids.has(x) ? p + x : x);
+    for (const e of m.elements) {
+      e.id = p + e.id;
+      if (e.owner !== undefined) e.owner = p + e.owner;
+      for (const f of refs(lib.KINDS[e.kind])) if (e[f]) e[f] = p + e[f];
+      model.elements.push(e);
+    }
+    for (const r of m.relationships) {
+      Object.assign(r, { id: p + r.id, from: p + r.from, to: p + r.to });
+      for (const f of refs(lib.RELATIONSHIPS[r.kind])) if (r[f]) r[f] = p + r[f];
+      model.relationships.push(r);
+    }
+    for (const v of m.views) {
+      if (has.has('view ' + v.kind)) continue;
+      v.id = p + v.id;
+      v.layout = Object.fromEntries(Object.entries(v.layout).map(([key, place]) => [p + key, place]));
+      for (const key of Object.keys(v.options)) if (Array.isArray(v.options[key])) v.options[key] = v.options[key].map(id);
+      model.views.push(v);
+    }
+    kindsOf(m).forEach((k) => has.add(k));
+  });
+  for (const e of model.elements) {
+    const kind = lib.KINDS[e.kind];
+    if (!kind.fields.includes('type') || model.relationships.some((r) => r.kind === 'FeatureTyping' && r.from === e.id)) continue;
+    const def = model.elements.find((d) => d.kind === kind.definedBy);
+    if (def) model.relationships.push({ id: 'typing-' + e.id, kind: 'FeatureTyping', from: e.id, to: def.id, hidden: true });
+  }
+  for (const kind of Object.keys(lib.KINDS)) {
+    const e = model.elements.find((x) => x.kind === kind);
+    const lists = lib.KINDS[kind].fields.includes('specializes') || lib.KINDS[kind].fields.includes('subsets');
+    if (!e || !lists || model.relationships.some((r) => r.kind === 'Specialization' && r.from === e.id)) continue;
+    const allowed = (x) => x.kind === kind && x.id !== e.id && (!lib.KINDS[kind].usage || x.owner === e.owner) &&
+      !model.relationships.some((r) => r.kind === 'Specialization' && r.from === x.id && r.to === e.id);
+    let general = model.elements.find(allowed);
+    if (!general) {
+      general = Object.assign(JSON.parse(JSON.stringify(e)), { id: e.id + '-general', name: (e.name || kind) + 'General' });
+      model.elements.push(general);
+    }
+    model.relationships.push({ id: 'general-' + e.id, kind: 'Specialization', from: e.id, to: general.id });
+  }
+  // A field that shows only in some kinds of view: the first element of each kind that lists one is shown in a view of
+  // such a kind too, when none shows it yet.
+  for (const kind of Object.keys(lib.KINDS)) {
+    const e = model.elements.find((x) => x.kind === kind);
+    for (const f of e ? lib.KINDS[kind].fields : []) {
+      const kinds = lib.FIELDS[f] && lib.FIELDS[f].views;
+      if (!kinds || model.views.some((v) => kinds.includes(v.kind) && v.layout[e.id])) continue;
+      const view = model.views.find((v) => kinds.includes(v.kind) && lib.admits(v.kind, e.kind));
+      if (view) view.layout[e.id] = {};
+    }
+  }
+  return model;
+}

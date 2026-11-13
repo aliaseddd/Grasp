@@ -52,6 +52,11 @@ export const TESTIDS = {
   details: 'details', // what the Details panel shows
   plane: 'plane', // a view's plane, the body of its tab; its data-view is the view's id
   field: (name) => `field-${name}`, // a field of Details, by its name in the library's FIELDS: the input, or what holds it
+  tools: 'tools', // what the Tools panel shows (step 11)
+  validation: 'validation', // what the Validation panel shows (step 12)
+  palette: 'palette', // the right-click menu of a plane (step 11)
+  toast: 'toast', // a toast: what the page says in passing, such as why a tool was refused (step 11)
+  aboutPanel: 'about-panel', // the About panel (step 12); `about` above is the bar's button that opens it
 };
 
 /** A data-testid selector. */
@@ -530,3 +535,136 @@ export async function zoomTo(page, view, id, wanted) {
 
 /** A point of a box where its header is blank, 24 by 14 of the view's units in from its corner, as selectBox clicks. */
 export const headerOf = (box) => ({ x: box.x + 24 * box.zoom, y: box.y + 14 * box.zoom });
+
+// Added for steps 9 to 12 (plan/swarm/shared.md, "What the tests share"): a file opened in one call, the side panels,
+// the Explorer's rows, a field of Details, and the bar's Undo and Redo.
+
+/** Opens the page without the file picker and a state file ({ name, buffer }) in it. Returns what openPage returns. */
+export async function openIn(browser, file, options = {}) {
+  const opened = await openPage(browser, { ...options, picker: false });
+  await openStateFile(opened.page, file);
+  return opened;
+}
+
+/** The side panels by the name their strip shows, and the data-testid of each one's root. */
+export const SIDES = { Explorer: TESTIDS.explorer, Tools: TESTIDS.tools, Validation: TESTIDS.validation, Details: TESTIDS.details };
+
+/**
+ * Shows a side panel, by its name on its strip ('Explorer', 'Tools', 'Validation' or 'Details'): when its root is not
+ * drawn (another panel of its strip is in front, or its side is collapsed), a click on its name brings it to the
+ * front and opens the side. A panel that is shown already is left alone, since a click on the name in front would
+ * collapse its side.
+ */
+export async function showSide(page, name) {
+  const testid = SIDES[name];
+  assert.ok(testid, `No side panel is named ${name}. The side panels: ${Object.keys(SIDES).join(', ')}.`);
+  const shown = () => page.evaluate((selector) => {
+    const el = document.querySelector(selector);
+    return !!el && el.getBoundingClientRect().width >= 1 && el.getBoundingClientRect().height >= 1;
+  }, byTestId(testid));
+  if (await shown()) return;
+  await page.getByRole('tab', { name, exact: true }).click();
+  await soon(page, shown, `A click on ${name} on its strip did not show the ${name} panel (data-testid "${testid}").`);
+}
+
+/**
+ * The selector of a row of the Explorer (step 9): the element that holds the row's words and takes its click. It
+ * carries data-row, "<type>:<id>": `type` is 'package', 'view', 'el', 'rel' or 'more', and `id` the view's, the
+ * element's or the relationship's id ('' for the package's one row; for 'more', a "Show more" row, the row id of the
+ * row whose list it ends: rowOf('more', 'package:')).
+ */
+export const rowOf = (type, id = '') => `${byTestId(TESTIDS.explorer)} [data-row=${JSON.stringify(`${type}:${id}`)}]`;
+/** A row of the Explorer, as a locator: its words (textContent) and its click. */
+export const rowIn = (page, type, id = '') => page.locator(rowOf(type, id));
+/**
+ * The tree item a row belongs to (ARIA role treeitem), which carries aria-selected ("true" or "false"; none on the
+ * package's row and on a "Show more" row), aria-current "true" on the row of the view in front, and, when it has rows
+ * inside it, aria-expanded. The Explorer sets aria-selected on its own row: MUI X Tree View 8 would say aria-checked.
+ */
+export const rowItemIn = (page, type, id = '') => rowIn(page, type, id).locator('xpath=ancestor::*[@role="treeitem"][1]');
+
+/**
+ * A field of Details (step 10), by its name in the library's FIELDS, as a locator: the <input> or <textarea> that
+ * carries data-testid "field-<name>" or lies inside what carries it; the first, when a field has several (radio
+ * buttons).
+ */
+export function fieldIn(page, name) {
+  const field = byTestId(TESTIDS.field(name));
+  return page.locator(byTestId(TESTIDS.details)).locator(`input${field}, textarea${field}, ${field} input, ${field} textarea`).first();
+}
+
+/** Clicks the bar's Undo, or its Redo, and gives the page a frame. The button must be enabled: a click on a disabled one fails. */
+export async function undo(page) {
+  await page.locator(byTestId(TESTIDS.undo)).click({ timeout: WAIT });
+  await frame(page);
+}
+export async function redo(page) {
+  await page.locator(byTestId(TESTIDS.redo)).click({ timeout: WAIT });
+  await frame(page);
+}
+
+// Added for step 10 and after (plan/swarm/step-10.md, "What the browser's test files share"): what Details says and
+// shows, picking by a row of the Explorer or by a box so that Details shows it, the words of the bar's Undo and Redo,
+// and Details's tabs and fields' rows.
+
+export const DETAILS = byTestId(TESTIDS.details);
+export const NO_FILE = 'No file is open.';
+export const NOTHING_PICKED = 'Nothing is picked. Click a box, a line or a row of the Explorer to see its fields.';
+
+/** What Details says while it shows no form, or null. */
+export const saysIn = (page) => page.evaluate((root) => document.querySelector(`${root} .grasp-side-text`)?.textContent ?? null, DETAILS);
+/** What Details shows the form of, "<type>:<id>", or null. */
+export const shownIn = (page) => page.evaluate((root) => document.querySelector(`${root} .grasp-details`)?.getAttribute('data-picked') ?? null, DETAILS);
+
+/**
+ * With a file open and nothing picked, Details says so. Every test calls it once its file is open and before it
+ * picks anything, so that against a page whose Details is not built the test fails for that, in these words.
+ */
+export async function nothingPicked(page) {
+  await showSide(page, 'Details');
+  const says = await soon(page, () => saysIn(page), 'Details says nothing: it holds no paragraph (.grasp-side-text) and no form.');
+  assert.equal(says, NOTHING_PICKED, `Details reads "${says}", not "${NOTHING_PICKED}": Details is not built.`);
+}
+
+/** Waits until Details shows the form of an item. `how` says how it was picked, for the failure. */
+export const untilShown = (page, type, id, how) => soon(page, async () => (await shownIn(page)) === `${type}:${id}`,
+  async () => `Details does not show ${type} ${id}, ${how}: it shows ${(await shownIn(page)) ?? `"${await saysIn(page)}"`}.`);
+
+/** Picks an element, a line or a view by a click on its row of the Explorer, and waits until Details shows it. */
+export async function pickRow(page, type, id) {
+  await showSide(page, 'Explorer');
+  const row = rowIn(page, type, id);
+  await soon(page, async () => (await row.count()) === 1, `The Explorer shows no row for ${type} ${id} (data-row "${type}:${id}").`);
+  await row.scrollIntoViewIfNeeded();
+  await row.click();
+  await untilShown(page, type, id, 'picked by its row of the Explorer');
+}
+
+/** Picks a box by a click on its header on the plane, and waits until Details shows it. */
+export async function pickBox(page, view, id) {
+  await selectBox(page, view, id);
+  await untilShown(page, 'el', id, 'picked on the plane');
+}
+
+/**
+ * The words of the step Undo would take back ('undo') or Redo make again ('redo'), or null when there is none: the
+ * button's tooltip, which Material UI's Tooltip puts as aria-label on the element around the button.
+ */
+export const wordsOf = (page, which) => page.evaluate(([selector, label]) => {
+  const tip = document.querySelector(selector).parentElement.getAttribute('aria-label') ?? '';
+  return tip === label ? null : tip.slice(label.length + 1);
+}, [byTestId(TESTIDS[which]), which === 'undo' ? 'Undo' : 'Redo']);
+
+/** Shows a tab of Details, 'Core' or 'Advanced'. */
+export async function showTab(page, name) {
+  const tab = page.locator(DETAILS).getByRole('tab', { name, exact: true });
+  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+  await soon(page, () => page.evaluate(([root, n]) => !!document.querySelector(`${root} .grasp-details-page[data-tab="${n}"]`), [DETAILS, name]),
+    `Details does not show its ${name} tab's page (.grasp-details-page, data-tab "${name}").`);
+}
+
+/** A field's row, as it is now on the tab shown: null when absent, else whether it is locked and why. */
+export const rowOfField = (page, field) => page.evaluate(([root, f]) => {
+  const row = document.querySelector(`${root} .grasp-field[data-field="${f}"]`);
+  return row ? { locked: row.classList.contains('locked'), why: row.querySelector('.grasp-field-why')?.textContent ?? null } : null;
+}, [DETAILS, field]);

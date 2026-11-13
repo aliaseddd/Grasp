@@ -34,6 +34,8 @@ export interface TopBarProps {
   onOpen: () => void;
   /** Called by Save and by Ctrl or ⌘ + S (step 7). */
   onSave: () => void;
+  /** Called by About (step 12): App opens the About panel. Until step 12 the button is disabled and never calls it. */
+  onAbout: () => void;
 }
 
 /**
@@ -49,7 +51,8 @@ export interface TopBarProps {
  *   tooltip, as MUI asks. Open, Save, Undo, Redo sit together after the file name; About at the right end. The
  *   keyboard's focus is a white ring inside the button, since the theme's teal one would not show on the ink.
  * - Open calls `onOpen` (from a click, so the browser opens its picker or the file input's dialog). About is
- *   disabled until step 12.
+ *   disabled until step 12, which enables it, with or without a file open, and has it call `onAbout`
+ *   (plan/swarm/step-12.md).
  * - **Save, Undo, Redo** (step 7). Save is enabled while a file is open and `session.unsaved`, and calls `onSave`.
  *   Undo is enabled while the history has a step (`history.steps`), Redo while it has one undone
  *   (`history.undone`); each calls the history's undo() or redo(). Undo's tooltip names the step it takes back,
@@ -59,12 +62,16 @@ export interface TopBarProps {
  *   Shift + Z, redo; Ctrl or ⌘ + S saves (onSave) whether or not anything is unsaved, and the browser's own Save is
  *   always prevented, with a file open or not. Undo and Redo by key act unless the event comes from a text field
  *   (an input, a textarea, or anything contenteditable), where the field's own undo is meant; Save acts from
- *   anywhere. A key that acts prevents the browser's default. Holding Undo's or Redo's key down does one thing per
+ *   anywhere. **Step 10** (plan/swarm/step-10.md) makes "a text field" exact, since Details brings the page's first
+ *   checkboxes and radio buttons, which are inputs that take no typing: the keys do not act when the event's target
+ *   is a textarea, a select, anything contenteditable, or an input whose `type` is none of checkbox, radio, button,
+ *   submit, reset, range, file, color and image; from any other target they act. So with the focus left on a
+ *   checkbox that was just ticked, Ctrl or ⌘ + Z takes the tick back. A key that acts prevents the browser's default. Holding Undo's or Redo's key down does one thing per
  *   repeat; holding Save's saves once, at the press, since each save without a picked file is a download of its own.
  *   While the page shows a modal dialog (an element with role "dialog" and aria-modal "true": the question before
  *   Open) the keys change nothing behind it: no undo, no redo, no save. Save's default is prevented then too.
  */
-export function TopBar({ session, onOpen, onSave }: TopBarProps): JSX.Element {
+export function TopBar({ session, onOpen, onSave, onAbout: _onAbout }: TopBarProps): JSX.Element {
   const subscribe = useCallback((tell: () => void) => (session ? session.listen(tell) : () => {}), [session]);
   // One snapshot, a string so equal states compare equal: unsaved, the newest step's words, the newest undone's.
   const key = useSyncExternalStore(subscribe, () => {

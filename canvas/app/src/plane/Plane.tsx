@@ -5,11 +5,12 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CSSProperties, RefObject } from 'react';
-import { Background, BackgroundVariant, ControlButton, Controls, MiniMap, ReactFlow, useReactFlow } from '@xyflow/react';
+import { Background, BackgroundVariant, ControlButton, Controls, ReactFlow, useReactFlow } from '@xyflow/react';
 import type { EdgeTypes, NodeTypes } from '@xyflow/react';
-import { hasMinimap, LOOK, MAX_ZOOM, MINIMAP, MIN_ZOOM } from '../core';
+import { hasMinimap, LARGE_VIEW, LOOK, MAX_ZOOM, MIN_ZOOM } from '../core';
 import type { PlaneEdge, PlaneNode, Session, Shape } from '../core';
 import { LineEdge } from './edges/LineEdge';
+import { PlaneMiniMap } from './MiniMap';
 import { BoxNode } from './nodes/BoxNode';
 import { PortNode } from './nodes/PortNode';
 import { SmallNode } from './nodes/SmallNode';
@@ -45,7 +46,7 @@ export interface PlaneProps {
  *   a type that is missing falls back to React Flow's `default`, silently), `edgeTypes` ({ line }), `onNodesChange`,
  *   `onEdgesChange` and `onViewportChange` (the store's nodesChanged, edgesChanged, moved), `defaultViewport`,
  *   `minZoom` and `maxZoom` (the adapter's MIN_ZOOM, MAX_ZOOM), `onlyRenderVisibleElements` for a view of more than
- *   CULL_OVER nodes, `panOnScroll` with `panOnScrollSpeed={1}`, `zoomOnScroll={false}`, `zoomOnPinch`,
+ *   LARGE_VIEW nodes (the adapter's, which says why), `panOnScroll` with `panOnScrollSpeed={1}`, `zoomOnScroll={false}`, `zoomOnPinch`,
  *   `zoomOnDoubleClick={false}`, `paneClickDistance` (a press that moves a few pixels is still a click),
  *   `selectionKeyCode={null}` (no rectangle is drawn with Shift until step 9 gives the marquee its meaning),
  *   `deleteKeyCode={null}` (React Flow's own Delete removes nothing until slice 2 gives Delete its meaning),
@@ -62,13 +63,52 @@ export interface PlaneProps {
  * - **Around the nodes**: the ground's dots (`Background`), left out when far; `Controls` at the bottom left without
  *   the lock (`showInteractive={false}`) and without React Flow's own fit (`showFitView={false}`), which would fit a
  *   frame later by its own rule: a `ControlButton` named "Fit the view" calls `store.fit(width, height)` with the
- *   root's size now and sets that viewport; `MiniMap` at the bottom right, the adapter's MINIMAP in size, only
+ *   root's size now and sets that viewport; PlaneMiniMap (MiniMap.tsx) at the bottom right, the adapter's MINIMAP in size, only
  *   while the root is as large as the adapter's hasMinimap(width, height) asks: in a narrow plane it would cover the
  *   zoom buttons. The fit keeps the minimap's band free only where it is shown (the adapter's fitMargins).
  * - **The pointer and the keyboard.** A border item's name and a small node's name take the pointer, so a click on a
  *   name selects its node (app.css). The zoom buttons and the fit button show the theme's focus ring, teal,
  *   `--grasp-focus-width` wide, inside the button.
  * - Nothing of Grasp's renders on a viewport change: `moved` is the store's, and the component reads no viewport.
+ *
+ * What the plane takes from each of steps 8 to 12 (plan/swarm/shared.md, "What the plane takes from each step"):
+ *
+ * - **Step 8** changes nothing in this file. Its changes are the adapter's projectStep and linesDrawn, which the
+ *   store calls, and the minimap of our own in MiniMap.tsx.
+ * - **Step 9, the selection** (plan/swarm/step-9.md). Every click on the plane that is not the end of a drag becomes
+ *   one Hit (core/selection.ts) and goes through one function of this file, `clicked(hit)`: from React Flow's
+ *   onPaneClick (the ground), onNodeClick (a node, wherever in it) and onEdgeClick (a line), with `at` from
+ *   screenToFlowPosition and `add` from the event's ctrlKey or metaKey. `clicked` calls
+ *   selectionOf(session).click(hit). React Flow's own `select` changes pick nothing (the store's contract says what
+ *   it does with them). The props that change: `selectionKeyCode="Shift"`, `selectionMode={SelectionMode.Full}`,
+ *   `multiSelectionKeyCode` the constant `['Control', 'Meta']`, and the three click callbacks, each the same function
+ *   at every render. A marquee (Shift + drag, begun anywhere on the plane) is the one gesture whose picks come from
+ *   React Flow, and they come from its rectangle, not from its changes: a child component of ReactFlow subscribes to
+ *   React Flow's own store (useStoreApi) and, while `userSelectionActive` is true, hands each new
+ *   `userSelectionRect`, turned into the view's units with the state's `transform`, to the store's marquee(rect). The
+ *   same subscriber sets React Flow's `nodesSelectionActive` back to false whenever it finds it true, so the
+ *   rectangle React Flow would leave around the picked boxes, which lies over them and takes their clicks, is never
+ *   drawn. And the click that ends a marquee is no click: a flag set while a marquee is drawn and cleared at the next
+ *   pointerdown on the root (a capturing listener) makes the three callbacks do nothing, since React Flow lets that
+ *   click through to a node when Shift is let go before the button. The marquee's look is marquee.css, beside this
+ *   file. What is selected on the plane is what the store's snapshot says, from the session's selection.
+ * - **Step 11, the tool in hand and the palette** (plan/swarm/step-11.md, "The plane's part"; core/commands.ts, Tools).
+ *   - `clicked(hit)` offers the click to the tool first: `if (!toolsOf(session).click(hit)) selectionOf(session).click(hit)`.
+ *     Nothing else of step 9's picking changes.
+ *   - While a tool is in hand (`toolsOf(session).armed`, read through useSyncExternalStore(tools.listen, ...)) the root
+ *     carries `data-tool`, the tool's kind, and plane/palette.css makes the pointer a crosshair over the ground, the
+ *     nodes and the lines. A press that moves is still a drag or a pan; only a click is the tool's.
+ *   - While a line's first end is taken (`tools.first`) the root carries `data-first`, that element's id, and holds one
+ *     `<style>` element whose one rule gives that element's node on this plane a dashed teal outline:
+ *     `[data-testid="plane"][data-view="<view id>"] .react-flow__node[data-id="<element id>"] { outline: 2px dashed
+ *     var(--grasp-teal); outline-offset: 3px; }`. With no first end: no attribute and no `<style>`.
+ *   - The plane renders again only when `armed` or `first` changes: nothing more on a pan or a drag step.
+ *   - The root's own onContextMenu prevents the browser's menu for every right-click inside it (the zoom buttons, the
+ *     minimap, a marquee's rectangle and the card of a view no plane draws included). React Flow's onPaneContextMenu,
+ *     onNodeContextMenu and onEdgeContextMenu open the palette at the pointer (clientX, clientY) with the Hit of that
+ *     right-click: `at` from screenToFlowPosition, `add` false. A right-click picks nothing and is no click for the tool.
+ *   - One `<Palette session at onClose />` (Palette.tsx) for the plane; `at` is the plane's state, null while closed.
+ * - **Steps 10 and 12** change nothing in this file.
  */
 export function Plane({ session, viewId }: PlaneProps): JSX.Element {
   const store = viewStoreOf(session, viewId);
@@ -117,15 +157,10 @@ const NODE_TYPES = {
 } satisfies Record<Shape, unknown> as unknown as NodeTypes;
 const EDGE_TYPES = { line: LineEdge } as unknown as EdgeTypes;
 const PRO_OPTIONS = { hideAttribution: true };
-// A view of more nodes than this mounts only what its window shows. React Flow culls a node by its own rectangle
-// and a line by its two nodes', with no margin, so a name outside its node and a line's label leave with them while
-// still in the window: a view of few nodes is therefore not culled at all, and a far view has no words to lose.
-const CULL_OVER = 300;
 // How far the pointer may move between press and release and still click is the store's CLICK_DISTANCE: React Flow's
 // own click distances (the ground's and a node's) are set to it, and the store starts no gesture of a drag or a resize
 // that has not gone as far (nodeDragThreshold is 0, so a drag begins at the press and the node does not trail the
 // pointer; the store, not React Flow, tells a click that slipped from a drag).
-const MINIMAP_STYLE = { width: MINIMAP.width, height: MINIMAP.height };
 
 interface FlowProps {
   store: ViewStore;
@@ -151,7 +186,7 @@ function Flow({ store, root }: FlowProps): JSX.Element {
       defaultViewport={camera}
       minZoom={MIN_ZOOM}
       maxZoom={MAX_ZOOM}
-      onlyRenderVisibleElements={snapshot.nodes.length > CULL_OVER}
+      onlyRenderVisibleElements={snapshot.nodes.length > LARGE_VIEW}
       panOnScroll
       panOnScrollSpeed={1}
       zoomOnScroll={false}
@@ -174,7 +209,7 @@ function Flow({ store, root }: FlowProps): JSX.Element {
       <Controls position="bottom-left" showInteractive={false} showFitView={false}>
         <FitButton store={store} root={root} />
       </Controls>
-      {minimap && <MiniMap style={MINIMAP_STYLE} />}
+      {minimap && <PlaneMiniMap store={store} />}
       <Follow store={store} root={root} setMinimap={setMinimap} />
     </ReactFlow>
   );

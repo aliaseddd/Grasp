@@ -165,6 +165,31 @@ export function fitMargins(width: number, height: number): { pad: number; band: 
   return { pad, band: hasMinimap(width, height) ? FIT_BAND : pad };
 }
 
+/**
+ * A view of more nodes than this is a large view. Its plane mounts only what its window shows (Plane.tsx,
+ * `onlyRenderVisibleElements`): React Flow culls a node by its own rectangle and a line by its two nodes', with no
+ * margin, so a name outside its node and a line's label leave with them while still in the window, and a view of few
+ * nodes is therefore not culled at all. Step 8 also leaves a large view's lines out while it is far (linesDrawn).
+ */
+export const LARGE_VIEW = 300;
+
+/**
+ * Whether a plane draws the lines of a view of `nodes` nodes that is `far` or near: what a view's store hands its
+ * plane as `edges` is the projection's edges when this is true and none when it is false (plane/viewStore.ts).
+ *
+ * Until step 8 it is always true. Step 8 (plan/swarm/step-8.md, change 2): false when `far` is true and `nodes` is
+ * more than LARGE_VIEW, true otherwise: at LARGE_VIEW nodes exactly the lines are drawn, far or near. At a far zoom a
+ * line of a view that large is a hair no eye follows (1.25 px at under a quarter of its size), and its 1,536 lines
+ * cost the 5,000-element model's action flow view half of every step of a pan. A projection always holds every
+ * edge, far or near: only what a store hands its plane leaves them out, so a line that was selected is selected when
+ * the view is near again.
+ */
+export function linesDrawn(nodes: number, far: boolean): boolean {
+  void nodes;
+  void far;
+  return true;
+}
+
 // ---- What crosses to the store and to React Flow.
 
 /** The 13 shapes, which are a plane's node types. */
@@ -275,6 +300,23 @@ export interface Projection {
   readonly rects: ReadonlyMap<string, Rect>;
   /** The rectangle around every node's rectangle; null when the view places nothing. */
   readonly bounds: Rect | null;
+  /**
+   * What project() read of the model to make this projection (step 8), for projectStep. It is an own property of the
+   * object, so the store's copies of a projection (`{ ...projection, nodes }`) carry it. Absent until step 8.
+   */
+  readonly read?: ProjectionRead;
+}
+
+/**
+ * What project() read of the model for one view: everything a projection says that no place can alter, kept so that
+ * a gesture's step is laid out without reading the model again (projectStep says what it holds). The adapter's own:
+ * nothing outside core/adapter.ts reads it, and step 8 gives it the rest of its fields.
+ */
+export interface ProjectionRead {
+  /** The model object it was read from. */
+  readonly model: Model;
+  /** The id of the view it was read for. */
+  readonly view: string;
 }
 
 export interface ProjectOptions {
@@ -848,6 +890,63 @@ export function project(lib: SysMLModelLibrary, model: Model, view: ModelView, o
     if (same) return previous;
   }
   return { view: view.id, far, look, nodes, edges, rects: made.rects, bounds: made.bounds };
+}
+
+/**
+ * A step of a gesture: the view projected with the gesture's `places`, as a view's store asks at every step of a drag
+ * or a resize (plane/viewStore.ts). `start` is the projection the gesture began from, and the model has not changed
+ * since `start` was made: a change of the model in the middle of a gesture cancels it.
+ *
+ * It gives what `project(lib, model, view, { far, look: start.look, previous, places })` gives, by value and by
+ * object: the same nodes, edges, rects and bounds, each node and edge the object rule 5 makes it, `previous` itself
+ * when nothing differs from it. `far` is `options.far`, or `start.far` when that is not given; `previous` is
+ * `options.previous`, or none.
+ *
+ * Until step 8 it calls project(), which reads the whole view from the model again: at 5,000 elements that is 9 to 13
+ * ms of every step of a drag (plan/swarm/step-8.md). Step 8, change 1, works a step out from what `start` read:
+ *
+ * - **What is read once.** project() keeps, as the projection's `read`, everything of its result that no place can
+ *   alter: the model object it read, the id of the view, far and look; the view's own saved places as plain objects
+ *   (a copy of each place that is an object, so that a step reads no place through the model; never a place that
+ *   came in `options.places`); which elements the view shows, in
+ *   the order their nodes come, each with its kind's row, its shape, its parent, the boxes inside it and its border
+ *   items; each node's className and the words of its `data` (keyword, name, glyph, least; a border item's name and
+ *   glyph; a small node's name); each box's compartments as wrapped for its saved width; and the lines, each with
+ *   its two ends, its row and its edge's `data`. A projection made by projectStep carries the `read` it was worked
+ *   out from. A projection's `read` is always the model's as project() last read it: when project() returns
+ *   `previous` itself (rule 5), it first gives `previous` the `read` of this call, the one field of a projection that
+ *   is ever written after the projection is made. So a change that altered no node (a saved width under what the box
+ *   holds, a doc that wraps to the same rows) is still in the `read` the next gesture starts from.
+ * - **What a step works out.** Places, sizes and what follows from them, by rules 2, 3 and 7 over plain numbers: each
+ *   shown element's place is `places`' when it has one there, else the saved one in `read`; a box's compartments are
+ *   wrapped again only when its saved width differs from the one `read` wrapped them for (compartmentsOf() may be
+ *   called for that box as it is: it reads the element's own fields and, for a send action, asks the library's
+ *   sendWord; nothing else of the model is read at a step); sizes grow as rule 2 says; a border item's square, side and `nameAt`
+ *   follow its owner and its first line (rule 3, drawing.js lineWay); rects and bounds follow. Each node is then
+ *   rule 5's: the object `previous` has for it when it reads the same, else a new one that keeps `selected`,
+ *   `dragging` and, when only its place or size changed, its `data` object.
+ * - **The edges.** No edge reads a place, so a step alters none: `edges` is `previous.edges` itself, the same array,
+ *   when `previous` is given, `previous.far` is `far`, and `previous` holds an edge for each line of `read` in the
+ *   same order; otherwise each edge is rule 5's, as project() makes it (a `previous` that is far for a near step, as
+ *   after a drag that crossed 25% of zoom, gives every edge anew, with its label).
+ * - **The slow way stays** for whatever the fast way does not cover, with the same result: `start.read` is absent, or
+ *   was read from another model object (compared by identity), for a view of another id (the view is compared by
+ *   its id, never by identity: the store may hand over another object for the same view) or with another look than
+ *   this call's; `far` is not `start.far`; `places` names an element `start` does not show, or gives a border item's
+ *   place to a box or a box's to a border item. projectStep then returns what project() returns, which carries the
+ *   `read` that call of project() made. A step that went the fast way carries `start.read` itself.
+ * - It reads nothing through `lib.reading` on the fast way, writes nothing to the model, and changes neither `start`
+ *   nor `previous`.
+ */
+export function projectStep(
+  lib: SysMLModelLibrary,
+  model: Model,
+  view: ModelView,
+  start: Projection,
+  places: ReadonlyMap<string, Place>,
+  options: { far?: boolean; previous?: Projection | null } = {},
+): Projection {
+  return project(lib, model, view, { far: options.far ?? start.far, look: start.look, previous: options.previous ?? null, places });
 }
 
 /**
