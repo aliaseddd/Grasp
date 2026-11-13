@@ -46,7 +46,7 @@ The skeletons are in the code, not here: each new file a step creates exists und
 - `id` begins with the step's number, then the kind (`tests`, `impl`, `review`, `checks`), then a name.
 - `needs` lists the tasks that must be `done` before this one starts. A task with no needs can start at once.
 - `owns` lists files, each by its path from the repository's root. No two tasks that can run at the same time own the same file: when two tasks own one file, one of them needs the other, directly or through other tasks.
-- `model` and `effort` say how the task is run. `sonnet` at `medium` writes tests and code. Rework, which is a task sent back because its result was wrong while its brief was right, runs on `sonnet` at `high`. `lead` means the lead does the task itself.
+- `model` and `effort` say how the task is run. `sonnet` at `medium` writes tests and code, makes the breakages and looks at a screenshot. `fable` at `high` reads a step's code (`N-review-code`): a fresh instance of the lead's own model, which has not seen the outline. `lead` means the lead does the task itself. Rework, which is a task sent back because its result was wrong while its brief was right, runs on `sonnet` at `high`.
 - `status` is `open`, then `running`, then `done`. The lead sets it. A task that came back wrong goes to `open` again with a note in the session's entry of `plan/notes.md`.
 
 ## How the lead runs the swarm

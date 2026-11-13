@@ -6,7 +6,7 @@ Grasp is a SysML v2 design canvas whose new page is being built in steps. Step 8
 
 ## Read first
 
-`plan/swarm/step-8.md`, section 5: three test lists, each row with a "Breakage" column. Then the files the breakages are made in: `canvas/app/src/core/adapter.ts` (`projectStep`, `project`, `linesDrawn`), `canvas/app/src/plane/MiniMap.tsx` with `canvas/app/src/plane/minimap.css`, and for two rows `canvas/app/src/plane/viewStore.ts` (`refresh()`, `step()`, `adopt()`).
+`plan/swarm/step-8.md`, section 5: three test lists, each row with a "Breakage" column. Then the files the breakages are made in: `canvas/app/src/core/adapter.ts` (`projectStep`, `project`, `linesDrawn`), `canvas/app/src/plane/MiniMap.tsx` with `canvas/app/src/plane/minimap.css`, and for three rows `canvas/app/src/plane/viewStore.ts` (`refresh()` for the opening test, `step()` for the commit's test, `adopt()` for the store's snapshot).
 
 ## The files you own
 
@@ -23,6 +23,8 @@ For each row of the three lists, in order:
 5. Put the code back, and check with `git status --short` that no source file differs.
 
 A row whose test still passes under its breakage is a finding: say what you changed, exactly, and why you think the test did not see it. Do not change the test.
+
+A row whose test is not in its file was dropped with its change by `8-checks-measure` (a change of step 8 is kept only if the numbers move): say so for that row and go on.
 
 The timed rows of `scale.test.mjs` (tests 1, 2, 3) are judged on times, and other agents may be running: note the figures, and say that the lead should run them again alone if a result is near the limit. The pan half of test 5 has no breakage, as the list says.
 

@@ -313,8 +313,10 @@ export interface Projection {
  * nothing outside core/adapter.ts reads it, and step 8 gives it the rest of its fields.
  */
 export interface ProjectionRead {
-  /** The model it was read from. */
+  /** The model object it was read from. */
   readonly model: Model;
+  /** The id of the view it was read for. */
+  readonly view: string;
 }
 
 export interface ProjectOptions {
@@ -904,8 +906,9 @@ export function project(lib: SysMLModelLibrary, model: Model, view: ModelView, o
  * ms of every step of a drag (plan/swarm/step-8.md). Step 8, change 1, works a step out from what `start` read:
  *
  * - **What is read once.** project() keeps, as the projection's `read`, everything of its result that no place can
- *   alter: the model and the view it read, far and look; the view's saved places as plain objects (a copy of each
- *   place that is an object, so that a step reads no place through the model); which elements the view shows, in
+ *   alter: the model object it read, the id of the view, far and look; the view's own saved places as plain objects
+ *   (a copy of each place that is an object, so that a step reads no place through the model; never a place that
+ *   came in `options.places`); which elements the view shows, in
  *   the order their nodes come, each with its kind's row, its shape, its parent, the boxes inside it and its border
  *   items; each node's className and the words of its `data` (keyword, name, glyph, least; a border item's name and
  *   glyph; a small node's name); each box's compartments as wrapped for its saved width; and the lines, each with
@@ -916,18 +919,22 @@ export function project(lib: SysMLModelLibrary, model: Model, view: ModelView, o
  *   holds, a doc that wraps to the same rows) is still in the `read` the next gesture starts from.
  * - **What a step works out.** Places, sizes and what follows from them, by rules 2, 3 and 7 over plain numbers: each
  *   shown element's place is `places`' when it has one there, else the saved one in `read`; a box's compartments are
- *   wrapped again only when its saved width differs from the one `read` wrapped them for (the element's own fields
- *   may be read for that, and for nothing else); sizes grow as rule 2 says; a border item's square, side and `nameAt`
+ *   wrapped again only when its saved width differs from the one `read` wrapped them for (compartmentsOf() may be
+ *   called for that box as it is: it reads the element's own fields and, for a send action, asks the library's
+ *   sendWord; nothing else of the model is read at a step); sizes grow as rule 2 says; a border item's square, side and `nameAt`
  *   follow its owner and its first line (rule 3, drawing.js lineWay); rects and bounds follow. Each node is then
  *   rule 5's: the object `previous` has for it when it reads the same, else a new one that keeps `selected`,
  *   `dragging` and, when only its place or size changed, its `data` object.
  * - **The edges.** No edge reads a place, so a step alters none: `edges` is `previous.edges` itself, the same array,
- *   when `previous` is given and holds an edge for each line of `read` in the same order; otherwise each edge is rule
- *   5's, as project() makes it.
+ *   when `previous` is given, `previous.far` is `far`, and `previous` holds an edge for each line of `read` in the
+ *   same order; otherwise each edge is rule 5's, as project() makes it (a `previous` that is far for a near step, as
+ *   after a drag that crossed 25% of zoom, gives every edge anew, with its label).
  * - **The slow way stays** for whatever the fast way does not cover, with the same result: `start.read` is absent, or
- *   was read from another model object, another view or another look than this call's; `far` is not `start.far`;
- *   `places` names an element `start` does not show, or gives a border item's place to a box or a box's to a border
- *   item. projectStep then returns what project() returns.
+ *   was read from another model object (compared by identity), for a view of another id (the view is compared by
+ *   its id, never by identity: the store may hand over another object for the same view) or with another look than
+ *   this call's; `far` is not `start.far`; `places` names an element `start` does not show, or gives a border item's
+ *   place to a box or a box's to a border item. projectStep then returns what project() returns, which carries the
+ *   `read` that call of project() made. A step that went the fast way carries `start.read` itself.
  * - It reads nothing through `lib.reading` on the fast way, writes nothing to the model, and changes neither `start`
  *   nor `previous`.
  */

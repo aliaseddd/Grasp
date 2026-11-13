@@ -8,11 +8,11 @@ Step 8 of `plan/slice-1.md` is measure, then tune. Session 24 measured the page 
 
 ## Read first
 
-`plan/swarm/step-8.md`, sections 1, 2 and 6. `canvas/app/test/scale.test.mjs`: each timed test reports its medians and samples as `#` lines of the runner's output.
+`plan/swarm/step-8.md`, sections 1, 2 and 6. `canvas/app/test/scale.test.mjs`: a timed test that passes reports its medians and samples as `#` lines of the runner's output (`report`), and one that fails has them in its failure's message (`hold`). `measure()` in `helpers.mjs` stops taking samples once more than half of those planned are on one side of the limit, so a failing build's median comes from fewer samples than a passing one's: compare medians, and say how many samples each had.
 
 ## The files you own
 
-None that you hand over as code of your own. You decide which of `canvas/app/src/core/adapter.ts` (`8-impl-step`), `canvas/app/src/plane/MiniMap.tsx` with `canvas/app/src/plane/minimap.css` (`8-impl-minimap`) and their test files stay in the step.
+You write no code of your own. You own, for this task, the files of the tasks it needs, since you decide which of them stay in the step and put back the ones that do not: `canvas/app/src/core/adapter.ts`, `canvas/app/src/plane/MiniMap.tsx`, `canvas/app/src/plane/minimap.css`, `canvas/app/test/step.test.mjs`, `canvas/app/test/minimap.test.mjs`, `canvas/app/test/scale.test.mjs`; and `plan/notes.md`, for the table.
 
 ## What to do
 

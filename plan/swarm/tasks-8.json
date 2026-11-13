@@ -76,8 +76,18 @@
     "step": 8,
     "kind": "checks",
     "brief": "plan/swarm/briefs/8-checks-measure.md",
-    "owns": [],
+    "owns": [
+      "canvas/app/src/core/adapter.ts",
+      "canvas/app/src/plane/MiniMap.tsx",
+      "canvas/app/src/plane/minimap.css",
+      "canvas/app/test/step.test.mjs",
+      "canvas/app/test/minimap.test.mjs",
+      "canvas/app/test/scale.test.mjs",
+      "plan/notes.md"
+    ],
     "needs": [
+      "8-tests-step",
+      "8-tests-minimap",
       "8-tests-scale",
       "8-impl-step",
       "8-impl-minimap"

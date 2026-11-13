@@ -22,7 +22,7 @@ Look at the image at its full size (it is 2,800 by 1,800 px: 1,400 by 900 at twi
 4. No line joins any two boxes.
 5. The ground has no dots.
 6. A minimap at the bottom right shows the same grid as grey rectangles; zoom buttons stand at the bottom left.
-7. One bar of 40 px across the top, and a strip at each side of the window; nothing overlaps the plane.
+7. One bar of 40 px across the top, and a strip at each side of the window; the bar and the strips do not cover the plane.
 
 ## What to send back
 
