@@ -32,6 +32,8 @@ export interface TopBarProps {
   session: Session | null;
   /** Called by Open. */
   onOpen: () => void;
+  /** Called by Save and by Ctrl or ⌘ + S (step 7). */
+  onSave: () => void;
 }
 
 /**
@@ -46,8 +48,18 @@ export interface TopBarProps {
  *   separate from its name (the child's own aria-label wins), and a disabled button sits in a <span> under its
  *   tooltip, as MUI asks. Open, Save, Undo, Redo sit together after the file name; About at the right end. The
  *   keyboard's focus is a white ring inside the button, since the theme's teal one would not show on the ink.
- * - Save, Undo and Redo are disabled until step 7; About until step 12. Open calls `onOpen` (from a click, so the
- *   browser opens its picker or the file input's dialog).
+ * - Open calls `onOpen` (from a click, so the browser opens its picker or the file input's dialog). About is
+ *   disabled until step 12.
+ * - **Save, Undo, Redo** (step 7). Save is enabled while a file is open and `session.unsaved`, and calls `onSave`.
+ *   Undo is enabled while the history has a step (`history.steps`), Redo while it has one undone
+ *   (`history.undone`); each calls the history's undo() or redo(). Undo's tooltip names the step it takes back,
+ *   "Undo Moved part def Host", and Redo's the step it makes again, "Redo Moved part def Host"; with none, "Undo" and
+ *   "Redo". All three re-read through `session.listen`.
+ * - **The keys** (step 7), on the window, for the open file: Ctrl or ⌘ + Z undoes; Ctrl or ⌘ + Y, and Ctrl or ⌘ +
+ *   Shift + Z, redo; Ctrl or ⌘ + S saves (onSave) whether or not anything is unsaved, and the browser's own Save is
+ *   always prevented, with a file open or not. Undo and Redo by key act unless the event comes from a text field
+ *   (an input, a textarea, or anything contenteditable), where the field's own undo is meant; Save acts from
+ *   anywhere. A key that acts prevents the browser's default. Holding a key down does one thing per repeat.
  */
 export function TopBar({ session, onOpen }: TopBarProps): JSX.Element {
   const subscribe = useCallback((tell: () => void) => (session ? session.listen(tell) : () => {}), [session]);

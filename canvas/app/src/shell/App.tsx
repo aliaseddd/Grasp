@@ -33,7 +33,13 @@ declare global {
  *   open; null (the dialog closed) changes nothing. A rejection is shown in an MUI Alert, in the error's own
  *   sentence (files.ts / session.ts word it and name the file), and the file that was open stays open.
  * - The session is in React state, and Dock hands it on to its panels; `window.Grasp.session` follows it.
- * - Step 7 adds the question before another file replaces one with unsaved changes; step 5 has nothing to lose.
+ * - **Save** (step 7): saveFile(session). Where it went is not said; a rejection (the browser refused the write) is
+ *   shown in the same Alert, "<name> wasn't saved: <the browser's reason>", and the session stays unsaved.
+ * - **Before changes are lost** (step 7). Open, while the session has unsaved changes, first asks with the browser's
+ *   own confirm(): LOSE_QUESTION(name). Cancel opens nothing; OK goes on to the picker or the file input, from the
+ *   same click. And while a session has unsaved changes the page asks before it is left or reloaded
+ *   (askBeforeLeaving in files.ts), so the browser's own question comes up; once saved, or with no file, nothing is
+ *   asked.
  */
 export function App(): JSX.Element {
   const [session, setSession] = useState<Session | null>(null);
@@ -57,7 +63,7 @@ export function App(): JSX.Element {
 
   return (
     <Box data-testid="app" sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <TopBar session={session} onOpen={onOpen} />
+      <TopBar session={session} onOpen={onOpen} onSave={NOT_YET} />
       <Markers />
       <Box sx={{ flex: '1 1 0', minHeight: 0, position: 'relative' }}>
         <Dock session={session} onOpen={onOpen} />
@@ -70,3 +76,6 @@ export function App(): JSX.Element {
     </Box>
   );
 }
+
+// Save, until step 7 builds it: the bar's button is disabled meanwhile.
+function NOT_YET(): void {}

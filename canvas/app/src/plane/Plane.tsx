@@ -48,7 +48,9 @@ export interface PlaneProps {
  *   CULL_OVER nodes, `panOnScroll` with `panOnScrollSpeed={1}`, `zoomOnScroll={false}`, `zoomOnPinch`,
  *   `zoomOnDoubleClick={false}`, `paneClickDistance` (a press that moves a few pixels is still a click),
  *   `selectionKeyCode={null}` (no rectangle is drawn with Shift until step 9 gives the marquee its meaning),
- *   `nodesDraggable={false}` (until step 7), `nodesConnectable={false}`, `nodesFocusable={false}`,
+ *   `deleteKeyCode={null}` (React Flow's own Delete removes nothing until slice 2 gives Delete its meaning),
+ *   nodes draggable (step 7: boxes, small nodes and border items; a press on a box drags it, a press on the ground
+ *   pans), `nodesConnectable={false}`, `nodesFocusable={false}`,
  *   `edgesFocusable={false}`, `disableKeyboardA11y`, `proOptions` hiding the attribution. No `fitView`, `viewport`,
  *   `width` or `height` prop, no `extent` and no `expandParent` on a node.
  * - **Around the nodes**: the ground's dots (`Background`), left out when far; `Controls` at the bottom left without

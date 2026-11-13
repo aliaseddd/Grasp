@@ -80,6 +80,8 @@ declare global {
     reading<T>(model: Model, read: () => T): T;
     /** 'via' when a send's target names a port, else 'to'. */
     sendWord(model: Model, target: string): string;
+    /** An element in words, as Undo and the log name it: 'part def Host', 'port api in hosts'. */
+    describe(model: Model, el: ModelElement): string;
   }
 }
 
@@ -282,9 +284,36 @@ export interface ProjectOptions {
   previous?: Projection | null;
   /** The measures. Default LOOK. */
   look?: Look;
+  /**
+   * Places that stand in for the view's own, by element id (step 7): what a gesture asks, before its end writes it.
+   * A place given here is read as if the view's layout held it, and nothing is written to the model. Default none.
+   */
+  places?: ReadonlyMap<string, Place> | null;
 }
 
 export type Viewport = { x: number; y: number; zoom: number };
+
+/**
+ * What a gesture on a plane asks of one node (step 7), in the numbers React Flow gives, which are a node's position
+ * from its parent node's corner (from the view's origin at ground level) and its size:
+ * - `move`: the node was dragged to `position`. For a border item, it is where React Flow put its square.
+ * - `resize`: a box's resize handles gave it `position` and `width` by `height` (NodeResizer's own numbers, with the
+ *   kind's least size already held by NodeResizer's minWidth and minHeight).
+ */
+export type Ask =
+  | { id: string; move: Point }
+  | { id: string; resize: Point & { width: number; height: number } };
+
+/** The words a gesture's end is written with: what Undo's tooltip and the log say (rule 7 of placesFor). */
+export type GestureWords = string;
+
+/** What placesFor gives: the places the asks come to, by element id, and the words their end is written with. */
+export interface Placed {
+  /** Each node the asks move or resize, as the library keeps a place (M.placement's form: whole numbers, `at` to 0.01). */
+  readonly places: ReadonlyMap<string, Place>;
+  /** The words of the step, or null when no place differs from the view's own. */
+  readonly words: GestureWords | null;
+}
 
 // ---- What the adapter does.
 
@@ -755,6 +784,9 @@ function sameEdge(a: PlaneEdge, b: PlaneEdge): boolean {
  * 6. Far: words are left out (BoxData, BorderData, SmallData, EdgeData say which), sizes stay, and every node's
  *    className gains `far`.
  *
+ * 7. With `places` (step 7), each place given stands in for the view's own for its element, before rules 1 to 6 are
+ *    applied: a gesture's step is drawn by the same rules as the model its end writes.
+ *
  * It reads the model inside `lib.reading(model, ...)`, so a view of thousands of elements is projected in
  * milliseconds, and it writes nothing to the model. A view of a kind no plane draws projects to nothing.
  */
@@ -843,4 +875,54 @@ export function fit(bounds: Rect | null, width: number, height: number): Viewpor
     y: pad + (roomH - bounds.h * zoom) / 2 - bounds.y * zoom,
     zoom,
   };
+}
+
+// ---- Gestures (step 7).
+
+/**
+ * The places that a gesture's asks come to, by the old page's rules (canvas/src/core/page/drawing.js, the graph
+ * renderer's dragStart, drag and drop; layout.js nearestBorder), and the words its end is written with. `projection`
+ * is the view as it was drawn when the gesture began: the rectangles it reads (an owner's, the box's own before a
+ * resize) are that projection's, so every step of one gesture is worked out from the same start, and the same asks
+ * give the same places. It writes nothing to the model; the store writes `places` through history.edit() at the
+ * gesture's end, and project() with `places` draws each step before that.
+ *
+ * 1. **A box moved** (`move`, an element that is not on a border) takes its position, rounded to whole numbers, as
+ *    its x, y; its w, h stay the view's. Inside a shown owner (the node has a parentId) it never goes left of
+ *    `look.pad` (12) or above `look.childTop` (48) from the owner's corner, as on the old page: x = max(pad, x),
+ *    y = max(childTop, y). Going right or down, the owner grows to hold it, by project()'s rule 2, nothing written to
+ *    the owner. A box never leaves its owner by dragging in this slice, and never changes owner.
+ * 2. **A border item moved**: the centre of the square React Flow put at `position` is taken to its owner's nearest
+ *    border, as nearestBorder does it, against the owner's rectangle in the owner's own coordinates (0, 0, w, h):
+ *    the side whose line is nearest the centre (ties in the order top, bottom, left, right), and `at` the centre's
+ *    fraction along that side, clamped to 0.05 .. 0.95 and rounded to 0.01. So a port slides along its border and
+ *    changes side at a corner.
+ * 3. **An ask whose node has an ancestor also asked** (a box dragged together with its owner, a port with its owner)
+ *    is dropped: the node moves with its ancestor and keeps its own place.
+ * 4. **A box resized** (`resize`): its new rectangle is `position` and `width` by `height`, then held:
+ *    - no smaller than the library's least for its kind (`least` of its BoxData: min(80, size[0]) by
+ *      min(40, size[1])), no larger than 4000 a side;
+ *    - no smaller than what it holds: wide enough for each box inside it (its x + its drawn w + pad), high enough for
+ *      its header and its compartments as they wrap at the new width, and for each box inside it (y + h + pad),
+ *      by project()'s rule 2;
+ *    - inside a shown owner, never left of pad or above childTop from the owner's corner.
+ *    Where a limit holds the size, the side that was not dragged stays where it was: when `position` differs from
+ *    the box's position before the gesture (a top or left handle was dragged), the right or bottom edge of the box
+ *    before the gesture is kept, and x or y is worked out from it and the held w or h. Every number is rounded to a
+ *    whole one, as M.placement does. Its border items keep their side and `at`, and so stay on the border.
+ * 5. **Every place is in M.placement's form**: a box { x, y, w, h }, a border item { side, at }. A place is given only
+ *    for an asked node (rule 3 aside), and only when it differs from the view's own; so a gesture that ends where it
+ *    began gives no place, and `words` null.
+ * 6. Asks naming a node the projection does not hold, or a border item asked to resize, are left out.
+ * 7. **The words**, from the library's describe(): one box moved, "Moved part def Host"; one border item moved,
+ *    "Moved port api in hosts to the right side"; one box resized, "Resized part def Host"; more than one node,
+ *    "Moved 3 elements" or "Resized 3 elements" (the elements whose place differs).
+ *
+ * It runs over plain numbers: the projection's rectangles and nodes, and the view's layout, read inside
+ * lib.reading(model, ...). The store calls it at every step of a gesture, so a step costs no projection of the model
+ * beyond the one project() with `places` makes.
+ */
+export function placesFor(lib: SysMLModelLibrary, model: Model, view: ModelView, projection: Projection, asks: readonly Ask[], look: Look = LOOK): Placed {
+  void lib; void model; void view; void projection; void asks; void look;
+  throw new Error('placesFor: step 7 builds it');
 }

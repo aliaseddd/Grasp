@@ -180,3 +180,20 @@ export async function saveFile(session: Session): Promise<'handle' | 'download'>
   session.saved(mark);
   return session.handle ? 'handle' : 'download';
 }
+
+// ---- Before changes are lost (step 7).
+
+/** What Open asks before another file takes the place of one with unsaved changes. */
+export function LOSE_QUESTION(name: string): string {
+  return `${name} has changes that aren't saved. Open another file and lose them?`;
+}
+
+/**
+ * Makes the page ask before it is left or reloaded while `unsaved()` is true: a `beforeunload` listener on the window
+ * that then calls preventDefault() and sets returnValue, so the browser asks its own question; while `unsaved()` is
+ * false it does nothing, and the page goes without a question. Returns what takes the listener away.
+ */
+export function askBeforeLeaving(unsaved: () => boolean): () => void {
+  void unsaved;
+  throw new Error('askBeforeLeaving: step 7 builds it');
+}

@@ -3106,3 +3106,54 @@ says so.
 The method's log, this session: three test writers (6.1, 3.7 and 3.8 min), one breakage pass (1.9 min), two reviewers
 of the image (2.1 and 2.2 min) and one of the code (16 min); every fix and the wrap's rule written by me. Rework:
 none went back to an agent. One agent was sent out three times before it could start, on a worktree made from `main`.
+
+## Session 22, November 13, 2026: step 7 of slice 1, moving, resizing, undo, redo and save
+
+On `claude/charming-archimedes-i2vi31`, from `964ffb2` (main, with step 6 merged by pull request #48). Damon's word:
+"Execute step 7. Parallelize the work whenever possible." The method is session 17's, as session 20 tightened it.
+
+The baseline, in this container (Node 22.23.4, `node_modules` present): `npm run check` passes; `npm test` gives 161
+tests, 156 pass, 0 fail, 5 todo, in 39 s.
+
+### Step 7: the outline
+
+The contracts are in the files, as comments over bodies that throw; nothing calls them yet, so the page is the one
+step 6 left:
+
+- `core/adapter.ts`: `Ask` (a `move` to a position, or a `resize` to a position and size, in React Flow's numbers),
+  `Placed`, `placesFor(lib, model, view, start, asks)` with its seven rules, and `project()`'s `places` option (rule
+  7), so that a gesture's step is drawn by the very rules that draw the model its end writes. `describe` joins the
+  library's declared names. Session 17 named `withAsks` and `placeOf`; one function that gives places, and project()
+  reading them, says the same with no second copy of the layout.
+- `plane/viewStore.ts`: a gesture's steps and its end. Nothing is written during a gesture; the end is one
+  `history.edit()` with key null, writing only the keys that differ. An undo heard mid-gesture ends the gesture
+  unwritten.
+- `plane/Plane.tsx`: nodes draggable, `deleteKeyCode={null}`. `plane/nodes/BoxNode.tsx`: NodeResizer while selected
+  and near, with the kind's least size and no callbacks.
+- `shell/TopBar.tsx`: Save, Undo, Redo and the keys, `onSave`. `shell/App.tsx`: Save, its failure in the Alert, and
+  the question before Open loses changes. `core/files.ts`: `LOSE_QUESTION`, `askBeforeLeaving`.
+
+The rules a gesture keeps, from the old page's graph renderer (`drawing.js`, `dragStart`, `drag`, `drop`;
+`layout.js`, `nearestBorder`): a nested box no further left than 12 or up than 48 from its owner's corner, the owner
+growing by the layout's own rule; a port to its owner's nearest border, `at` clamped to 0.05 .. 0.95 and rounded to
+0.01; a resize held at the kind's least, at what the box holds at its new width, and at 4000, with the side not
+dragged kept where it was. The old page has no resize by handles; its words are kept: "Moved part def Host", "Moved
+port api in hosts to the right side", and "Resized part def Host" beside them.
+
+### The order of work, by what blocks what
+
+| # | Task | Who | Needs | Beside |
+|---|---|---|---|---|
+| O | The outline, committed and pushed | me | | |
+| A | `placesFor` and `project()`'s `places` | agent | O | N, B1, B2, S |
+| N | Node tests: `adapter.test.mjs` (the seven rules; a gesture's layout is the projection of what its end writes), `viewStore.test.mjs` (a gesture in the store) | agent | O | A, B1, B2, S |
+| B1 | `move.test.mjs`, and the `nodes` row of `shots.mjs` | agent | O | A, N, B2, S |
+| B2 | `resize.test.mjs` (the todo mark off; a save through a stubbed picker's handle), `keys.test.mjs`, the example's drag step in `instant.test.mjs`, and the scale test's drag made to fail with nothing dragged | agent | O | A, N, B1, S |
+| S | The bar, Save, the keys and the questions: `TopBar.tsx`, `App.tsx`, `files.ts` | agent | O | A, N, B1, B2 |
+| P | The gesture half of the store, the planes' props, NodeResizer and its look | agent | A taken in, the tests seen to fail | |
+| R, F, C, E | Reviews, fixes, the checks alone, the commit | me, agents | P | |
+
+The tests are seen to fail at O, where nothing is draggable and the bar's three buttons are disabled; S and A run
+beside the test writers, so P is the only implementer that waits, and it waits for A alone. `keys.test.mjs` is a
+file the plan does not name: the keys and the questions are the bar's, not a gesture's, and a second writer on
+`move.test.mjs` would have owned one file with another.

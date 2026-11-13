@@ -40,10 +40,26 @@ export interface ViewSnapshot {
  *   a small plane (a tab that Dockview passes through a small size as it floats, a narrow window) fills its plane
  *   when that grows, a split or a sash drag keeps a fitted view fitted, and a view somebody has panned or zoomed
  *   stays where they put it.
- * - **React Flow's changes.** Step 6 takes `select` only: the node or edge named gets a new object with `selected`
- *   set, in a new array, and only when it differs; the projection kept as `previous` holds the same objects, so the
- *   next projection keeps what was selected. Every other change (`dimensions`, `position`, `remove`, `add`,
- *   `replace`) changes nothing until step 7.
+ * - **React Flow's changes: select.** The node or edge named gets a new object with `selected` set, in a new array,
+ *   and only when it differs; the projection kept as `previous` holds the same objects, so the next projection keeps
+ *   what was selected.
+ * - **React Flow's changes: a gesture (step 7).** A `position` change with `dragging` true, and a `dimensions` change
+ *   with `resizing` true (with the `position` change NodeResizer sends beside it for a top or left handle), are a
+ *   step of a gesture. The first step keeps the projection as the gesture's start. Each step adds its asks (the
+ *   adapter's Ask: `move` for a position, `resize` for a resizer's position and size, the size kept until it changes
+ *   again) to the gesture's asks by node id, works out the adapter's placesFor(lib, model, view, start, asks), and
+ *   projects the view with those `places` and the projection before as `previous`; a node React Flow reports as
+ *   dragging keeps `dragging: true`. Its subscribers are called once a step. Nothing is written to the model during a
+ *   gesture, and the session's history hears nothing.
+ * - **A gesture's end.** A `position` change with `dragging` false, or a `dimensions` change with `resizing` false,
+ *   for a node of the gesture ends it: its last asks' places are written, the keys that differ only
+ *   (`place.x = ...`), each place an object of the view's layout as before, in one history.edit() with key null, in
+ *   placesFor's words. So a gesture is one undo step, and one that ends where it began is none. The history then tells
+ *   the store of the change, which projects the model as written: that projection reads the same as the gesture's
+ *   last step, so its nodes are the same objects. `dragging` is false on every node after the end. A change of the
+ *   history heard during a gesture (an undo by the keyboard mid-drag) ends the gesture without writing it.
+ * - React Flow's `remove`, `add` and `replace` changes, and `dimensions` with no `resizing` (React Flow measuring a
+ *   node it was told the size of), change nothing: the model is changed only through the history.
  * - A view the model no longer holds, and a view of a kind no plane draws, have the empty snapshot.
  * - **A projection that throws** (a model the adapter cannot read) leaves the store showing what it showed, until
  *   the next change that can have altered its view projects again. It does not keep the session's other stores from
