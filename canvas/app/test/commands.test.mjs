@@ -130,7 +130,8 @@ const useOf = (view, tool) => USES.find((u) => u.view === view && u.tool === too
 
 /**
  * Walks one use of the table on a new session: the dock's part is played by front(view). Returns the session, what
- * was made (the new element or the new relationship, the last of its list) and what the model was before.
+ * was made (the new element, the last of its list, or the relationship drawn between the two ends) and what the
+ * model was before.
  */
 async function walk(use) {
   const { core, s } = await open(use.file);
@@ -145,13 +146,18 @@ async function walk(use) {
     assert.equal(lastWords(s), use.first.words, `${use.first.tool} must say ${use.first.words}.`);
   }
   tools.arm(use.tool);
+  let ends = null;
   if (use.at) {
     assert.equal(tools.click(hitOf(core, s, use.view, use.at)), true, `${use.tool} clicked ${use.at} in ${use.view} must be the tool's click.`);
   } else {
-    assert.equal(tools.click(hitOf(core, s, use.view, use.from)), true, `${use.tool}: the first end clicked ${use.from} in ${use.view} must be the tool's click.`);
-    assert.equal(tools.click(hitOf(core, s, use.view, use.to, madeId)), true, `${use.tool}: the second end clicked ${use.to} in ${use.view} must be the tool's click.`);
+    ends = [hitOf(core, s, use.view, use.from), hitOf(core, s, use.view, use.to, madeId)];
+    assert.equal(tools.click(ends[0]), true, `${use.tool}: the first end clicked ${use.from} in ${use.view} must be the tool's click.`);
+    assert.equal(tools.click(ends[1]), true, `${use.tool}: the second end clicked ${use.to} in ${use.view} must be the tool's click.`);
   }
-  const made = use.at ? s.model.elements.at(-1) : s.model.relationships.at(-1);
+  // What a relationship tool drew is the relationship of its kind from the first end to the second: for a "defined
+  // by" line from a usage that has a definition, that is the usage's one typing with its end moved, not a new line at
+  // the end of the list (plan/slice-2.md, section 2, "A typing that is drawn again is no longer replaced").
+  const made = use.at ? s.model.elements.at(-1) : s.model.relationships.find((r) => r.kind === use.tool && r.from === ends[0].id && r.to === ends[1].id);
   return { core, s, tools, made, before };
 }
 
@@ -525,13 +531,14 @@ describe('the commands', () => {
     tools.click(inHit(core, s, 'v-proof', 'App'));
     const rels = plain(s.model.relationships);
     assert.equal(rels.length, list.length, 'A second definition must leave as many relationships as before.');
-    assert.ok(!rels.some((r) => r.id === 't-hosts'), 'The old typing t-hosts must be gone.');
-    const made = rels.at(-1);
-    assert.deepEqual({ kind: made.kind, from: made.from, to: made.to }, { kind: 'FeatureTyping', from: 'Page.hosts', to: 'App' }, 'The new typing must be the last relationship.');
+    // Slice 2 (plan/slice-2.md, section 2, "A typing that is drawn again is no longer replaced"): the usage's one
+    // typing keeps its id and only its other end moves, so what is pinned to it stays on it.
+    const made = rels[index];
+    assert.deepEqual({ id: made.id, kind: made.kind, from: made.from, to: made.to }, { id: 't-hosts', kind: 'FeatureTyping', from: 'Page.hosts', to: 'App' }, 'The typing t-hosts must keep its id and its place in the list, with its other end moved to App.');
     assert.equal(steps(s), was + 1, 'The swap must be one undo step.');
     assert.equal(lastWords(s), 'Drew hosts defined by App', 'The step must say Drew hosts defined by App.');
     const touched = plain(s.history.steps.at(-1).touched.relationships);
-    assert.ok(touched.includes('t-hosts') && touched.includes(made.id), 'The step must have touched both the old typing and the new one.');
+    assert.deepEqual(touched, ['t-hosts'], 'The step must have touched the typing, and no other relationship.');
     assert.equal(s.notes, notes, 'The session\'s notes must be the same list.');
     assert.equal(JSON.stringify(plain(s.notes)), notesBefore, 'The notes must be untouched by the swap.');
     s.history.undo();
@@ -572,7 +579,8 @@ describe('the commands', () => {
     tools.click(onHit(core, s, 'v-defs', 'Controller'));
     assert.equal(steps(s), was + 1, 'The typing must be drawn in one step.');
     assert.equal(lastWords(s), 'Drew tank defined by Controller', 'The step must say Drew tank defined by Controller.');
-    const rel = s.model.relationships.at(-1);
+    const rel = lib.typingOf(s.model, elementOf(s, 'System.tank'));   // tank's one typing, moved to Controller (slice 2)
+    assert.equal(rel.to, 'Controller', 'The typing of tank must go to Controller.');
     assert.deepEqual(plain(core.selectionOf(s).items), [{ type: 'rel', id: rel.id }], 'The typing must be picked.');
     assert.equal(tools.said?.text, 'Drew tank defined by Controller. No view shows both ends, so the line is not drawn anywhere yet.', 'A line no view shows must say so.');
     assert.equal(tools.armed, null, 'The tool must be put down.');

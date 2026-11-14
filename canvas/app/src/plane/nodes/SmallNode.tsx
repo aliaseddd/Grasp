@@ -3,7 +3,11 @@
 
 import { memo } from 'react';
 import type { Node, NodeProps } from '@xyflow/react';
+import { NO_MARKS } from '../../core';
 import type { Shape, SmallData } from '../../core';
+import { Badge } from '../marks/Badge';
+import { Pins } from '../marks/Pin';
+import { NodeGrips } from './Grips';
 
 export type SmallNodeProps = NodeProps<Node<SmallData, Shape>>;
 
@@ -17,6 +21,11 @@ export type SmallNodeProps = NodeProps<Node<SmallData, Shape>>;
  * - **Near**, a name when data.name has one, `.grasp-small-name`, 12 px, outside the shape: below and to the right of
  *   a bar or a diamond, to the right of and above an event.
  * - Always the one inert element with the classes `source target`, as BoxNode has it. Memoized.
+ *
+ * Slice 2, as BoxNode says it for every node component: the inert element carries `data-of="el:<id>"`; the name, when
+ * there is one, carries `data-label="el:<id>"`; near and marked, `.grasp-marks` holds the pins and the badge, with
+ * `data-side="above"`, by which plane/marks/marks.css stands it above the shape; and one grip,
+ * `{NodeGrips({ far: data.far, side: 'bottom' })}`, below the shape, where no name is.
  */
 export function SmallNode({ data, selected, type, width, height }: SmallNodeProps): JSX.Element {
   return <Small data={data} selected={selected} shape={type} width={width} height={height} />;
@@ -58,12 +67,20 @@ const Small = memo(function Small({ data, shape, width, height }: SmallViewProps
     form = <circle className="grasp-small-fill" cx={cx} cy={cy} r="6" />;
     name = { x: cx + 10, y: cy - 5 };
   }
+  const of = data.element === null ? undefined : `el:${data.element}`;
   return (
     <>
-      <span className="grasp-node-handle source target" />
+      <span className="grasp-node-handle source target" data-of={of} />
+      {NodeGrips({ far: data.far, side: 'bottom' })}
+      {!data.far && of !== undefined && data.marks !== NO_MARKS && (
+        <div className="grasp-marks nodrag nopan" data-side="above">
+          <Pins marks={data.marks} of={of} />
+          <Badge marks={data.marks} of={of} />
+        </div>
+      )}
       <svg className="grasp-small-svg" width={w} height={h} aria-hidden="true">
         {form}
-        {!data.far && data.name !== '' && name && <text className="grasp-small-name" x={name.x} y={name.y}>{data.name}</text>}
+        {!data.far && data.name !== '' && name && <text className="grasp-small-name" data-label={of} x={name.x} y={name.y}>{data.name}</text>}
       </svg>
     </>
   );

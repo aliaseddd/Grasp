@@ -21,7 +21,21 @@
     {
       "id": 2, "name": "Editing parity", "status": "in progress",
       "plan": "plan/slice-2.md", "criteria": "plan/slice-2.md, section 10", "package": "2-0", "next_package": "2-1",
-      "note": "session 30: package 2-0 is done. Damon approved the plan on November 14, 2026, with its five points as the plan has them (plan/slice-2.md, section 12). The two probes are answered: a graph body for the sequence view and for the geometry view (plan/spikes/sequence/README.md, plan/spikes/geometry/README.md). Nothing of the slice is built. Package 2-1, the scaffold, is next; it writes the twelve checks of plan/slice-2.md, section 9, as tests and lists them here, seven of them todo."
+      "note": "package 2-1, the scaffold, is built and not landed (session 31, halted by Damon to move the conversation): the twelve seams of plan/slice-2.md, section 4; a skeleton of every file that packages 2-2 to 2-15 fill; and the twelve checks of section 9 as tests, seven of them todo. Left of it: the lead's decisions, the review, the mends, and the three runs of criterion 9. plan/slice-2-handover/README.md says each.",
+      "checks": [
+        { "id": 1, "check": "\"every fixture opens\", each view drawn by its own body (criterion 2)", "test": "fixtures.test.mjs › the example and the nine fixtures each open: 17 views, each drawn by its own body, nothing logged", "status": "todo" },
+        { "id": 2, "check": "\"saved from the new page, exports its pinned text\"", "test": "fixtures.test.mjs › each of the ten files, opened and saved from the page, exports its pinned text", "status": "pass" },
+        { "id": 3, "check": "\"the Playwright suite, rewritten for the new page, passes\" (criterion 3)", "test": "capabilities.test.mjs › every capability of plan/slice-2.md names a test that exists under that name", "status": "todo" },
+        { "id": 4, "check": "\"with the scale tests\": the model opens", "test": "scale.test.mjs › a 5,000-element model opens", "status": "pass" },
+        { "id": 5, "check": "a drag step", "test": "scale.test.mjs › a drag step takes under 16 ms at 5,000 elements in 3 views", "status": "pass" },
+        { "id": 6, "check": "a keystroke", "test": "scale.test.mjs › a keystroke in a name takes under 50 ms at 5,000 elements", "status": "pass" },
+        { "id": 7, "check": "a pan step", "test": "scale.test.mjs › a pan step of a fitted view takes under 16 ms at 5,000 elements, under 25 ms for the 2,112-node action flow view", "status": "pass" },
+        { "id": 8, "check": "\"canvas/index.html and the SVG renderer are gone\"", "test": "retired.test.mjs › the old page is out of canvas/ and in archive/old-page/, and no script, test or pin names it", "status": "todo" },
+        { "id": 9, "check": "every allowed line by dragging (criterion 4)", "test": "connect.test.mjs › in each graph view kind, a drag between each pair of node kinds draws what the rules allow and says why for what they refuse", "status": "todo" },
+        { "id": 10, "check": "reconnecting by an end (criterion 5)", "test": "reconnect.test.mjs › each kind of line has an end dragged to a node that may take it: one undo step, its label and its notes kept", "status": "todo" },
+        { "id": 11, "check": "a refused end (criterion 5)", "test": "reconnect.test.mjs › an end dropped on a node that may not take it, or on the ground, leaves the line as it was, and a toast says why", "status": "todo" },
+        { "id": 12, "check": "no silent refusal (criterion 6)", "test": "refusals.test.mjs › every action of the table, asked where it does not apply, says why", "status": "todo" }
+      ]
     },
     { "id": 3, "name": "The workspace folder and the loop through GitHub", "status": "open" },
     { "id": 4, "name": "Every concept, in the standard form", "status": "open" },

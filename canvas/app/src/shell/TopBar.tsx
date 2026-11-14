@@ -1,9 +1,9 @@
 // The bar across the top of the window (data-testid "top-bar"), in place of the old page's header: one row of 40 px
 // at any width, ink with white text. It holds the name Grasp, the open file's name with a dot while it has unsaved
-// changes, the icon buttons Open, Save, Undo and Redo, and About at the right end. No tools, no text buttons, no
-// second row (shell.test.mjs, "no header palette or button row exists").
+// changes, the icon buttons Open, Save, Undo and Redo, then Text once its action is built, and About at the right end.
+// No tools, no text buttons, no second row (shell.test.mjs, "no header palette or button row exists").
 
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import type { ReactElement } from 'react';
 import { Box, IconButton, Tooltip, Typography } from '@mui/material';
 // The icons come from @mui/icons-material one by one, by path: vendor.ts puts each on window.GraspVendor under that
@@ -13,7 +13,9 @@ import SaveOutlined from '@mui/icons-material/SaveOutlined';
 import Undo from '@mui/icons-material/Undo';
 import Redo from '@mui/icons-material/Redo';
 import InfoOutlined from '@mui/icons-material/InfoOutlined';
+import ArticleOutlined from '@mui/icons-material/ArticleOutlined';
 import type { Session } from '../core';
+import { ActionButton } from './ActionControl';
 import { BAR_DISABLED, BAR_HEIGHT, FOCUS_WIDTH, INK, WHITE } from './theme';
 
 /** The bar's actions: each is one <button> with this data-testid (helpers.mjs, TESTIDS) and this fixed aria-label. */
@@ -26,16 +28,12 @@ export const ACTIONS = [
 ] as const;
 export type ActionId = (typeof ACTIONS)[number]['id'];
 const LABELS = Object.fromEntries(ACTIONS.map((action) => [action.id, action.label])) as Record<ActionId, string>;
-/** Input types that take no typing: their own undo is not meant, so the bar's keys act from them. */
-const NON_TEXT_INPUT = ['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'file', 'color', 'image'];
 
 export interface TopBarProps {
   /** The open file, or null: its name shows in data-testid "file-name", then a dot while `session.unsaved`. */
   session: Session | null;
   /** Called by Open. */
   onOpen: () => void;
-  /** Called by Save and by Ctrl or ⌘ + S (step 7). */
-  onSave: () => void;
   /** Called by About: App opens the About panel. */
   onAbout: () => void;
 }
@@ -54,28 +52,28 @@ export interface TopBarProps {
  *   keyboard's focus is a white ring inside the button, since the theme's teal one would not show on the ink.
  * - Open calls `onOpen` (from a click, so the browser opens its picker or the file input's dialog). About is
  *   enabled, with or without a file open, and calls `onAbout` (plan/swarm/step-12.md).
- * - **Save, Undo, Redo** (step 7). Save is enabled while a file is open and `session.unsaved`, and calls `onSave`.
- *   Undo is enabled while the history has a step (`history.steps`), Redo while it has one undone
- *   (`history.undone`); each calls the history's undo() or redo(). Undo's tooltip names the step it takes back,
- *   "Undo Moved part def Host", and Redo's the step it makes again, "Redo Moved part def Host"; with none, "Undo" and
- *   "Redo". All three re-read through `session.listen`.
- * - **The keys** (step 7), on the window, for the open file: Ctrl or ⌘ + Z undoes; Ctrl or ⌘ + Y, and Ctrl or ⌘ +
- *   Shift + Z, redo; Ctrl or ⌘ + S saves (onSave) whether or not anything is unsaved, and the browser's own Save is
- *   always prevented, with a file open or not. Undo and Redo by key act unless the event comes from a text field
- *   (an input, a textarea, or anything contenteditable), where the field's own undo is meant; Save acts from
- *   anywhere. **Step 10** (plan/swarm/step-10.md) makes "a text field" exact, since Details brings the page's first
- *   checkboxes and radio buttons, which are inputs that take no typing: the keys do not act when the event's target
- *   is a textarea, a select, anything contenteditable, or an input whose `type` is none of checkbox, radio, button,
- *   submit, reset, range, file, color and image; from any other target they act. So with the focus left on a
- *   checkbox that was just ticked, Ctrl or ⌘ + Z takes the tick back. **Step 10's review** adds one exception to "a text
- *   field": a field inside an element that carries the attribute `data-history-keys` (the form of Details) is not
- *   one for these keys, which act from it, since the browser's own undo, one stack for the page's text fields, made an
- *   earlier typing a new change and took no pick back. A key that acts prevents the browser's default. Holding Undo's or Redo's key down does one thing per
- *   repeat; holding Save's saves once, at the press, since each save without a picked file is a download of its own.
- *   While the page shows a modal dialog (an element with role "dialog" and aria-modal "true": the question before
- *   Open) the keys change nothing behind it: no undo, no redo, no save. Save's default is prevented then too.
+ * - **Save, Undo, Redo** (step 7; slice 2, plan/slice-2.md, section 4, seam 8). With a file open, Undo and Redo are
+ *   each an ActionButton (shell/ActionControl.tsx) for the action of that id (core/actions/file.ts), with the
+ *   data-testid and the name they had: the button asks the action when it is clicked, and is greyed, with the
+ *   action's sentence as its tooltip and its `aria-description` ("There is nothing to undo.", "There is nothing to
+ *   redo."), while the history has no step to take back, or none undone. While it applies, Undo's tooltip names the
+ *   step it takes back, "Undo Moved part def Host", and Redo's the step it makes again, "Redo Moved part def Host".
+ *   Save is an ActionButton for `save` while the file has unsaved changes (`session.unsaved`); while it has none,
+ *   and for all three while no file is open (there is no session then, and an action is asked with one), the bar
+ *   shows its own greyed button in that place, with the same data-testid, name and tooltip ("Save", "Undo", "Redo")
+ *   and no `data-action`. So Save is greyed until there is something to save, as in slice 1, though its action
+ *   always applies: Ctrl or ⌘ + S saves whether or not anything is unsaved. All of it re-reads through
+ *   `session.listen`. The bar is no longer handed a way to save: the action `save` calls the shell's hand
+ *   (core/hands.ts), which is App's onSave, given to the session by the dock (shell/Dock.tsx).
+ * - **Text** (slice 2): after Redo, an ActionButton for `open-text` with the icon of a page of text. It shows once
+ *   package 2-9 has built that row (an ActionButton of a row that is not in the table renders nothing), and only
+ *   while a file is open.
+ * - **The keys** are no longer the bar's. Ctrl or ⌘ + Z, Y, Shift + Z and S are keys of the action table, read by
+ *   core/keys.ts from the page's one keydown listener (shell/App.tsx): `pressed()` holds the rules that this bar's
+ *   listener held in slice 1, unchanged (where Undo and Redo act, Save's default always prevented, nothing behind a
+ *   modal dialog, Save not repeating).
  */
-export function TopBar({ session, onOpen, onSave, onAbout }: TopBarProps): JSX.Element {
+export function TopBar({ session, onOpen, onAbout }: TopBarProps): JSX.Element {
   const subscribe = useCallback((tell: () => void) => (session ? session.listen(tell) : () => {}), [session]);
   // One snapshot, a string so equal states compare equal: unsaved, the newest step's words, the newest undone's.
   const key = useSyncExternalStore(subscribe, () => {
@@ -85,37 +83,6 @@ export function TopBar({ session, onOpen, onSave, onAbout }: TopBarProps): JSX.E
   });
   const [unsaved, undoWhat, redoWhat] = (key ? JSON.parse(key) : [false, null, null]) as [boolean, string | null, string | null];
   const fileName = session ? `${session.name}${unsaved ? ' •' : ''}` : '';
-  const undo = () => session?.history.undo();
-  const redo = () => session?.history.redo();
-
-  // The keys, registered here once per session; the handler reads the latest onSave through a ref.
-  const saving = useRef(onSave);
-  saving.current = onSave;
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
-      const k = event.key.toLowerCase();
-      // A question in front of the page is answered first: the keys are not the file's while it is up.
-      const modal = document.querySelector('[role="dialog"][aria-modal="true"]') !== null;
-      if (k === 's') {
-        event.preventDefault();
-        if (session && !event.repeat && !modal) saving.current();
-        return;
-      }
-      if (!session || modal || !(k === 'z' || k === 'y')) return;
-      const target = event.target as HTMLElement | null;
-      // A field of Details (inside an element with data-history-keys) holds what the history holds, so its own undo
-      // would be a second one: from there the keys are the history's.
-      const ours = target !== null && target.closest('[data-history-keys]') !== null;
-      if (!ours && target && (target.isContentEditable || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
-      if (!ours && target && target.tagName === 'INPUT' && !NON_TEXT_INPUT.includes((target as HTMLInputElement).type)) return;
-      event.preventDefault();
-      if (k === 'y' || event.shiftKey) session.history.redo();
-      else session.history.undo();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [session]);
 
   const action = (id: ActionId, tip: string, icon: ReactElement, enabled: boolean, onClick?: () => void) => (
     <Tooltip key={id} title={tip}>
@@ -126,11 +93,6 @@ export function TopBar({ session, onOpen, onSave, onAbout }: TopBarProps): JSX.E
           aria-label={LABELS[id]}
           disabled={!enabled}
           onClick={onClick}
-          sx={{
-            color: WHITE,
-            '&.Mui-disabled': { color: BAR_DISABLED },
-            '&.Mui-focusVisible': { outline: `${FOCUS_WIDTH}px solid ${WHITE}`, outlineOffset: -FOCUS_WIDTH },
-          }}
         >
           {icon}
         </IconButton>
@@ -142,7 +104,16 @@ export function TopBar({ session, onOpen, onSave, onAbout }: TopBarProps): JSX.E
     <Box
       component="header"
       data-testid="top-bar"
-      sx={{ height: BAR_HEIGHT, flex: 'none', display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, boxSizing: 'border-box', overflow: 'hidden', whiteSpace: 'nowrap', bgcolor: INK, color: WHITE }}
+      sx={{
+        height: BAR_HEIGHT, flex: 'none', display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, boxSizing: 'border-box', overflow: 'hidden', whiteSpace: 'nowrap', bgcolor: INK, color: WHITE,
+        // Every icon button of the bar, its own and an ActionButton's alike: white on the ink, and the keyboard's
+        // focus as a white ring inside the button.
+        '& .MuiIconButton-root': {
+          color: WHITE,
+          '&.Mui-disabled': { color: BAR_DISABLED },
+          '&.Mui-focusVisible': { outline: `${FOCUS_WIDTH}px solid ${WHITE}`, outlineOffset: -FOCUS_WIDTH },
+        },
+      }}
     >
       <Typography component="span" sx={{ fontWeight: 500, flex: 'none', mr: 1.5 }}>Grasp</Typography>
       <Typography
@@ -154,9 +125,16 @@ export function TopBar({ session, onOpen, onSave, onAbout }: TopBarProps): JSX.E
         {fileName}
       </Typography>
       {action('open', 'Open a file', <FolderOpenOutlined fontSize="small" />, true, onOpen)}
-      {action('save', 'Save', <SaveOutlined fontSize="small" />, unsaved, onSave)}
-      {action('undo', undoWhat ? `Undo ${undoWhat}` : 'Undo', <Undo fontSize="small" />, undoWhat !== null, undo)}
-      {action('redo', redoWhat ? `Redo ${redoWhat}` : 'Redo', <Redo fontSize="small" />, redoWhat !== null, redo)}
+      {session && unsaved
+        ? <ActionButton session={session} action="save" icon={<SaveOutlined fontSize="small" />} testId="save" />
+        : action('save', 'Save', <SaveOutlined fontSize="small" />, false)}
+      {session
+        ? <ActionButton session={session} action="undo" icon={<Undo fontSize="small" />} label={undoWhat ? `Undo ${undoWhat}` : undefined} testId="undo" />
+        : action('undo', 'Undo', <Undo fontSize="small" />, false)}
+      {session
+        ? <ActionButton session={session} action="redo" icon={<Redo fontSize="small" />} label={redoWhat ? `Redo ${redoWhat}` : undefined} testId="redo" />
+        : action('redo', 'Redo', <Redo fontSize="small" />, false)}
+      {session ? <ActionButton session={session} action="open-text" icon={<ArticleOutlined fontSize="small" />} /> : null}
       <Box sx={{ flex: '1 0 0', minWidth: 0 }} />
       {action('about', 'About Grasp', <InfoOutlined fontSize="small" />, true, onAbout)}
     </Box>

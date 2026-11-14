@@ -6,6 +6,11 @@
 // The shots of steps 5 to 7 (shell, example, nodes) are rows of SHOTS below. Each shot of steps 8 to 12 (scale,
 // palette, about) is a file of its own under shots/, which its step writes, so that no two steps change one file. A
 // shot marked `pending: true` is not built yet: `npm run shots` leaves it out and says so, and naming it runs it.
+//
+// The nine shots of slice 2 (plan/slice-2.md, section 6) are files of shots/ too, each owned by the package that takes
+// it, which the shot names as `package` where a shot of slice 1 names its `step`. The scaffold wrote each as a
+// skeleton: `pending: true`, and a take() that throws "<name>: package 2-N takes it". Its package writes take() and
+// takes `pending` off, in its own file; this file names all nine already and does not change for them.
 
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -16,8 +21,17 @@ import {
 } from './helpers.mjs';
 
 import about from './shots/about.mjs';
+import badges from './shots/badges.mjs';
+import browser from './shots/browser.mjs';
+import connectMenu from './shots/connect-menu.mjs';
+import geometry from './shots/geometry.mjs';
+import grid from './shots/grid.mjs';
+import labelEditor from './shots/label-editor.mjs';
+import notes from './shots/notes.mjs';
 import palette from './shots/palette.mjs';
 import scale from './shots/scale.mjs';
+import sequence from './shots/sequence.mjs';
+import textTab from './shots/text-tab.mjs';
 
 const INTERCONNECTION = path.join(FIXTURES, 'interconnection.json');
 
@@ -25,7 +39,10 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 
 const OUT = path.join(ROOT, 'canvas', 'app', 'shots');
 
-/** The shots: `name` is the file's name without .png; `step` is the plan's step that added it. */
+/**
+ * The shots: `name` is the file's name without .png; `step` is the step of slice 1's plan that added it, or `package`
+ * the package of slice 2 that takes it.
+ */
 export const SHOTS = [
   // The page as it opens, with no file: the bar, the strips and panels, and the card in the editor.
   { name: 'shell', step: 5, take: (page) => page.screenshot({ path: path.join(OUT, 'shell.png') }) },
@@ -115,13 +132,26 @@ export const SHOTS = [
   scale,
   palette,
   about,
+  // Slice 2's nine, in the order of section 6's table: connect-menu (2-2), label-editor (2-3), badges (2-6), notes
+  // (2-7), text-tab (2-9), sequence (2-10), geometry (2-11), grid (2-12), browser (2-13).
+  connectMenu,
+  labelEditor,
+  badges,
+  notes,
+  textTab,
+  sequence,
+  geometry,
+  grid,
+  browser,
 ];
 
 async function main(names) {
   const unknown = names.filter((name) => !SHOTS.some((shot) => shot.name === name));
   if (unknown.length) throw new Error(`No shot is named ${unknown.join(', ')}. The shots: ${SHOTS.map((shot) => shot.name).join(', ')}.`);
   const chosen = SHOTS.filter((shot) => (names.length ? names.includes(shot.name) : !shot.pending));
-  for (const shot of SHOTS) if (!names.length && shot.pending) console.log(`Left out ${shot.name}.png: step ${shot.step} builds it.`);
+  for (const shot of SHOTS) {
+    if (!names.length && shot.pending) console.log(`Left out ${shot.name}.png: ${shot.package ? `package ${shot.package} takes it` : `step ${shot.step} builds it`}.`);
+  }
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch();
   try {

@@ -17,6 +17,7 @@ import type { Picked, Session } from '../core';
 import { useDock } from '../shell/dockContext';
 import { changeField, endTyping, fieldKey, fieldLibOf, formOf, NOT_HELD, notHeldWhy, optionsOf, readText } from './fieldHooks';
 import type { FieldRow, Option, Row } from './fieldHooks';
+import { SECTIONS } from './sections';
 import { SidePanel, SideText } from './SidePanel';
 import './details.css';
 
@@ -108,6 +109,12 @@ export interface PickedFormProps {
  *   rows come and go (the box that draws the line, under a picker that was just given a definition).
  * - The panel's root scrolls when the form is higher than the panel (SidePanel's own); nothing is cut off sideways:
  *   every widget is as wide as the panel less 12 px at each side.
+ * - **The sections** (slice 2: plan/slice-2.md, section 4, seam 9; contract 11). Under the page, inside the form's
+ *   root and whichever tab is shown, each section of SECTIONS (panels/sections.ts) whose
+ *   `applies(session, picked)` answers true, in the list's order: `<Component session picked />`, keyed by the
+ *   section's id. applies() is asked at each render of the form. A section draws its own root, with its own
+ *   data-testid; with none that applies, nothing stands under the page. Being inside the root, a section's fields
+ *   are inside `data-history-keys`, so Ctrl or ⌘ + Z in one is the history's.
  */
 export function PickedForm({ session, tab, onTab }: PickedFormProps): JSX.Element {
   const selection = selectionOf(session);
@@ -144,6 +151,7 @@ export function PickedForm({ session, tab, onTab }: PickedFormProps): JSX.Elemen
           </div>
         ))}
       </div>
+      {SECTIONS.filter((section) => section.applies(session, picked)).map((section) => <section.Component key={section.id} session={session} picked={picked} />)}
     </div>
   );
 }

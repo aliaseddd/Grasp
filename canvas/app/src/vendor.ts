@@ -15,6 +15,14 @@ import * as SaveOutlined from '@mui/icons-material/SaveOutlined';
 import * as Undo from '@mui/icons-material/Undo';
 import * as Redo from '@mui/icons-material/Redo';
 import * as InfoOutlined from '@mui/icons-material/InfoOutlined';
+// Slice 2's icons (plan/slice-2.md, section 8, package 2-1): New view; Add note; Archive and Restore; Delete; Copy; the text tab.
+import * as Add from '@mui/icons-material/Add';
+import * as AddCommentOutlined from '@mui/icons-material/AddCommentOutlined';
+import * as ArchiveOutlined from '@mui/icons-material/ArchiveOutlined';
+import * as UnarchiveOutlined from '@mui/icons-material/UnarchiveOutlined';
+import * as DeleteOutline from '@mui/icons-material/DeleteOutline';
+import * as ContentCopyOutlined from '@mui/icons-material/ContentCopyOutlined';
+import * as ArticleOutlined from '@mui/icons-material/ArticleOutlined';
 
 import '@xyflow/react/dist/style.css';
 import 'dockview-react/dist/styles/dockview.css';
@@ -33,4 +41,11 @@ window.GraspVendor = {
   '@mui/icons-material/Undo': Undo,
   '@mui/icons-material/Redo': Redo,
   '@mui/icons-material/InfoOutlined': InfoOutlined,
+  '@mui/icons-material/Add': Add,
+  '@mui/icons-material/AddCommentOutlined': AddCommentOutlined,
+  '@mui/icons-material/ArchiveOutlined': ArchiveOutlined,
+  '@mui/icons-material/UnarchiveOutlined': UnarchiveOutlined,
+  '@mui/icons-material/DeleteOutline': DeleteOutline,
+  '@mui/icons-material/ContentCopyOutlined': ContentCopyOutlined,
+  '@mui/icons-material/ArticleOutlined': ArticleOutlined,
 };

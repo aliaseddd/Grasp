@@ -1,13 +1,17 @@
-// The right-click palette of a plane: a menu, at the pointer, of what can be made where the right-click fell
-// (plan/slice-1.md, step 11; plan/swarm/step-11.md). It holds no rule of its own: what it offers is
+// The right-click palette of a body: a menu, at the pointer, of what can be made where the right-click fell
+// (plan/slice-1.md, step 11; plan/swarm/step-11.md), and, from slice 2, of what can be done with the thing that was
+// clicked (plan/slice-2.md, section 4, seam 8). It holds no rule of its own: what it offers to make is
 // toolsOf(session).offers(hit), and a choice is toolsOf(session).choose(kind, hit) (core/commands.ts), so the menu is
-// one more hand on the session's tools, beside the Tools view. Plane.tsx renders one for its plane (step 11).
+// one more hand on the session's tools, beside the Tools view; what it offers to do is the rows of PALETTE that are in
+// the action table and apply at the hit, each an ActionItem (shell/ActionControl.tsx). Plane.tsx renders one for its
+// plane (step 11), and views/BodyFrame.tsx one for a component body.
 
 import { useEffect, useMemo } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { Divider, Menu, MenuItem } from '@mui/material';
-import { toolsOf } from '../core';
+import { actionOf, PALETTE, toolsOf } from '../core';
 import type { Hit, Session } from '../core';
+import { ActionItem } from '../shell/ActionControl';
 import './palette.css';
 
 /** Where a palette is open: the right-click's Hit, and the pointer in the window, in px (the event's clientX, clientY). */
@@ -26,7 +30,7 @@ export interface PaletteProps {
   onClose: () => void;
 }
 
-/** What the menu's one entry says when nothing can be made where the right-click fell. */
+/** What the menu's one entry says when nothing can be made where the right-click fell, and no action applies there. */
 export const NOTHING_HERE = 'Nothing can be made here.';
 
 /**
@@ -39,9 +43,18 @@ export const NOTHING_HERE = 'Nothing can be made here.';
  * - **What it lists** is `toolsOf(session).offers(at.hit)`, worked out once when it opens: for each group in order,
  *   one Material UI MenuItem a tool (role "menuitem"), carrying data-tool, the tool's kind, and holding the tool's
  *   label as its words ('part', 'specializes'); between two groups a Divider (`component="li"`, role "separator").
- *   The Menu's children are one flat array, since a Menu takes no Fragment. When nothing is offered ([]: a line, a
- *   done node), the menu holds one disabled MenuItem with the words NOTHING_HERE and no data-tool. So a right-click
- *   on a plane always opens the menu.
+ *   The Menu's children are one flat array, since a Menu takes no Fragment. So a right-click on a plane always opens
+ *   the menu.
+ * - **Under the creation tools, the actions** (slice 2, seam 8): for each id of PALETTE (core/commands.ts), in its
+ *   order, whose row is in the table (actionOf) and applies at the hit (`applies(session, at.hit)` is true), worked
+ *   out once when the menu opens, one `<ActionItem session action at={at.hit} />` (shell/ActionControl.tsx): a
+ *   MenuItem that carries `data-action`, says the action's title, and asks the action at the hit when it is clicked.
+ *   When there is a tool above them, a Divider stands between the tools and the actions. An action that does not
+ *   apply at the hit is left out, and a row no package has built yet is not in the table: so the menu holds what is
+ *   about the thing that was clicked. An action with `choices` opens them as a second level, to the right of its
+ *   entry (ActionItem's contract). When there is neither a tool nor an action ([] of both: a line or a done node,
+ *   until an action applies there), the menu holds one disabled MenuItem with the words NOTHING_HERE, with neither
+ *   data-tool nor data-action.
  * - **The list element** (Material UI's MenuList, role "menu") carries data-testid "palette" and aria-label "Make
  *   here", given through `slotProps.list`, with `dense`, so an entry is 32 px high in 13 px. A test finds the menu by
  *   it; its rectangle is the menu's.
@@ -50,6 +63,9 @@ export const NOTHING_HERE = 'Nothing can be made here.';
  *   `toolsOf(session).choose(kind, at.hit)`. So an element kind is placed at the right-click's point, inside the box
  *   that was clicked, and is picked; and a relationship kind has the clicked element as its first end and is in hand
  *   for the second click.
+ * - **A click on an action's entry** asks the action (the ActionItem does), and the click that asked then reaches the
+ *   menu's list, which calls `onClose()`: so does a click on a choice of an action's second level. A click that only
+ *   opened a second level does not reach the list, and the menu stays open under it.
  * - **It closes and makes nothing** on Escape, on Tab, on a click outside it (Material UI's own: its backdrop, which
  *   is not seen, takes that click, so the click picks nothing and is not the tool's), and on a right-click on it or
  *   outside it: the Menu's root is given an `onContextMenu` that prevents the browser's menu, stops the event (React
@@ -64,6 +80,8 @@ export function Palette({ session, at, onClose }: PaletteProps): JSX.Element | n
   const open = at !== null;
   // Worked out once as it opens: the offer follows the hit, not the model changing under the open menu.
   const groups = useMemo(() => (at ? toolsOf(session).offers(at.hit) : []), [session, at]);
+  // And the actions that are about what was clicked: the rows of PALETTE that are built and apply at the hit.
+  const actions = useMemo(() => (at ? PALETTE.filter((id) => actionOf(id)?.applies(session, at.hit) === true) : []), [session, at]);
   useEffect(() => {
     if (!open) return undefined;
     return session.history.listen((told) => {
@@ -86,7 +104,13 @@ export function Palette({ session, at, onClose }: PaletteProps): JSX.Element | n
       );
     });
   });
+  if (actions.length > 0 && items.length > 0) items.push(<Divider key="actions" component="li" />);
+  for (const id of actions) items.push(<ActionItem key={`action:${id}`} session={session} action={id} at={at.hit} />);
   if (items.length === 0) items.push(<MenuItem key="nothing" disabled>{NOTHING_HERE}</MenuItem>);
+  // A click that asked an action comes up to the list from its entry, or from a choice of its second level.
+  const asked = (event: ReactMouseEvent): void => {
+    if (event.target instanceof Element && event.target.closest('[data-action], [data-choice]')) onClose();
+  };
   const rightClicked = (event: ReactMouseEvent): void => {
     event.preventDefault();
     event.stopPropagation();
@@ -101,7 +125,7 @@ export function Palette({ session, at, onClose }: PaletteProps): JSX.Element | n
       transitionDuration={0}
       slotProps={{
         root: { onContextMenu: rightClicked },
-        list: { dense: true, 'data-testid': 'palette', 'aria-label': 'Make here' } as object,
+        list: { dense: true, 'data-testid': 'palette', 'aria-label': 'Make here', onClick: asked } as object,
       }}
     >
       {items}

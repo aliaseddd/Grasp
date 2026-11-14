@@ -116,7 +116,10 @@ const USES = {
     { tool: 'PartUsage', at: 'Host', words: 'Added part part1 in Host' },
     { tool: 'PortUsage', at: 'App', words: 'Added port port1 in App' },
     { tool: 'Specialization', from: 'App', to: 'Page', words: 'Drew App specializes Page' },
-    { tool: 'FeatureTyping', from: 'Page.hosts', to: 'App', words: 'Drew hosts defined by App', replaces: 't-hosts' },
+    // `moves`: the usage has a definition already, so the tool makes no new line: it moves the end of the usage's one
+    // typing, which keeps this id, and shows it (plan/slice-2.md, section 2, "A typing that is drawn again is no
+    // longer replaced"). hosts' typing is drawn before; back's, in the interconnection view, is hidden before.
+    { tool: 'FeatureTyping', from: 'Page.hosts', to: 'App', words: 'Drew hosts defined by App', moves: 't-hosts' },
     { tool: 'ConnectionUsage', from: 'Page.hosts', to: 'Page.app', words: 'Drew connection hosts to app' },
   ],
   v_ic: [
@@ -131,7 +134,7 @@ const USES = {
     { tool: 'InterfaceUsage', from: 'System.controller.ctrl', to: 'System.pump.ctrl', words: 'Drew interface ctrl to ctrl' },
     { tool: 'FlowConnectionUsage', from: 'System.tank.fuelOut', to: 'System.pump.fuelIn', words: 'Drew flow fuelOut to fuelIn', adds: ['The flow fuelOut to fuelIn needs an item: pick in the panel what flows through the ports.'] },
     { tool: 'BindingConnectorAsUsage', from: 'System.pump.ctrl', to: 'System.controller.ctrl', words: 'Drew binding ctrl to ctrl' },
-    { tool: 'FeatureTyping', from: 'FuelPort.back', to: 'Signal', words: 'Drew back defined by Signal' },
+    { tool: 'FeatureTyping', from: 'FuelPort.back', to: 'Signal', words: 'Drew back defined by Signal', moves: 't-back' },
   ],
   v_release: [
     { tool: 'ActionDefinition', at: 'ground', words: 'Added action def ActionDef1' },
@@ -185,6 +188,12 @@ async function carryOut(page, view, use) {
   } else {
     await clickIn(page, view, use.at);
   }
+  // A typing that is drawn already gets its end moved: no new line appears, and the tool picks the line it moved.
+  if (use.moves && before.edges.includes(use.moves)) {
+    await soon(page, async () => (await isSelected(page, view, 'rel', use.moves)) === true,
+      `The ${labelOf(use.tool)} tool moved no end of ${use.moves}: after the second click the line has no class "selected".`);
+    return { id: use.moves, before };
+  }
   const id = await made(page, view, before, typeOf(use));
   return { id, before };
 }
@@ -208,13 +217,15 @@ async function walk(browser, { file, view: viewId, kind, uses }) {
     const target = use.to !== 'the new parameter';
     const done = await carryOut(page, view, target ? use : { ...use, to: step.id });
     const { id, before } = done;
-    assert.match(id, typeOf(use) === 'el' ? /^e[0-9a-z]+$/ : /^r[0-9a-z]+$/, `${what} made ${id}, which is no new id.`);
+    if (use.moves) assert.equal(id, use.moves, `${what} drew ${id}: a usage has one definition, so its typing ${use.moves} keeps its id and gets its end moved.`);
+    else assert.match(id, typeOf(use) === 'el' ? /^e[0-9a-z]+$/ : /^r[0-9a-z]+$/, `${what} made ${id}, which is no new id.`);
     await showSide(page, 'Tools');
     assert.deepEqual(await pressedTools(page), [], `${what} made something, and its button is still pressed: the tool is not put down.`);
     await soon(page, async () => (await isSelected(page, view, typeOf(use), id)) === true, `${what} made ${id}, and its ${typeOf(use) === 'el' ? 'node' : 'line'} has no class "selected": what a tool makes is not picked.`);
-    if (use.replaces) {
+    if (use.moves) {
       const after = await drawn(page, view.id);
-      assert.ok(before.edges.includes(use.replaces) && !after.edges.includes(use.replaces), `${what}: the line ${use.replaces} is still drawn, though a usage has one definition.`);
+      assert.ok(after.edges.includes(use.moves), `${what}: the line ${use.moves} is not drawn, though the tool drew it to the new definition.`);
+      assert.equal(after.edges.length, before.edges.length + (before.edges.includes(use.moves) ? 0 : 1), `${what}: a usage has one definition, so no second line may be drawn for it.`);
     }
     assert.equal(await undoWords(page), use.words, `${what}: Undo names "${await wordsOf(page, 'undo')}", not "${use.words}".`);
     await showSide(page, 'Explorer');
@@ -223,15 +234,19 @@ async function walk(browser, { file, view: viewId, kind, uses }) {
     assert.deepEqual(problemsOf(state.model), [...problems, ...(use.adds ?? [])].sort(), `${what}: what M.validate says of the saved model is not the file's plus ${JSON.stringify(use.adds ?? [])}.`);
 
     for (let i = 0; i < (use.undos ?? 1); i++) await undo(page);
-    const gone = use.undos === 2 ? [id, step.id] : [id];
+    // A typing whose end was moved was in the model before: Undo puts it back as it was, drawn or hidden.
+    const wasDrawn = use.moves !== undefined && before.edges.includes(id);
+    const gone = use.undos === 2 ? [id, step.id] : wasDrawn ? [] : [id];
     await soon(page, async () => { const now = await drawn(page, view.id); return gone.every((g) => !now.nodes.includes(g) && !now.edges.includes(g)); },
       `Undo did not take ${gone.join(' and ')} off the plane of ${view.name}.`);
     for (const g of gone) {
+      if (use.moves) continue;   // the typing stays in the model, hidden again
       const type = g === id ? typeOf(use) : 'el';
       await soon(page, async () => (await rowIn(page, type, g).count()) === 0, `Undo left the row of ${g} in the Explorer.`);
     }
-    if (use.replaces) {
-      await soon(page, async () => (await drawn(page, view.id)).edges.includes(use.replaces), `Undo did not bring the line ${use.replaces} back onto the plane.`);
+    if (wasDrawn) {
+      await soon(page, async () => (await drawn(page, view.id)).edges.includes(id), `Undo took the line ${id} off the plane, though it only moved its end back.`);
+      await soon(page, async () => (await rowIn(page, 'rel', id).count()) === 1, `Undo took the row of ${id} out of the Explorer, though the typing is still in the model.`);
     }
   }
   await finish(opened);
