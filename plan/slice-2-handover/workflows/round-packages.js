@@ -10,8 +10,8 @@ export const meta = {
 }
 
 // args: { base, baseWords, packages: [{ id, name, brief, extra, shot: { name, rated, items } | null }] }
-const PK = '/tmp/claude-0/-home-user-Grasp/c7f4c0c3-3293-5171-8b1a-2fc91a0152d6/scratchpad/packages'
-const OPTS = { model: 'fable', effort: 'high' }
+const PK = '/tmp/claude-0/-home-user-Grasp/a16aa6a9-ce16-503b-882a-57c3a81fda9e/scratchpad/packages'
+const OPTS = { model: 'opus', effort: 'high' }
 const BASE = args.base
 
 const BUILT = {
@@ -65,9 +65,9 @@ const LOOKED = {
 }
 
 const CONTAINER = `
-About this container. It has 4 processors, and other agents are building other packages on it at the same time, each running a Chromium. So a test can time out, and a timed test (scale.test.mjs, instant.test.mjs) can miss its limit, for no fault of yours: run a test that timed out again before you conclude anything, and report a timed test's medians without judging them; the lead judges those with nothing else running. Never raise a time limit or loosen a test to get past this. For reference, on this container with nothing changed and nothing else running, scale.test.mjs gave: a drag step 10 to 15 ms starting (limit 16), a pan step 10 to 18 ms (limit 16) and 14 to 22 ms for the 2,112-node view (limit 25), a keystroke 36 to 46 ms (limit 50).
+About this container. It has 4 processors, and other agents are building other packages on it at the same time, each running a Chromium. So a test can time out, and a timed test (scale.test.mjs, instant.test.mjs) can miss its limit, for no fault of yours: run a test that timed out again before you conclude anything, and report a timed test's medians without judging them; the lead judges those with nothing else running. Never raise a time limit or loosen a test to get past this. For reference, on this container at the scaffold's commit with nothing else running, scale.test.mjs gave: a drag step 14 ms starting (limit 16), a pan step 8 to 10 ms (limit 16) and 14 to 15 ms for the 2,112-node view (limit 25), a keystroke 31 to 34 ms (limit 50).
 
-How to run things, from your worktree: npm run build (a browser test opens the built page, so build before one); npm run check; one test file: node --test --test-timeout=120000 canvas/app/test/<file>; npm test for the whole suite, which takes eight minutes or more here, so run it in the background or with a ten-minute timeout, with its output sent to a file, and read the summary lines (# tests, # pass, # fail, # todo) at the end. Run the whole suite when your package is finished, not after every change; while you work, run your own files and the neighbours you may have disturbed. Playwright and its Chromium are installed for every folder; never install either.
+How to run things, from your worktree: npm run build (a browser test opens the built page, so build before one); npm run check; one test file: node --test --test-timeout=600000 canvas/app/test/<file>; npm test for the whole suite, which takes six minutes alone and much longer beside the other builders (a test file has ten minutes), so run it in the background or with a ten-minute timeout, with its output sent to a file, and read the summary lines (# tests, # pass, # fail, # todo) at the end. Run the whole suite when your package is finished, not after every change; while you work, run your own files and the neighbours you may have disturbed. Playwright and its Chromium are installed for every folder; never install either.
 `
 
 const builder = (p) => `
@@ -75,7 +75,7 @@ You are the builder of package ${p.id}, "${p.name}", of slice 2 ("Editing parity
 
 Where you work. /home/user/wt/${p.id}: a git worktree of the repository, detached at commit ${BASE} (${args.baseWords}), with npm ci already run. Work only inside it. /home/user/Grasp is the lead's tree: change nothing there. Other builders work in other worktrees at the same time, on other packages; no two packages own one file.
 
-What you build from. Your brief is in plan/slice-2.md, section 8: "The rules every brief carries", then "${p.brief}". Read your brief, then the sections of the plan and the files it names under "Read first", in that order; then canvas/app/README.md and, in plan/notes.md, the entry of session 31 (what the builders of the scaffold found that the plan does not say). The skeleton of every file you fill is in the tree already, with its contract as a comment. A signature in section 4 of the plan is the contract.
+What you build from. Your brief is in plan/slice-2.md, section 8: "The rules every brief carries", then "${p.brief}". Read your brief, then the sections of the plan and the files it names under "Read first", in that order; then canvas/app/README.md and, in plan/notes.md, in the entry of session 32, the section "What the builders of rounds 1 and 2 must know that the plan does not say": its part "Every builder" and your package's part. That section is what the scaffold's builders and nineteen reviewers found that the plan does not say, with the lead's decisions where the plan is silent; where it and your brief disagree, say so in your hand-back. The skeleton of every file you fill is in the tree already, with its contract as a comment. A signature in section 4 of the plan is the contract.
 ${p.extra ? '\n' + p.extra + '\n' : ''}
 How to work.
   1. Write your tests first, in the files and under the exact names your brief and section 7 give (a later test finds each by its name), and see each fail for the reason its line names. Keep the first line of each failure for your report.
@@ -93,7 +93,7 @@ You are a reviewer working for the lead of slice 2 ("Editing parity") of Grasp, 
 
 Package ${p.id}, "${p.name}", was built in the worktree /home/user/wt/${p.id}, on top of commit ${BASE}. ${round > 1 ? 'It has been reviewed once and reworked: the earlier defects and what was done about each are in ' + PK + '/' + p.id + '/ (review-*.json, rework-*.md). Check that each was mended, and that the mending broke nothing else; then look for what the first review missed.' : ''}
 
-Read, in this order: plan/slice-2.md, section 8 ("The rules every brief carries" and "${p.brief}"), then the sections of the plan that brief names; then the diff itself: git -C /home/user/wt/${p.id} log --oneline ${BASE}..HEAD and git -C /home/user/wt/${p.id} diff ${BASE} HEAD -- . ':!canvas/dist'. Read the diff before the builder's report, ${PK}/${p.id}/report.md.
+Read, in this order: plan/slice-2.md, section 8 ("The rules every brief carries" and "${p.brief}"), then the sections of the plan that brief names; then, in plan/notes.md, in the entry of session 32, the section "What the builders of rounds 1 and 2 must know that the plan does not say" ("Every builder" and this package's part: the builder was given it with the brief, and it holds the lead's decisions where the plan is silent); then the diff itself: git -C /home/user/wt/${p.id} log --oneline ${BASE}..HEAD and git -C /home/user/wt/${p.id} diff ${BASE} HEAD -- . ':!canvas/dist'. Read the diff before the builder's report, ${PK}/${p.id}/report.md.
 
 Check, and try what you doubt in the built page: run npm run build in the worktree, and write throwaway Playwright scripts of your own under /home/user/wt/${p.id}/.review/ (open canvas/dist/index.html from file:// as canvas/app/test/helpers.mjs does), which you delete when you are done.
   1. Every sentence of the brief's "Delivers" and "Decided", and each flow of section 5 the brief names: is it built, and does the page behave so? Try the edges a builder forgets: Undo and Redo of each step; Escape in the middle; the same thing drawn in a second view; a far zoom; nothing picked; several things picked; a tool in hand; a second file opened after the first.

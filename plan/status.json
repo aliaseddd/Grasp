@@ -20,8 +20,8 @@
     },
     {
       "id": 2, "name": "Editing parity", "status": "in progress",
-      "plan": "plan/slice-2.md", "criteria": "plan/slice-2.md, section 10", "package": "2-0", "next_package": "2-1",
-      "note": "package 2-1, the scaffold, is built and not landed (session 31, halted by Damon to move the conversation): the twelve seams of plan/slice-2.md, section 4; a skeleton of every file that packages 2-2 to 2-15 fill; and the twelve checks of section 9 as tests, seven of them todo. Left of it: the lead's decisions, the review, the mends, and the three runs of criterion 9. plan/slice-2-handover/README.md says each.",
+      "plan": "plan/slice-2.md", "criteria": "plan/slice-2.md, section 10", "package": "2-1", "next_package": "2-2 to 2-9, and the camera's keys of 2-14",
+      "note": "package 2-1, the scaffold, is landed (session 32): the twelve seams of plan/slice-2.md, section 4; a skeleton of every file that packages 2-2 to 2-15 fill; and the twelve checks of section 9 as tests, seven of them todo. Nineteen reviewers read it before it landed, and what they found is mended or told to the builders (plan/notes.md, session 32). Round 1 is next: packages 2-2 to 2-9 and the camera's keys of 2-14, 2-3 after the camera.",
       "checks": [
         { "id": 1, "check": "\"every fixture opens\", each view drawn by its own body (criterion 2)", "test": "fixtures.test.mjs › the example and the nine fixtures each open: 17 views, each drawn by its own body, nothing logged", "status": "todo" },
         { "id": 2, "check": "\"saved from the new page, exports its pinned text\"", "test": "fixtures.test.mjs › each of the ten files, opened and saved from the page, exports its pinned text", "status": "pass" },

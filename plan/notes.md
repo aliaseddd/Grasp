@@ -4273,3 +4273,1182 @@ canvas/app/test/scale.test.mjs` alone, three times: pass (drag 11.4 / 9.0; pan 1
 
 Read `plan/slice-2-handover/README.md` first. Then, in its order: the decisions, the review, the mends, the three
 runs, this entry completed, package 2-1 landed; then round 1.
+
+## Session 32, November 14, 2026: the scaffold of slice 2 reviewed, mended and landed (package 2-1)
+
+On `claude/blissful-einstein-hajco6`, from `7374960` (main, with pull request #59 merged: session 31's scaffold as one
+wip commit, `82e35da`). Damon's word: load the state and the plan, and continue executing the plan for slice 2, with
+sub-agents on Opus 5.5 at high effort. The lead is Claude. Agents beside it for package 2-1: nineteen reviewers, one
+that drew this entry's package subsections from the stage reports, and two menders.
+
+**Package 2-1 is landed.** What was left of it by `plan/slice-2-handover/README.md` was done in its order: the lead's
+decisions, the review, the mends, criterion 9's three runs, this entry. The landing commit is made on top of the wip
+commits, since Damon merged the first of them into main: the package is the difference between `780788b` and its
+landing commit. The stage reports of the hand-over are folded into this entry and the folder's `stages/` is gone; its
+`workflows/` stay until the slice closes, set to this session's scratch folder and model.
+
+### The baseline, on this container
+
+| Command | Result |
+|---|---|
+| `npm ci` | exit 0 |
+| `npm run check` | exit 0 |
+| `npm test` | `# tests 559`, `# pass 552`, `# fail 0`, `# todo 7`; 344 s |
+
+On `7374960`, untouched, alone. The timed tests' medians in that run: the 5,000-element model opened in 599 ms; a
+drag step 13.8 ms starting and 10.1 following; a keystroke 33.6 / 25.9, and 30.6 / 27.6 with 150 problems; a pan step
+8.8 / 9.7, 8.3 / 9.3, and 14.4 / 15.3 for the 2,112-node view. `instant.test.mjs`: ready 146 ms, the example drawn
+77, a tab switch 32, a drag step of the example 3.6, a keystroke 9.1. This container is about as fast as session
+30's and faster than session 31's, whose numbers fill the measurements below.
+
+### The hand-over's decisions
+
+1. **A selected line's end grips: the selected line is raised, and no other.** The hand-over's leaning was
+   `elevateEdgesOnSelect` on the plane, and `d571479` applied it. A reviewer then showed that React Flow's
+   `getElevatedEdgeZIndex` also raises every line of a selected box, over the boxes those lines cross, where they
+   take the pointer (three cases in the ten files). The lead took the
+   other way that reviewer named: the prop is out, and `plane/viewStore.ts` gives a selected edge, and no other, the
+   zIndex `SELECTED_LINE_Z`. Measured in the built page over the ten files with the stand-in gesture in (`gripOf`
+   with `covered: 'null'` on every line end of the 11 graph views): 19 of 116 line-end grips covered with neither
+   the prop nor the zIndex, the same 19 as stage D1 counted; 0 of 116 with the zIndex. The mender then showed the
+   reviewer's cause wrong: the three cases (`Release.collect` over `Release.notify`, `Release.publish` over
+   `Release.fix`, `Login.server` over `Login.client`) read the same in three builds, slice 1's, the prop's and the
+   zIndex's. Each of those boxes is nested, and React Flow adds a nested end node's z to its lines with the prop or
+   without it. That is slice 1's behaviour, and it stays. The zIndex is kept: it raises what the decision names and
+   nothing else.
+2. **`npm test` gives a test file 600 s** (`--test-timeout=600000` in `package.json`). Checked in Node 22.23.4 with
+   two files of one test each: the runner's limit cancels the file whatever a test's own `timeout` says, and a test
+   with no limit of its own is cancelled by it too. No test's own limit changed. `canvas/app/README.md` gives the
+   command for one file with the same number.
+3. **The test of slice 1 is renamed** to the name line 32 of section 7 gives it: `tools-panel.test.mjs › the Tools
+   view lists the tools of the view in front, in the groups of its kind`. The plan stands.
+4. **Each departure of the hand-over's item 4 is accepted.** They are in "built otherwise than the plan says" below,
+   with what the review added to them.
+5. **What the builders must be told** is the section "What the builders of rounds 1 and 2 must know that the plan
+   does not say", below. The briefs' workflow points every builder and every reviewer of a package at it.
+
+### The review of the scaffold
+
+**How it was run.** `plan/slice-2-handover/workflows/scaffold-review.js`, as four workflows side by side, two agents
+at a time in each, against the difference between `780788b` and `d571479`: five reviewers of the seams (the core's;
+the plane's and the views'; the shell's and the panels'; the tests and the state documents; the layout and the
+ownership), and one for each of packages 2-2 to 2-15 who played that package's builder with its brief alone and
+looked for where it would be stuck or misled. Each could build in a worktree of its own and left the lead's tree as
+it found it. About 28 minutes for the slowest workflow.
+
+**What came back: 100 findings**, each checked by its reviewer: 6 blockers, 31 major, 63 minor. None needs the plan,
+a contract of `plan/architecture.md`, the form of a `grasp/2` model or a `lib.js` to change. They are of four kinds.
+
+- **Tests that pinned "not built yet" with the real files a package fills** (all six blockers, and eleven of the
+  major ones). The scaffold's own tests, and a few of slice 1, asserted today's state (no grip mounted, no action in
+  the palette, no section under Details' form, no Text or New view button, a kind's card, the hooks' tables as the
+  skeleton has them, a saved note's order of keys) on benches that bundle the very modules later packages fill. Each
+  would have failed the moment its package built as briefed, in a file no builder may change, and rule 4 makes a
+  failing test a stop. Reviewers showed each by filling a skeleton minimally in a worktree and running the test.
+- **Two tests that would have failed only with two packages landed**: `reconnect.test.mjs` compared whole note
+  records after an end is moved, and 2-7's "a note's label follows" changes `targetLabel` for nine of nine kinds of
+  line; `actions.test.mjs` listed Alt + ArrowDown as no shortcut, which is `message-down`'s key (2-10).
+- **Behaviour the scaffold changed beyond its brief's four differences**: Escape no longer closed a toast said
+  through `saysOf` (the page's listener prevented the key's default, and Material UI's Snackbar then leaves it
+  alone); the five camera keys read as printable while no camera row is built; a line let go on another node's grip
+  was let go on the ground; a marks row covered a selected box's top right resize handle; the lines of a selected box
+  were raised (decision 1).
+- **What a builder would have had to guess**: where the plan is silent or two briefs each hold half of one contract
+  (`setViewOption`'s `''` and null, `roots` and `collapsed`; what an `Entry`'s `message` is; what a drop writes; where
+  Expand all stands), and where a skeleton's comment was wrong (a click on a line's badge does reach its edge).
+
+**What was mended**, by two menders in worktrees of their own on disjoint files, each mend with its test seen to
+fail first where a test can hold it, then brought into the lead's tree:
+
+- **The scaffold's tests stand on stand-ins.** In `seams.test.mjs`: "without a gesture no grip is mounted…" has a
+  bench of its own with `connectOf` null and no pins, badges or notes; "the controls of rows that are not built are
+  not shown" is a test of its own on the shell bench with every row file empty and no section applying, and the
+  built page's test keeps "the Notes panel stands on the left strip after Validation"; the benches of "a BodyFrame
+  with stand-in rows…", "the palette lists an action that applies" and "Details shows, under its form, each section
+  that applies" stand in for all twelve row files but `file.ts` and for the three sections; "ViewHost draws the body
+  its kind's entry names…" has a null sequence reader; "fieldHooks holds its own hooks…" no longer asserts the real
+  tables' contents, and holds `ORDER_LOCKED` only while the real hook is still the locked one. `readers.test.mjs`
+  and `viewStore.test.mjs` each load a null reader where they assert a kind is not drawn. Every whole-file stand-in
+  of `core.mjs`, `seams.test.mjs`, `readers.test.mjs` and `actions.test.mjs` begins with `export * from
+  './<file>?real'`. Shown by a script that fills the skeletons as their packages could (the stand-in gesture; nine
+  rows that apply at a hit; sections that apply; pins that draw; a `notesOf` that orders a record's keys; readers
+  and node types that are not null; hooks; in each filled file a new export that another file imports): the tests
+  as `d571479` had them failed 26 times in that tree, and the mended ones pass.
+- **`palette.test.mjs`** (slice 1's): five tests pinned the menu's entries to the letter, and 2-3, 2-4 and 2-7 each
+  add rows under the rule. They now hold the creation entries above the actions' rule as exactly as before, and of
+  what stands under it that each is an entry of `PALETTE`, in its order, none twice. "Where nothing can be made"
+  follows `Palette.tsx`'s contract in both cases: the one sentence with no action, the actions alone with one. "The
+  browser's own menu never shows on a plane" takes its card from the first view whose kind has no reader, and has
+  nothing to check there once every kind has one. Seam 8: "The palette lists, under the creation tools and a rule,
+  an ActionItem for each action of PALETTE that is in the table and applies at its Hit."
+- **`session-notes.test.mjs › the ten files save with the notes as they were`** compares by value: seam 11 promises
+  neither the same array at each call of `file()` nor the file's order of keys, and 2-7's `tidyNote` orders them.
+- **`reconnect.test.mjs`** (todo, 2-2's) leaves `targetLabel` out of the notes it compares after an end is moved,
+  asserts the note's target is still the line, and compares the whole record after Undo.
+- **`actions.test.mjs`**: Alt + Shift + ArrowUp stands where Alt + ArrowDown was listed as no shortcut; a new test,
+  "the camera's five keys are never a typed character, whatever the table holds".
+- **New tests, each seen to fail first**: `keys.test.mjs › Escape takes away a toast that says why a key was
+  refused`; `viewStore.test.mjs › a selected edge carries the zIndex that puts it over the nodes, an unselected one
+  none, and an edge that did not change stays the same object`; `resize.test.mjs › a mark on a selected box leaves
+  its four corner handles to the pointer`; `seams.test.mjs › while a line is in hand, a node's grip and the way to
+  it are that node to hitAt, and a line's grip is passed over`; in `marks.test.mjs`, a free note moved within its
+  view gives a new array (it fails when `samePins` leaves `x` and `y` out).
+- **The sources**: the eight changes listed under "built otherwise than the plan says", below, as the lead's.
+- **Skeleton comments**: `setViewOption` (`core/actions/views.ts`); `Badge.tsx` and `Pin.tsx` (a click through the
+  label renderer's portal); `reconnectProblem` (which refusal comes first); the sequence and geometry readers
+  (`step` gets no model; a head before its line node); `MessageEdge.tsx` and `LifelineNode.tsx`; `BrowserBody.tsx`
+  (where Expand all stands); `codeLinksOf` (an id with no links); `camera.ts` (the hand's answer); and in every
+  skeleton that names a stylesheet that does not exist, that its package creates it and imports it.
+  `canvas/app/README.md` gains one paragraph on the slice under way and names where the node types are.
+
+The suite on the merged tree, alone (`be52723`): `# tests 565`, `# pass 558`, `# fail 0`, `# todo 7`, 334 s. The
+5,000-element model opened in 519 ms; a drag step 12.1 / 8.6 ms; a keystroke 29.3 / 21.8, and 30.1 / 31.0 with 150
+problems; a pan step 11.8 / 12.4, 10.6 / 9.4, and 15.2 / 16.2 for the 2,112-node view. Each mender's own full run
+was beside the other's: one failed the drag step's start at 22.3 ms with a load of 3, and passed alone at 8.8.
+
+**What the lead decided where the plan is silent**, each written into the skeleton's comment it belongs to or into
+the builders' section below:
+
+- **`setViewOption`** takes `''` or null for the model's order and for the whole package and writes null; `roots`
+  and `collapsed` as its comment now says.
+- **An `Entry`'s `message`** is a problem's `message` and a diagnostic's `message`; the Validation panel keeps
+  building its rows from the records, which carry what an `Entry` cannot (see "Open", below).
+- **`edit-label` at a hit** acts on the hit's thing, and does not apply in a browser view.
+- **The camera's hand answers** whether a plane took it (`ShellHands.camera` gives a boolean; seam 8 has `void`), so
+  that a camera key on a view whose plane is not mounted can say why.
+- **A node's grip answers its node to `hitAt`** (seam 2 has every grip passed over).
+- **The sequence entry sets `elevateNodesOnSelect: false`**, as the geometry entry does.
+- **A view with no reader yet** is left out of 2-4's shown-in lines in round 1.
+- **The camera's rows are built before 2-3 starts**: 2-3's "the + and - keys zoom and start no label" needs them,
+  and section 9 says no package of a round needs another's code. The camera's builder runs beside the other seven
+  packages of round 1; 2-3 starts from the scaffold with the camera's three files on top.
+
+**What was not mended, and why.** Tests of slice 1 that the four bodies make fail by design are made to follow what
+is built before round 2, not now ("What the lead owes later"). `core/index.ts` keeps `export *`: the names a reader
+file exports are its package's to choose, so the builders are told to export only what their brief gives. The two
+tests of criterion 6 in the page are written at the closing, as `refusals.test.mjs`'s header says.
+
+### Package 2-1: how it was built
+
+Seven builders built the scaffold in session 31, one stage each, one after another, on that session's container:
+
+- **Stage 0, the grips probe**, in the worktree `/home/user/wt/2-1-grips`, a detached checkout of `780788b`; nothing
+  committed. It wrote `plane/nodes/Grips.tsx`, `grips.css`, seam 6's types with a stand-in `connectOf`, and pressed
+  grips in the built page before anything was built on them. The builder of stage A worked in the main tree beside it.
+- **Stage A, the core's seams**, in `/home/user/Grasp` on `claude/gracious-fermi-hxid8e`, from `780788b`: wip commit
+  `2199594`.
+- **Stage B, the plane's and the views' seams**, from `2199594`, with stage 0's files taken from its worktree:
+  `a12091d`.
+- **Stage C, the shell's and the panels' seams**, from `a12091d`: `df6b93d`.
+- **Stage D1, the shared test parts and the tests of criteria 2, 4 and 5**, in the worktree `/home/user/wt/2-1-tests`,
+  a detached checkout of `a12091d`, beside stage C; no commit.
+- **Stage D2, the tests of criteria 3 and 6, the retired page's test and the screenshots' skeletons**, in the main
+  tree from `df6b93d`: `80bd2bc` (its report gives no hash; stage E's names it).
+- **Stage E, integration**, alone, from `80bd2bc`: stage D1's five files brought in, the shared helpers moved into
+  `helpers.mjs`, the whole diff read against section 4, what fell between the stages built (`data-testid="grip"`; the
+  four node files of section 3's list that did not exist: `plane/nodes/sequence/LifelineNode.tsx`, `MessageEdge.tsx`,
+  `plane/nodes/geometry/FootprintNode.tsx`, `AxesNode.tsx`), `plan/status.json` written, both worktrees removed:
+  `2db8784`.
+
+The five wip commits were squashed into `82e35da` ("wip: slice 2, package 2-1, the scaffold as built; not landed"),
+one commit on `780788b`, merged by pull request #59 (`7374960`). None of the five hashes is in the repository. Session
+32 added two wip commits before the landing one: `d571479`, the hand-over's three decisions as it leaned
+(`elevateEdgesOnSelect` on the plane, `--test-timeout=600000` in `package.json`, one test of slice 1 renamed), and
+`be52723`, the review's mends.
+
+**What stage 0 established before seam 6 was built on it** (`node .probe/probe.mjs`, `classes.mjs` and `ports.mjs` in
+its worktree; the scripts went with the hand-over's `stages/`, and commit `be52723` is the last that holds them, in
+`plan/slice-2-handover/stages/stage-0-probe/`, with `standin-connect.patch` beside them):
+
+- **18 gestures of 18 as the plan needs them**, on the example (`Page`, right grip then top grip) and on the
+  interconnection fixture (`Fuel`): the press reaches the plane's capturing `pointerdown`; no node moves and the plane
+  does not pan (rectangles and transform read before, during and after); `hasPointerCapture` is true from the press to
+  the `pointerup` with no `lostpointercapture`; the window hears 10 `pointermove` of 10 and 1 `pointerup`. React Flow
+  swallowed no event of a gesture. With Shift held no marquee starts; with Ctrl held the selection does not change.
+  The click after a drag past 4 px has the grip as its target (the pointer is captured there) and is dropped.
+- **Two classes are needed, `nokey` and `nodrag`; `nopan` changes nothing today** (each taken off in the page in
+  turn). Without `nokey`, with Shift, the press never reaches the plane: React Flow's pane handles `pointerdown` in
+  React's capture phase, before a native capturing listener on the plane's root, and starts a marquee. Without
+  `nodrag` the gesture hears everything and React Flow drags the node too. React Flow gives a draggable node's element
+  and every edge's `<g>` the class `nopan` itself; it stays on a grip for a node that is not draggable.
+- **Where the grips are**, over the 11 graph views of the ten files: 105 boxes and 10 small nodes (the plan's 115) and
+  38 border items. Each of the 420 box grips is 8.00 px across and its middle 14.00 px outside the middle of its side,
+  in the view's units (tolerance 0.05). 29 of the 115 have a border item at a side's middle; 0 of the 420 overlap a
+  border item's square (a grip stands 2 px clear of it). A grip can lie on a border item's name (`pump`'s top grip on
+  "ctrl : CtrlPort").
+- **What was measured**: the four limits with a grip on every near node, against the same tree without, and what a
+  grip costs in a near view (next subsection). No limit moved, so the plan did not go back to Damon.
+
+### Package 2-1: the measurements
+
+All on session 31's container: 4 processors, Node 22.23.4, about a quarter slower than session 30's (its baseline is
+in session 31's entry). The builders shared it, so each run's load is given where its report gives it. "Full" is
+`npm test`; "alone" is `node --test --test-timeout=120000 canvas/app/test/scale.test.mjs`. Medians in ms, "starting /
+following" for a drag or a pan step, "opening / joining" for a keystroke. Limits: opens 5,000; drag 16; keystroke 50,
+and 50 with Validation shown and 150 problems; pan 16, and 25 for `workflows` (2,112 nodes). Bold: over its limit.
+
+**The grips probe** (stage 0; its worktree, stage 0's sources with the stand-in `connectOf`; each timed file alone,
+`node --test --test-timeout=120000 canvas/app/test/scale.test.mjs` and the same for `instant.test.mjs`), the final
+build, three runs, all pass:
+
+| Run | Opens | Drag | Keystroke | 150 problems | Pan definitions | Pan deployment | Pan workflows |
+|---|---|---|---|---|---|---|---|
+| 1 | 631 | 12.2 / 8.8 | 30.9 / 33.2 | 31.9 / 27.9 | 10.0 / 9.3 | 13.2 / 9.6 | 15.0 / 15.1 |
+| 2 | 670 | 12.5 / 8.8 | 30.7 / 24.5 | 29.1 / 29.4 | 9.3 / 9.8 | 9.9 / 8.9 | 13.9 / 17.3 |
+| 3 | 626 | 13.3 / 8.4 | 32.5 / 31.7 | 28.8 / 24.5 | 10.7 / 10.7 | 10.6 / 8.4 | 14.8 / 12.3 |
+
+`instant.test.mjs` in the same runs: ready 183, 199, 192; the example drawn 84, 90, 111; a tab switch 38, 33, 37; a
+drag step of the example with its 13 nodes and 40 grips mounted 3.2, 3.3, 3.5; a keystroke 7.7, 9.2, 8.3. Six runs
+on an earlier `grips.css` (a grip hidden by opacity) also all passed.
+
+The same tree built with the stand-in and with `export const connectOf = null`, run in turn (`.probe/variants.sh`,
+three rounds, the two timed files on each build): five of six runs pass; the one failure is a grips build's
+`workflows` pan, **29.1 / 27.6**, a far view where no grip is mounted. The drag and pan tests alone, 8 times on each
+build in turn (`.probe/pan.sh 8`, which is `node --test --test-name-pattern="pan step|drag step"
+canvas/app/test/scale.test.mjs`); the median of the 8 runs' medians, with the least and the most:
+
+| | With the stand-in | With `connectOf = null` |
+|---|---|---|
+| Drag, starting | 13.6 (11.5 to 22.1) | 12.5 (9.5 to 26.3) |
+| Drag, following | 11.2 (9.2 to 12.4) | 11.0 (8.1 to 14.6) |
+| Pan definitions | 11.8 / 10.6 | 11.9 / 11.4 |
+| Pan deployment | 10.5 / 9.9 | 9.6 / 10.9 |
+| Pan workflows | 19.2 / 18.7 | 17.1 / 19.9 |
+| Runs with a test over its limit | 3 of 8 | 4 of 8 |
+
+The pan tests pan far views and the drag test mounts 16 nodes, so a near view was measured too: `node .probe/near.mjs
+<dist> 700 0.3`, the scale model of 700 elements, its action flow view of 286 nodes and 208 lines at 30%, 676 grips,
+medians of 24 samples a run, the two builds in turn (the final build's runs where given):
+
+| | With the stand-in, final build | With `connectOf = null` |
+|---|---|---|
+| Pan step | 6.1 / 6.9, 7.4 / 6.9, 6.6 / 6.5 | 6.5 / 6.6, 8.2 / 7.7, 7.6 / 7.8 |
+| Drag step | 12.2 / 10.4, 11.8 / 10.1, 12.3 / 10.7 | 11.9 / 12.3, 11.9 / 11.1, 14.6 / 12.4 |
+| The pointer moved from node to node, nothing pressed | 5.2, 5.1, 5.6 | 0.5, 0.5, 0.7 |
+| A line taken in hand (the step past 4 px), then each step | 24.8, 24.8, 19.4, then 2.3, 2.6, 2.5 | |
+
+At 100% of the 5,000-element view (16 nodes, 52 grips; `node .probe/near.mjs <dist> 5000 1`): pan 4.3 / 4.1 against
+3.9 / 3.6, drag 11.1 / 9.7 against 10.4 / 10.1, a move from node to node 3.6 against 0.3. So a pan or drag step costs
+the same with 676 grips as with none; the hover costs 5 to 8 ms of frame (0.2 ms of script) for each node the pointer
+comes onto, where slice 1 painted nothing, which no limit covers; `visibility` in place of `opacity` took about 2 ms
+off it. `npm test` with the stand-in, final build: `# tests 470`, `# pass 470`, 342 s (opens 704; drag 11.1 / 8.0;
+keystroke 31.5 / 26.9, 39.6 / 26.6 with 150 problems; pan 8.0 / 9.3, 11.4 / 10.4, 15.7 / 16.8). An earlier full run
+gave 2 failures: the drag's start, 19.9 (alone afterwards 3 of 3 pass), and one of stage 0's own (tried and dropped).
+
+**`--grasp-zoom`** (stage B; `node probe-b/zoom.mjs <dist> workflows`: 12 Ctrl + wheel steps of 30 px in the
+2,112-node view, from the wheel event to the painted frame, median; the script was in session 31's scratchpad and is
+not kept):
+
+| The variable | A zoom step, ms |
+|---|---|
+| On the plane's root, as seam 4 has it | 135.6, 179.5 |
+| Not written at all | 23.6, 32.6, 25.3, 28.0, 23.6, 22.8 |
+| One rule of a `<style>` for `.grasp-marks`, the viewport portal and the label renderer (as built) | 30.6, 33.2 (the probe's build); 26.6, 27.9 (`canvas/dist`) |
+
+**The 2,112-node view first drawn** (stage B; `node --test --test-name-pattern="model opens"
+canvas/app/test/scale.test.mjs`, the line "workflows drew its 2112 elements N ms after its tab was asked for"):
+stage A's tree 576, 616, 623, 654; the grips as components 599, 654, 704, 704, 749; as plain functions (built) 558,
+599, 602, 654. With the checks live while a plane is shown, the 5,000-element model opened in 709 to 878 ms over
+eight runs alone (stage A: 683 to 804).
+
+**The timed tests, stage by stage**, `scale.test.mjs`:
+
+| Stage, run | Load | Opens | Drag | Keystroke | 150 problems | Pan def. | Pan depl. | Pan workflows |
+|---|---|---|---|---|---|---|---|---|
+| A full 1 | 1.9–2.9 | 683 | **22.6** / 11.1 | 38.9 / 39.4 | 35.6 / 37.1 | not given | not given | not given |
+| A alone 1 | 1.9–2.9 | 804 | 11.9 / 9.0 | 37.5 / 33.2 | 33.0 / 25.4 | 12.1 / 11.3 | 11.0 / 9.4 | **25.6** / 19.1 |
+| A alone 2 | 1.9–2.9 | 723 | 11.5 / 9.2 | 36.3 / 28.0 | 27.3 / 25.3 | 8.2 / 9.9 | 11.1 / 9.3 | 18.6 / 12.4 |
+| A alone 3 | 1.9–2.9 | 686 | 12.3 / 9.9 | 37.8 / 32.2 | 27.4 / 29.2 | 10.9 / 10.0 | 9.1 / 10.8 | 16.8 / 15.0 |
+| A full 2, committed | 1.9–2.9 | 706 | 12.4 / 10.0 | 33.6 / 29.1 | 35.1 / 35.3 | 10.8 / 11.0 | 8.5 / 9.3 | 15.6 / 17.0 |
+| B full 1 | under 1 at start | 737 | 15.2 / 12.2 | 33.3 / 33.0 | 34.7 / 29.4 | 10.4 / 9.3 | 9.1 / 10.9 | 15.4 / 15.5 |
+| B alone 1 | under 1 at start | 1008 | 11.9 / 13.0 | 38.0 / 39.6 | 31.8 / 33.2 | 9.6 / 12.7 | 8.4 / 9.5 | 14.3 / 19.8 |
+| B alone 2 | under 1 at start | 735 | 11.1 / 10.9 | 31.2 / 28.1 | 44.2 / 39.6 | 8.9 / 9.6 | 9.3 / 10.2 | 15.9 / 16.3 |
+| B full 2, committed | under 1 at start | 738 | 10.3 / 8.5 | 42.7 / 31.0 | 35.8 / 34.1 | 12.0 / 11.0 | 8.9 / 12.0 | 17.0 / 17.1 |
+| C full 1 | first, near alone | 720 | 12.4 / 14.6 | 32.9 / 29.9 | 36.3 / 28.8 | 11.2 / 9.5 | 9.6 / 10.7 | 22.0 / 15.5 |
+| C full 2, committed | 3.2 | 910 | **17.2** / 12.5 | 41.2 / 36.6 | 45.8 / 39.1 | **16.9** / 12.9 | 10.3 / 11.3 | **26.6** / 12.7 |
+| C alone 1 | 2.8–3.7 | 852 | 12.1 / 11.1 | **51.8** / 34.1 | 39.7 / 33.7 | 11.6 / 9.1 | 9.5 / 9.5 | 20.6 / 20.8 |
+| C alone 2 | 2.8–3.7 | 849 | 10.7 / 9.5 | 40.6 / 32.7 | 36.6 / 31.1 | 8.9 / 11.0 | 11.3 / 8.9 | 15.6 / 16.9 |
+| C alone 3 | 2.8–3.7 | 812 | 11.5 / 11.0 | 41.7 / 31.8 | 32.6 / 35.0 | 10.4 / 12.7 | 10.7 / 9.6 | 15.8 / 19.0 |
+| C full 3, committed | 1.6–3.6 | 736 | 14.3 / 11.4 | 42.8 / 28.4 | 29.1 / 31.5 | 13.4 / 12.1 | 9.8 / 10.9 | 15.4 / 14.9 |
+| D1 full 1 | 1.4–2.8 | 835 | 15.8 / 9.5 | 34.5 / 26.8 | 31.2 / 28.2 | 9.5 / 9.6 | 9.3 / 10.5 | 15.0 / 15.8 |
+| D1 full 2 | 1.4–2.8 | 880 | 10.6 / 11.6 | 45.6 / 32.2 | 34.7 / 29.7 | **20.2** / 10.6 | 8.0 / 10.3 | 14.9 / 15.8 |
+| D1 alone | 1.4–2.8 | 768 | 13.7 / 9.1 | 40.1 / 40.9 | 34.0 / 35.5 | 10.9 / 11.2 | 12.9 / 10.0 | 13.1 / 12.2 |
+| D2 full | 0.5–1.4 | 635 | 15.2 / 11.4 | 36.7 / 32.6 | 35.0 / 28.7 | 10.4 / 10.4 | 11.6 / 9.2 | 17.1 / 20.3 |
+| E alone, stand-in in | 0.4–1.7 | 792 | 13.9 / 9.3 | 43.2 / 33.9 | 33.0 / 30.9 | 9.9 / 10.5 | 10.5 / 12.2 | 15.0 / 17.5 |
+| E full, stand-in in | 0.4–1.7 | 677 | 11.8 / 9.8 | 34.1 / 26.8 | 25.4 / 22.9 | 10.9 / 11.5 | 8.7 / 12.0 | 20.4 / 15.1 |
+| E full, `2db8784` (the tree handed over) | 0.4–1.7 | 680 | 14.4 / 10.7 | 39.7 / 33.2 | 36.7 / 30.1 | 10.8 / 10.4 | 10.5 / 11.2 | 15.5 / 17.9 |
+| E full, `elevateEdgesOnSelect` in | 0.4–1.7 | 700 | 15.6 / 11.4 | 38.6 / 29.8 | 32.1 / 35.0 | 9.5 / 9.5 | 9.1 / 10.3 | 19.3 / 18.5 |
+
+D1's runs are of stage B's tree with D1's test files; it changed no source of the page. B's first three rows are
+before the grips became plain functions and `--grasp-zoom` left the root. Every failure above passed when its file
+was run again alone. `instant.test.mjs` (limits 500, 1,000, 100, 16, 16):
+
+| Stage, run | Ready | Example drawn | Tab switch | Drag step | Keystroke |
+|---|---|---|---|---|---|
+| B full 1, full 2 | 231, 234 | 97, 120 | 35, 35 | 3.8, 4.2 | 11.1, 10.1 |
+| D1 full 1, full 2 | 215, 225 | 116, 108 | 35, 34 | 4.8, 4.0 | 11.6, 9.4 |
+| E full, stand-in in | 202.0 | 107.7 | 37.3 | 3.6 | 9.7 |
+| E full, `2db8784` (the tree handed over) | 193.0 | 97.0 | 33.0 | 4.1 | 10.9 |
+
+Stages A, C and D2 report it passing with no figures.
+
+**Each stage's full runs** (`npm test`):
+
+| Stage | Tree | Tests | Pass | Fail | Todo | Seconds |
+|---|---|---|---|---|---|---|
+| 0 | stand-in in, earlier `grips.css` | 470 | 468 | 2 | 0 | 342 |
+| 0 | stand-in in, final build | 470 | 470 | 0 | 0 | 342 |
+| A | before `tools.test.mjs` was changed | 516 | 513 | 3 | 0 | 360 |
+| A | committed | 516 | 516 | 0 | 0 | 343 |
+| B | before the Validation test was changed | 536 | 535 | 1 | 0 | 375 |
+| B | committed | 537 | 537 | 0 | 0 | 375 |
+| C | run 1, before its last two changes | 549 | 549 | 0 | 0 | 394 |
+| C | committed, load 3.2 | 549 | 547 | 2 | 0 | 404 |
+| C | committed | 549 | 549 | 0 | 0 | 407 |
+| D1 | B's tree with D1's tests | 543 | 539 | 0 | 4 | 397 |
+| D1 | the same | 543 | 538 | 1 | 4 | 408 |
+| D2 | committed | 553 | 550 | 0 | 3 | 394 |
+| E | stand-in in | 559 | 551 | 1 | 7 | 393 |
+| E | `2db8784` | 559 | 552 | 0 | 7 | 401 |
+| E | `elevateEdgesOnSelect` in | 559 | 552 | 0 | 7 | 393 |
+
+Tests added: stage A 46 (`actions` 19, `readers` 9, `marks` 6, `says` 6, `session-notes` 6); B 21 (`readers` 7,
+`marks` 2, `seams` 12: 4 in the built page, 7 on a bench, 1 in Node); C 12 (`seams` 9, `keys` 3); D1 6 (`fixtures` 3,
+1 todo; `connect` 1, todo; `reconnect` 2, todo); D2 4 (three todo, and `camera.test.mjs`, an empty file the runner
+counts as one passing test). `app.js`: 172.6 kB after A, 194.2 after B, 207.9 after C (`npm run build`); stage E's
+build, 12 files, 3,819.3 kB. Mutations tried against the new tests and put back, each failing its test: A 3, B 6, C 7.
+
+**Criteria 4 and 5** (stage D1):
+
+- **The notes' numbers hold** (session 30's entry), worked out again in Node from the library's `first` and `ends` and
+  `draw`'s own two checks: 2,260 ordered pairs, 1,742 refused, 456 fit one kind, 62 several, 221 classes, each of the
+  eight kinds allowed in some class. `connect.test.mjs`'s rules against the core's `drawProblem`, every ordered pair
+  and every kind of the row, in the ten files and `pairsState()`: 15,412 answers, 0 different.
+- **`pairsState()`**: 82 elements in four views (40, 14, 18, 10); 555 pairs of kinds (400, 49, 81, 25), of which 493
+  refused, 57 fit one kind, 5 several (general 374 / 23 / 3, interconnection 43 / 4 / 2, action flow 53 / 28 / 0,
+  state transition 23 / 2 / 0). It takes 0.2 to 0.3 s to make.
+- **776 drags of 776** right with the stand-in in, each read back from its `data-probe` (221 classes of the ten files:
+  18 example, 83 behavior-actions, 24 behavior-states, 1 geometry, 90 interconnection, 5 sequence; 555 of the
+  generated model). They take **113 s at 6 moves a drag and 73 s at 3** (146 and 94 ms a drag), before package 2-2's
+  gesture adds its checks (about 10 to 40 ms each, stage D1's estimate). A file with one 8 s test whose own limit is
+  20 s, run with `--test-timeout=5000`, is cancelled at 5 s: the runner's limit is the file's.
+- **19 of the 116 line-end grips** of the ten files cannot be pressed at the zoom each view opens at (`gripOf` on
+  every line end: 97 of 116); with `elevateEdgesOnSelect`, 116 of 116. Reconnect with it: 27 drags of 27 right (the
+  nine kinds, each to a node that takes it, one that refuses it and the ground), 13.5 s with the files opened.
+- **The helpers** (`gripOf` on nodes): 153 nodes of 153 have a free grip. Points in whole px: in about 1,900 presses
+  a real mouse move and `elementFromPoint()` agreed at whole px; at a fraction they did not.
+- `fixtures.test.mjs` takes 13.4 s in a full run; `connect.test.mjs` 1.0 s and `reconnect.test.mjs` 1.2 s while they
+  fail at their first grip.
+
+**The document tests** (stage D2, then E): `capabilities.test.mjs` counted 73 of 112 names with no test before D1's
+files came in, 68 after (stage E); `refusals.test.mjs` finds 28 of section 5's 32 rows not built and 0 faults in the
+4 that are (asked 2 times); with every row built by stand-ins it passes, 47 asks; `retired.test.mjs`: 79 files of the
+old page in `canvas/`, 77 not in `archive/old-page/`, 11 scripts, tests and pins naming it, 1 thing beside. Stage E
+counted 19 functions that throw `"<name>: package 2-N builds it"` (`grep -rn "builds it" canvas/app/src`).
+
+**Criterion 9 with the stand-in** (stage E: `git apply standin-connect.patch && npm run build`, then the run, then
+`git apply -R` and `npm run build`): the example's 13 nodes hold 40 grips; one run of `scale.test.mjs` alone, 7 of 7;
+one full run, 559 tests, 551 pass, 1 fail (by design, below), 7 todo, 393 s; medians in the tables above. The three
+runs criterion 9 asks for are session 32's, under "Criterion 9", below.
+
+### Package 2-1: built otherwise than the plan says
+
+From stage 0 (each kept by stage B, item 18 of its list):
+
+- **`NodeGrips({ far, side? })`.** Seam 6 writes `NodeGrips({ far })`. With `far` alone the component cannot know
+  which one grip a border item has; called without `side` it gives four, so the seam's call holds. The way to the
+  letter (four grips in every node, three hidden by a class) needs a side class the adapter does not give.
+- **A small node's grip is at its bottom.** Seam 6: "on its outer side", which means nothing for a fork or a start
+  node inside an action. The bottom is where no name is. 10 of 10 placed right.
+- **The plane drops the click after every press on a grip**, not only after the gesture's `swallow()` past 4 px
+  (seam 6; flow 1 says a release before 4 px "does nothing"). With the letter only, a release before 4 px is a click
+  on the grip's node: it picked `Page`, and with a tool in hand placed a part def in it (13 nodes to 14). One line of
+  `Plane.tsx`'s capturing listener; the flag is `noClick`. `swallow()` stays for the pin's gesture.
+- **`EndGrips({ points })` takes the route's points**, the first the `from` end and the last the `to` end; the seam
+  gives `points` no type, and `GripPress.ends` is `{ from, to }`.
+- **A line's two grips are circles inside the edge's own svg**, so they lie where the line lies in the stack, half
+  under an end's node or under a later line. A portal (`EdgeLabelRenderer`, `ViewportPortal`) puts them outside the
+  edge's element, where the plane cannot read whose they are. Settled in session 32 by raising the selected line
+  (`SELECTED_LINE_Z`), below.
+- **`drawsLines(session, viewId)` in `core/commands.ts`.** The plan gives `data-grips`'s condition and names no
+  function; `Plane.tsx` may not read a view's kind (rule 5). It asks `toolGroups`, so it follows `hasReader`.
+- **Choices the plan leaves open, in `grips.css`.** A grip is 8 px in the view's units, not on the screen (seam 6 says
+  "8 px" and does not say which; the marks are on the screen): 3.4 to 6.7 px on the screen at the zoom the ten files
+  open at (42% to 84%), 4.4 px on the example at 54%. A grip that is not shown takes no pointer; a shown one has a way
+  to it from its side, a `::before` 16 px wide (16 by 18 px in the view's units). Shown by `visibility`, not
+  `opacity`. The line under the pointer gets a soft teal band on its 12 px hit path. The hover outline is written
+  inside `:where()`. A border item's grip is placed from its square's middle (a 1.5 px border is laid out as 1 px).
+
+From stage A:
+
+- **`KeyPlace` has a fourth, optional field, `widget`.** Seam 8 gives `{ typing, historyKeys, modal }`; section 5's
+  rule that arrows, F2, Alt with an arrow and a printable key do not act inside a tree, menu, listbox, tablist,
+  radiogroup or grid cannot be said with those three. Left out, it reads as outside any such widget.
+- **`ALIASES` holds three**: `Mod+Shift+Z` as `Mod+Y`, `=` as `+`, `_` as `-`. Seam 8's comment also says
+  "'Backspace' as 'Delete'", which section 2 ("`Delete` deletes, and `Backspace` does not") and 2-4's brief
+  contradict. Backspace is no alias.
+- **`nextSaying(session)` in `core/says.ts`**, from which the tool in hand also numbers its sayings. Not in the plan:
+  seam 8 has the toast show "whichever was said last", seam 12 a number that grows with each saying, and two counters
+  could not say which was later.
+- **`pressed` knows the row `save` by its id**, to keep slice 1's rule that Save's default is always prevented, with
+  no file open and behind a modal dialog; `Action` has no field for it.
+- **`labelEditOf` gives an inert object** (`editing` null; `listen`, `close` do nothing; `open`, `keep` throw), not a
+  throwing function, so that `LabelEditor` may read and listen.
+- **`actions()` throws on two rows of one id**, and of two rows with one key the earlier has the key. The plan says
+  neither.
+- **`offers()` in a view of another renderer** offers every element kind of the row, on the ground and on an element:
+  a `Placer` cannot say beforehand what it would refuse. Unreachable until 2-10 or 2-11.
+- **The tool's "No view shows both ends" check asks `hasReader`**, a fifth place beside the four the brief names, so
+  that a message between two lifelines only a sequence view shows is not said to be drawn nowhere.
+- **The graph reader's `listed`** says a box as "«part def» Host", a border item or a small node by its name alone
+  ("api : ~StrongholdApp"; '' for a start); far, every word is ''. `listed(data)` gets only the data, which holds no
+  keyword for those.
+- **A pin answers for an element and a relationship of one id alike** (`marksOf(session).of`): a note names its target
+  by id alone, and `marks.ts` may not read the model (contract 22).
+- **`sequenceReader` is `Reader<Projection> | null`**, as 2-10's brief has it; seam 1's example says
+  `Reader<SequenceData>`. `SequenceEnd` is `unknown`: the plan names it and gives no form.
+- **A press that types a character** leaves out the space bar (it clicks the focused button) and reads Ctrl with Alt
+  as AltGr unless the key is a plain letter or digit. The plan: "every other key that types one character, pressed
+  with no Ctrl or ⌘".
+- **`notesOf`'s pass-through throws on `attend` and `point` too**, though they change no note (stage E's list). The
+  skeleton rule says `notesOf` carries the file's notes through.
+- **Three keys that slice 1's code took and its contract never named no longer act**, since a key is a shortcut only
+  as a row's `key` or an alias: Ctrl or ⌘ + Shift + S (the browser's own Save now opens), Ctrl or ⌘ + Shift + Y, and
+  Escape with Shift, Ctrl or Alt held. No test of slice 1 presses them. Two more aliases would keep the first two; the
+  plan names three. Live from stage C.
+
+From stage B:
+
+- **`--grasp-zoom` is not on the plane's root** (seam 4 and package 2-1's brief put it there). On the root it is
+  inherited by every node, so writing it styles the whole plane again: 135.6 and 179.5 ms a zoom step in the
+  2,112-node view against 22.8 to 32.6 with nothing written. One rule of a `<style>` in the root gives it to every
+  `.grasp-marks`, to React Flow's viewport portal and to its label renderer: 26.6 to 33.2. Still written only when the
+  zoom changes. A node's own stylesheet cannot read it elsewhere; the label editor and the readout ask the store
+  (`zoom`, `watchZoom`).
+- **`views/lends.ts`, a file the plan does not name**: `lend`, `lentCamera`, `lentReveal`, `Lent`, `CameraMove`,
+  `ViewRect`, the two hands a mounted body lends the shell. Its own module so that the shell imports no React from it
+  and Node loads it.
+- **`views/bodies.ts` exports three things beside seam 2's**: `isBuilt(entry)` (the seam's "an entry counts as built
+  when…", which `ViewHost` needs), `planeTypes()` (the merged node and edge types, the same two objects at each call,
+  as React Flow asks), `FLOW_PROPS`.
+- **`graphBodied(renderer)` in `core/readers/index.ts`.** The store, which runs in Node, cannot import the registry
+  (React components, stylesheets), and must not take a grid reader's data for a Projection. So "a graph body" is said
+  twice, `body: 'graph'` in the registry and this function; no test holds the two together.
+- **`viewOption` and `rootChoices` of `core/actions/views.ts` (2-4's file) are built ahead**: an `OptionRow`'s
+  `values` and `locked` need a view's mode and the package's top elements, and a file of `views/` may read no record
+  (rule 5). `setViewOption` still throws.
+- **The option rows' words where the plan gives none**: the labels ("Row spacing", "Scale", "Unit", "Grid",
+  "Columns", "Sort", "Roots of the tree", the old page's); the sort's choices (`''` "the model's order", then each
+  column as `name` "name, A to Z" and `-name` "name, Z to A"); the scale's range `[Number.MIN_VALUE,
+  Number.MAX_VALUE]` for "above 0"; a matrix's locked columns: "A matrix has no columns: it sets the elements against
+  each other. Show the grid as a table to choose its columns."
+- **`NodeGrips` and `EndGrips` are called as plain functions** (`{NodeGrips({ far: data.far })}`), as the seam writes
+  them. As components they cost a fiber for every node: the 2,112-node view first drawn in 599 to 749 ms against 558
+  to 654.
+- **`.grasp-marks` is rendered only on a marked thing**, node and line alike; the seam says so for a line only.
+- **`FreePins` is mounted only while the view has a free pin, and near**: React Flow's `ViewportPortal` holds a
+  subscription that searches the document at every change of React Flow's store, a pan step among them.
+- **A plane's node and edge carry `data-of="el:<id>"` or `"rel:<id>"`**, on the inert `span.grasp-node-handle` and on
+  `path.grasp-line-hit`, not seam 2's `data-thing`, which in a component body is on the element that takes the click.
+  Two meanings under one name would mislead the label editor. Nothing reads `data-id` as a model id.
+- **What a gesture is over is the attribute `data-over`** (`fits` or `no`) on the React Flow element or the
+  `data-thing` element, drawn by `grips.css` and `body-frame.css`. Stage 0's `<style>` rule named the node by its
+  `data-id`, which seam 5 forbids, and styled the plane again at each change.
+- **`mark`, `swallow`, the camera and the grips are tested on a bench with stand-ins** in `seams.test.mjs`, beyond the
+  five page tests the brief lists, because 2-2, 2-6, 2-7, 2-10 and 2-11 build on them and neither probe ran inside the
+  page's own `Plane.tsx` and `viewStore.ts`.
+- **`ZoomReadout` stands after both zoom buttons in the document**, and `plane/zoom.css` orders it between them:
+  React Flow's `Controls` renders its own buttons before its children.
+- **The camera's `left` shows what is to the left** (the content moves right by 80 px), as the old page's arrow key
+  does. The plan: "moves by a step".
+- **`reveal` moves the camera only as far as needed**: nothing when the place is 24 px inside the window; to the
+  window's middle when the place is larger than the window; at the zoom it has. The plan: "brings a place into the
+  window".
+- **`BodyFrame`: a control of the body's own stops its click** (a sorting header, a row's triangle), and `onShown` is
+  not called for the size the root mounts with.
+- **`pinOf` gives an idle gesture** (nothing in hand; `press` and `cancel` do nothing), not a throwing function.
+- **The middle button** (the brief's fourth difference for a person) already dragged the plane in slice 1: React Flow
+  pans on button 1 whenever `panOnDrag` is true (`@xyflow/system`, `createFilter`). `panOnDrag` is now `[0, 1]`, which
+  changes nothing; `seams.test.mjs`'s test of it passed before the code.
+
+From stage C:
+
+- **Save is an `ActionButton` only while the file has unsaved changes.** The brief makes Undo, Redo and Save
+  `ActionButton`s; section 5's row `save` always applies, so such a Save would never be greyed, while slice 1 greys it
+  and `keys.test.mjs › Save, Undo and Redo are enabled only when they have something to do` (line 83 of section 7)
+  holds that. While the file is saved, and for all three with no file open, the bar shows its own greyed button with
+  the same test id, name and tooltip and no `data-action`; that greyed Save carries no sentence.
+- **`ActionItem` takes `autoFocus` and `tabIndex`** (`MenuEntryProps`) beyond `ActionControlProps`: Material UI's
+  `MenuList` gives them to the entry it focuses as the menu opens.
+- **`label` on an icon button is its tooltip's words while its action applies** ("Undo Moved part def Host", slice 1's
+  tooltip); the accessible name stays the action's title.
+- **A control listens to the session and the selection**, not to the notes as well: `session.listen` already tells
+  after every change the notes tell of.
+- **Greyed, a button is `disabled`** (its tooltip on a span around it), as slice 1's were; **a menu entry is
+  `aria-disabled`** and keeps the pointer, so a click on it asks, which says the sentence as a toast, and the menu
+  stays open. Seam 8: "greyed … A click calls ask".
+- **`data-choices="<action id>"` and `data-choice="<choice id>"`** name a menu of choices and its entries; the plan
+  names no way to find them.
+- **`packageNameOf(session)` in `core/session.ts`** titles the text tab `<package name>.sysml` (`model.sysml` with no
+  name): a component may read no field of a record (contract 22).
+- **The page's one keydown listener is in the capture phase** (seam 8: "on the window"). Material UI's Menu stops
+  Escape before the window, and `palette.test.mjs › a right-click is not the tool's click, and Escape closes the menu
+  and puts the tool down` holds that one Escape does both; slice 1's Tools panel listened in the capture phase for
+  the same reason. A mutation to the bubble phase failed that test.
+- **A saying shown before a later one does not come up again**: the toast keeps the largest number it has shown.
+  Otherwise saysOf's older saying returns as soon as the tool takes its newer one back.
+- **Each section's file exports its `Section` object** (`shownSection`, `viewSection`, `codeSection`), which
+  `panels/sections.ts` lists.
+- **The sections are drawn inside the form's root, `.grasp-details`**, after the page, so a section's field is inside
+  `data-history-keys` and Ctrl + Z there is the history's.
+- **`panels/fieldHooks.ts` re-exports both hook files** (`export *`), and `ORDER_LOCKED` moved with the locked
+  `order` hook into `panels/hooks/sequence.ts`, so 2-10 can drop both without touching `fieldHooks.ts`.
+- **The New view button stands in every group of the editor** (Dockview's header actions are a group's: `TabBarEnd`
+  in `shell/Dock.tsx`); a new view's tab goes beside the view in front.
+- **The Notes skeleton says "The notes come with package 2-7."**, with or without a file.
+- **`hands.copy` rejects with "This page has no clipboard."** when the browser gives none. Nothing calls it yet.
+- **`TopBarProps` lost `onSave`, `DockProps` gained it**: the bar asks the action, whose hand the dock gives.
+- **Escape lets go of what is picked from more places**: one Escape that closes a right-click palette, a menu of
+  choices or a toast also lets go of the selection when no tool is in hand (section 5: "`Delete` and `Escape` act from
+  such a widget"); and Escape acts with the focus on a checkbox or radio button of Details, where slice 1's Tools
+  panel did nothing (`KeyPlace.typing` is the top bar's narrower test of a text field).
+- **The left strip names a fourth panel, Notes**, which seam 10 asks for and the brief's four differences do not list.
+
+From stage D1:
+
+- **Helpers beside seam 12's table**: `bodyOf`, `thingOf`, `actionControl`, `lineClass`, `pointOn` with
+  `freePointOf`, `endsAt`, `labelIn`, `saidSoFar`, `toastAfter`, `EXPORT` in `helpers.mjs`; `pairsState()` with
+  `graphKinds()` and `admittedBy(viewKind)` in `core.mjs`.
+- **`gripOf(page, viewId, id, grip = null, { covered = 'fail' })`**: seam 12 writes `gripOf(page, viewId, id, grip)`.
+  A box's four grips are not all free, so a test must be able to take another.
+- **`connect.test.mjs` drags with 3 moves**, not `dragBetween`'s 6, for time (113 s against 73 s).
+- **A class of the ten files has stand-by pairs**: when no grip of the first pair's first element can be pressed, the
+  next pair of the class in that view is dragged. None is needed in the ten files today; not counted for the
+  generated model. The brief: "one pair of each class".
+- **`fixtures.test.mjs`'s first test gathers every wrong view and fails once**, so its message shrinks as the bodies
+  land. Its third test, "two views of one model are shown side by side, each drawn", passes today and has no todo mark.
+- **Where `pairsState()` puts things, and the order of kinds**, are this stage's: rows on the ground, a border item at
+  a quarter and three quarters of a side, control nodes in three columns; the model made twice to learn each owner's
+  size; it throws if two boxes of one owner overlap. Kinds in the view kind's `admits` order (the library's where the
+  row admits all), which matters only in the state transition view: done nodes land in the first state def.
+
+From stage D2:
+
+- **A shot's skeleton is `pending: true` and throws, and carries `package` where slice 1's carries `step`**;
+  `shots.mjs` says "Left out <name>.png: package 2-N takes it." for it. **The package takes `pending` off in its own
+  `shots/<name>.mjs`**: `shots.mjs` is the scaffold's, and in slice 1 the lead did it.
+- **`refusals.test.mjs` checks more than "a sentence that ends in a full stop"**: the row's title and key where the
+  plan's cell gives them, that the refusal was said through `saysOf`, that nothing changed (model, steps, notes,
+  selection, view in front, `unsaved`), and that the table holds no row section 5 lacks. To keep only the brief's
+  three, take out those `found.push` lines.
+- **`refusals.test.mjs` asks a row at more than one place** where the Applies column makes the state certain (ten
+  places, 47 asks when all rows are built), and **asks the built rows while it is todo**, listing their faults first.
+- **`retired.test.mjs` reads "names it" as "names it in code"**: comments are taken out, so a comment citing where a
+  rule was ported from needs no change.
+- **`retired.test.mjs` holds the built page's SHA-256** (`archive/old-page/index.html` must have the hash
+  `unchanged.json` pins `canvas/index.html` with, `016ba5bc…`) and asks `archive/old-page/README.md` for a commit hash
+  of 7 to 40 hex digits.
+- **`capabilities.test.mjs` finds a name only as the title of a `test()` call**, a string or a template compared as
+  the source writes it, never in a comment: `camera.test.mjs`'s header names its five tests and none counts.
+
+From stage E:
+
+- **`cameraOf` and `idle(page, frames = FRAMES)` are in `helpers.mjs`**, which seam 12's table does not name:
+  `camera.test.mjs` (2-14) needs the camera's read, and `idle` was written twice.
+- **The four node skeletons type their props as React Flow's bare `NodeProps` and `EdgeProps`**: the plan gives the
+  files and no signature. **`LifelineNode.tsx` exports one component** though 2-10's brief names two node types of it
+  (`lifeline`, `lifeline-line`); its comment says both are the file's.
+
+The lead's, in session 32 (`d571479`, `be52723`), each from the hand-over's decisions or from the review:
+
+- **A selected line is drawn over the boxes it crosses**, on every plane: a fifth difference for a person beyond the
+  brief's four. `plane/viewStore.ts` gives a selected edge, and no other, the zIndex `SELECTED_LINE_Z` (1100: over a
+  picked box, which React Flow puts at 1000, and under a line's marks at 1500). Without it 19 of the 116 line ends
+  cannot be pressed, criterion 5's first line (`s-ServerHost`, `to`) among them, and `Plane.tsx` and `viewStore.ts`
+  are no package's. The plane does not set `elevateEdgesOnSelect`.
+- **`npm test` gives a test file 600 s** (`--test-timeout=600000` in `package.json`, a file section 3 does not list):
+  the runner cancels a whole file at its limit whatever a test allows itself, and criterion 4's test has five minutes
+  of its own. No test's own limit changed.
+- **A node's grip, and the way to it, answers its node to a plane's `hitAt`.** Seam 2 has `hitAt` pass over
+  "whatever carries `data-pass`…: the pins, the badges, the grips and the line in hand". With a line in hand every
+  near node shows its grips, and a line let go on the handle a person aims at was let go on the ground. A line's
+  grips are still passed over. `Plane.tsx`, `views/bodyContext.ts` and `Grips.tsx` say so.
+- **`ShellHands.camera` answers a boolean**: whether a mounted plane of that view took it. Seam 8 has `void`. With
+  the text tab in front of a view, or a graph body that is not built yet, a camera row applies and nothing can move:
+  the row's `run` could not know, and the key would be refused with nothing said (criterion 6).
+- **The sequence entry of the registry sets `flow: { elevateNodesOnSelect: false }`**; seam 2's table gives it to
+  the geometry entry only. The store selects both nodes of a picked lifeline, and React Flow's `calculateZ` adds
+  1000 to any selected node, selectable or not: the tall line node would lie over every message not joined to it.
+- **Escape's default is not prevented** by the page's listener, the one key of the table so treated: Material UI's
+  Snackbar closes on Escape only when the default is not prevented, and `Toasts.tsx`'s contract says a toast leaves
+  at Escape. Its menus, the palette and its dialogs close at Escape either way.
+- **`keyOf` gives null for `+`, `=`, `-`, `_` and `0` while no row carries them**, where it gave `printable` once a
+  `printable` row is built: section 2 has them "the camera's keys, always".
+- **A selected box's corner handles lie over its marks** (`marks.css`): the marks row ends at the top right corner,
+  where a resize handle is.
+
+### Package 2-1: the tests of slice 1 that changed
+
+- **`commands.test.mjs › a second definition takes the first one's place, in the same step`** (stage A). It asserted
+  that `t-hosts` is gone, the new typing is the last relationship, and the step touched both; it now asserts that
+  `t-hosts` keeps its id and index with `to` App and the step touched it only. Count, one step, words, notes and Undo
+  as before. Package 2-1's brief, "Changes in existing files": "`draw()` of a "defined by" line from a usage that has a
+  definition already no longer takes the old line out. It moves the old line's other end and shows the line, as the
+  Typed by field of Details does. So the line keeps its id and what is pinned to it." Also section 12, departure 4.
+- **`commands.test.mjs › a line whose ends no view shows together is drawn, and said so`, and its helper `walk()`**,
+  which `› every tool of each graph view kind's row makes its element or its line, and Undo takes it back` uses (stage
+  A). Both took "what was made" as the list's last relationship; `walk()` now takes the relationship of the tool's
+  kind between the two clicked ends, and the first test takes tank's typing and asserts it goes to Controller. The
+  same sentence.
+- **`tools.test.mjs › every tool of ${w.name} row is used once: it appears on the plane and in the Explorer, validates,
+  and Undo takes it back`**, for the general and the interconnection view (lines 34 and 35 of section 7; stage A). The
+  use `{ FeatureTyping, Page.hosts → App, replaces: 't-hosts' }` asserted a new line, `t-hosts` gone and Undo bringing
+  it back. The two uses whose usage has a typing now carry `moves: 't-hosts'` (drawn before) and `moves: 't-back'`
+  (hidden before): the line keeps its id, is drawn and picked, no second line is drawn, and Undo leaves `t-hosts` drawn
+  and takes `t-back` off the plane. The same sentence; the plan names only `commands.test.mjs` for it.
+- **`adapter.test.mjs › what the example's boxes and ports say` and `› what an item, an action, a state and a control
+  node say`** (stage A). Eight assertions compared a node's whole `data` with a literal; they now compare
+  `said(node.data)`, the data less `element`, `view` and `marks`, which `readers.test.mjs` and `marks.test.mjs` assert
+  for every node and edge of the ten files. Seam 5: "NodeData gains: element: string | null; view: string; marks:
+  Marks".
+- **`validation.test.mjs › a hidden or collapsed Validation panel checks nothing, and shown again it is up to date at
+  once`** (stage B). It asserted 0 checks before the panel was shown, with the example's plane drawn. Now the first
+  assertion is 1 check (the plane's); the view's tab is then closed so that no body is shown; the rename is made from
+  the Explorer's row; one message is reworded. With no body shown, a hidden or collapsed panel still checks nothing.
+  `plan/architecture.md`, contract 8, "Changed in: Slice 2": "the checks run while any body or panel that shows them is
+  shown, not only the Validation panel." Seam 4: "`marksOf` listens to the checks and the notes only while a store
+  listens to it. So the checks run while a body is shown (contract 8), and a hidden tab costs nothing." Package 2-14's
+  list of slice 1's tests that change does not name it.
+- **`tools-panel.test.mjs › the Tools view lists the tools of the view in front, in the groups of its kind`** (the
+  lead, `d571479`), renamed from "… in the groups of its kind's row"; its body is unchanged. Section 7, line 32 names
+  it so, and section 7 says "A test of slice 1 exists under that name today"; `capabilities.test.mjs` reads the name.
+  The lead owns slice 1's test files (contract 27).
+
+Not changes of a test: `keys.test.mjs` takes `idle` (the same 60 frames), `toast` and `toastAfter` from `helpers.mjs`
+(stage E); `helpers.mjs`'s `showSide` now fails in a sentence when no strip names the panel, where it waited 30 s
+(stage D1), and `SIDES` gains `Notes`. No test was loosened, skipped or marked todo but the plan's seven.
+
+Session 32's mends changed two more files of slice 1, each said under "What was mended" above with its sentence:
+`palette.test.mjs` (five tests hold the creation entries above the actions' rule, and one takes its card from a view
+whose kind has no reader; seam 8) and `viewStore.test.mjs › a view of a kind no plane draws is not drawn and has the
+empty snapshot` (it loads a null grid reader, so it holds once 2-12 builds the real one; seam 1). `resize.test.mjs`
+and `keys.test.mjs` each gained a test, and `tools-panel.test.mjs`'s test was renamed (the hand-over's decision 3).
+
+### Package 2-1: tried and dropped
+
+- **A grip hidden by opacity and always live** (stage 0): a press on Fuel's right grip pressed Signal's left grip (28
+  px apart, the later node wins), and a part at the adapter's least distances has its left grip on its owner's border
+  (12 - 14 = 2 px outside) and its top grip in the owner's header, often on its name.
+- **A grip live only while shown, with no way to it** (stage 0): the grips blink off in the 10 px between the node's
+  side and the grip, and the pointer cannot arrive.
+- **A ring around a hovered node that keeps it hovered** (stage 0, thought through): it is the node's own element, so
+  a press on it drags the node, and it would lie 20 px wide over the owner.
+- **A click on a grip passed on to what lies under it** (stage 0, thought through): more than the plan asks.
+- **`opacity` for showing a grip** (stage 0): about 2 ms more of each frame that shows a node's grips.
+- **`elevateEdgesOnSelect`** (stages 0, D1, E): tried, worked, taken out as the lead's; applied in `d571479` and
+  replaced in `be52723` by a zIndex on the selected edge alone ("The hand-over's decisions", 1).
+- **A border item's grip placed from inside its border** (stage 0): 14.5 px out at single density.
+- **The hover rule outside `:where()`** (stage 0): it outweighed the plane's dashed outline of a line's first end;
+  `tools.test.mjs › while a tool is in hand the plane shows a crosshair, and a click picks nothing by itself` failed
+  ("'solid' !== 'dashed'"). Fixed in `grips.css`, not in the test.
+- **The keys' rules tested by pushing stand-in rows into an exported array** (stage A), and **a `SessionOptions.notes`
+  hook and a second parameter of `marksOf` for stand-ins**: dropped for `loadCoreWith`, which needs no mutation of the
+  core and no change of a production signature.
+- **The session listening to its notes only from its first `listen()`** (stage A): `notesOf(session)` is made in
+  `openSession`, and the session listens from then.
+- **`--grasp-zoom` on the root** (stage B): 135.6 and 179.5 ms a zoom step. And **the rule written through the CSSOM**
+  (`insertRule`, then `rule.style.setProperty`): a tab's body is not in the document when its plane mounts, so the
+  `<style>` has no sheet yet. The rule's text is written instead.
+- **The grips as components** (stage B): 599 to 749 ms to first draw the 2,112-node view against 558 to 654.
+- **The outline of what a gesture is over as a `<style>` rule** (stage B): it had to name the node by its id or by
+  `:has()`, and each change styled the plane again.
+- **`data-thing` on a plane's nodes** (stage B): see `data-of` above.
+- **A shared `NodeMarks` component** (stage B): the seam writes the pair out in each node component.
+- **A `ReactFlowProvider` around the plane** (stage B), to reach React Flow from where `BodyContext` is provided: it
+  changes how React Flow's store is made. The hands reach it through a ref that `Picking` fills.
+- **The Validation test's flow kept with new counts** (stage B): every assertion but one, and the name, would turn.
+- **The tooltip only around a control that has one** (stage C, built and taken out): the button became another element
+  each time its answer changed and lost the focus.
+- **`onSave` kept in `TopBarProps`** (stage C, built and taken out): a prop nothing reads.
+- **Save an `ActionButton` at every moment** (stage C, weighed): it changes what a person meets beyond the brief's list
+  and turns over a test whose name section 7 cites.
+- **A greyed `ActionButton` with `aria-disabled` in place of `disabled`** (stage C, weighed): slice 1's buttons are
+  `disabled`, and the brief changes their tooltip only.
+- **The greyed sentence as the `aria-label` of the span** (stage C, weighed; Material UI's Tooltip does it by itself):
+  `wordsOf` of `helpers.mjs` would read the sentence as a step's words.
+- **The palette closing before the action is asked** (stage C, weighed; a capturing click on its list): it cannot tell
+  a click that opens a second level from one that asks.
+- **Reading the package's name in the dock** (stage C): contract 22. **Clearing a saysOf toast when the model
+  changes** (stage C): the plan has a saying stay until the next.
+- **Points with fractions of a px** (stage D1): a press 1 px above `ServerHost` landed on the box's own grip, not the
+  line's. **Rings of points around a line's grip, in Node**: replaced by every whole px of the grip's rectangle, tried
+  in the page in one call.
+- **`pairsOfKinds(state)` in `core.mjs`** (stage D1): the test groups the pairs itself, and the brief asks `core.mjs`
+  for `pairsState()` only.
+- **Children placed beside each other by a click past the owner's edge** (stage D1): `place()` takes a click outside
+  the owner for the ground; the click is on the owner's bottom edge, and the owner grows.
+- **One making of `pairsState()` on a fixed grid** (stage D1): the first action def grows to 334 high with its twelve
+  control nodes, and a grid wide enough put the general view near the far zoom. **A row of 2,200 for the ground**:
+  with the side panels open the general view opened at about 34%; 1,600 gives about 46%.
+- **`exportOf` failing on any stderr** (stage D1): a state with problems prints them there and still prints its text.
+- **The undo step's words read from the bar's tooltip** (`wordsOf`) for "one undo step" (stage D1): the tests press
+  Ctrl + Z once and look at the plane, the saved file and whether Undo is greyed.
+- **A second, passing test in `refusals.test.mjs` for the built rows** (stage D2), and **the same in
+  `capabilities.test.mjs` for the 39 names that should exist**: the plan names one test each; a package whose row is
+  right where a place was misjudged would meet a failing test it does not own; and line 32 would have failed it.
+- **Comparing each refusal with the plan's sentence** (stage D2): the `<…>` are the library's words; the sentence is
+  kept beside each row and quoted in a failure.
+- **"Names it" with comments counted** (stage D2): it would ask 2-15 to rewrite comments the brief does not ask for.
+- **A `retired.json` with the SHA-256 of all 77 files** (stage D2): section 3 lists no such file; the built page's one
+  hash says enough. **The moved files read from the folders at test time**: impossible before the move, proves nothing
+  after it.
+- **`thingOf` wrapped in `:is(…)` inside `helpers.mjs`** (stage E): about 1,900 presses tried it as it is; its two
+  callers wrap it.
+- **The bench of `seams.test.mjs` in `helpers.mjs`** (stage E): one file uses it, and it would bring esbuild into every
+  test file's imports. **`tipOf` and `controlOf` in `helpers.mjs`**: only `seams.test.mjs` uses them.
+- **The first write of `plan/status.json`** (stage E) cut the file at the wrong `{ "id": 3,`; put back and written
+  again; nothing reached a commit.
+
+### Criterion 9: three runs in a row, with grips mounted
+
+On `be52723`, this session's container, nothing else running (load 0.9 to 2.1 at each run's start, the runs' own).
+`git apply plan/slice-2-handover/stages/standin-connect.patch && npm run build`, then `npm test` three times in a row,
+then `git apply -R` and `npm run build`; `npm run check` held after it. The stand-in for `connectOf` mounts the grips
+on every near node (40 on the example's 13 nodes) and follows a press; it was never in the sources of a commit, and
+the patch goes with the hand-over's `stages/` (`be52723` is the last commit that holds it). With the review's mends no test fails with it in: the test that holds "no grip is mounted"
+now stands on a bench of its own.
+
+| | Run 1 | Run 2 | Run 3 | Limit |
+|---|---|---|---|---|
+| `npm test` | 565 tests, 558 pass, 0 fail, 7 todo; 333 s | the same; 344 s | the same; 335 s | |
+| The 5,000-element model opens | 634 | 551 | 618 | 5,000 |
+| A drag step | 10.6 / 8.3 | 15.1 / 8.3 | 11.3 / 8.2 | 16 |
+| A keystroke in a name | 32.5 / 24.6 | 32.1 / 25.5 | 29.7 / 24.1 | 50 |
+| A keystroke, Validation shown, 150 problems | 37.8 / 26.7 | 36.2 / 28.6 | 28.3 / 31.6 | 50 |
+| A pan step, definitions | 8.6 / 8.3 | 9.2 / 9.8 | 11.0 / 8.8 | 16 |
+| A pan step, deployment | 7.6 / 7.4 | 9.5 / 9.8 | 9.3 / 8.0 | 16 |
+| A pan step, workflows (2,112 nodes) | 15.8 / 23.5 | 11.8 / 13.9 | 11.4 / 12.3 | 25 |
+
+Medians in ms, starting / following (opening / joining for a keystroke), as `scale.test.mjs` prints them.
+`instant.test.mjs` in the same runs: ready 142, 150, 162 (500); the example drawn 75, 83, 77 (1,000); a tab switch
+33, 33, 33 (100); a drag step of the example 2.5, 3.9, 3.2 (16); a keystroke 6.9, 8.9, 9.2 (16). **Every limit held
+in each of the three runs.** The same tree without the stand-in, one run alone: 519; 12.1 / 8.6; 29.3 / 21.8; 30.1 /
+31.0; 11.8 / 12.4; 10.6 / 9.4; 15.2 / 16.2. The two do not differ by more than the runs differ among themselves.
+
+**The landing commit's own run**, by criterion 10: `npm ci` (exit 0), `npm run check` (exit 0) and `npm test`, alone,
+on the tree that is committed: `# tests 565`, `# pass 558`, `# fail 0`, `# todo 7`, 343 s. The model opened in 553 ms;
+a drag step 14.3 / 10.2; a keystroke 29.0 / 27.9, and 31.6 / 33.3 with 150 problems; a pan step 7.9 / 11.1, 8.8 /
+10.8, and 11.0 / 12.7 for the 2,112-node view. The seven todo tests are the seven checks `plan/status.json` holds as
+"todo".
+
+**What the four limits do not time.** A reviewer pointed out that the pan test asserts each fitted view is under 25%,
+where no grip is mounted, and that the model opens onto a fitted, far tab: only the drag step and the keystroke (at
+100%, about 25 nodes in the window) run with grips. So a near view's pan was timed beside them, with and without
+the stand-in, alone, three rounds in turn (the reviewer's `nearpan.mjs`: the scale model of 5,000 elements, 24
+samples a round, `Z=1` and `Z=0.3`; the script was in the session's scratch folder and is not kept):
+
+| A pan step, ms, median of each round | Without grips | With grips |
+|---|---|---|
+| definitions at 100%: 24 nodes, 69 grips | 5.9, 7.5, 6.5 | 5.8, 6.0, 6.6 |
+| deployment at 100%: 26 nodes, 68 grips | 5.2, 5.0, 4.2 | 4.8, 5.4, 5.8 |
+| definitions at 30%: 270 nodes, 810 grips | 18.2, 15.9, 19.9 | 20.8, 20.6, 15.8 |
+| deployment at 30%: 230 nodes, 569 grips | 14.5, 13.3, 12.3 | 21.3, 15.5, 13.5 |
+
+At 100% the grips cost nothing that shows. At 30%, with 570 to 810 grips mounted, a pan step may cost 1 to 3 ms
+more; the rounds overlap. No limit covers a near view's pan, with grips or without: at 30% it takes 12 to 20 ms
+before any grip. Criterion 9's sentence is met as it is written; this is kept for the closing and for slice 7.
+
+### What the builders of rounds 1 and 2 must know that the plan does not say
+
+Each item names the packages it concerns, and where in the code it can be seen. It comes from the scaffold's stage
+reports, from the nineteen reviewers, or from a decision of the lead's that the plan leaves open. Where a sentence
+here and a brief disagree, say so in the hand-back; the plan stands.
+
+**Every builder.**
+
+- **A test's title is one string literal.** `capabilities.test.mjs` finds a name only as the first argument of
+  `test(`, written out: not `it(`, not `t.test(`, not a constant, not a title put together (`titlesIn`).
+- **Export only the names your brief gives.** `core/index.ts` re-exports every core file with `export *`. One name
+  exported by two packages builds in each worktree and fails `tsc` (TS2308) when the second lands. Both probes'
+  `layout.js` export `CLICK_DISTANCE`, and the geometry one `PAD`, `fit`, `listed` and `readView`: keep ported helpers
+  unexported, or in a module `index.ts` does not re-export.
+- **In a file of `core/actions/`, use what `commands.ts` exports only inside functions.** `commands.ts` imports every
+  row file and each imports it back, so a row file's top level runs before `commands.ts`'s: a constant worked out
+  there from `TOOL_TITLE` is `undefined` in Node's bundle and a ReferenceError in the page's.
+- **Rows.** Fill your own array in `core/actions/<file>.ts`; nothing else changes. `actions()` throws on two rows of
+  one id; of two rows with one key the earlier wins. `refusals.test.mjs` asks each built row at ten places read from
+  section 5's "Applies" column (its header lists them): `show-in-view` in the example (every element shown already)
+  and in the browser fixture's tree; `add-code-link` with a start node picked; a refusal only `run` gives is not
+  asked. A row that applies at one of them fails it; the plan's cell decides which is wrong.
+- **Your stylesheet is yours to make.** No `.css` skeleton exists. Create the file your brief lists and import it from
+  your own component (a node folder: from its `index.ts`); `build.mjs` bundles every imported stylesheet into the one
+  `app.css`. `plane/nodes/grips.css`, `plane/marks/marks.css`, `views/body-frame.css` and `plane/zoom.css` are the
+  scaffold's: a change there is asked of the lead.
+- **The scaffold's tests stand in for your files.** The benches of `seams.test.mjs` and `loadCoreWith(swaps, ...files)`
+  of `core.mjs` bundle the application or the core with a module swapped for a stand-in. Each stand-in begins with
+  `export * from './<file>?real'`, so you may add exports to your file. `STAND_IN_NOTES`, `STAND_IN_ENTRIES`,
+  `STAND_IN_PLANE_READER` and `STAND_IN_PLANE_ACTIONS` are in `core.mjs` for your own Node tests; in `seams.test.mjs`,
+  `bench({ files, views, swaps })` mounts any component with stand-ins.
+- **A test you do not own that fails once your part is built** is named in the hand-back with its first failing line
+  and the plan's sentence, and left as it is. The review found the scaffold's own tests that pinned "not built yet"
+  (the grips, the palette's actions, the sections of Details, the Text and New view buttons, a kind's card, the
+  hooks' tables, the notes' key order); they now stand on stand-ins and hold whatever is built. What is still
+  expected to fail by design is listed under each package below.
+- **Nothing on a plane opens with a transition.** A menu or a tooltip of Material UI grows in by default: give it
+  `transitionDuration={0}`, as `plane/Palette.tsx` does. `camera.test.mjs` holds line 15 of section 7 for everything
+  on a plane, and `connect.test.mjs` asks that the connect menu is gone right after a line is drawn.
+- **The keys.** The page's one keydown listener is `App.tsx`'s, in the capture phase, so it runs before a widget of
+  Material UI hears the key. `pressed` (`core/keys.ts`) takes no space bar as a printable key, reads Ctrl with Alt as
+  AltGr, and never reads `+`, `=`, `-`, `_` or `0` as printable. After a click on a view's tab the focus is on
+  Dockview's tab, inside a `tablist`, where arrows, F2 and a typed character do not act (`KeyPlace.widget`, set by
+  `placeOf` in `shell/App.tsx`): a test clicks the plane's ground first. Escape with no tool in hand lets go of what
+  is picked, also when the same Escape closes a menu, and acts with the focus on a checkbox or a radio button of
+  Details. A toast said through `saysOf` stays until its 8 s, Escape or the next saying, and keeps the largest
+  `data-said` it showed.
+- **A control greys by `applies` alone.** Greyed, an `ActionButton` is `disabled` and its tooltip hangs on a span
+  around it; an `ActionItem` is `aria-disabled`, and a click on it says the sentence in a toast with the menu left
+  open (`shell/ActionControl.tsx`). A menu of choices is `[data-choices="<id>"]`, its entries `[data-choice]`, which
+  `chooseAction` clicks. The palette gives the focus back a frame after an action ran, so an action that puts the
+  focus somewhere does it after that frame (`plane/Palette.tsx`).
+- **A screenshot.** `canvas/app/test/shots/<name>.mjs` is `pending: true` and throws "<name>: package 2-N takes it";
+  the package writes `take()` and takes `pending` off there, not in `shots.mjs`. `npm run shots -- <name>` takes one,
+  and its `canvas/app/shots/<name>.png` is handed back with the package. `npm run shots` with no name rewrites the six
+  committed pictures with other bytes (the left strip names Notes): do not hand those back.
+- **Running things.** `npm test` gives a test file 600 s, whatever a test inside it allows itself. One file:
+  `node --test --test-timeout=600000 canvas/app/test/<file>`. A timed test that fails beside other work is run again
+  alone before anything is concluded.
+
+**2-2, lines by dragging.**
+
+- **`hitAt` and the grips.** On a plane, a node's grip answers its node: a line let go on the handle a person aims at
+  is let go on that node (`planeHands.hitAt` in `Plane.tsx`; the review found it answered the ground there). A line's
+  end grips, the pins, the badges and the line in hand are still passed over. Where a line crosses a box, `hitAt`
+  answers the line (seam 2's "the first that is a node or an edge"), so a line let go there is "on a line"; `pointOn`
+  of `helpers.mjs` gives a point where the thing itself is on top, so the tests' drops never fall on such a line.
+- **Coming to a grip.** A grip that is not shown takes no pointer, and coming from outside its place is the ground:
+  the pointer comes to a grip from its node. Where a border item sits at a side's middle (29 of 115 boxes), that
+  side's grip is reached only while the box is selected (`Host` of the example: use `left`). A selected line's end
+  grip can lie under a hovered box's grip (`s-DevHost` on `Host`'s bottom): come to it from the ground. See
+  `grips.css` and `gripOf(page, viewId, id, grip = null, { covered = 'fail' })`, which gives the first free grip when
+  none is named, and null with `covered: 'null'` for a grip that is shown but lies under something. `pointOn` and
+  `gripOf` answer in whole px; `dragBetween` waits for nothing after the release.
+- **A selected line lies over the boxes it crosses** (`SELECTED_LINE_Z`, `plane/viewStore.ts`), so each of its two
+  end grips can be pressed: 0 of the 116 line ends of the ten files are covered, 19 were. The lines of a picked box
+  that is nested lie over its siblings, as in slice 1; there `hitAt` answers the line, not the box under it.
+- **A grip is 8 of the view's units**, 8 times the zoom on the screen (3.4 to 6.7 px at the zoom the ten files open
+  at), as `Grips.tsx` says: assert that, not 8 px of the screen.
+- **A release before 4 px does nothing whatever the gesture does**: the plane drops the click after every press on a
+  grip (`noClick` in `Plane.tsx`). `mark`'s outline of something that fits nothing uses `--grasp-unfit` (`grips.css`).
+- **Keep the gesture in `gesturesOf(session)` while the menu is open.** `App.tsx` runs `put-down` before Material UI
+  hears Escape; a gesture that left `gesturesOf` at the release would let that Escape also put the tool down or let
+  go of what is picked.
+- **A line drawn says nothing**, by the gesture or from the menu; only refusals are said. `connect.test.mjs` asserts
+  no new toast after a drawn line. It also asserts the notes' numbers before its first drag, drags with 3 moves, has
+  a limit of its own of 300,000 ms (its 776 drags took 73 s against a stand-in, before the gesture's own checks), and
+  checks every drawn line to run between its two nodes within 2 px (`endsAt`). A "defined by" line from a usage that
+  has one adds no line.
+- **`reconnectProblem` checks `drawProblem`'s sentence first** (with `but` the line itself), then "<usage> is defined
+  by <def> already. Clear its definition in Details first.", as `reconnect.test.mjs`'s `refusal()` has it. The ten
+  files do not exercise the second rule: your own Node test does.
+- **A note on a moved line.** In your Node test of `reconnect`, check a note by its target and its text, not by its
+  whole record: once 2-7 has landed, a note's `targetLabel` follows the line's new words. `reconnect.test.mjs` leaves
+  `targetLabel` out after the move and holds the whole record after Undo.
+- **What it costs.** Taking a line in hand costs 19 to 25 ms once in a near view of 286 nodes (`data-connecting`
+  shows 676 grips and `Plane` renders), then 2.5 ms a step with a stand-in's `hitAt` and `mark`. The hover costs 5
+  to 8 ms of frame for each node the pointer comes onto.
+
+**2-3, label editing.**
+
+- **The camera's rows are in the commit you start from**, so "the + and - keys zoom and start no label" can pass in
+  your worktree.
+- **At a hit, `edit-label` and `type-label` act on the hit's thing** (seam 8: the palette holds "what is about the
+  thing that was clicked"); with no hit, on what was picked last.
+- **In a browser view the two rows do not apply**: a row is renamed by its tree (2-13). Answer with a sentence, such
+  as "<View Y> renames a row in its tree: press F2 on the row, or double-click it.", so that the palette of a
+  browser body does not offer them. The Explorer never asks them: inside a `tree` F2 is the widget's.
+- **Nothing tells of a pan.** The store reports the zoom only (`watchZoom`), and `--grasp-zoom` does not reach the
+  editor, which is outside the plane. While the box is open, follow the anchor's rectangle every frame. A node or a
+  line outside the window is not mounted and has no anchor; `listed` gives a line's `rect` as null, so its place to
+  reveal is worked out from its two ends' rectangles (`readView`).
+
+**2-4, deleting, showing, views.**
+
+- **`setViewOption`'s contract is its comment in `core/actions/views.ts`**, which now holds what the briefs of 2-4,
+  2-12 and 2-13 each say only in part: `''` in an option row stands for null in the model (`sort`: the model's order;
+  `roots`: the whole package), and `setViewOption` takes either and writes null; how the `roots` set is written; and
+  `collapsed`, a list of ids with no option row, with its three sentences.
+- **The core cannot import `views/bodies.ts`** (the core is bundled for Node, and `bodies.ts` imports `views.ts`).
+  State each row's range and values again in `views.ts`, and hold them equal to `bodyOf(...).options` in a test.
+  `viewOption` and `rootChoices` are built already; `setViewOption` throws.
+- **`ShownSection` must not read every view at each render.** Details renders its sections at every change of the
+  history's mark, so at every keystroke in a name. `readView` and `listed` over the scale model's three views cost 78,
+  56 and 55 ms in Node, against the keystroke's limit of 50 (`scale.test.mjs`). Keep what each view lists, and work it
+  out again only after a change with `told.structure`, `told.shown` or `told.replaced`, or one that names the view in
+  `told.views`. A rename changes no list.
+- **A view whose kind has no reader yet** (`readView` gives null: the six sequence, geometry, grid and browser views
+  of the ten files, in round 1) is left out of the shown-in lines, and its section shows no count. Pin only graph
+  views' lines and counts in the page's tests, and check line 101 ("Show all and Show every… fill a grid view")
+  through `saveAndRead`.
+- **The last ticked column of a table** is greyed by the section itself, with `setViewOption`'s sentence (the
+  comment has it). 2-12's test of line 98 asserts it.
+- **Test ids.** Give the shown-in section `data-testid="shown-section"`. Give nothing in a section a test id that
+  begins with `field-`: `details-fields.test.mjs` reads every such id in Details.
+- **Where things are.** A section of Details is drawn inside `.grasp-details`, so its fields are inside
+  `data-history-keys` and Ctrl + Z there is the history's. Each section's file exports its `Section` (`shownSection`,
+  `viewSection`, `codeSection`), whose `applies` answers false in the skeleton. The New view button is `TabBarEnd` in
+  every editor group (`shell/Dock.tsx`); a new view's tab opens beside the view in front, and a view's tab follows the
+  model (a tab a person closed stays closed). Backspace is no alias of Delete (`ALIASES`, `core/keys.ts`).
+- **Fails by design**: `move.test.mjs › Backspace and Delete remove nothing` (your brief names it).
+
+**2-5, another owner.**
+
+- **A drop writes the owner and the place in the view, and leaves the model's order as it is.** The brief says the
+  drop writes "the element's new place in the model's order where the old page's `drop` moves it": the old page's
+  graph drop moves nothing there (`canvas/src/core/page/drawing.js`, lines 528 to 561).
+- **What the middle is judged against.** Today's step holds a nested box inside its owner and grows the owner, so the
+  middle of the box as drawn never leaves the owner as drawn. Judge the middle of the box where React Flow asks for
+  it, unclamped, against the owner's rectangle in the gesture's start projection, as the old page's `home` does.
+- **`adapter.test.mjs › rule 1: inside its owner a box never goes left of 12 or above 48, and its owner grows to hold
+  it`** expects `project()` with `Page.app` placed at 700, 104 to grow `Page` to 892. Keep `placesFor`'s and
+  `project()`'s answer for a call without a new option (the store names the box that is out, by an option), or stop
+  and name the test.
+- **`landingOf` runs at every step of a box with no owner**, which is "out" from its first step: `scale.test.mjs`'s
+  timed drag moves a top-level part def at 5,000 elements, and `instant.test.mjs` drags `Host`. It must fit a step's
+  budget; a dragged kind that no kind may hold can answer null at once.
+- **No stylesheet is yours.** A node whose `className` holds `landing` gets the dashed outline of the box a dragged
+  box would land in (`grips.css`, the rule on `.react-flow__node.landing`; the store's contract in `viewStore.ts`).
+- **Fails by design**: `move.test.mjs › a nested box cannot leave its owner, and the owner grows` (your brief names
+  it).
+
+**2-6, badges and the checks.**
+
+- **`Badge` writes no click handler.** A line's marks are drawn through React Flow's `EdgeLabelRenderer`, which is a
+  React portal: React carries a click on the badge to the edge's `onClick`, as a node's badge reaches its node. With
+  a handler of its own, Ctrl + click is taken twice and leaves the line unpicked. The skeleton's comment said the
+  opposite and is corrected.
+- **An `Entry`.** `message` is the sentence: a problem's `message`, a diagnostic's `message` (not SysON's label, its
+  `text`). `about` is what a click selects, null when nothing can be picked. For a problem on a hidden relationship
+  whose `from` the model still holds (a port's "defined by" line), `about` is that `from` element, the last of
+  `aboutProblem`'s `pick`, so that the badge stands on the port as on the old page.
+- **The Validation panel keeps building its rows from `checksOf(session).state.found`** with `aboutProblem` and
+  `aboutDiagnostic`: a row shows SysON's label for a broken rule and carries `package:` or `none:<id>`, which an
+  `Entry` cannot say, and slice 1's `validation.test.mjs` holds both. The count line, the marks, a badge's tooltip and
+  the grid's problems column read `entriesOf`. (The lead's reading of contract 8 for this slice; it is among the open
+  points for Damon.)
+- **A click on an entry about a line** picks it and brings its view to the front, and reveals nothing: `listed` gives
+  a line no rectangle. The test of line 63 uses an element.
+- **A badge's size** is given in your `badge.css` (`var(--grasp-badge)`), not through `.grasp-plane`: `marks.css`
+  scales `.grasp-marks` only on a plane, and a row of a component body shows a badge too.
+- **The checks are live while a plane is shown** (`marksOf` listens while a store listens): opening a file checks
+  once, in the plane's first subscription; an edit is checked 0.8 s later; an Undo or a Redo checks inside its event
+  (about 40 ms at 5,000 elements in slice 1). `.grasp-marks` exists only on a marked thing, and `--grasp-zoom` can be
+  read only inside `.grasp-marks`, React Flow's viewport portal and its label renderer; elsewhere ask the store's
+  `zoom` and `watchZoom`.
+
+**2-7, notes.**
+
+- **"Add note is greyed and says why"** (section 7, line 66) can only be the Notes panel's button, asked with no hit:
+  the palette lists an action only where it applies.
+- **A pin stops its click.** A pin's click reaches its node, and on a line its edge, through React (the label
+  renderer is a portal): stop the React event's propagation, or the thing under the pin is picked.
+- **The pass-through you replace.** `notesOf`'s `open`, `archive` and `file()` are the file's lists, `mark()` is 0,
+  `listen` tells nobody, and every changing function throws, `attend` and `point` among them. A state file's free
+  note floats on no view until your rule gives it one (its record has `x` and `y` and no `view`), so
+  `marksOf(session).free()` is empty for it today. `FreePins` is mounted only while a view has a free pin. `file()`
+  is compared by value and a saved record by `deepEqual`: neither the same array nor the file's order of keys is
+  asked.
+- **In the panel and on the plane.** Place the Add note button from your own `notes.css`: `SidePanel` has no slot in
+  its title row, and `.grasp-side-body` is not positioned. A free pin is not inside `.grasp-marks`: give it `nodrag
+  nopan` and `pointer-events: all` yourself (React Flow's viewport portal takes no pointer). Give an archived note's
+  card `data-testid="note"` and `data-note` too: `noteIn` of `helpers.mjs` finds it so. (`noteIn` was tried on a
+  made-up page only; `pinOf` on the bench's stand-in free pin.)
+- **In your Node tests "the text"** is `lib.toSysML(model, notesOf(s).file().notes, notesOf(s).file().archive)`, not
+  `exportText`, which is 2-9's and throws. Declare `labelFor` on `SysMLModelLibrary` in `core/notes.ts`, as
+  `session.ts` declares `normalize`.
+- **Fails by design**: `files.test.mjs › the notes and the archive are written as the file has them` (your brief
+  names it).
+
+**2-8, code links.**
+
+- **Whether an element can hold links.** You may add an export to `core/codeLinks.ts` that says so, and the section's
+  `applies` asks it, not the record (rule 6). `codeLinksOf`'s comment says what it gives for an id with no links.
+- **"codeRowsOf gives each link's words" passes as soon as it is written**: the scaffold built `codeRowsOf`, since the
+  page draws code compartments already. Write it and say so in the hand-back.
+- **Use a native `<select>` for a link's language.** A Material UI Select's list has the role `listbox`, where Escape
+  is the page's key: pressed in the open list it also lets go of the picked element, and Details empties.
+
+**2-9, the text tab.**
+
+- **Where it is.** The text tab is Dockview's panel `text`, titled by `textTitle(session)` from
+  `packageNameOf(session)` (`model.sysml` with no name); `showText()` opens it or brings it to the front; another
+  file takes it away. The bar's Text button shows once `open-text` is in the table.
+- **`copy-text`'s `run` starts the copy and returns nothing**: `run` does not wait, and the clipboard does. Both
+  sentences are said through `saysOf(session)` when the copy settles. `hands.copy` rejects with "This page has no
+  clipboard." when there is none. In `text.test.mjs` the refusal comes from `openPage`'s own context as it is; for
+  the copy itself, call `opened.context.grantPermissions(['clipboard-read', 'clipboard-write'])`.
+- **`shell.test.mjs › no header palette or button row exists` keeps passing** with the Text button, though your brief
+  names it as one you may make fail.
+
+**2-14, the camera's keys and the readout (round 1).**
+
+- **You own three files only**: `core/actions/camera.ts`, `plane/ZoomReadout.tsx` and `canvas/app/test/camera.test.mjs`.
+  The brief's other files and its closing are the lead's. `camera.test.mjs` is a header with its five names and no
+  test: write the five tests of lines 8 to 11 and 15 first, under their exact names.
+- **Seven rows**, as section 5 has them (section 3's "three rows" is short for them): `zoom-in`, `zoom-out`,
+  `fit-view`, and `pan-left`, `pan-right`, `pan-up`, `pan-down`, titled "Move left", "Move right", "Move up", "Move
+  down".
+- **The hand answers.** `handsOf(session).hands.camera(viewId, how)` gives true when a mounted plane of that view
+  took it, and false otherwise (the text tab is in front of the view; the view's kind has a graph body that is not
+  built yet and shows its card). `applies` cannot know that, so `run` refuses with a sentence when the hand answers
+  false ("No view is in front.", as `camera.ts`'s comment has it), and a test holds it: no key is refused with
+  nothing shown (criterion 6). Whether a view has a camera at all:
+  `graphBodied(renderer)` of `core/readers/index.ts`. `lentCamera` and `lentReveal` are in `views/lends.ts`; `left`
+  shows what is to the left (the content moves right by 80 px).
+- **Line 15, general.** Check the computed `transition` and `animation` of every element of the plane, and
+  `document.getAnimations()` after a zoom, a pan and a fit, with reduced motion asked for and not.
+- **Read**: section 5 (the camera's rows, "Four things about the table"), seam 8, `Plane.tsx`'s contract ("The
+  camera's hand"), `views/lends.ts`, `viewStore.ts` (`zoom`, `watchZoom`), `core/selection.ts` (`view` is the view in
+  front), and `cameraOf`, `pressKey`, `groundPoint`, `zoomTo` and `toastAfter` of `helpers.mjs`. Places 2 and 3 of
+  `refusals.test.mjs` hold your sentences. `ZoomReadout` is ordered between the zoom buttons by `plane/zoom.css`.
+
+**2-10 to 2-13, the four bodies (round 2).** The lead reads these again before round 2 starts, with what round 1
+built.
+
+- **2-10, 2-11.** `PlaneNode` and `NodeData` cannot hold a lifeline, a footprint or the axes without a cast. Give
+  your nodes your own data with `element`, `view` and `marks`, and cast them; the store and the plane read only `id`,
+  `position`, `data.element`, `data.marks`, `data.far`, `selected` and `dragging`, and nothing outside
+  `readers/graph.ts` reads `data.form`. What a node or an edge of another renderer must carry (`data-of`,
+  `.grasp-marks`, `data-label`, the grips, its own look for `selected` and `data-over`) is in
+  `plane/nodes/sequence/index.ts` and in `Plane.tsx`'s contract. `reader.step(data, asks)` gets no model, and the
+  store hands it a spread copy of what `read` gave: keep `lib`, `model` and `view` in a field of your own on the
+  projection (a WeakMap keyed by the projection misses the copy).
+- **2-10, 2-11.** `hasReader` lists a kind's tools as soon as its reader is exported; the body is drawn only when
+  reader and node types are both there. `graphBodied(renderer)` in `core/readers/index.ts` must agree with `body:
+  'graph'` in `views/bodies.ts`; no test holds them together. `sequenceReader` is `Reader<Projection> | null`, and
+  `SequenceEnd` is `unknown`. `offers()` in such a view offers every element kind. The first end's dashed outline
+  names its node by `data-id` (`Plane.tsx`), which is right only while a head's node id is its element's.
+- **2-10.** In the projection's nodes each lifeline's head comes before its `<id>:line` node, then the events:
+  `thingIn`, `pointOn`, `gripOf` and `pinOf` take an element's first node. The sequence entry of the registry sets
+  `elevateNodesOnSelect: false`: the store selects both nodes of a picked lifeline, and React Flow would raise the
+  tall line node over the messages. `MessageEdge` leaves a press inside `[data-grip]` alone (the plane hands it to
+  the connect gesture without stopping it); gives the edge the class `message` and `data-of` on the path that takes
+  the pointer; and the line node takes the pointer only along its strip (`pointerEvents: 'none'` on the node's
+  style, since React Flow gives every node `all`). An event's marks are drawn by `SmallNode`, above its dot (seam 4);
+  the brief says "beside". `ORDER_LOCKED` and the locked `order` hook are in `panels/hooks/sequence.ts`; replace them
+  there. The locked order of a message is held by `details.test.mjs`, not `details-fields.test.mjs` as the brief has
+  it.
+- **2-12.** `sort`: null and `''` both mean the model's order; pass null. Draw the rows again when
+  `checksOf(session).listen` tells too: the problems column reads the entries' words, and `marksOf` tells only when
+  a count or a pin changes. `reveal` gets the rectangle `listed()` gives, in the reader's order: map it back to its
+  element, show enough rows, and scroll to where the body draws it.
+- **2-13.** Tree View 8 starts its label editing on Enter and on a double click, never on F2. Open the editor on F2
+  yourself in the row's `onKeyDown` (`useTreeItemUtils(...).interactions.toggleItemEditing()`), and mark Enter
+  `defaultMuiPrevented` on an editable row that is not being edited, so that Enter still folds or picks as slice 1's
+  Explorer does. The library's input starts from the row's label, which for a line is the kind's label: give it the
+  name. Expand all is an `ActionButton` for `expand-all` in a bar at the top of the body. Marks stand in the body's
+  rows only, not in the Explorer's (`Pins` and `Badge` read `useBody()`, and `explorer.test.mjs` compares a row's
+  text exactly); compare the two rows without their marks. `explorer.css` is not yours.
+- **2-12, 2-13.** A thing of a component body is `[data-thing="el:<id>"]` or `"rel:<id>"` on the element that takes
+  the click; its outline while a gesture is over it is `data-over` (`fits` or `no`, `body-frame.css`). In `BodyFrame`
+  a control of the body's own stops its click, and `onShown` is not called for the size the root mounts with.
+  `FreePins` draws from its offset parent's top left.
+
+### What the lead owes later, from the review
+
+**Before round 2 starts** (a commit of the lead's on top of round 1, which the four worktrees start from):
+
+- **Tests of slice 1 that more than one body makes fail by design.** Left as they are, each of 2-10 to 2-13 would
+  change the same test in its own worktree. They are made to follow what is built (a kind's card while
+  `hasReader` is false, its body after), as `readers.test.mjs` and `viewStore.test.mjs` already do:
+  `open.test.mjs › … 17 tabs, 11 planes, 6 cards …` (all four); `tools-panel.test.mjs › a view no plane draws has no
+  tools here` (2-10 and 2-12; it loops over `v-seq` and `v-table` only, so 2-11, whose brief names it, does not break
+  it); `commands.test.mjs › the tools of a view kind are its row's, in its groups` (2-10, 2-11: it asserts
+  `toolGroups` of a sequence and of a geometry view is empty) and `› a click in a view whose row lacks the tool puts
+  the tool down and says so` (2-10).
+- **One body's alone**, named for its builder when the briefs go out: for 2-10, `plane.test.mjs › a sequence view's
+  tab says it is not drawn yet`, `sturdy.test.mjs › a watcher is told when its view stops being drawn, and watching
+  does not make the store live`, three tests of `fieldHooks.test.mjs` (at lines 112, 351 and 715 of the scaffold's
+  commit) and `details.test.mjs › the lines: connection, interface, flow, binding, succession, transition, message; …`
+  (the locked order; 2-10's brief says `details-fields.test.mjs`, which holds no message). For 2-12, nothing beyond
+  the two above: `viewStore.test.mjs`'s test of a kind no plane draws now loads a null reader.
+- **Where an event's marks stand**: seam 4 says above a small node, 2-10's brief says beside an event's dot, and the
+  scaffold draws them above (`SmallNode.tsx`). The lead says which before 2-10 starts.
+- **The notes for the four bodies** in the section above are read again against what round 1 built: the view's
+  section (2-4), a badge (2-6), a pin (2-7), `rename` (2-3), a line dragged to a lifeline (2-2).
+- **`setViewOption` in a grid's `columns`**: 2-12's test of line 98 needs 2-4's section to grey the last ticked
+  column. Check it is there when 2-4 lands.
+
+**At the closing (package 2-14):**
+
+- **Criterion 6's two tests in the page are written then**: "every key of the table, pressed where its action does
+  not apply, shows that sentence as a toast" and "every control of an action that is shown where the action does not
+  apply is greyed and carries its sentence". The scaffold wrote the Node test only, and section 9's count of seven
+  todo tests leaves no room for the other two; `refusals.test.mjs`'s header says so. The brief's closing names only
+  the todo marks.
+- **An arrow key in a grid view**: the camera's row refuses with "<A grid view> has no zoom: it scrolls.", and
+  `App.tsx` prevents the key's default, so the table the toast says scrolls does not scroll by that key. Decide then
+  whether a refused camera row leaves the default alone.
+- **Criterion 2's test compares sets** (`fixtures.test.mjs`, and `thingsIn`'s own set): a body that draws one thing
+  twice passes it. Needed while a lifeline has two nodes and a matrix heads an element twice; count duplicates
+  outside those kinds if a body gives reason to.
+- **`canvas/app/README.md`** still describes slice 1's tree but for one paragraph and one line.
+
+**For package 2-15**, beyond its brief, each found by a reviewer who ran the package as briefed in a worktree and
+then `retired.test.mjs`:
+
+1. `adapter.test.mjs` imports `layoutHash` and `OLD_LAYOUT` from `old-layout.mjs`: move both into `adapter.test.mjs`
+   before `old-layout.mjs` goes.
+2. `canvas/test/store-dump.test.mjs`'s `describe` title names `save-state.mjs`, and the test reads titles as code.
+3. The vm file name `canvas/index.html#model-lib` in `lookups`, `metamodel`, `model-lib` and `stored` of `canvas/test/`.
+4. `history-walk.test.mjs`'s helpers `oldPage()` and `flagsOf` go with its first two tests.
+5. `unchanged.test.mjs`: `build` out of `NODE_TESTS`, and `NODE_TEST_COUNT` 42 (it is 50). With these, `retired` and
+   `unchanged` pass and `npm run test:old` gives 42 of 42.
+6. `panels/Tools.tsx` (its `notDrawn` sentence) and `cardOf` of `helpers.mjs` hold "The old page draws it until slice
+   2." beside `NotDrawnYet.tsx`: change the three together.
+7. **To decide then**: whether the archive holds the removed tests of `store-dump.test.mjs` and `model-lib.test.mjs`
+   as partial files at their paths; whether `old-layout.mjs` is deleted or archived; and `unchanged.test.mjs`'s
+   title, which names the old page and is slice 1's check 6 in `plan/status.json` word for word.
+
+**For slice 4's plan**: two modules outside contract 22's list read a model's record. `plane/viewStore.ts` reads
+`view.kind` and writes `view.layout` at a gesture's end, as it did in slice 1; `core/session.ts`'s `packageNameOf`
+reads `session.model.package.name`. No component reads a record's field.
+
+### Open
+
+- **Damon's to overrule, if he reads contract 8 otherwise.** Contract 8's rule is "a consumer reads the entries, so
+  it shows a new list without new code", and the Validation panel is one of its consumers. The lead told 2-6 to keep
+  the panel's rows on the checks' own records: a row shows SysON's label for a broken rule and tells the package
+  (`package:`) from a thing the model no longer holds (`none:<id>`), which an `Entry` of the contract's form cannot
+  say, and slice 1's `validation.test.mjs` holds both. The panel's count line, the marks, a badge's tooltip and the
+  grid's problems column read `entriesOf`. Slice 5's third list is where the panel's rows meet the rule again.
+- **Escape acts from a checkbox or a radio button of Details**: it puts the tool down, or lets go of what is picked,
+  and Details empties under the focus. Slice 1's rule skipped every `INPUT`; section 5 says "Any other key does not
+  act when the event comes from a text field", and the scaffold follows it. Seam 8 says the rules "move into
+  `pressed` unchanged": the two sentences disagree for a checkbox.
+- **The brief's fourth difference was so already**: React Flow lets the middle button drag the plane whenever
+  `panOnDrag` is set, and always from a node or a line (`@xyflow/system`, `createFilter`). `panOnDrag={[0, 1]}` only
+  states it, and its test could not fail first.
+- **Section 12's departure 4 says one test of slice 1 changes for the moved typing.** Three places of
+  `commands.test.mjs` and the uses of `tools.test.mjs` did, each by section 2's sentence ("the tests of slice 1
+  that changed", above).
+- **Lines 34 and 35 of section 7 name one test**, so the 112 capabilities name 111 tests: the count before 2-15 is
+  no miss.
+- **`plan/REPO_MAP.md` is not drawn again.** It shows slice 1's tree, and aider is not on this container. The
+  scaffold added about eighty files; section 3 of `plan/slice-2.md` is their map until the map is drawn.
+- **Small things the stages left**: the palette's list is still named "Make here" (`aria-label`) though it lists
+  actions too; `TOOLS_TEXT.notDrawn` and the card still say "The old page draws it until slice 2." (2-15 changes
+  them); the first end's dashed outline names its node by `data-id`, which slice 3 must change.
+
+### For the next session
+
+- **Round 1 is next**: packages 2-2 to 2-9 and the camera's keys of 2-14, each in a worktree of its own
+  (`/home/user/wt/<id>`, `git worktree add --detach`, then `npm ci`), from this package's landing commit.
+  `plan/slice-2-handover/workflows/round-packages.js` builds a package (a builder, a reviewer who did not write the
+  code, rework, a reviewer who sees only the screenshot and its list); `make-args.py <round> <commit> "<words>"`
+  writes its arguments from `shots.json`, section 6's nine lists; `land.js` lands built packages one after another,
+  one commit each, alone. Each script names the session's scratch folder near its top: set it. The harness runs two
+  agents of one workflow at a time on four processors, so a round is several workflows side by side.
+- **2-3 starts after the camera's rows are built**, from the scaffold's commit with the camera's three files on top
+  (a commit of its own that only the worktree uses); the camera lands before 2-3.
+- **Landings are made with nothing else running**, the camera's first. A timed test that fails is run again alone.
+- **Before 2-15**, Damon sees the capability count of criterion 3.
