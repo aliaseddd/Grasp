@@ -1,0 +1,6 @@
+# What aider leaves out of plan/REPO_MAP.md (gitignore syntax, read against the repository's root).
+# It is not named .aiderignore because .gitignore leaves out .aider*, aider's own cache and history.
+
+# The new page as built: Grasp's code and the libraries bundled and minified by esbuild, the model
+# library stitched from canvas/src/core/lib/ (which the map shows from there), and elkjs as shipped.
+canvas/dist/

@@ -1,17 +1,19 @@
 # Repo map
 
-Drawn by [aider](https://aider.chat) 0.86.2 with `aider --show-repo-map` on November 14, 2026, over the files git tracks. For each file, aider's tree-sitter parser lists the definitions it would hand a model as context; a bare file name means the file has none it recognizes (configuration, Markdown, CSS, JSON). The `⋮` marks lines left out.
+Drawn by [aider](https://aider.chat) 0.86.2 with `aider --show-repo-map` on November 14, 2026, over the files git tracks, less those `plan/repo-map.aiderignore` leaves out: the built page in `canvas/dist/`. For each file, aider's tree-sitter parser lists the definitions it would hand a model as context; a bare file name means the file has none it recognizes (configuration, Markdown, CSS, JSON). The `⋮` marks lines left out.
 
-The map is what an AI pair programmer sees of this repository before it opens a file. Read it as a table of contents: the new page's TypeScript in `canvas/app/`, the old page's scripts and the model library in `canvas/src/`, the tests in `canvas/test/` and `canvas/app/test/`, and the SysML scripts in `docs/sysml/`. The built pages (`canvas/index.html`, `canvas/dist/`) are generated, and aider doesn't read their inline or bundled scripts. Stronghold's code, which this repository held until November 7, is in the Stronghold repository now; its map from then is in this file's history.
+The map is what an AI pair programmer sees of this repository before it opens a file. Read it as a table of contents: the new page's TypeScript in `canvas/app/`, the old page's scripts and the model library in `canvas/src/`, the tests in `canvas/test/` and `canvas/app/test/`, and the SysML scripts in `docs/sysml/`. The built pages (`canvas/index.html`, `canvas/dist/`) are generated and not in it. Stronghold's code, which this repository held until November 7, is in the Stronghold repository now; its map from then is in this file's history.
 
-It is one of the project state documents: read it with `status.json` (where the work stands) and `notes.md` (what the last session left), and use it to find the file to open. It lists code only; the plan and the decisions are in `direction.md` and `slice-1.md`.
+Open it to find the file to open, not at the start of every session: `start-here.md` says what a session reads first. It lists code only; the plan and the decisions are in `direction.md` and `slice-1.md`.
 
-To redraw it after changes, from the repository root (aider needs a model name to start, but drawing the map makes no API call). aider maps the files of the last commit, not staged changes, so commit first:
+To redraw it after changes, from the repository root (aider needs a model name to start, but drawing the map makes no API call). aider maps the files of the last commit, not staged changes, so commit first. `PYTHONHASHSEED=0` makes two runs on the same commit give the same map:
 
 ```sh
-COLUMNS=160 aider --show-repo-map --map-tokens 8192 --no-pretty --yes-always \
-  --no-check-update --no-analytics --no-show-model-warnings --model gpt-4o
+PYTHONHASHSEED=0 COLUMNS=160 aider --show-repo-map --map-tokens 6144 --aiderignore plan/repo-map.aiderignore \
+  --no-pretty --yes-always --no-check-update --no-analytics --no-show-model-warnings --model gpt-4o
 ```
+
+aider 0.86.2 needs a Python older than 3.13: `uv tool install --python 3.12 aider-chat==0.86.2`.
 
 ```text
 If you need to edit any of these files, ask me to *add them to the chat* first.
@@ -30,16 +32,6 @@ canvas/app/src/core/adapter.ts:
 │    typingOf(model: Model, el: ModelElement): ModelRelationship | null;
 │    /** 'a part def' or 'an action flow view'; `capital` makes the article's first letter a capital
 │    an(label: string, capital?: boolean): string;
-⋮
-│export type NodeData = BoxData | BorderData | SmallData;
-│
-⋮
-│export type PlaneNode = Node<NodeData, Shape> & {
-│  type: Shape;
-│  width: number;
-│  height: number;
-│  measured: { width: number; height: number };
-│  className: string;
 ⋮
 │export type EdgeData = {
 │  route: 'straight' | 'elbow';
@@ -77,21 +69,7 @@ canvas/app/src/core/adapter.ts:
 │  readonly exact: boolean;
 │  /** What each node says that no place can alter, with the view's saved place: in the order the no
 ⋮
-│export interface ProjectOptions {
-│  /** Whether the plane is far (its zoom is under FAR). Default false. */
-│  far?: boolean;
-│  /** The projection before this one, of the same view: what reads the same is taken from it. */
-│  previous?: Projection | null;
-│  /** The measures. Default LOOK. */
-│  look?: Look;
-│  /**
-│   * Places that stand in for the view's own, by element id (step 7): what a gesture asks, before i
-│   * A place given here is read as if the view's layout held it, and nothing is written to the mode
-⋮
 │export type Viewport = { x: number; y: number; zoom: number };
-│
-⋮
-│type SavedPlace = { x?: unknown; y?: unknown; w?: unknown; h?: unknown; side?: unknown; at?: unknow
 │
 ⋮
 │export interface ReadLine {
@@ -102,25 +80,8 @@ canvas/app/src/core/adapter.ts:
 │  readonly how: 'straight' | 'elbow';
 │  readonly edge: PlaneEdge;
 ⋮
-│export interface ReadNode {
-│  readonly id: string;
-│  readonly el: ModelElement;
-│  readonly row: KindRow;
-│  readonly shape: Shape;
-│  /** The index of the entry of its parent node, or -1 at ground level. */
-│  readonly parent: number;
-│  readonly parentId: string | undefined;
-│  readonly border: boolean;
-│  readonly isBox: boolean;
-⋮
 
 canvas/app/src/core/checks.ts:
-⋮
-│export interface Problem {
-│  /** The id of the element, the relationship or the view it is about; null when it is about the pa
-│  readonly id: string | null;
-│  /** The sentence: "Two elements are named Host in the package." */
-│  readonly message: string;
 ⋮
 │export interface Diagnostic {
 │  /** The rule's name in the specification: 'validateNamespaceDistinguishibility'. */
@@ -184,7 +145,18 @@ canvas/app/src/core/commands.ts:
 ⋮
 │  textName(el: { kind: string; name?: unknown }): string | null;
 ⋮
-│  describeRel(model: Model, rel: ModelRelationship): string;
+
+canvas/app/src/core/files.ts:
+⋮
+│export function openText(lib: SysMLModelLibrary, text: string, file: FileRef, options?: SessionOpti
+│  let data: unknown;
+│  try {
+│    // A byte order mark that an editor put at the file's start is no part of its JSON.
+│    data = JSON.parse(text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text);
+│  } catch {
+│    throw new Error(`${file.name} isn't a state file: it isn't JSON.`);
+│  }
+│  return openSession(lib, data, file, options);
 ⋮
 
 canvas/app/src/core/history.ts:
@@ -301,25 +273,6 @@ canvas/app/src/core/history.ts:
 │  order: Record<ListName, string[]>;
 │  rest: string;
 ⋮
-│export function createHistory(model: Model, options: HistoryOptions = {}): History {
-│  const now = options.now ?? (() => new Date().toISOString());
-│  const report = options.mistake ?? throwLater;
-│
-│  // ---- The model keeps a note of every write made to it.
-│  //
-│  // Every object and array in the model is a Proxy of itself: its target is the plain object, whic
-│  // Proxies as its children, so whatever is read from the model is a Proxy, and reads go straight 
-│  // writes are trapped: before a key of an object changes, or is deleted, the object, the key and 
-│  // are noted (the first time in a change); before an array changes, a copy of its items is. So ed
-⋮
-│  const TRAPS: ProxyHandler<object> = {
-│    set(t, k, v) { noteWrite(t, k, false); (t as Bag)[k] = track(v, homeIn(t, k)); return true; },
-│    deleteProperty(t, k) { noteWrite(t, k, true); return delete (t as Bag)[k]; },
-│    defineProperty(t, k, d) {
-│      noteWrite(t, k, false);
-│      return Reflect.defineProperty(t, k, 'value' in d ? Object.assign({}, d, { value: track(d.valu
-│    },
-⋮
 
 canvas/app/src/core/probe.ts:
 ⋮
@@ -420,13 +373,6 @@ canvas/app/src/panels/Details.tsx:
 ⋮
 │export type DetailsTab = (typeof TABS)[number];
 ⋮
-│export interface PickedFormProps {
-│  /** The open file. */
-│  session: Session;
-│  /** The tab that is shown, and what a change of it calls. */
-│  tab: DetailsTab;
-│  onTab: (tab: DetailsTab) => void;
-⋮
 
 canvas/app/src/panels/SidePanel.tsx:
 ⋮
@@ -454,8 +400,6 @@ canvas/app/src/panels/explorerRows.ts:
 │    /**
 │     * A relationship in words: 'DevHost specializes Host', 'hosts defined by Host', 'connection mo
 ⋮
-│    describeRel(model: Model, rel: ModelRelationship, ids?: { get(id: string): ModelElement | undef
-⋮
 │export interface RowWords {
 │  readonly kw: string;
 │  readonly name: string;
@@ -477,21 +421,6 @@ canvas/app/src/panels/explorerRows.ts:
 
 canvas/app/src/panels/fieldHooks.ts:
 ⋮
-│export interface FieldLibrary {
-│  readonly FIELDS: Readonly<Record<string, FieldSpec>>;
-│  readonly KINDS: Readonly<Record<string, { label: string; fields: string[]; definedBy?: string }>>
-│  readonly RELATIONSHIPS: Readonly<Record<string, {
-│    label: string;
-│    fields: string[];
-│    /** The id of the element whose body declares the relationship, or null for the package. */
-│    owner(model: Model, rel: ModelRelationship, ids: Map<string, ModelElement>): string | null;
-│  }>>;
-│  readonly VIEW_KINDS: Readonly<Record<string, { label: string; fields: string[] }>>;
-⋮
-│  describeRel(model: Model, rel: ModelRelationship): string;
-│  /** A view in words: 'view proofStructure'. */
-│  describeView(model: Model, view: ModelView): string;
-⋮
 │export type FieldValue = string | number | boolean;
 │
 ⋮
@@ -511,18 +440,22 @@ canvas/app/src/panels/fieldHooks.ts:
 │  return spec.trim ? text.trim() : text;
 ⋮
 
-canvas/app/src/plane/MiniMap.tsx:
-⋮
-│export interface PlaneMiniMapProps {
-│  /** The store of the view the plane shows. */
-│  store: ViewStore;
-⋮
-
 canvas/app/src/plane/NotDrawnYet.tsx:
 ⋮
 │export interface NotDrawnYetProps {
 │  /** The first sentence, from the adapter's notDrawnText: "A sequence view is not drawn yet." */
 │  text: string;
+⋮
+
+canvas/app/src/plane/Palette.tsx:
+⋮
+│export interface PaletteProps {
+│  /** The session of the plane the palette belongs to. */
+│  session: Session;
+│  /** Where it is open, or null while it is closed. */
+│  at: PaletteAt | null;
+│  /** Closes it: the plane sets `at` to null. Called once for each closing, before a choice is carr
+│  onClose: () => void;
 ⋮
 
 canvas/app/src/plane/nodes/BoxNode.tsx:
@@ -541,26 +474,6 @@ canvas/app/src/plane/nodes/SmallNode.tsx:
 ⋮
 │export type SmallNodeProps = NodeProps<Node<SmallData, Shape>>;
 │
-⋮
-
-canvas/app/src/plane/viewStore.ts:
-⋮
-│export interface ViewSnapshot {
-│  readonly nodes: PlaneNode[];
-│  readonly edges: PlaneEdge[];
-│  /** Whether the plane is far: its zoom is under FAR. */
-│  readonly far: boolean;
-⋮
-│export interface ViewStore {
-│  readonly session: Session;
-│  readonly viewId: string;
-│  /** Whether a plane draws this view's kind (the adapter's isDrawn). When false the tab shows the 
-│  readonly drawn: boolean;
-│  /** What the card says first (the adapter's notDrawnText). */
-│  readonly notDrawn: string;
-│  /** How many times the store has projected its view: for the tests, and for looking through windo
-│  readonly projected: number;
-│  subscribe(listener: () => void): () => void;
 ⋮
 
 canvas/app/src/shell/About.tsx:
@@ -638,13 +551,6 @@ canvas/app/src/types.d.ts:
 │interface SysMLModelLibrary {
 │  /** The saved format's name, 'grasp/2'. */
 │  readonly FORMAT: string;
-⋮
-
-canvas/app/test/adapter.test.mjs:
-⋮
-│function scaleModel() {
-│  scale ??= lib.normalize(scaleState(5000).model);
-│  return { model: scale, views: Array.from(scale.views).filter(isGraph) };
 ⋮
 
 canvas/app/test/core.mjs:
@@ -784,6 +690,8 @@ canvas/app/test/helpers.mjs:
 │  let chooser = null;
 │  page.waitForEvent('filechooser', { timeout: WAIT }).then((asked) => { chooser = asked; }, () => {
 ⋮
+│export const tabTitle = (view) => `${view.name} : ${view.kind}`;
+⋮
 │export async function untilDrawn(page, view) {
 │  const placed = Object.keys(view.layout).length;
 │  await soon(page, () => page.evaluate((selector) => !!document.querySelector(selector), planeOf(vi
@@ -818,6 +726,9 @@ canvas/app/test/helpers.mjs:
 │      const ms = (v) => v.toFixed(1);
 │      return samples.map((s) => (s.script === undefined ? ms(s.total) : `${ms(s.total)} (${ms(s.scr
 ⋮
+│export const withInit = (browser, script) => ({
+│  newContext: async (options) => { const context = await browser.newContext(options); await context
+⋮
 │export async function showSide(page, name) {
 │  const testid = SIDES[name];
 │  assert.ok(testid, `No side panel is named ${name}. The side panels: ${Object.keys(SIDES).join(', 
@@ -828,6 +739,8 @@ canvas/app/test/helpers.mjs:
 │  if (await shown()) return;
 │  await page.getByRole('tab', { name, exact: true }).click();
 │  await soon(page, shown, `A click on ${name} on its strip did not show the ${name} panel (data-tes
+⋮
+│export const untilShown = (page, type, id, how) => soon(page, async () => (await shownIn(page)) ===
 ⋮
 
 canvas/app/test/history-walk.test.mjs:
@@ -842,35 +755,6 @@ canvas/app/test/history-walk.test.mjs:
 │    render: (touched, how) => { C.state.layout = { ids: lib.idsOf(C.state.model) }; rendered.push({
 │    applyMarks() {}, check() {}, persist() {}, resolve: () => null, setActive() {}, renderInspector
 │  };
-⋮
-│describe('the history, walked at random', () => {
-│  const files = stateFiles();
-│
-│  test('change for change, it does what the old page\'s changes.js does', async (t) => {
-│    const { createHistory } = await loadCore();
-│    const count = { changes: 0, keyOrder: 0, stale: 0 };
-│    for (const { name, file } of files) {
-│      // Seed 22 is among them because one of its walks meets the rarer of the two differences allo
-│      for (const seed of [1, 2, 22]) {
-│        const r = random(seed * 7919 + name.length);
-⋮
-│  test('where it differs from changes.js by design, each difference is the one meant', async () => 
-│    const { createHistory } = await loadCore();
-│    // The same things asked of either side: the old script, and the new history.
-│    const sides = () => {
-│      const old = oldPage(lib.normalize(readJSON(EXAMPLE).model));
-│      const mistakes = [];
-│      const history = createHistory(lib.normalize(readJSON(EXAMPLE).model), { now: clock(), mistake
-│      return [{
-│        get model() { return old.S.model; },
-│        replace: (model) => { old.S.model = model; },
-│        edit: (change, key) => old.C.edit(change, key),
-│        undo: () => old.C.undo(),
-│        steps: () => old.S.history.map((step) => step.what),
-│        mistakes: old.mistakes,
-│      }, {
-│        get model() { return history.model; },
-│        replace: (model) => { history.model = model; },
 ⋮
 
 canvas/app/test/history.test.mjs:
@@ -903,6 +787,31 @@ canvas/app/test/selection-core.test.mjs:
 │const keys = (items) => items.map(key);
 ⋮
 
+canvas/app/test/tools-panel.test.mjs:
+⋮
+│describe('the Tools view', () => {
+│  let browser;
+│  before(async () => { browser = await launch(); });
+│  afterEach(() => closePages(browser));
+│  after(async () => { await browser?.close(); });
+│
+│  test('with no file open the Tools view says so', async () => {
+│    const opened = await openPage(browser, { picker: false });
+│    const { page } = opened;
+│    await showSide(page, 'Tools');
+⋮
+│  test('a click takes a tool in hand, a second click puts it down, and another tool takes its place
+│    const opened = await openIn(browser, stateFileAt(EXAMPLE));
+│    const { page } = opened;
+│    await showSide(page, 'Tools');
+│    const click = async (kind) => (await toolButton(page, kind, 'click')).click();
+│
+│    await click('PartDefinition');
+│    await untilPressed(page, ['PartDefinition'], 'After a click on part def');
+│    await untilHint(page, 'Click where the part def goes.', 'After a click on part def');
+│    await click('PortUsage');
+⋮
+
 canvas/build.mjs:
 ⋮
 │export function readStateFile(file = STATE) {
@@ -916,251 +825,6 @@ canvas/build.mjs:
 │export function libraryCode() {
 │  checkLinkage(LIBRARY, SHARED.library, []);
 │  return stitch(LIBRARY, (name) => `// ==== ${name}`);
-⋮
-
-canvas/dist/app.js:
-│"use strict";(()=>{var __create=Object.create;var __defProp=Object.defineProperty;var __getOwnPropD
-⋮
-│`)){let line="";for(let word of para.split(/\s+/).filter(Boolean))line&&(line+" "+word).length>maxC
-│`).split(`
-│`)){let line="",width=0;for(let word of para.split(/\s+/).filter(Boolean)){let w=textWidth(word,px)
-
-canvas/dist/model-lib.js:
-⋮
-│(function (root) {
-│  'use strict';
-│  const lib = root.SysMLModelLib = {};   // what the scripts register for the ones after them; api.
-│
-│  const freeze = (o) => { Object.values(o).forEach((v) => { if (v && typeof v === 'object') freeze(
-│  const METAMODEL = freeze({
-│    AcceptActionUsage: { general: ['ActionUsage'],
-│      owns: [
-│        { name: 'payloadParameter', type: 'ReferenceUsage', lower: 1, derived: true, subsets: ['Usa
-│      ],
-⋮
-│(function (root) {
-│  'use strict';
-│  const lib = root.SysMLModelLib;   // what the scripts register for the ones after them; metamodel
-│  const { METAMODEL } = lib;
-│
-│  // The kinds stand on the metamodel's classes. A class conforms to another when it is that class 
-│  // directly or through others.
-│  function conforms(metaclass, general) {
-│    if (metaclass === general) return true;
-│    const c = METAMODEL[metaclass];
-⋮
-│  const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
-⋮
-│  function hasTrait(kind, trait) {
-│    const k = KINDS[kind];
-│    return !!(k && k.traits) && k.traits.indexOf(trait) >= 0;
-⋮
-│  function textName(el) {
-│    const kind = KINDS[el.kind];
-│    return kind && kind.fields.indexOf('name') >= 0 ? str(el.name).trim() : null;
-⋮
-│  function lookups(model) {
-│    const maps = new Map();
-│    const made = (key, make) => {
-│      let map = maps.get(key);
-│      if (!map) { map = make(); maps.set(key, map); }
-│      return map;
-│    };
-│    const push = (map, key, item) => {
-│      const list = map.get(key);
-│      if (list) list.push(item); else map.set(key, [item]);
-⋮
-│  function linesFrom(model, id, kind) {
-│    const look = lookOf(model);
-│    return look ? look.from(id, kind).slice() : model.relationships.filter((r) => r.from === id && 
-⋮
-│  function childrenOf(model, id) {
-│    const look = lookOf(model);
-│    if (look) return look.children(id).slice();
-│    return model.elements.filter((e) => (id === null || id === undefined ? e.owner === undefined : 
-⋮
-│  function featurePath(model, ownerId, el, ids) {
-│    const c = chain(model, el, ids);
-│    const start = ownerId === null ? 0 : c.findIndex((e) => e.id === ownerId) + 1;
-│    return c.slice(start).map(segment).join('.');
-⋮
-│  function describeRel(model, rel, ids) {
-│    ids = ids || idsOf(model);
-│    const a = ids.get(rel.from);
-│    const b = ids.get(rel.to);
-│    // An end with no name in the text is said by its kind (describe), not as "(unnamed)".
-│    const end = (e) => (!e ? '?' : textName(e) === null ? describe(model, e, ids) : shown(textName(
-│    const from = end(a);
-│    const to = end(b);
-│    if (rel.kind === 'Specialization') return from + ' specializes ' + to;
-│    if (rel.kind === 'FeatureTyping') return from + ' defined by ' + to;
-⋮
-│  function describeView(model, view) { return 'view ' + shown(view.name); }
-⋮
-│(function (root) {
-│  'use strict';
-│  const lib = root.SysMLModelLib;
-│  const {
-│    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, normalize, relIndex, reading, idsOf, 
-│    childrenOf, typingOf, commonOwner, quote, shown, qualified, featurePath, nameable, describe, de
-│    inheritedFeature, BODY, noteRecords, noteStatements, commentLines
-│  } = lib;
-│
-│  // The notes and the archived notes are written together, at the end of the package (noteRecords,
-⋮
-│  function textOf(model, notes, archive) {
-│    const ids = idsOf(model);
-│    const rels = relIndex(model);
-│    const noteList = noteRecords(notes, archive);
-│    const out = [];
-│    const imports = new Set();
-│    const line = (depth, text) => out.push('    '.repeat(depth) + text);
-│    const comment = (depth, head, text) => commentLines(depth, head, text).forEach((l) => out.push(
-│    const noteText = (n) => n.text + (n.response.trim() ? '\nClaude: ' + n.response.trim() : '');
-│    const listsBy = (list, key) => {
-⋮
-│    const helpers = {
-│      ids: ids, line: line, comment: comment, noteText: noteText, quote: quote, featurePath: featur
-│      notesOn: (id) => (notesBy.get(id) || []).slice(),
-│      // A note in its standard forms (noteStatements), written at depth through this object's own 
-│      // lines land where its other lines do; about null writes it inside the body it is in. Asks f
-│      note: function (depth, n, about, text) { noteStatements(n, about, text).forEach((s) => this.l
-│      needImport: (qualifiedName) => imports.add(qualifiedName),
-│      headOf: headOf, declaredIn: declaredIn, exposesOf: exposesOf,
-│      typingOf: (el) => typingOf(model, el),
-│      childrenOf: (id) => childrenOf(model, id),
-⋮
-│(function (root) {
-│  'use strict';
-│  const lib = root.SysMLModelLib;
-│  const { isObject } = lib;
-│
-│  // The layout the page writes, its documents' paths, and the store's limits (db.d.ts): a document
-│  // serialized, counted in UTF-8 bytes, and 32 levels deep. A part holds at most 192 KiB, well ins
-│  // ends a part when its identity's hash is a multiple of every, one record in every on average, w
-│  // parts of the scale models about 64 KiB.
-│  const STORE = Object.freeze({
-⋮
-│  function readStore(dump, revision) {
-│    if (!isObject(dump)) throw new TypeError('A dump of the store is an object of documents by path
-│    const working = isObject(dump[STORE.working]) && isObject(dump[STORE.working].model) ? dump[STO
-│    const head = isObject(dump[STORE.head]) ? dump[STORE.head] : null;
-│    const based = (body) => !!body && revision !== undefined && revision !== null && body.baseRevis
-│    const pick = [based(working) && working, based(head) && head, working, head].find(Boolean) || n
-│    let model = null;
-│    if (pick === working && working) model = copy(working.model);
-│    else if (pick) {
-│      if (pick.layout !== STORE.layout) {
-⋮
-
-canvas/dist/vendor.js:
-│"use strict";(()=>{var Q9=Object.create;var aS=Object.defineProperty;var J9=Object.getOwnPropertyDe
-│`+PS+e}var wS=!1;function SS(e,t){if(!e||wS)return"";wS=!0;var o=Error.prepareStackTrace;Error.prep
-│`),i=r.stack.split(`
-│`),s=n.length-1,a=i.length-1;1<=s&&0<=a&&n[s]!==i[a];)a--;for(;1<=s&&0<=a;s--,a--)if(n[s]!==i[a]){i
-│`+n[s].replace(" at new "," at ");return e.displayName&&l.includes("<anonymous>")&&(l=l.replace("<a
-│`).replace(VY,"")}function Yy(e,t,o){if(t=MN(t),MN(e)!==t&&o)throw Error(Se(425))}function vb(){}va
-│Error generating stack: `+i.message+`
-│`+i.stack}return{value:e,source:t,stack:n,digest:null}}function BS(e,t,o){return{value:e,source:nul
-⋮
-│+`).split(`
-│`)),c=p.reduce((d,u)=>d.concat(...u),[]);return[p,c]}return[[],[]]},[e]);return(0,ae.useEffect)(()=
-│        M${C.x},${C.y}h${C.width}v${C.height}h${-C.width}z`,fillRule:"evenodd",pointerEvents:"none"
-│
-│  npm install dockview-enterprise
-│  import 'dockview-enterprise'; // self-registers every enterprise module
-│`:`dockview: ${i}, but it is not registered.`}function K5(e,t){let o=`${e}|${(t===void 0?[]:[].conc
-⋮
-│`,Ppe=Xo.forwardRef(function(t,o){let r=H({props:t,name:"MuiTouchRipple"}),{center:n=!1,classes:i={
-│  0% {
-│    transform: rotate(0deg);
-│  }
-│
-│  100% {
-│    transform: rotate(360deg);
-│  }
-⋮
-│      `:null,$pe=typeof xI!="string"?Vr`
-│        animation: ${xI} 1.4s ease-in-out infinite;
-│      `:null,Gpe=e=>{let{classes:t,variant:o,color:r,disableShrink:n}=e,i={root:["root",o,`color${G
-│`&&(x.value+=" ");let S=P.boxSizing,C=JT(P.paddingBottom)+JT(P.paddingTop),_=JT(P.borderBottomWidth
-│`),S=x.selectionStart===T;P&&S&&x.setSelectionRange(T,T),r&&r(v)},ref:d,rows:i,style:s,...l}),(0,qg
-│  0% {
-│    left: -35%;
-│    right: 100%;
-│  }
-│
-│  60% {
-│    left: 100%;
-│    right: -90%;
-│  }
-│
-⋮
-│      `:null,_ge=e=>{let{classes:t,variant:o,color:r}=e,n={root:["root",`color${G(r)}`,o],dashed:["
-│  0% {
-│    opacity: 1;
-│  }
-│
-│  50% {
-│    opacity: 0.4;
-│  }
-│
-│  100% {
-⋮
-│      `:null,obe=A("span",{name:"MuiSkeleton",slot:"Root",overridesResolver:(e,t)=>{let{ownerState:
-│                90deg,
-│                transparent,
-│                ${(e.vars||e).palette.action.hover},
-│                transparent
-│              )`,content:'""',position:"absolute",transform:"translateX(-100%)",bottom:0,left:0,rig
-│    ${e.palette.mode==="light"?e.lighten(e.alpha(e.palette.divider,1),.88):e.darken(e.alpha(e.palet
-⋮
-
-canvas/dist/vendor/elkjs/elk.bundled.js:
-⋮
-│var PromisedWorker = /*#__PURE__*/function () {
-│  function PromisedWorker(worker) {
-│    var _this2 = this;
-│    _classCallCheck(this, PromisedWorker);
-│    if (worker === undefined) {
-│      throw new Error("Missing mandatory parameter 'worker'.");
-│    }
-│    this.resolvers = {};
-│    this.worker = worker;
-│    this.worker.onmessage = function (answer) {
-⋮
-│  return _createClass(PromisedWorker, [{
-│    key: "postMessage",
-│    value: function postMessage(msg) {
-│      var id = this.id || 0;
-│      this.id = id + 1;
-│      msg.id = id;
-│      var self = this;
-│      return new Promise(function (resolve, reject) {
-│        // prepare the resolver
-│        self.resolvers[id] = function (err, res) {
-│          if (err) {
-│            self.convertGwtStyleError(err);
-⋮
-│},{}],2:[function(require,module,exports){
-│(function (global){(function (){
-│'use strict';
-│
-│// --------------    FAKE ELEMENTS GWT ASSUMES EXIST   -------------- 
-│var $wnd;
-│if (typeof window !== 'undefined')
-│    $wnd = window
-│else if (typeof global !== 'undefined')
-│    $wnd = global // nodejs
-│else if (typeof self !== 'undefined')
-⋮
-│function btb(){function e(){this.obj=this.createObject()}
-│;e.prototype.createObject=function(a){return Object.create(null)};e.prototype.get=function(a){retur
-⋮
-│function NJd(){LJd();function h(f){var g=this;this.dispatch=function(a){var b=a.data;switch(b.cmd){
-│function j(b){var c=this;this.dispatcher=new h({postMessage:function(a){c.onmessage({data:a})}});th
-⋮
-│var dwe='object',ewe='boolean',fwe='number',gwe='string',hwe='function',iwe=2147483647,jwe='java.la
 ⋮
 
 canvas/src/core/lib/model.js:
@@ -1193,32 +857,6 @@ canvas/src/core/lib/model.js:
 │      const list = map.get(key);
 │      if (list) list.push(item); else map.set(key, [item]);
 ⋮
-│  function linesFrom(model, id, kind) {
-│    const look = lookOf(model);
-│    return look ? look.from(id, kind).slice() : model.relationships.filter((r) => r.from === id && 
-⋮
-│  function childrenOf(model, id) {
-│    const look = lookOf(model);
-│    if (look) return look.children(id).slice();
-│    return model.elements.filter((e) => (id === null || id === undefined ? e.owner === undefined : 
-⋮
-│  function describe(model, el, ids) {
-│    ids = ids || idsOf(model);
-│    const owner = el.owner !== undefined ? ids.get(el.owner) : null;
-│    const name = textName(el);
-│    return KINDS[el.kind].label + (name === null ? '' : ' ' + shown(name)) + (owner ? ' in ' + show
-│  }
-│  function describeRel(model, rel, ids) {
-│    ids = ids || idsOf(model);
-│    const a = ids.get(rel.from);
-│    const b = ids.get(rel.to);
-│    // An end with no name in the text is said by its kind (describe), not as "(unnamed)".
-│    const end = (e) => (!e ? '?' : textName(e) === null ? describe(model, e, ids) : shown(textName(
-│    const from = end(a);
-│    const to = end(b);
-│    if (rel.kind === 'Specialization') return from + ' specializes ' + to;
-│    if (rel.kind === 'FeatureTyping') return from + ' defined by ' + to;
-⋮
 
 canvas/src/core/lib/stored.js:
 ⋮
@@ -1245,82 +883,39 @@ canvas/src/core/lib/stored.js:
 │      if (pick.layout !== STORE.layout) {
 ⋮
 
-canvas/src/core/lib/sysml.js:
+canvas/src/core/page/base.js:
 ⋮
-│(function (root) {
+│(function (C) {
 │  'use strict';
-│  const lib = root.SysMLModelLib;
-│  const {
-│    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, normalize, relIndex, reading, idsOf, 
-│    childrenOf, typingOf, commonOwner, quote, shown, qualified, featurePath, nameable, describe, de
-│    inheritedFeature, BODY, noteRecords, noteStatements, commentLines
-│  } = lib;
 │
-│  // The notes and the archived notes are written together, at the end of the package (noteRecords,
+│  const M = window.SysMLModel;
+│  const NS = 'http://www.w3.org/2000/svg';
+│  const STATE_KEY = 'grasp:';                      // + the revision of the saved model, when the p
+│  const CAMERA_KEY = 'grasp-camera:v1';
+│  // The shared store's documents for the model, in its layout 2 (the library's stored.js says what
+│  // head, the collection of the parts it names, and a whole model handed over from elsewhere, whic
+│  // saves in layout 2 and deletes.
 ⋮
-│  function textOf(model, notes, archive) {
-│    const ids = idsOf(model);
-│    const rels = relIndex(model);
-│    const noteList = noteRecords(notes, archive);
-│    const out = [];
-│    const imports = new Set();
-│    const line = (depth, text) => out.push('    '.repeat(depth) + text);
-│    const comment = (depth, head, text) => commentLines(depth, head, text).forEach((l) => out.push(
-│    const noteText = (n) => n.text + (n.response.trim() ? '\nClaude: ' + n.response.trim() : '');
-│    const listsBy = (list, key) => {
-⋮
-│    const helpers = {
-│      ids: ids, line: line, comment: comment, noteText: noteText, quote: quote, featurePath: featur
-│      notesOn: (id) => (notesBy.get(id) || []).slice(),
-│      // A note in its standard forms (noteStatements), written at depth through this object's own 
-│      // lines land where its other lines do; about null writes it inside the body it is in. Asks f
-│      note: function (depth, n, about, text) { noteStatements(n, about, text).forEach((s) => this.l
-│      needImport: (qualifiedName) => imports.add(qualifiedName),
-│      headOf: headOf, declaredIn: declaredIn, exposesOf: exposesOf,
-│      typingOf: (el) => typingOf(model, el),
-│      childrenOf: (id) => childrenOf(model, id),
-│      describe: (el) => describe(model, el, ids),
-│      commonOwner: (a, b) => commonOwner(model, a, b, ids),
+│  const $ = (id) => document.getElementById(id);
 ⋮
 
-canvas/src/core/page/changes.js:
+canvas/src/core/page/camera.js:
 ⋮
 │(function (C) {
 │  'use strict';
 │  const S = C.state;
-│  const { M, PAUSE, HISTORY, undoButton, now, say, editable, viewById, render, applyMarks, check } 
+│  const { CAMERA_KEY, MIN_ZOOM, MAX_ZOOM, canvas, svg, zoomLevel, hud, panel, clamp, covered, drawA
 │
-│  const LISTS = ['elements', 'relationships', 'views'];
-│  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+│  // ---- The camera.
 │
-│  // ---- The model keeps a note of every write made to it.
-│  //
-⋮
-│  const TRAPS = {
-│    set: function (t, k, v) { noteWrite(t, k); t[k] = track(v, homeIn(t, k)); return true; },
-│    deleteProperty: function (t, k) { noteWrite(t, k); return delete t[k]; },
-│    defineProperty: function (t, k, d) {
-│      noteWrite(t, k);
-│      return Reflect.defineProperty(t, k, 'value' in d ? Object.assign({}, d, { value: track(d.valu
-│    }
-⋮
-
-canvas/src/core/page/panel.js:
-⋮
-│(function (C) {
-│  'use strict';
-│  const S = C.state;
-│  const {
-│    M, VIEW_PANELS, FIELD_HOOKS, $, panel, showPanel, inspectorEmpty, fields, fKind, fPath, fViews,
-│    removeFromViewButton, deleteButton, viewFields, vKind, vShow, vMeta, vShowAdd, deleteViewButton
-│    problemsButton, undoButton, say, editable, newId, plural, relById, viewById, viewLayout, viewSh
-│    center, endpoints, marksFor, applyMarks, showPoint, blankField, edit, endEdit, undo, setActive,
-│  } = C;
+│  S.camera = readCamera();     // the top-left corner of the window in drawing units, and pixels pe
 │
+│  function readCamera() {
 ⋮
-│  function setPanel(open) {
-│    panel.hidden = !open;
-│    showPanel.hidden = open;
+│  function showPoint(x, y) {
+│    const area = openArea();
+│    S.camera = { k: S.camera.k, x: x - (area.x + area.width / 2) / S.camera.k, y: y - (area.y + are
+│    applyCamera();
 ⋮
 
 canvas/src/core/page/state.js:
@@ -1340,6 +935,8 @@ canvas/src/core/page/state.js:
 │    const block = document.getElementById(id);
 │    try { return block ? JSON.parse(block.textContent) : null; } catch (error) { return null; }
 ⋮
+│  function viewById(id) { return S.model.views.find((v) => v.id === id) || null; }
+│  function activeView() { return viewById(S.active) || S.model.views[0]; }
 │  function viewLayout(id) { return S.layout ? S.layout.views.get(id) || null : null; }
 ⋮
 
@@ -1368,14 +965,29 @@ canvas/src/grid/page.js:
 │      view.options.sort = next;
 ⋮
 
-canvas/test/build.test.mjs:
+canvas/src/labels/lib.js:
 ⋮
-│function copyCanvas() {
-│  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'canvas-build-'));
-│  copies.push(dir);
-│  for (const name of ['build.mjs', 'state.json', 'index.html']) fs.copyFileSync(path.join(CANVAS, n
-│  fs.cpSync(path.join(CANVAS, 'src'), path.join(dir, 'src'), { recursive: true });
-│  return dir;
+│(function (root) {
+│  'use strict';
+│  const lib = root.SysMLModelLib;
+│  const { KINDS, RELATIONSHIPS, str, textName, idsOf, chain, childrenOf, linesFrom, typingOf, descr
+│
+│  // ---- Reading what was typed.
+│
+│  // The keywords a node's label may open with, each followed by white space, in any order (SysON's
+│  // ref after them. A keyword with no white space after it is the start of a name: abstractPart.
+│  const PREFIX = /^(abstract|variation|variant|timeslice|snapshot)\s+/;
+⋮
+│  function applyLabel(model, target, text, make) {
+│    const parts = readLabel(text);
+│    const item = target.item;
+│    const res = { done: [], created: [], notKept: [], unread: parts.unread.slice(), refused: [] };
+│    const line = target.type === 'rel';
+│    if (!labelEditable(target.type, item)) return res;
+│    const restricted = line && LINE_LABELS[item.kind] === 'restricted';
+│    const kind = line ? null : KINDS[item.kind];
+│    const has = (fld) => (line ? RELATIONSHIPS[item.kind].fields : kind.fields).indexOf(fld) >= 0;
+│    const usage = line || kind.usage;   // a connector is a usage too
 ⋮
 
 canvas/test/fake-claude.mjs:
@@ -1394,6 +1006,31 @@ canvas/test/fake-claude.mjs:
 │  const freeze = (value) => {
 │    if (value && typeof value === 'object') Object.values(value).forEach(freeze), Object.freeze(val
 │    return value;
+⋮
+
+canvas/test/fields.test.mjs:
+⋮
+│describe('the panel\'s fields', () => {
+│  let browser;
+│  before(async () => { browser = await launch(); });
+│  after(() => browser?.close());
+│
+│  test('no field\'s input has listeners of its own: the panel listens for all of them', async () =>
+│    const ctx = await openCanvas(browser);
+│    const { page } = ctx;
+│    const cdp = await page.context().newCDPSession(page);
+│    const listenersOf = async (id) => {
+⋮
+│  test('the definition is the usage\'s typing: picking another moves the line\'s end and keeps its 
+│    const ctx = await openCanvas(browser);
+│    const { page } = ctx;
+│    const model = () => page.evaluate(() => window.SysMLCanvas.state.model);
+│    const typingOf = async (id) => (await model()).relationships.filter((r) => r.kind === 'FeatureT
+│    const step = () => page.evaluate(() => { const h = window.SysMLCanvas.state.history; return h.l
+│    const lastLog = () => page.evaluate(() => { const c = window.SysMLCanvas.state.changes; return 
+│
+│    // A note on the typing line, which stays on it while its end moves.
+│    await page.evaluate(() => window.SysMLCanvas.select({ type: 'rel', id: 't-hosts' }));
 ⋮
 
 canvas/test/helpers.mjs:
@@ -1471,23 +1108,6 @@ canvas/test/helpers.mjs:
 │      return samples.map((s) => (s.script === undefined ? ms(s.total) : `${ms(s.total)} (${ms(s.scr
 ⋮
 
-canvas/test/scale-model.mjs:
-⋮
-│export function scaleModel(count) {
-│  if (!Number.isInteger(count) || count < SHARED.length) throw new RangeError(`a scale model has at
-│  const services = Math.floor((count - SHARED.length) / PER_SERVICE);
-│  const spares = count - SHARED.length - services * PER_SERVICE;
-│  const elements = [];
-│  const relationships = [];
-│  const layouts = { definitions: {}, deployment: {}, workflows: {} };
-│  const columns = Math.max(1, Math.ceil(Math.sqrt(services + spares / 3)));
-│  const cell = (view, i) => ({ x: ORIGIN.x + (i % columns) * CELL[view][0], y: ORIGIN.y + Math.floo
-│
-⋮
-│export function scaleState(count) {
-│  return { model: scaleModel(count), notes: [], archive: [], changes: [] };
-⋮
-
 canvas/test/store-dump.test.mjs:
 ⋮
 │const readJSON = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -1506,4 +1126,5 @@ docs/sysml/draw.mjs:
 │    let a = `<text x="${x}" y="${y}"`;
 │    if (anchor !== 'start') a += ` text-anchor="${anchor}"`;
 ⋮
+
 ```

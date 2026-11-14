@@ -1,7 +1,9 @@
 # Notes between sessions
 
-Each session reads this file, `plan/status.json`, and the recent git log first, and adds what it changed and what the
-next session needs. Newest session last.
+Each session reads `plan/start-here.md`, `plan/status.json`, the last session of this file and the recent git log
+first, and adds what it changed and what the next session needs. Newest session last. The earlier sessions are the
+record of why things are as they are: find one by its heading (`grep -n '^## Session\|^### ' plan/notes.md`) rather than
+reading the file through.
 
 ## Session 1, November 7, 2026: the baseline
 
@@ -3903,3 +3905,30 @@ What the slice built otherwise than `plan/slice-1.md` says, each with the sessio
   `plan/direction.md`, "What is not settled yet", says what slice 2 finds out first (a day's probe per view kind for
   the sequence and geometry views).
 - `canvas/app/README.md` is where to start reading the application.
+
+## Session 29, November 14, 2026: loading the project's state made cheaper
+
+On `claude/sleepy-heisenberg-j034y0`, from `1733db0` (main). No code was changed. Two pull requests were merged between
+session 28 and this one without an entry here: the repo map redrawn with aider 0.86.2, and the swarm's finished working
+files removed from `plan/swarm/` with the map moved to `plan/REPO_MAP.md`.
+
+Damon noticed that loading the project's state took 16% of a session's context. Most of it was three files read whole:
+`plan/REPO_MAP.md` (63 KB), `plan/direction.md` (48 KB) and the last session of this file. On his word, two changes:
+
+- **`plan/start-here.md`, new**: one page with where the work stands, what is open, which document answers which
+  question with its size, what holds in every session, and the commands. A session reads it, `plan/status.json` and the
+  last session of this file, and opens the rest by need. The session that changes where the work stands brings it up to
+  date in the same commit.
+- **The repo map leaves out `canvas/dist/`** (`plan/repo-map.aiderignore`, given to aider by `--aiderignore`, since
+  `.gitignore` leaves out `.aider*`): about 250 of its lines were excerpts of the minified bundles and of the stitched
+  model library, which the map shows from `canvas/src/core/lib/`. Leaving them out alone does not shorten the map: aider
+  fills its budget with other files. So the budget went from 8,192 to 6,144 tokens, and the file from 63 KB to 47 KB.
+  Against a drawing at 8,192 without `canvas/dist/`, five files' definitions drop out: `plane/viewStore.ts`,
+  `core/lib/metamodel.js`, `core/lib/sysml.js`, `core/page/panel.js` and `test/scale-model.mjs`. Raise `--map-tokens`
+  if they are missed. `PYTHONHASHSEED=0` is now in the command, as in `docs/sysml/*/draw-maps.sh`, so two runs on one
+  commit agree.
+- aider 0.86.2 does not install on the container's Python 3.13: `uv tool install --python 3.12 aider-chat==0.86.2`.
+
+### For the next session
+
+- Slice 2, as session 28 left it: its plan first, approved by Damon.
