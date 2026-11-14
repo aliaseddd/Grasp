@@ -513,7 +513,7 @@ Each contract has one owner. "Changed in" names every later slice that may chang
 ### Contract 23. The text service: OpenSysML behind one interface
 
 - **Owner:** slice 4, `canvas/app/src/core/textService/`.
-- **What crosses it:** every call answers with a promise. Slice 4 builds the first four members. Slice 5 adds the last four.
+- **What crosses it:** every call but `status` answers with a promise. Slice 4 builds the first four members. Slice 5 adds the six that are marked "from slice 5".
 
   ```ts
   interface TextService {
