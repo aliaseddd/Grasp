@@ -31,7 +31,7 @@ As of November 14, 2026:
 | What must a slice find out first? | `plan/direction.md`, "What is not settled yet" | 5 KB |
 | What was decided, and what was rejected? | `plan/direction.md`, "The decisions" and "Decided for slice 1" | 15 KB |
 | What do the libraries, the browser and Damon's machine allow? | `plan/direction.md`, "What was checked" | 13 KB |
-| Where is the code for something? | `plan/REPO_MAP.md` | 47 KB |
+| Where is the code for something? | `plan/REPO_MAP.md` | 60 KB |
 | How is the new application laid out, and how is it added to? | `canvas/app/README.md` | |
 | What does each page do, and how does the loop with Claude go? | `canvas/README.md` | |
 | How is the old page's source laid out, and how does the format change? | `canvas/src/README.md` | |

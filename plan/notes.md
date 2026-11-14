@@ -3921,12 +3921,11 @@ Damon noticed that loading the project's state took 16% of a session's context. 
   date in the same commit.
 - **The repo map leaves out `canvas/dist/`** (`plan/repo-map.aiderignore`, given to aider by `--aiderignore`, since
   `.gitignore` leaves out `.aider*`): about 250 of its lines were excerpts of the minified bundles and of the stitched
-  model library, which the map shows from `canvas/src/core/lib/`. Leaving them out alone does not shorten the map: aider
-  fills its budget with other files. So the budget went from 8,192 to 6,144 tokens, and the file from 63 KB to 47 KB.
-  Against a drawing at 8,192 without `canvas/dist/`, five files' definitions drop out: `plane/viewStore.ts`,
-  `core/lib/metamodel.js`, `core/lib/sysml.js`, `core/page/panel.js` and `test/scale-model.mjs`. Raise `--map-tokens`
-  if they are missed. `PYTHONHASHSEED=0` is now in the command, as in `docs/sysml/*/draw-maps.sh`, so two runs on one
-  commit agree.
+  model library, which the map shows from `canvas/src/core/lib/`. Leaving them out does not shorten the map much: aider
+  fills its budget with other files, so the room goes to code that is read. The budget stays at 8,192 tokens, on
+  Damon's word: the map is not cut down beyond leaving out files that are pointless in it. (A first drawing of this
+  session at 6,144 tokens, 47 KB, was taken back: it dropped the definitions of five files.) The file is 60 KB, from
+  63. `PYTHONHASHSEED=0` is now in the command, as in `docs/sysml/*/draw-maps.sh`, so two runs on one commit agree.
 - aider 0.86.2 does not install on the container's Python 3.13: `uv tool install --python 3.12 aider-chat==0.86.2`.
 
 ### For the next session
