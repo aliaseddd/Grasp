@@ -1,6 +1,6 @@
 # Grasp's architecture for slices 2 to 7
 
-November 14, 2026, session 29. Written for Damon's approval, as `plan/slice-1.md` was. It is not approved yet.
+November 14, 2026, session 29. Written for Damon's approval, as `plan/slice-1.md` was. Damon answered its questions on November 14, 2026; section 8 says what he decided on each departure, and section 9 holds his other decisions.
 
 ## What this plan settles
 
@@ -14,7 +14,7 @@ It leaves the inside of each slice to that slice's own plan: its steps, its test
 
 Each slice's plan is written by a model that sees only that slice's section, the contracts the section names, and the files they point to. Such a plan must not change a contract. A planner who finds a contract wrong stops and says why. The change then comes back to this document and to Damon.
 
-Three lists are kept apart from the plan itself. Section 7 lists what this plan assumes without proof. Section 8 lists where it departs from `plan/direction.md`. Section 9 lists the questions only Damon can answer. Nothing in sections 8 and 9 is decided until Damon decides it.
+Three lists are kept apart from the plan itself. Section 7 lists what this plan assumes without proof. Section 8 lists where it departs from `plan/direction.md`. Section 9 lists the questions only Damon can answer. Section 9 now holds Damon's decisions.
 
 ## The words
 
@@ -596,7 +596,7 @@ Each contract has one owner. "Changed in" names every later slice that may chang
 - **Owner:** slice 1, `canvas/app/src/shell/theme.ts`.
 - **What crosses it:** every colour and measure of the page, as constants and as `--grasp-*` variables for the stylesheets. The page is light only.
 - **Consumers:** every component and stylesheet.
-- **Introduced in:** slice 1. **Changed in:** slice 7 only: SysON's node colours, one function that gives the icon of a metaclass (the Explorer, the Tools view, the palettes and the node headers call it), and a dark set if Damon asks for one then. The default size of a node is not in the theme. It is in the model library's presentation rows, which slice 4 gives to every metaclass and slice 7 sets to SysON's.
+- **Introduced in:** slice 1. **Changed in:** slice 7 only: SysON's node colours, one function that gives the icon of a metaclass (the Explorer, the Tools view, the palettes and the node headers call it), and a dark set of colours, which Damon asked for. The default size of a node is not in the theme. It is in the model library's presentation rows, which slice 4 gives to every metaclass and slice 7 sets to SysON's.
 - **The rule for slices 2 to 6:** a slice adds the colours it needs to `theme.ts` and changes none. It draws no icon for a kind. What a screenshot's reviewer would change about the look, and no check asks for, is written in `plan/notes.md` for slice 7.
 - **Sources:** `canvas/app/README.md`, "The rules a change keeps"; `plan/direction.md`, "Decided for slice 1" and "The slices", 7.
 
@@ -621,7 +621,7 @@ Every slice starts the same way: `npm ci`, `npm run check`, `npm test`, and a re
 
 ### Slice 2. Editing parity
 
-**What Damon gets.** Everything he does on the old page today, done on the new page. Then the old page is deleted.
+**What Damon gets.** Everything he does on the old page today, done on the new page. Then the old page leaves `canvas/` and is kept in `archive/old-page/`, as Damon decided: archived, not deleted.
 
 **What it uses from slice 1.** The history (contract 1), the session (2), the selection (3), the tools and the tool in hand (4), the adapter (5), the checks (8), the Details form (11), the Explorer's rows (12), the dock (14), the state file (15), the build (25), the look (26), the tests' shared parts (27). The model library, unchanged.
 
@@ -668,7 +668,7 @@ Every slice starts the same way: `npm ci`, `npm run check`, `npm test`, and a re
 | **2-12. The grid view** | A table of elements with the columns the view chooses and a sort by a click on a header, or a matrix of relationships. | `core/readers/grid.ts`, `views/GridBody.tsx` | 3, 5, 6, 7, 8, 9, 10 | `canvas/src/grid/page.js`; the model library's `gridOptions`, `GRID_COLUMNS` |
 | **2-13. The browser view, and renaming in a tree** | The browser view as the Explorer's tree under chosen roots. A row renamed by typing, in the Explorer and in a browser view, with the tree library's own editing of a label, and `rename` of `core/labels.ts` for what the typed text changes. | `core/readers/browser.ts`, `views/BrowserBody.tsx`, `panels/Explorer.tsx`, `panels/explorerRows.ts` | 3, 5, 6, 12 | `canvas/src/browser/page.js`; the rename of `canvas/src/labels/page.js`; the model library's `browserRows`, `browserRoots`, `renamable` |
 | **2-14. The fixtures and the limits** | The slice's "Done when" tests: each fixture opens with every view drawn, and, saved from the page, exports its pinned text. The scale tests. A table from each of the old page's test files to the new test that takes its place, or to the reason it is dropped. | `canvas/app/test/fixtures.test.mjs`, `scale.test.mjs`, `instant.test.mjs`, and the test files that slice 1 wrote (contract 27 says when one of them changes) | 27 | The 33 Playwright files of `canvas/test/` |
-| **2-15. Retiring the old page** | The old page is gone. The model library, the fixtures, `export.mjs` and `check.sh` work as before. The READMEs describe one page. | It deletes `canvas/index.html`, `canvas/src/core/page/`, `canvas/src/*/page.js`, `canvas/src/core/page.html`, the old styles, and the Playwright test files of `canvas/test/` with their helpers. It also deletes `canvas/save-state.mjs`, which only wrote the old page's files, with the tests of `canvas/test/store-dump.test.mjs` that run it, `canvas/test/build.test.mjs`, and the test of `model-lib.test.mjs` that reads the model saved inside the old page. It changes `canvas/build.mjs` (no page is built), the other Node tests of `canvas/test/` (where they load the model library from), `canvas/app/test/unchanged.json` and `unchanged.test.mjs`, `canvas/app/test/old-layout.mjs` and `history-walk.test.mjs` (which run the old page's code), the `test:old` script of `package.json`, and the READMEs. | 20, 25, 27 | |
+| **2-15. Retiring the old page** | The old page is out of `canvas/` and in `archive/old-page/`. The model library, the fixtures, `export.mjs` and `check.sh` work as before. The READMEs describe one page. | It moves into `archive/old-page/`: `canvas/index.html`, `canvas/src/core/page/`, `canvas/src/*/page.js`, `canvas/src/core/page.html`, the old styles, and the Playwright test files of `canvas/test/` with their helpers. It also moves there `canvas/save-state.mjs`, which only wrote the old page's files, with the tests of `canvas/test/store-dump.test.mjs` that run it, `canvas/test/build.test.mjs`, and the test of `model-lib.test.mjs` that reads the model saved inside the old page. It changes `canvas/build.mjs` (no page is built), the other Node tests of `canvas/test/` (where they load the model library from), `canvas/app/test/unchanged.json` and `unchanged.test.mjs`, `canvas/app/test/old-layout.mjs` and `history-walk.test.mjs` (which run the old page's code), the `test:old` script of `package.json`, and the READMEs. | 20, 25, 27 | |
 
 `canvas/test/` keeps the fixtures, `scale-model.mjs` and the model library's Node tests. Each package also owns its own tests and its own stylesheet, in new files named after it. `plan/status.json`, `plan/notes.md` and `canvas/dist/` are the lead's, as in slice 1's swarm: an agent builds `canvas/dist/` to run its tests and does not hand it over.
 
@@ -695,21 +695,21 @@ The scaffold follows the method of `plan/swarm/README.md`: a function that nothi
 2. Package 2-1, alone, once Damon has approved the plan. It is the same under both answers of the probes. Every later package starts from its commit.
 3. Packages 2-2 to 2-13 at the same time. No two of them own one file. Packages 2-10 and 2-11 also need the probes' answers. A package that uses another's module (2-12 reads the notes and the checks; 2-13 calls the rename of 2-3) builds against the skeleton's contract, not against the other package's code.
 4. Package 2-14 runs through the slice: its tests are written at the start and pass as the packages land. A timed test is judged with nothing else running.
-5. Package 2-15 last, once every check but "`canvas/index.html` and the SVG renderer are gone" passes. `plan/direction.md` retires the old page one view kind at a time: "Each kind retires its part of the old page once its fixture, its pinned export and its scale test pass on the new one". Package 2-14 holds those three checks for each kind, and no kind's part of the old page goes before they pass. Departure 3 of section 8 proposes one step at the end. The package is written to work both ways: retiring one kind is the same work on a smaller list of files.
+5. Package 2-15 last, once every check but "`canvas/index.html` and the SVG renderer are gone" passes. `plan/direction.md` retires the old page one view kind at a time: "Each kind retires its part of the old page once its fixture, its pinned export and its scale test pass on the new one". Package 2-14 holds those three checks for each kind, and no kind's part of the old page goes before they pass. Damon approved departure 3 of section 8: the old page goes in one step, at the end, and it is archived, not deleted. Package 2-15 moves the files it takes out of `canvas/` into `archive/old-page/`, where nothing builds, tests or pins them. The check "`canvas/index.html` and the SVG renderer are gone" then means gone from `canvas/`.
 
-**Its plan decides.** Where the Notes panel sits, and how a note is added. What happens to a note when its target is deleted, or replaced as a typing is when it is drawn again (contract 9 asks only that a note with no target be accepted). Whether the change of owner stays an undo step apart from the move. The connect menu's design. How typing starts the label editor without taking the zoom keys. Where New view and Delete view are offered. The scale test of each of the four new bodies (section 9, question 6). The design of each body. The steps, the test lists and the screenshots.
+**Its plan decides.** Where the Notes panel sits, and how a note is added. What happens to a note when its target is deleted, or replaced as a typing is when it is drawn again (contract 9 asks only that a note with no target be accepted). Whether the change of owner stays an undo step apart from the move. The connect menu's design. How typing starts the label editor without taking the zoom keys. Where New view and Delete view are offered. The design of each body. The steps, the test lists and the screenshots.
 
 **Left to later slices.** Remembering a file, a folder or a camera across a reload, and more than one view on a tab, are slice 3's. Rows inside a node that are elements are slice 4's. Icons and new colours are slice 7's.
 
 **Candidates in `plan/scope.md`.** By this session's sorting (section 7, assumption 10), 79 entries, most under "The look and feel": "Canvas interaction" (lines 128 to 218), "Workbench" (65 to 124), "Notation" (222 to 266) and "Editing" (270 to 292). They are candidates only. The slice builds what `plan/direction.md` lists and what the old page does. Another entry, such as dragging from the Explorer onto a plane, needs Damon's word.
 
-**Assumption.** `plan/direction.md` asks for label editing "in nodes and in rows". A node of a `grasp/2` model has no row that is an element, so this plan reads "rows" as the rows of the Explorer and of a browser view. Rows inside a node get editing in slice 4, with the generic row.
+**Decided.** `plan/direction.md` asks for label editing "in nodes and in rows". A node of a `grasp/2` model has no row that is an element, so "rows" are the rows of the Explorer and of a browser view. Damon left this reading to Claude. The four new bodies get no scale test of their own: slice 1's four limits stay, and a view that proves slow in use is fixed then (section 9). Rows inside a node get editing in slice 4, with the generic row.
 
 ### Slice 3. The workspace folder and the loop through GitHub
 
 **What Damon gets.** A folder that he picks once and that the page remembers. Several models in it, with their views on tabs he arranges, several views to a tab. Save in place. Pull and Push to GitHub from the page. Claude works on the same files with git.
 
-**What it finds out first.** Whether a page opened from disk can write to GitHub: one real write with a throwaway token, on Damon's machine. Contracts 17 and 18 hold under both answers. Departure 1 proposes to run this probe during slice 2.
+**What it finds out first.** Whether a page opened from disk can write to GitHub: one real write with a throwaway token, on Damon's machine. Contracts 17 and 18 hold under both answers.
 
 **What it uses.** From slice 1: contracts 1, 2, 3, 5, 14, 15, 25, 27. From slice 2: the bodies (6), the notes (9), the text of a model (13), the actions (4).
 
@@ -734,7 +734,7 @@ The scaffold follows the method of `plan/swarm/README.md`: a function that nothi
 | 3-6. Several views on a tab | Frames as parent nodes that resize and are never smaller than their body, a body in each frame, the tabs from the workspace file, `model` in `Picked` and `Hit`, one root for each model in the Explorer | 3-5; slice 2 closed |
 | 3-7. The end of the store, and the loop | The store's code deleted; the loop section of `canvas/README.md` rewritten; the session with Damon that the second check asks for | Everything above |
 
-Packages 3-1 to 3-3 touch no file that slice 2 changes, so they can be built while slice 2 is built. Package 3-4 can start once slice 2's scaffold is committed, since it lists a view through its reader. It then lists and arranges the four graph view kinds at first, and the other four once slice 2's readers exist. Packages 3-5 and 3-6 change the shell, the planes and the selection, so they wait until slice 2 is closed. 3-6 waits for 3-5.
+Slice 3 starts when slice 2 is closed (section 8, departure 2, refused). Inside the slice, 3-1 comes first, 3-2 to 3-4 can be built at the same time, and 3-6 waits for 3-5.
 
 **Candidates in `plan/scope.md`.** The six entries of "The loop: files, Claude and GitHub" (lines 638 to 643), and the entries on a view's frame (lines 227, 248 and 250).
 
@@ -746,7 +746,7 @@ Packages 3-1 to 3-3 touch no file that slice 2 changes, so they can be built whi
 
 **What Damon gets.** Every SysML v2 concept can be made, shown, edited, saved and exported. A `.sysml` or `.kerml` file can be imported. The saved model is the standard element form.
 
-**What it finds out first.** Three probes. Departure 1 proposes to run them during slices 2 and 3.
+**What it finds out first.** Three probes, at the start of this slice.
 
 1. **The module and the round trip.** Which OpenSysML module serves. Every fixture and the pilot's examples go through its conversion to elements and back. What it refuses is counted by kind. The probe also settles how the module's kinds map to the metamodel's class names, whether the conversion takes Grasp's ids back, and where the module's diagnostics differ from the pilot's. It must count metadata usages and textual representations by name, because notes and code links are exported as those, and slices 4 and 6 depend on them.
 2. **The worker.** Whether the module runs in a worker made from a Blob URL on a page opened from disk.
@@ -779,7 +779,7 @@ Contracts 13, 21 and 23 say what each answer changes. Nothing outside the text s
 | 4-8. The closing | The tests of the three checks; a test made from the metamodel that walks every concrete metaclass | Everything above |
 | 4-9. The fallback route, only if the first probe asks for it | Inside the text service: the model library's writer grown to every metaclass, and the import's structure from a syntax tree. In the build: the grammar it comes from, with its notice. | 4-0, 4-2 |
 
-4-1 and 4-2 can be built at the same time, and before slice 3 is closed, because they are pure and touch no file of the shell or the planes. 4-2 needs package 3-1 only. It adds files of its own to the model library and one line to the list of `canvas/build.mjs`, and it lands after slice 3 has deleted the store's code from the same list. 4-3 is one package: it changes the modules every later package reads through. 4-4 to 4-7 can be built at the same time after it.
+Slice 4 starts when slice 3 is closed. 4-1 and 4-2 can be built at the same time. 4-3 is one package: it changes the modules every later package reads through. 4-4 to 4-7 can be built at the same time after it.
 
 **Its plan decides.** How the page holds the element form in memory, and what the history records. Whether the upgrade keeps ids or rewrites references (contract 21 allows both). How a node is chosen for a metaclass with no shape of its own. What a view shows by default when it exposes a whole package. How the pinned writer's cross-check is run. Whether the fallback route is taken, by the count the probe gives. What the import of a whole file does when the text service reports diagnostics or refuses a construct (slice 5's "Done when" fixes it for an inserted fragment only). How long a printing may freeze the page if the module runs on the page's own thread (contract 13).
 
@@ -813,6 +813,8 @@ Contracts 13, 21 and 23 say what each answer changes. Nothing outside the text s
 
 **What it changes.** `core/codeLinks.ts`: a link is a metadata usage of `CodeLink`, and the words of a code compartment's row come from it (10). The Code section of Details (11). The text service is given the Grasp library (23). `canvas/check.sh` checks the model together with the Grasp library, so the pilot's validator knows `CodeLink` (20). `unchanged.json` is pinned again for the script and the example (27). The build puts the library's text into the page (25). The example's code text becomes links into the Stronghold repository. `canvas/README.md` gains the checklist for Claude's side: write the code, push it once Damon approves, update the ref.
 
+**The repository.** Damon named `Labyrinth` as the example repository his token reaches. This slice's check links into `Labyrinth` where the direction's text says the Stronghold repository, and the example's links move there.
+
 **"Done when"** (`plan/direction.md`, "The slices", 6): "an element linked to a file and line range of the Stronghold repository shows the row, opens the file on GitHub, previews the lines when a token is set, exports as metadata that `check.sh` accepts and survives import; the example carries no code text."
 
 **The work packages, in outline.** First the library, with `check.sh` and the text service reading it. Then the data and the migration in `core/codeLinks.ts`. Then, at the same time: the Code section, with Open on GitHub and the excerpt; and the compartment's row. Last: the example, the checklist and the checks.
@@ -833,7 +835,7 @@ Contracts 13, 21 and 23 say what each answer changes. Nothing outside the text s
 
 **The work packages, in outline.** A scaffold first: the new actions as rows of the table, the Search panel in the dock, `pinned` in a place. Then, at the same time, each in files of its own: image export; Arrange all, with options for each view kind; align, distribute and same size; the Search panel; the icons; the colours and sizes; Help. Last, alone on the machine: the scale tests' new baselines, then the documents.
 
-**Its plan decides.** Which ELK options each view kind gets. What the Search panel searches by default. The icons themselves, drawn for Grasp and not taken from SysON. Whether there is a dark theme (section 9, question 7). What to do with the notes that the screenshots' reviewers left for this slice (`plan/notes.md`, sessions 18 to 28).
+**Its plan decides.** Which ELK options each view kind gets. What the Search panel searches by default. The icons themselves, drawn for Grasp and not taken from SysON. What to do with the notes that the screenshots' reviewers left for this slice (`plan/notes.md`, sessions 18 to 28).
 
 **Candidates in `plan/scope.md`.** About 28 entries by this session's sorting, under "The look and feel": image export (lines 320 to 323), arranging and aligning (lines 190 to 196), the Search view (line 95), icons (lines 98 and 272), default colours and sizes (lines 273 and 291).
 
@@ -842,10 +844,10 @@ Contracts 13, 21 and 23 say what each answer changes. Nothing outside the text s
 ### Between the slices
 
 ```
-slice 2 ──► slice 3 ──► slice 4 ──┬─► slice 5 ─┐
-                                  ├─► slice 6 ─┼─► the closing of slice 7
-                                  └─► slice 7 ─┘
+slice 2 ──► slice 3 ──► slice 4 ──► slice 5 ──► slice 6 ──► slice 7
 ```
+
+Damon decided that the slices stay separate: each starts when the one before it is closed. The table says why each needs the ones before it.
 
 | This | waits for | because |
 |---|---|---|
@@ -854,7 +856,7 @@ slice 2 ──► slice 3 ──► slice 4 ──┬─► slice 5 ─┐
 | Slice 4's package 4-3 and all after it | Slices 2 and 3 closed | It rewrites every module that reads the model's shape (contract 22), and that list is complete only then. The upgrade works on a workspace's files. |
 | Slice 5 | Slice 4 closed | Every item of slice 5 calls the text service or shows the element form. |
 | Slice 6 | Slice 4 closed; slice 3 closed | A code link is a metadata usage, which is an element of `grasp/3`. The excerpt reads through GitHub access. |
-| Slice 7's packages | Slice 4 closed | Icons, colours and sizes are for every metaclass. Arrange all uses the worker that slice 4 gives the page. The components it finishes are the generic ones. |
+| Slice 7's packages | Slice 6 closed (they need slice 4) | Icons, colours and sizes are for every metaclass. Arrange all uses the worker that slice 4 gives the page. The components it finishes are the generic ones. |
 | Slice 7's search of the libraries | Slice 5's first package | It calls `searchLibraries`, which that package builds. The rest of the Search panel does not wait. |
 | Slice 7's closing (baselines, documents) | Slices 5 and 6 closed | The baselines measure the finished page, and the documents describe it. |
 
@@ -862,14 +864,7 @@ No slice uses something that only a later slice provides. Two things look as if 
 
 ### What can be built at the same time
 
-| At the same time as | this can be built | because |
-|---|---|---|
-| Slice 2 | The probe of slice 3 and the three probes of slice 4 | A probe changes no file of the page. Its answer chooses between routes, so it is worth most early. (Departure 1.) |
-| Slice 2 | Slice 3's packages 3-1 to 3-4: the codec, the carriers, GitHub access, the scripts | 3-1 to 3-3 are in new folders and need only the note's record of contract 9, which is fixed here. 3-4 also needs the readers' `listed`, so it starts once slice 2's scaffold is committed. |
-| Slice 3 | Slice 4's packages 4-1 and 4-2: the text service, the form and the upgrade | They are pure, and they need only the file map of contract 16. |
-| Slice 5 | Slice 6, and slice 7's packages | Most of each is in files of its own. These files are shared: `core/adapter.ts` (5 adds an option, 7 changes sizes and adds `pinned`), `panels/explorerRows.ts` (5 adds a root, 7 adds icons), the dock's table (5 and 7 each add an entry), `panels/Details.tsx` and the node components (5, 6 and 7), `shell/theme.ts` (5 and 6 add colours, 7 changes them), `src/vendor.ts` and `build.mjs` (6 and 7 each add a line). Each of these changes is small and in a place of its own: an option, a root, a row of a table, a section in a file of its own. The slice that is closed first lands first, and the others take its lines in before they land. |
-
-Slices are still closed in their order. A later slice's work that is built early stays on a branch of its own until its slice's turn, and lands then: what it changed in a pinned file is pinned again at that moment (contract 27). Departure 2 asks Damon for this.
+Nothing across slices. Damon refused departures 1 and 2 of section 8, for simplicity: a slice's probes run at its own start, and no work of a later slice is built early. Inside a slice, the feature packages are built side by side after the scaffold, as below.
 
 ### Inside each slice
 
@@ -888,9 +883,9 @@ These are the items of "What is not settled yet", in that document's order.
 |---|---|---|---|
 | Damon's machine | Settled on November 12 | Contract 17 | The fallbacks stay. About reports what works on any machine. |
 | Compartment rows at Grasp's scale | Answered by slice 1 | Contracts 5 and 27 | The limits hold in every slice. If a larger view misses one, the far view is drawn as one picture, inside the adapter and the plane. |
-| Writing to GitHub from a page opened from disk | The start of slice 3, or earlier (departure 1) | Contracts 17 and 18 | It works: Pull and Push through the `github` carrier. It fails: Pull still reads; saved files reach Claude by github.com's upload page or the conversation; the third check of slice 3 is restated with Damon. |
-| Which OpenSysML module, and the converter's fidelity | The start of slice 4, or earlier | Contracts 13, 21 and 23 | The table in contract 23. The saved form is the same under every answer. |
-| A worker for the module | The start of slice 4, or earlier | Contract 23 | In a worker: calls do not block. Inline: calls block, and a large text is refused in the page. The third check of slice 5 is then restated with Damon. |
+| Writing to GitHub from a page opened from disk | The start of slice 3 | Contracts 17 and 18 | It works: Pull and Push through the `github` carrier. It fails: Pull still reads; saved files reach Claude by github.com's upload page or the conversation; the third check of slice 3 is restated with Damon. |
+| Which OpenSysML module, and the converter's fidelity | The start of slice 4 | Contracts 13, 21 and 23 | The table in contract 23. The saved form is the same under every answer. |
+| A worker for the module | The start of slice 4 | Contract 23 | In a worker: calls do not block. Inline: calls block, and a large text is refused in the page. The third check of slice 5 is then restated with Damon. |
 | OpenSysML's module on Damon's machine | The start of slice 4, by Damon | Contracts 13 and 23 | Fast enough: nothing changes. Too slow: the page says `unavailable`, and Claude's side imports and prints. |
 | The module's kind vocabulary | The round trip of slice 4 | Contract 23 only | The mapping is inside the text service. Nothing outside it names a kind of the module. |
 | What the module flags that the pilot accepts | The round trip of slice 4; shown in slice 5 | Contract 8 | It is a second opinion under every answer. The pilot's validator stays the authority. |
@@ -900,7 +895,7 @@ These are the items of "What is not settled yet", in that document's order.
 
 This plan rests on these. None is proved.
 
-1. **What "Notes keep their place as elements" means** (`plan/direction.md`, decision 5). This plan reads it as: a note stays attached to the element it is on, by the element's id, through every format. Notes are saved as records, apart from the model's elements, and are written into the text as they are today. The other reading is that a note becomes a metadata element inside the model. Contract 9 is written for the first reading. Question 3 of section 9 asks Damon.
+1. **What "Notes keep their place as elements" means** (`plan/direction.md`, decision 5). This plan reads it as: a note stays attached to the element it is on, by the element's id, through every format. Notes are saved as records, apart from the model's elements, and are written into the text as they are today. The other reading is that a note becomes a metadata element inside the model. Contract 9 is written for the first reading. Damon confirmed this reading on November 14 (section 9).
 2. **"Rows" in slice 2** are the rows of the Explorer and of a browser view (slice 2's section).
 3. **Slice 3's model file is not a second format change.** It holds a `grasp/2` model without its views' places, inside a file of a new kind. `plan/direction.md`, decision 5, allows one format change, and decision 9 moves the loop to files before it. This plan counts the model's own format, which changes once, in slice 4.
 4. **If the module is too slow on Damon's machine, printing falls to Claude's side as importing does.** `plan/direction.md` names only the import.
@@ -913,23 +908,29 @@ This plan rests on these. None is proved.
 
 ## 8. Departures from `plan/direction.md`
 
-Items 1 to 6 are proposals. Until Damon approves one, the document's own words stand, and the plan above works without it. Item 7 is a correction of fact.
+Damon decided each on November 14, 2026. His decision is at the start of each item.
 
-1. **Run the probes of slices 3 and 4 early, during slice 2.** The document says each open question "is found out at the start of the slice that depends on it". The probes change no file of the page. Their answers choose between routes: whether Push exists in the page, which module serves, whether the fallback route for text is taken. An answer known early costs a day. A surprise at the start of slice 4 costs the plan of a slice.
-2. **Build work of a later slice before the earlier slice is closed, where section 5 allows it.** Decision 9 says "Seven slices, in this order". The slices would still be closed and reviewed in that order. The gain is that the pure parts (the codec, the text service, the upgrade) are tested for longer before the page depends on them, and that slices 5, 6 and 7 do not wait for each other.
-3. **Delete the old page in one step, at the end of slice 2.** The document says "the old page retired one view kind at a time". Both pages read the same files, and Damon works on the new one, so retiring a kind early gives him nothing. Each retirement would change the old page's build and its tests, which are the reference the new tests are written from. One step keeps that reference whole until the new suite passes.
-4. **The model library's Node tests change in two small ways before slice 4.** Decision 1 says they "keep running unchanged through the first three slices". They read the model library out of `canvas/index.html`, which slice 2 deletes, so they must load it from `libraryCode()` instead: a small change in each file, and no change to what they check. One test of `model-lib.test.mjs` reads the model saved inside the old page, and goes with the page. And three of the six files go with what they test: `build.test.mjs` with the old page's build in slice 2; the tests of `store-dump.test.mjs` that run `canvas/save-state.mjs`, with that script and the page it builds, in slice 2; `stored.test.mjs` and the rest of `store-dump.test.mjs` with the claude.ai store in slice 3. The document's own slices already delete those things.
-5. **A read-only text tab already in slice 2.** The document gives slice 5 "a text tab per model". Slice 2 must replace the old page's export panel. A tab that shows the text is that replacement, and slice 5 adds the diagnostics to it. Nothing is built twice.
-6. **A state file still opens after slice 3.** Decision 7 says "Download state and Import state go". This plan reads that as the old page's two buttons, and as saving in that form. Opening a state file stays, as the way an older model comes into a workspace: the README says such files "still open, and always will", and the fixtures and the upgrade to `grasp/3` start from them.
-7. **More than the adapter is rewritten in slice 4.** Decision 9 calls the adapter "the single piece the format change replaces". In the code slice 1 built, the modules listed in contract 22 also read the model's form: the history, the commands, the field hooks and others. This is a fact of the code and not a choice of this plan. The plan bounds it: the list is closed, and what each listed module gives to the rest keeps its form.
+1. **Refused.** **Run the probes of slices 3 and 4 early, during slice 2.** The document says each open question "is found out at the start of the slice that depends on it". The probes change no file of the page. Their answers choose between routes: whether Push exists in the page, which module serves, whether the fallback route for text is taken. An answer known early costs a day. A surprise at the start of slice 4 costs the plan of a slice.
+2. **Refused.** **Build work of a later slice before the earlier slice is closed, where section 5 allows it.** Decision 9 says "Seven slices, in this order". The slices would still be closed and reviewed in that order. The gain is that the pure parts (the codec, the text service, the upgrade) are tested for longer before the page depends on them, and that slices 5, 6 and 7 do not wait for each other.
+3. **Approved, with a change: the old page is archived in `archive/old-page/`, not deleted.** **Delete the old page in one step, at the end of slice 2.** The document says "the old page retired one view kind at a time". Both pages read the same files, and Damon works on the new one, so retiring a kind early gives him nothing. Each retirement would change the old page's build and its tests, which are the reference the new tests are written from. One step keeps that reference whole until the new suite passes.
+4. **Approved ("fix it").** **The model library's Node tests change in two small ways before slice 4.** Decision 1 says they "keep running unchanged through the first three slices". They read the model library out of `canvas/index.html`, which slice 2 deletes, so they must load it from `libraryCode()` instead: a small change in each file, and no change to what they check. One test of `model-lib.test.mjs` reads the model saved inside the old page, and goes with the page. And three of the six files go with what they test: `build.test.mjs` with the old page's build in slice 2; the tests of `store-dump.test.mjs` that run `canvas/save-state.mjs`, with that script and the page it builds, in slice 2; `stored.test.mjs` and the rest of `store-dump.test.mjs` with the claude.ai store in slice 3. The document's own slices already delete those things.
+5. **Left to Claude, who keeps it.** **A read-only text tab already in slice 2.** The document gives slice 5 "a text tab per model". Slice 2 must replace the old page's export panel. A tab that shows the text is that replacement, and slice 5 adds the diagnostics to it. Nothing is built twice.
+6. **Left to Claude ("do what's sensible"), who keeps it.** **A state file still opens after slice 3.** Decision 7 says "Download state and Import state go". This plan reads that as the old page's two buttons, and as saving in that form. Opening a state file stays, as the way an older model comes into a workspace: the README says such files "still open, and always will", and the fixtures and the upgrade to `grasp/3` start from them.
+7. **Noted.** **More than the adapter is rewritten in slice 4.** Decision 9 calls the adapter "the single piece the format change replaces". In the code slice 1 built, the modules listed in contract 22 also read the model's form: the history, the commands, the field hooks and others. This is a fact of the code and not a choice of this plan. The plan bounds it: the list is closed, and what each listed module gives to the rest keeps its form.
 
-## 9. Questions for Damon
+## 9. What Damon decided
 
-1. **The seven items of section 8.** Approve or refuse each of the first six. The seventh is a correction of fact, for you to know.
-2. **The loop between the end of slice 2 and the end of slice 3.** Slice 2 deletes the old page, and with it the page published on claude.ai. Push arrives with slice 3. In between, a state file reaches Claude through the conversation, or Damon uploads it on github.com. Is that acceptable for that time? The other choice is to keep the old page until slice 3's loop works, which is against slice 2's "Done when". This plan assumes the first.
-3. **Notes** (section 7, assumption 1). Are notes records saved beside the model, as today, or elements inside the model?
-4. **GitHub.** Which repository and branch hold your workspace: this repository, or one of its own? The probe needs a throwaway fine-grained token with write access to the contents of one scratch repository, and ten minutes on your work machine. When can that be?
-5. **OpenSysML's module.** The second probe page for your work machine measures the real module's start and read times. When can you run it? And the module is a generated script of about 13 MB or more, committed in `canvas/dist/`. Each new version of it adds that much to the repository's history. Is that acceptable?
-6. **The scale tests of the four new bodies.** The old page has no scale test for a sequence, geometry, grid or browser view. Slice 2's plan will propose one for each. This plan recommends: the 5,000-element model's grid view and browser view each open, and a scroll step and a keystroke in each hold slice 1's limits. Is a limit for sequence and geometry views wanted at all, at the sizes those views have?
-7. **For slice 7, and not blocking:** a dark theme, yes or no. And the repository's licence, which is still open from slice 1.
-8. **For slice 6:** which ref of the Stronghold repository the example's links name, and whether that repository can be read with your token.
+Damon answered on November 14, 2026. Where he left a point to Claude, the choice is Claude's and is marked so.
+
+1. **The old page** is archived, not deleted, in one step at the end of slice 2 (section 8, departure 3).
+2. **Between the end of slice 2 and the end of slice 3**, state files reach Claude through the conversation or through GitHub. That is fine.
+3. **Notes are records**, saved beside the model, as contract 9 has them.
+4. **The slices stay separate.** No probe runs early and no later slice's work is built early (section 8, departures 1 and 2).
+5. **No new scale tests for the four new bodies.** What passed before is taken to pass. If the page is too slow in use, it is fixed then. The same holds for the OpenSysML module on his machine: if it is slow, it is fixed then, and Claude's side imports and prints meanwhile (contract 23).
+6. **The workspace is in this repository.** The work goes on here as it has. Claude's choice within that: a workspace is a folder of this repository, and the workspace file names this repository and its branch.
+7. **The module's size in git** does not matter to Damon as long as the page is responsive and usable. Claude's choice: the module is committed in `canvas/dist/`.
+8. **The probes on his work machine** (a write to GitHub; the module's times) happen when their slice comes and Claude asks.
+9. **`Labyrinth`** is the example repository his token reaches. Slice 3's probe writes there, and slice 6's links point there.
+10. **A dark theme: yes**, in slice 7.
+11. **The repository's licence is not to be raised** until Damon raises it. No plan, note or question brings it up.
+12. **Left to Claude, and kept as the plan has them:** "rows" in slice 2 (assumption 2); the text tab in slice 2 (departure 5); a state file still opens after slice 3 (departure 6); slice 3's model file is not counted as a second format change (assumption 3); one model first refers to another in slice 4 (assumption 9).

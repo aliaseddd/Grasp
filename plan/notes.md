@@ -4046,3 +4046,21 @@ These are the decisions of the session. The plan gives each in full.
   `plan/slice-1.md` was written from the direction. Its first work is the two probes (sequence, geometry) and the
   scaffold, package 2-1.
 - If departure 1 is approved, the probe pages for slices 3 and 4 can be written while slice 2 is planned.
+
+### Damon's answers, the same day
+
+Damon answered the plan's questions; `plan/architecture.md`, sections 8 and 9, hold each answer. What they change:
+
+- **The old page is archived, not deleted**: one step at the end of slice 2, into `archive/old-page/`.
+- **The slices stay separate.** No probe runs before its own slice, and no work of a later slice is built early.
+  Section 5 is one line of slices now; work is built side by side only inside a slice.
+- **Notes are records.** A dark theme: yes, in slice 7. No new scale tests for the four new bodies: slowness is
+  fixed when it shows.
+- **The workspace is in this repository.** `Labyrinth` is the example repository Damon's token reaches, for slice
+  3's probe and slice 6's links.
+- **The repository's licence is not to be raised again** until Damon raises it. Do not list it as open.
+- Damon pasted a GitHub token into the conversation. It is in no file and was not used. Slice 3 asks him for one
+  again when its probe runs.
+- Pull request #57 carries this branch. Damon does not want it watched.
+
+So the plan's departures and questions are closed. The next step is `plan/slice-2.md`.
