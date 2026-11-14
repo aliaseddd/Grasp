@@ -3903,3 +3903,164 @@ What the slice built otherwise than `plan/slice-1.md` says, each with the sessio
   `plan/direction.md`, "What is not settled yet", says what slice 2 finds out first (a day's probe per view kind for
   the sequence and geometry views).
 - `canvas/app/README.md` is where to start reading the application.
+
+## Session 29, November 14, 2026: the architecture for slices 2 to 7
+
+On `claude/adoring-albattani-ygnhpn`, from `1733db0` (main, with pull request #56 merged). Damon's word: write the
+architectural plan for slices 2 to 7, slice 2 the deepest, as the layer between `plan/direction.md` and each slice's
+own plan, so that faster models can plan and build the slices, several at once, without their work failing to fit.
+Plan only. The lead is Claude; agents beside it, all Sonnet: two readers, three reviewers, and one workflow of ten
+(below). Partway through, the session's ultracode setting came on, which asks for workflows; Damon's task had asked for
+little delegation, on Sonnet. The lead kept every decision, and used one workflow, on Sonnet, for the last check only.
+
+**No code changed.** The session wrote `plan/architecture.md` and this entry, and nothing else: `plan/status.json`, the
+READMEs and `plan/REPO_MAP.md` are as session 28 left them. The build and the tests were not run, since nothing they
+read changed. **The plan is not approved yet.** Slice 2 starts with its own plan, `plan/slice-2.md`, once Damon has
+approved this one.
+
+### What `plan/architecture.md` holds
+
+- **The parts of the system** (section 1), each with the slice that creates it and the slices that change it.
+- **Ten rules every slice keeps** (section 2): slice 1's, and three that are new as rules: one work package owns the
+  shared files of a slice and runs first; the "Done when" checks stay tests written first; the pilot's validator is the
+  authority, and no diagnostic in the page blocks a save.
+- **27 contracts** (section 3), each with one owner, its consumers, the slice that introduces it and the slices that
+  change it. Thirteen describe code or files that exist today (the history, the session, the selection, the commands,
+  the adapter, the checks, the Details form, the Explorer's rows, the dock, the state file, the build, the look, the
+  tests' shared parts). The other fourteen are new.
+- **A section for each of slices 2 to 7** (section 4): what it builds, uses, changes and gives, its "Done when" in the
+  direction's words, its work packages, what its own plan decides, and its candidates in `plan/scope.md`. Slice 2 has
+  sixteen packages, 2-0 to 2-15, each with the files it owns, at the depth of `plan/swarm/shared.md`.
+- **The dependency order** (section 5), **where each open question of the direction is settled** (section 6),
+  **ten assumptions** (section 7), **seven departures** (section 8: six proposals and one correction of fact) and
+  **eight questions for Damon** (section 9).
+
+### The boundary choices, each with its reason
+
+These are the decisions of the session. The plan gives each in full.
+
+1. **A body for each view kind, behind one registry** (contract 6). A graph body is nodes and edges on a plane; a
+   component body is one component that draws the whole view. The probe for sequence and geometry views picks one of
+   the two for each kind, and nothing else changes with its answer. In slice 3 a frame holds either.
+2. **The adapter layer** (contract 5): the adapter for planes, and a reader for each other body. Only this layer and
+   the modules listed in contract 22 read the model's shape, so slice 4 knows what it rewrites.
+3. **Marks are added by a view's store, not by the adapter** (contract 7): problems and note pins, as `selected` is
+   today. The adapter stays a pure function of the model and the view.
+4. **Notes stay records outside the history and outside the model's elements** (contract 9), reached through
+   `notesOf(session)`. A free note floats at a place counted from one view. In a `grasp/2` state file its place stays
+   the old page's plane coordinates, converted both ways, so the files stay the old page's until it is deleted.
+5. **Every command that is not a creation tool is a row of one action table, with its key** (contract 4). Slice 7's
+   Help reads the keys from it.
+6. **`exportText` is asynchronous and can answer "unavailable" from slice 2 on** (contract 13), so slice 4's probes
+   change no caller.
+7. **The workspace's files** (contract 16): a workspace file, and for each model a model file, a `.sysml` twin, a view
+   file for each view, a notes file and a log file. What the exported text depends on is in the model file (which
+   elements a view shows, as `shows`, and two options); where things sit is in a view file. The codec is two pure
+   functions over a map from path to text, in the application's core, and the page keeps the `grasp/2` model in memory
+   as it is through slice 3.
+8. **Carriers** (contract 17): a folder, picked files with downloads, and GitHub behind one interface. If the write to
+   GitHub fails from a page opened from disk, only which carrier does each job changes.
+9. **The upgrade to `grasp/3` works on a whole workspace's files** (contract 21). It keeps every id or rewrites every
+   reference in the same step, so view files, notes and tabs stay whole under either.
+10. **The text service** (contract 23): OpenSysML behind one interface, the same under every outcome of slice 4's
+    probes. Slice 6's library is an entry of its `libraries` from the start.
+11. **Nothing but `core/arrange.ts` calls ELK** (contract 24): in Node in slice 3, in a worker of the page from slice 4.
+
+### How the session worked, and how the plan was checked
+
+- The lead read the nine documents the task named, the top of each core module of `canvas/app/src/`, `canvas/src/README.md`,
+  `canvas/README.md`, `plan/spikes/README.md`, and sessions 12, 13, 17 and 28 of this file.
+- **Two readers** (Sonnet). One went through every page script of the old page and wrote an inventory of what slice 2
+  must take over: for each feature the functions, the model library names it calls, whether it writes through `edit()`,
+  and the old tests that cover it. The other sorted the 510 entries of `plan/scope.md` that serve a need into slices.
+  The lead checked six of the inventory's points against the code (`plan/architecture.md`, section 7, item 8).
+- **What the inventory found that the documents did not say**: the old page draws a line by two clicks only, so drawing
+  by dragging and reconnecting are new behaviour and no port; the layout of the sequence, geometry, grid and browser
+  views is in their page scripts, not in the model library; and the six Node tests of `canvas/test/` read the model
+  library out of the built `canvas/index.html`, so deleting the old page touches them (departure 4).
+- **The sorting of `plan/scope.md`**: 101 entries slice 1 already gave, 79 for slice 2, 11 for slice 3, 230 for slice
+  4, 59 for slice 5, none for slice 6, 28 for slice 7, and 2 that no slice builds (editing a line's bend points;
+  contents shown as nested or as a tree). One agent's judgment, with about 60 entries marked uncertain between two
+  slices; the per-entry table was in the session's scratchpad only.
+- **The fit check, first round.** The lead compared each contract's "Changed in" with each slice's lists and with the
+  parts table, and looked for a slice using what only a later slice gives. Then three reviewers (Sonnet), each playing
+  the planner of one or more slices (2; 3 and 4; 5 to 7) with only that slice's section, its contracts and the files
+  they name, reported what they would still have to ask, contradictions, and wrong claims about the code. They found
+  about ninety points between them. What they changed in the plan, by weight:
+  - **Signatures that were too thin to build against**: an action now gets where it was asked for and a choice
+    (contract 4); every reader has one form, with `listed` for the scripts (5); the checks give entries of one form
+    (8); the text service's types are defined, and it has `searchLibraries` for slice 7 and `describe` for Details (23).
+  - **Things the draft left to a slice that cross a boundary, now fixed in the contracts**: which options the text
+    depends on (a browser view's `roots`, a grid view's `mode`; read from the model library's writer); who writes the
+    twin (the workspace, not the codec) and how a stale twin is found; where the versions for the check before a Push
+    are kept (the `github` carrier, in the browser's storage); what a Pull does to a session (a new session for each
+    model whose files changed); which session Undo and the actions act on (the one of the view in front); that the
+    upgrade gives the same files each time; that the log of changes is a file of its own, `<stem>.log.json`.
+  - **Wrong or missing claims about the code**: `canvas/state.json` stays (the card of the empty editor and four tests
+    read it); deleting `stored.js` also changes `api.js` and the build's list; `docs/sysml/check.sh` checks each file in
+    a process of its own, so slice 6 cannot simply "load the library first"; `core/selection.ts`, `core/checks.ts`,
+    the dock and the Tools view read the model's lists today and were missing from contract 22; `canvas/test/` keeps the
+    fixtures, the scale model and the Node tests when the Playwright files go.
+  - **`unchanged.json`** pins files that slices 3, 4, 6 and 7 change on purpose. Contract 27 now says who pins it again.
+  - **Slice 2's packages**: files that two packages would both have changed (the node types, the keys that components
+    listen for, the test helpers) went to the scaffold; packages that had an action and no file for it got one.
+- **The fit check, second round.** One workflow of ten agents (Sonnet) read the revised plan: five readers, each
+  through one lens (contracts 1 to 9; 10 to 18; 19 to 27; the direction against the plan; slice 2's file ownership and
+  the order), and after each a skeptic that tried to refute every finding against the plan and the code. 51 findings,
+  27 confirmed, 24 refuted; several confirmed ones were one point seen through two lenses. What the confirmed ones
+  changed:
+  - **The reader of the four graph kinds had no builder.** Slice 2's scaffold now builds `core/readers/graph.ts`
+    (`project` with `sizeOf` and `listed`), and slice 3's scripts package waits for the scaffold's commit.
+  - **A reader had no way to say what lies at a point or what a step of a drag gives.** `Reader` has `at` and `step`;
+    a gesture's end is written by the store (places) or by the kind's action (a geometry view's position).
+  - **The adapter reads an element's `code` field itself today.** `core/codeLinks.ts` gives a pure `codeRowsOf`, and
+    the scaffold makes the adapter call it; the grid's reader calls it too.
+  - **The codec could not say that a file is to be deleted.** `writeWorkspace` now answers `{ write, remove }`.
+  - **`store-dump.test.mjs` copies `canvas/index.html`.** `canvas/save-state.mjs` and the tests that run it now go in
+    slice 2, with the page that script builds; `stored.js` and the rest go in slice 3.
+  - **Two more departures** that the draft had not listed: a state file still opens after slice 3, where decision 7
+    says "Download state and Import state go"; and slice 4 rewrites more than the adapter, where decision 9 calls the
+    adapter "the single piece the format change replaces" (`core/history.ts` and the other modules of contract 22 read the
+    model's form too).
+  - **How one model refers to another** had no home. Contract 21: by the target's qualified name, as a reference to a
+    library's element is saved, from slice 4.
+  - Cells of the parts table that no longer agreed with the contracts after the first round's edits; files of slice 2
+    with no owner (`plane/Palette.tsx`, `shell/Toasts.tsx`, slice 1's own tests of what slice 2 changes).
+  The plan was not read a third time by anyone but the lead, who read contracts 1 to 9 again whole after the last edit.
+
+### What the next session must not take as proved
+
+- Section 7 of the plan lists its assumptions. The two that matter most: that slices 2 and 3 need no addition to the
+  model library, and that OpenSysML's conversion carries metadata usages and textual representations, which notes and
+  code links are written as.
+- The contracts name files that do not exist yet (`core/notes.ts`, `core/workspace/codec.ts`, `core/textService/`).
+  The names are the plan's; a slice's plan may add files, and changes a name only by saying so.
+- Nothing in the plan was tried in code. The probes of slices 2, 3 and 4 are still to run.
+
+### For the next session
+
+- **Damon's review of `plan/architecture.md`**: the seven items of section 8 and the eight questions of section 9.
+  Two of the questions need him at his work machine: a write to GitHub with a throwaway token, and the real OpenSysML
+  module's times.
+- **Then slice 2's plan**, `plan/slice-2.md`, written from the slice's section and the contracts it names, as
+  `plan/slice-1.md` was written from the direction. Its first work is the two probes (sequence, geometry) and the
+  scaffold, package 2-1.
+- If departure 1 is approved, the probe pages for slices 3 and 4 can be written while slice 2 is planned.
+
+### Damon's answers, the same day
+
+Damon answered the plan's questions; `plan/architecture.md`, sections 8 and 9, hold each answer. What they change:
+
+- **The old page is archived, not deleted**: one step at the end of slice 2, into `archive/old-page/`.
+- **The slices stay separate.** No probe runs before its own slice, and no work of a later slice is built early.
+  Section 5 is one line of slices now; work is built side by side only inside a slice.
+- **Notes are records.** A dark theme: yes, in slice 7. No new scale tests for the four new bodies: slowness is
+  fixed when it shows.
+- **The workspace is in this repository.** `Labyrinth` is the example repository Damon's token reaches, for slice
+  3's probe and slice 6's links.
+- **The repository's licence is not to be raised again** until Damon raises it. Do not list it as open.
+- Damon pasted a GitHub token into the conversation. It is in no file and was not used. Slice 3 asks him for one
+  again when its probe runs.
+- Pull request #57 carries this branch. Damon does not want it watched.
+
+So the plan's departures and questions are closed. The next step is `plan/slice-2.md`.
