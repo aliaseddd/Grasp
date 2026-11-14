@@ -351,6 +351,34 @@ describe('the right-click palette', () => {
     await finish(opened);
   });
 
+  // Opened by the pointer, the menu's focused entry shows no keyboard ring, even when the keyboard was used before:
+  // a press on the plane is a press of the pointer, which the browser's focus rule (:focus-visible) must hear as such
+  // (session 28: the press's default is prevented, and the plane moves the focus itself).
+  test('a menu opened by the pointer after the keyboard was used shows no keyboard ring', async () => {
+    const opened = await openView(browser, EXAMPLE, VIEW);
+    const { page } = opened;
+    await page.keyboard.press('Tab');
+    await soon(page, () => page.evaluate(() => document.activeElement?.matches(':focus-visible') === true), 'Tab put no keyboard focus anywhere.');
+    const ringed = () => page.evaluate((selector) => {
+      const el = document.activeElement;
+      return el && el.closest(selector) ? { tool: el.getAttribute('data-tool'), visible: el.matches(':focus-visible'), cls: el.classList.contains('Mui-focusVisible') } : null;
+    }, PALETTE);
+    for (const way of ['a right-click straight after the keyboard', 'a right-click after a left click on the ground']) {
+      if (way.includes('left click')) {
+        await closeMenu(page);
+        await page.keyboard.press('Tab');
+        const ground = await groundPoint(page, VIEW);
+        await page.mouse.click(ground.x, ground.y);
+      }
+      await rightClickIn(page, VIEW, 'Host');
+      await menu(page, 'Host');
+      await soon(page, async () => (await ringed())?.tool === 'PartUsage', async () => `After ${way}, the focus is not on the menu's first entry: ${JSON.stringify(await ringed())}.`);
+      const got = await ringed();
+      assert.ok(!got.visible && !got.cls, `After ${way}, the menu's first entry, focused as the menu opened, shows the keyboard's ring (:focus-visible ${got.visible}, Mui-focusVisible ${got.cls}), though the menu was opened by the pointer.`);
+    }
+    await finish(opened);
+  });
+
   test('an undo by the keyboard closes the menu', async () => {
     const opened = await openView(browser, EXAMPLE, VIEW);
     const { page } = opened;

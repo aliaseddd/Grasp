@@ -9,6 +9,7 @@ The canvas was first built here to draw the design of [Stronghold](https://githu
 | Folder | What it is | Built with |
 |---|---|---|
 | `canvas/` | The design canvas: SysML v2 models drawn in the eight standard view kinds on one endless plane, with undo, checks while drawing, notes pinned to elements or left free on the plane, an archive, code attached to elements, and an export to textual SysML v2, worked on with Claude in a loop. Published as one HTML file, built from the sources in `canvas/src/`. | SVG, no libraries; Node for the scripts, Playwright for the tests |
+| `canvas/app/`, `canvas/dist/` | The new page, built from `canvas/app/` into `canvas/dist/index.html`, which is committed and opens from the file system in Chromium with no server. Slice 1 of the redesign: a slim top bar in place of the header, side panels that resize and collapse (the Explorer, Tools, Validation and Details), one tab per view with a plane of its own, boxes that resize by handles, one selection shared by every panel, tools at the side and on right-click, About, and undo with redo, over the same state files. The old page stays beside it, unchanged, until the new one draws everything it draws; `canvas/README.md` says what each does, and `canvas/app/README.md` how the application is laid out. | React Flow, Dockview and Material UI, vendored by npm and bundled by esbuild; TypeScript; Playwright for the tests |
 | `canvas/examples/` | Models to open in the canvas: Stronghold's proof structure, the model the canvas started with. | The canvas: state files, which its Import state opens |
 | `docs/sysml/` | The validator script `check.sh` the canvas exports through, aider's maps of the SysML v2 Pilot Implementation (`docs/sysml/pilot-implementation`) and of Eclipse SysON (`docs/sysml/syson`), an inventory of SysON's features (`docs/sysml/syson/features`), and an example: Stronghold's proof structure in textual SysML v2, with the page it was drawn and annotated on before the canvas existed. | Java 17+ and python3 for `check.sh` |
 | `docs/REPO_MAP.md` | The repo map aider draws of this repository. | aider |
@@ -42,11 +43,12 @@ The new page, slice 1 of the redesign (`plan/slice-1.md`), is built from `canvas
 npm ci              # the libraries, at the versions package-lock.json pins
 npm run build       # canvas/app/ → canvas/dist/
 npm run check       # fails when canvas/dist/ isn't what the sources build, or the types don't hold
-npm test            # the new page's tests, in Node and in Chromium from file://
+npm test            # the new page's tests, in Node and in Chromium from file://, one file at a time
+npm run shots       # the new page's screenshots, into canvas/app/shots/
 npm run test:old    # the old page's and the model library's tests, the command above
 ```
 
-`canvas/dist/index.html` opens from the downloaded repository with no server. The screenshots (`npm run shots`) come with step 5 of the slice.
+`canvas/dist/index.html` opens from the downloaded repository with no server: open it in Chromium, then open `canvas/examples/stronghold-proof.json` or the blank model, `canvas/state.json`, from its card or its bar.
 
 ## Decided on November 6, 2026
 
@@ -80,4 +82,4 @@ These decisions were made for Stronghold's design artifact, so the Stronghold re
 
 ## Next
 
-The redesign, in the seven slices of `plan/direction.md`, starting with the first, the shell and the planes; `plan/status.json` says which slice is next. The new page is built into `canvas/dist/` beside the old one, and the old page in `canvas/` stays, unchanged, until the new one draws everything it draws. Under the redesign the claude.ai page (https://claude.ai/artifact/V7Fw94cGMbtPnwmyDNmnjU) and its store drop out.
+Slice 1 of the redesign, the shell and the planes, is done (`plan/slice-1.md`; `plan/notes.md`, session 28, says how it was closed). Slice 2, editing parity, is next: what only the old page does yet, from drawing by dragging from a handle to notes, code links and the export panel, and the sequence, geometry, grid and browser views. `plan/status.json` says which slice is next, and `plan/direction.md`, "What is not settled yet", what each later slice finds out first. The old page in `canvas/` stays, unchanged, until the new one draws everything it draws. Under the redesign the claude.ai page (https://claude.ai/artifact/V7Fw94cGMbtPnwmyDNmnjU) and its store drop out.

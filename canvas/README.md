@@ -4,6 +4,25 @@
 
 ![The canvas showing the Stronghold example in a general view, a grid and a browser, with three notes](canvas.png)
 
+## The new page
+
+Grasp is being rebuilt (`plan/direction.md`), and the new page stands beside this one: `dist/index.html`, built from `app/` by `npm run build` and committed, which opens from the file system in Chromium with no server. Slice 1 of the redesign (`plan/slice-1.md`) gave it the shell and the planes:
+
+- **A slim top bar** in place of the header, with no palette and no row of text buttons: the name Grasp, the open file's name with a dot while it has unsaved changes, the icon buttons Open, Save, Undo and Redo, and About.
+- **Side panels that resize and collapse**, on a strip at each side: the Explorer, Tools and Validation on the left, Details on the right. A sash drag resizes them; a click on the name in front folds its side away to its strip.
+- **One tab per view, each a plane of its own**, which React Flow draws: a view is fitted when it is first shown, and keeps its place when its tab is hidden and shown again. General, interconnection, action flow and state transition views are drawn; a sequence, geometry, grid or browser view has its tab, with a card saying that this page draws it until slice 2. Zoomed out below 25%, boxes are outlines; a view of more than 300 nodes then draws no line. A zoom bar and a fit button at the bottom left, a minimap at the bottom right.
+- **Moving and resizing**: a box is dragged, resized by its handles (what it holds stays in place when its top or left moves), and a port or parameter slides along its owner's border. Each gesture is one undo step.
+- **One selection, shared**: a click picks on a plane, in the Explorer or in Validation, Ctrl or ⌘ + click adds, Shift + drag draws a marquee, and every panel and plane shows the same pick.
+- **The Tools view and right-click palettes**: what the view's kind can make, taken in hand and clicked where it goes, or offered at the pointer by a right-click; a line is drawn by two clicks.
+- **Details**, as SysON's, with Core and Advanced tabs, its fields edited in place, each change one undo step.
+- **Validation**: the model library's problems and the specification's rules, worked out once changes pause; a click on an entry picks what it is about.
+- **About**: what this browser lets the page do (the pickers, storage, a worker, WebAssembly, a request to GitHub, a remembered folder), and the libraries the page is built on, with their licences in `dist/THIRD-PARTY-NOTICES.txt`.
+- **Open and Save** of the same `grasp/2` state files this page reads, through the browser's picker where it has one and a file input and a download where it does not; notes, the archive and code links pass through untouched, so `export.mjs`, `check.sh` and `save-state.mjs` read what it saves. Undo and Redo, by the bar and by Ctrl or ⌘ + Z and Shift + Z.
+
+What only this page does, until slice 2 (`plan/direction.md`, "The slices"): the sequence, geometry, grid and browser views; drawing a line by dragging from a handle; reconnecting a line's end; editing a label in place; moving a box into another owner by dragging; Delete and Remove from view; new and deleted views; showing an element in a view; badges on what has a problem; notes and pins; code links; the export panel; and renaming in the browser view. A file the new page saved opens here, and the other way round.
+
+`app/README.md` says how the application is laid out and how to add to it, and the commands; `plan/notes.md` has what each session measured and decided.
+
 ## What it does
 
 - **An endless plane with several views.** Each view is a frame with a tab, `«view» name : Kind`, that grows with what it shows; drag the tab to move the view. New view adds a frame of the kind picked beside the button, to the right of the others. The active view, named in the top left, is the one the palette draws into; clicking inside a frame makes it active. Drag the plane to move around, scroll to pan, pinch or hold Ctrl or ⌘ while scrolling to zoom; Fit brings every frame back. The page draws what the window shows, and zoomed out below 25%, where words would be too small to read, it draws boxes as outlines and lines without their labels. An element belongs to the model once and may be shown in any number of views: a view's panel has a Show list for what it doesn't show yet, Remove from view takes an element out of one view, and Delete takes it out of the model with everything inside it and every line on it.
