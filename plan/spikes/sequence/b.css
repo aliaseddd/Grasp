@@ -1,0 +1,25 @@
+/* Candidate B's look. A selected thing is teal: its `color` is, and its shapes paint with currentColor. */
+.seq-b { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; color: var(--grasp-ink); user-select: none; touch-action: none; cursor: default; }
+.seq-b.framed { position: relative; overflow: visible; }
+.seq-b .seq-svg { display: block; overflow: visible; }
+.seq-b text { font-family: var(--grasp-font-family); fill: currentColor; }
+.seq-b .selected { color: var(--grasp-teal); }
+.seq-b .seq-dashed { fill: none; stroke: var(--grasp-ink); stroke-width: 1; stroke-dasharray: 4 4; stroke-opacity: 0.7; pointer-events: none; }
+.seq-b .seq-head { fill: var(--grasp-white); stroke: currentColor; stroke-width: 1; }
+.seq-b .seq-lifeline.selected .seq-head { stroke-width: 2.5; }
+.seq-b [data-seq="head"], .seq-b [data-seq="event"] { cursor: grab; }
+.seq-b [data-seq="message"] { cursor: ns-resize; }
+.seq-b .seq-keyword { font-size: 11px; fill: var(--grasp-text-secondary); }
+.seq-b .seq-name { font-size: 13px; font-weight: 500; }
+.seq-b .seq-event-hit { fill: transparent; stroke: none; }
+.seq-b .seq-dot { fill: currentColor; stroke: none; }
+.seq-b .seq-event-name { font-size: 12px; }
+.seq-b .seq-line { fill: none; stroke: currentColor; stroke-width: 1.25; }
+.seq-b .seq-link .seq-line { stroke-dasharray: 5 3; }
+.seq-b .seq-line-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; }
+.seq-b .seq-label { font-size: 12px; paint-order: stroke; stroke: var(--grasp-ground); stroke-width: 3; stroke-linejoin: round; }
+.seq-b .seq-message.lifted .seq-line { stroke-width: 2; }
+.seq-b .seq-badge circle { fill: var(--grasp-problem); }
+.seq-b .seq-pin rect, .seq-b .seq-pin path { fill: var(--grasp-teal); }
+.seq-b .seq-badge text, .seq-b .seq-pin text { fill: var(--grasp-white); font-size: 10px; font-weight: 700; stroke: none; }
+.seq-b .seq-pin.free { pointer-events: none; }

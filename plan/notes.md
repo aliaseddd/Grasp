@@ -4064,3 +4064,163 @@ Damon answered the plan's questions; `plan/architecture.md`, sections 8 and 9, h
 - Pull request #57 carries this branch. Damon does not want it watched.
 
 So the plan's departures and questions are closed. The next step is `plan/slice-2.md`.
+
+## Session 30, November 14, 2026: slice 2 planned and approved, its two probes answered; nothing built yet
+
+On `claude/bold-sagan-bsllj2`, from `a0239de` (main, with pull request #57 merged). Damon's word: lead slice 2;
+write its design, `plan/slice-2.md`, run the two probes, and build the scaffold, package 2-1, once he has approved the
+plan. He gave eleven success criteria for the slice (`plan/slice-2.md`, section 10) and two decisions: the old page is
+archived by package 2-15 at the slice's end, which this session designs and does not run; and criterion 3's capability
+list takes the place of package 2-14's table of the 33 old test files. The lead is Claude; agents beside it, seven,
+each on the session's own model: two probes, two readers of the old page, three reviewers of one brief each.
+
+**No code of the page changed.** The session wrote `plan/slice-2.md`, the two probes' folders, one row of
+`plan/architecture.md`, `plan/status.json`, two paragraphs of `plan/spikes/README.md` and this entry. Damon approved the
+plan the same day (below), and asked the session to record that and stand by: the scaffold is not begun.
+
+### The baseline
+
+| Command | Result |
+|---|---|
+| `npm ci` | exit 0; 119 packages, 13 s |
+| `npm run check` | exit 0; "canvas/dist is what the sources build.", 5 s |
+| `npm test` | exit 0; `# tests 470`, `# pass 470`, `# fail 0`, `# todo 0`; 324 s |
+
+The timed tests' medians in that run: the 5,000-element model opened in 605 ms; a drag step 10.1 ms starting and 7.2
+following; a keystroke 32.3 ms opening a step and 24.1 joining one, 28.6 and 27.3 with Validation shown and 150
+problems; a pan step of the fitted general view 12.0 and 11.0 ms. **These were not judged alone**: the four first
+agents were started while the run was going. They passed all the same. The scaffold takes criterion 9's measurement.
+
+### The two probes: a graph body each
+
+Each is in its folder with a `README.md` whose first line is the answer and which says how to run it again:
+`plan/spikes/sequence/` (`build.sh`, then `node plan/spikes/sequence/run.cjs`, about 10 minutes) and
+`plan/spikes/geometry/` (`node plan/spikes/geometry/build.cjs && node plan/spikes/geometry/run.cjs`, about 80 s). Each
+built both candidates on one layout function ported from the old page, and drove both with real pointer events.
+
+- **Sequence: a graph body.** 79 of 79 checks on each candidate. React Flow serves it through public props once a
+  lifeline is two nodes (its head; its line, `<id>:line`, behind everything) and the edges are raised. The SVG
+  component is half the code (246 lines against 536) and about twice as fast: one step of a message's row drag on 20
+  lifelines and 300 messages, 3.7 ms against 7.7; a lifeline that pushes 18 others, 10.3 against 18.9 with everything
+  mounted and 8.7 with only what the window shows mounted (the page's rule above 300 nodes).
+- **Geometry: a graph body.** 143 of 143 checks. 60 of 60 drops reported within 0.0005 m of the pointer, which is the
+  rounding. Painted outlines within 0.12 px at zooms 1, 2 and 4. One step of a drag of an owner with 9 parts among 500
+  footprints: 5.5 to 6.6 ms against 4.5 to 5.9. Five rules keep it right (`plan/slice-2.md`, section 2).
+- **Both call it close on cost** and not close on what the view gets from the plane. Neither ran inside the page's own
+  `Plane.tsx` and `viewStore.ts`; each rebuilt the page's pattern in its folder.
+
+What the probes found that the plan does not need but a later slice does:
+
+- **For slice 3's plan.** Three of the geometry view's rules are props of the whole plane (mounting only what the
+  window shows, `elevateNodesOnSelect`, the snap grid), and a plane will hold several views. Two have a way that needs
+  nothing of the plane (the node's rectangle; the picks kept in the nodes' `data`). The snap grid has none. And in a
+  frame that is dragged by its title, a drag on the view's ground inside the frame does nothing, on a graph body and
+  on a component body alike, because React Flow gives every draggable node the class `nopan`.
+- **React Flow's own connecting breaks on the page's inert handle** (`a.html?connect=inert` of the sequence probe): the
+  inert `source target` element comes first in each node, React Flow takes it for the node's first source handle, and
+  a connection then throws in `getBezierPath`. The plan does not use React Flow's connecting, so this stays as it is.
+- **The model library's `normalize()` drops a relationship whose two ends are one element**, so a message back to its
+  own lifeline needs an event at one end.
+
+### The old page read for the capability list
+
+Two readers went through the old page: one the sixteen scripts of `canvas/src/core/page/` with `page.html` and the
+core's tests, one the ten feature folders with their tests. They gave 153 and 205 numbered lines, each with its place
+in the code and the old tests that cover it. **Their lists were in the session's scratchpad only**, as session 29's
+table was. The lead cut them to 112 capabilities (`plan/slice-2.md`, section 7): one line for each thing a person
+would name. 38 are proved by tests of slice 1 that exist under the names given (checked by a script against the test
+files); 74 are tests slice 2 writes first. What the readers listed that is the model library's and not the page's
+(each check's sentence, each line kind's rule, the text's forms) is not in the list: the library does not change.
+
+One thing was checked by a command and not by reading: every name of the model library that an old page script
+reaches as `M.<name>` exists in the library. The 26 page scripts use 59 of its 96 names, and none is missing. So the
+slice needs no addition to the library for a name (assumption 5 of the architecture).
+
+### The numbers behind criteria 4 and 5
+
+Worked out in Node from the library's `first` and `ends` and `draw`'s own two checks, over the ten files:
+
+- Their 11 graph views hold **2,260 ordered pairs** of shown elements: 1,742 refused, 456 fit one kind, 62 fit
+  several. Sorted by view kind, the two kinds and what the rules give, they are **221 classes**, and each of the eight
+  relationship kinds of a graph view's row is allowed in some class.
+- **Each of the nine relationship kinds** has a line in a graph view of the ten files with another node that may
+  take one of its ends. For a connection it is `sensing` in the interconnection fixture: `mount`, the first, has none.
+  A message is drawn in the sequence fixture's general view too, so criterion 5 does not wait for package 2-10.
+
+### What the three reviewers changed
+
+Each played the builder of one package (2-2, 2-7, 2-12) with only its brief, the sections it names and the files they
+name. All three said one brief was not enough as drafted. What changed in the plan:
+
+- **Two rounds.** A body's tests in the page need the first round's code (the view's section, a badge, a pin). So
+  packages 2-2 to 2-9 are built first and 2-10 to 2-13 after, each round side by side. The architecture builds all
+  twelve at once.
+- **The grid's reader took the notes and the checks' entries as options**, against contract 7 ("the adapter layer
+  never reads the checks, the notes or the selection"). Now the reader reads the model only, and the body fills the
+  two columns.
+- **The notes' seam.** A pin could not know its note (the marks carried numbers, and a number is no key); the note
+  actions' `applies` has no `choice` (contract 4); nothing carried "the note to open"; the pin's gesture had no
+  contract. The seam now carries each.
+- **The rule that gives a free note its view** asked each view's reader for its size, which gives another answer once
+  the four bodies land. It now reads a view's `x` and `y` only.
+- **The click after a grip's release.** Tried in today's built page with a stand-in grip: a press on an element with
+  the classes `nodrag nopan` reaches a capturing listener on the plane's root, and neither the node nor the plane
+  moves. But the click that follows picks the node or places with the tool in hand, and with Shift held React Flow
+  draws a marquee instead. The plan drops that click and gives a grip the class `nokey`.
+- **A grip at a side's middle sits on a port**: 29 of the 115 boxes in the ten files' graph views have a border item
+  there. Grips stand 14 px outside the side.
+- **One element of each kind gives no menu.** The generated model for criterion 4 had one element of each kind, so no
+  pair of two parts, and five of eight kinds were never allowed. The test now takes the ten files' classes and a
+  generated model with two of each kind.
+
+Eleven briefs were not read that way.
+
+### Tried and dropped
+
+- **React Flow's own connecting and reconnecting.** Read, not built. Its reconnect anchors sit at React Flow's own
+  edge ends (`EdgeUpdateAnchors`, `node_modules/@xyflow/react/dist/esm/index.js`, line 2747), and the page's lines
+  route their own ends, so the anchors would sit at the boxes' corners. A `Handle` holds two subscriptions to React
+  Flow's store (lines 1742 and 1743). 12.10.2 has no anchor a custom edge can place.
+- **A capability "pan and zoom by touch" with a test**: left out for Damon's word instead, with the narrow window's
+  layout.
+
+### What the next session must not take as proved
+
+`plan/slice-2.md`, section 12, "What is not proved", lists it. The two that matter most: the grips and the line in
+hand have not run in the page, and the four limits with slice 2's additions are measured by the scaffold first.
+
+### A commit made on the way
+
+`d4d9258`, "plan: slice 2's two probes, in progress", holds the probes as they were before their answers. The
+session's stop hook asks that no untracked file be left, and the probes' agents were still writing. The commit after
+it holds their final state.
+
+### Damon's approval, the same day
+
+Damon read the report of commit `800cc82` and answered: "Approved, all five as you have them. Update the repo and
+standby." The five, as `plan/slice-2.md`, section 12, now records them:
+
+1. **The plan is approved.** The scaffold can start.
+2. **Six capabilities of the old page are left out, each by name**: the page keeping the work in this browser by
+   itself; the window's place and zoom remembered across a reload; the claude.ai store and its read-only states;
+   following the system's dark setting; the layout for a narrow window; driving the drawing by touch.
+3. **A note's label follows a rename, as on the old page**, though contract 9's record says "as it was when the note
+   was written". `plan/architecture.md` is not edited for it: the plan's section 12 is where that sentence is read.
+4. **With no file open, a key says nothing.**
+5. **Three behaviours differ from the old page**: deleting something keeps its notes; the Delete key does not delete
+   a view; there is no Note tool.
+
+What the approval changed in the repository: the plan's opening, its section 7 ("Left out, approved by Damon by
+name") and its section 12 ("What Damon decided"); `plan/direction.md`, which gains "Decided for slice 2" and whose
+open question on the sequence and geometry views is answered; `plan/status.json`, where slice 2 is "in progress" with
+package 2-0 done; and the README's "Next". **On Damon's word the session stood by after that**: package 2-1 is not
+begun. `plan/REPO_MAP.md` was not drawn again: no code of the page changed, and the map would only gain the probes'
+scripts.
+
+### For the next session
+
+- **Package 2-1, the scaffold**, alone, as its brief says (`plan/slice-2.md`, section 8), when Damon says go. It starts
+  as every slice starts (`npm ci`, `npm run check`, `npm test`), and ends in one commit that passes
+  `npm ci && npm run check && npm test` by itself, with `# todo 7` and seven checks `"todo"` in `plan/status.json`.
+- **Its first hour** should build the grips and try a press on one in the page, and measure the four limits with the
+  grips mounted: the plan's one unproved technique and its one unmeasured cost (section 12, "What is not proved").

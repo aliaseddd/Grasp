@@ -1,0 +1,35 @@
+/* Candidate A's look, on React Flow's own elements. A selected thing is teal: its `color` is, and its shapes paint
+   with currentColor. */
+.seq-a { color: var(--grasp-ink); }
+.seq-a .react-flow__node { font-family: var(--grasp-font-family); color: var(--grasp-ink); user-select: none; }
+.seq-a .react-flow__node.selected, .seq-a .react-flow__edge.selected { color: var(--grasp-teal); }
+/* The one inert element in every node: React Flow reads a node's handles from the DOM. */
+.seq-a .seq-handle { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.seq-a .seq-over { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.seq-a .seq-dashed { fill: none; stroke: var(--grasp-ink); stroke-width: 1; stroke-dasharray: 4 4; stroke-opacity: 0.7; }
+/* A lifeline's head. (With ?shape=tall its node is as tall as the view and takes no pointer; the head does.) */
+.seq-a .seq-head {
+  position: absolute; left: 0; top: 0; width: 100%; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center;
+  background: var(--grasp-white); border: 1px solid currentColor; border-radius: 10px; pointer-events: all; text-align: center;
+}
+.seq-a .react-flow__node.selected .seq-head { outline: 2px solid var(--grasp-teal); }
+.seq-a .seq-keyword { font-size: 11px; line-height: 14px; color: var(--grasp-text-secondary); }
+.seq-a .seq-name { font-size: 13px; font-weight: 500; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.seq-a .seq-dot { fill: currentColor; stroke: none; }
+.seq-a .seq-event-name { font-size: 12px; fill: currentColor; pointer-events: all; }
+.seq-a .react-flow__edge { color: var(--grasp-ink); }
+.seq-a .react-flow__edge.message { cursor: ns-resize; }
+.seq-a .seq-line { fill: none; stroke: currentColor; stroke-width: 1.25; }
+.seq-a .react-flow__edge.succession .seq-line { stroke-dasharray: 5 3; }
+.seq-a .react-flow__edge.lifted .seq-line { stroke-width: 2; }
+.seq-a .seq-line-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; }
+.seq-a .seq-label { font-size: 12px; fill: currentColor; paint-order: stroke; stroke: var(--grasp-ground); stroke-width: 3; stroke-linejoin: round; pointer-events: all; user-select: none; }
+.seq-a .seq-badge circle { fill: var(--grasp-problem); }
+.seq-a .seq-pin rect, .seq-a .seq-pin path { fill: var(--grasp-teal); }
+.seq-a .seq-badge text, .seq-a .seq-pin text { fill: var(--grasp-white); font-size: 10px; font-weight: 700; stroke: none; }
+/* ?rows=nodes: a message's node. */
+.seq-a .react-flow__node-row { cursor: ns-resize; }
+.seq-a .react-flow__node-row.lifted .seq-line { stroke-width: 2; }
+/* ?connect=1: the handles. A lifeline's is a strip down its dashed line; an event's lies over its dot. */
+.seq-a .react-flow__handle.seq-strip { left: calc(50% - 8px); bottom: auto; width: 16px; transform: none; border: 0; border-radius: 0; background: transparent; }
+.seq-a .react-flow__handle.seq-on-dot { left: 0; top: 0; right: auto; width: 16px; height: 16px; transform: none; border: 0; background: transparent; }

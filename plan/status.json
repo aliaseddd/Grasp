@@ -18,7 +18,11 @@
         { "id": 10, "check": "a far zoom that draws outlines and culls edges keeps a fitted 5,000-node view responsive", "test": "scale.test.mjs › a pan step of a fitted view takes under 16 ms at 5,000 elements, under 25 ms for the 2,112-node action flow view", "status": "pass", "note": "the 2,112-node view's limit restated from 16 to 25 ms with Damon's approval, session 28; plan/direction.md, \"Compartment rows at Grasp's scale\"" }
       ]
     },
-    { "id": 2, "name": "Editing parity", "status": "open" },
+    {
+      "id": 2, "name": "Editing parity", "status": "in progress",
+      "plan": "plan/slice-2.md", "criteria": "plan/slice-2.md, section 10", "package": "2-0", "next_package": "2-1",
+      "note": "session 30: package 2-0 is done. Damon approved the plan on November 14, 2026, with its five points as the plan has them (plan/slice-2.md, section 12). The two probes are answered: a graph body for the sequence view and for the geometry view (plan/spikes/sequence/README.md, plan/spikes/geometry/README.md). Nothing of the slice is built. Package 2-1, the scaffold, is next; it writes the twelve checks of plan/slice-2.md, section 9, as tests and lists them here, seven of them todo."
+    },
     { "id": 3, "name": "The workspace folder and the loop through GitHub", "status": "open" },
     { "id": 4, "name": "Every concept, in the standard form", "status": "open" },
     { "id": 5, "name": "Text in the page", "status": "open" },

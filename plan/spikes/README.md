@@ -40,3 +40,14 @@ node convert.cjs -convert api-json proof.back.sysml > proof.back.api.json       
 ```
 
 OpenSysML prints a notice that the conversion is experimental: it covers model structure and the behaviour bodies state, refuses what it cannot write back, and its vocabulary may change without a compatibility path.
+
+## `sequence/` and `geometry/`: the two probes at the start of slice 2
+
+Run on November 14, 2026, to answer one question of `plan/direction.md`, "What is not settled yet": whether React Flow nodes serve the sequence view and the geometry view, or SVG inside the tab does. Each folder builds both ways on one layout function ported from the old page, drives both with real pointer events, and says the answer in the first line of its own `README.md`: a graph body, for both. They install nothing: React, React Flow and esbuild are read from the repository's own `node_modules` (`npm ci` at the root).
+
+```sh
+plan/spikes/sequence/build.sh && node plan/spikes/sequence/run.cjs                              # about 10 minutes
+node plan/spikes/geometry/build.cjs && node plan/spikes/geometry/run.cjs                        # about 80 s
+```
+
+`plan/slice-2.md`, section 2, says what the slice takes from them.
