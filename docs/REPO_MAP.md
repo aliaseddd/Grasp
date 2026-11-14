@@ -1,8 +1,8 @@
 # Repo map
 
-Drawn by [aider](https://aider.chat) 0.86.2 with `aider --show-repo-map` on November 7, 2026, over the files git tracks. For each file, aider's tree-sitter parser lists the definitions it would hand a model as context; a bare file name means the file has none it recognizes (configuration, Markdown, CSS, JSON). The `⋮` marks lines left out.
+Drawn by [aider](https://aider.chat) 0.86.2 with `aider --show-repo-map` on November 14, 2026, over the files git tracks. For each file, aider's tree-sitter parser lists the definitions it would hand a model as context; a bare file name means the file has none it recognizes (configuration, Markdown, CSS, JSON). The `⋮` marks lines left out.
 
-The map is what an AI pair programmer sees of this repository before it opens a file. Read it as a table of contents: the design canvas's scripts and tests in `canvas/` (the page itself, `canvas/index.html`, holds its script inline, which aider doesn't read), and the SysML scripts in `docs/sysml/`. Stronghold's code, which this repository held until November 7, is in the Stronghold repository now; its map from then is in this file's history.
+The map is what an AI pair programmer sees of this repository before it opens a file. Read it as a table of contents: the new page's TypeScript in `canvas/app/`, the old page's scripts and the model library in `canvas/src/`, the tests in `canvas/test/` and `canvas/app/test/`, and the SysML scripts in `docs/sysml/`. The built pages (`canvas/index.html`, `canvas/dist/`) are generated, and aider doesn't read their inline or bundled scripts. Stronghold's code, which this repository held until November 7, is in the Stronghold repository now; its map from then is in this file's history.
 
 To redraw it after changes, from the repository root (aider needs a model name to start, but drawing the map makes no API call). aider maps the files of the last commit, not staged changes, so commit first:
 
@@ -14,666 +14,1034 @@ COLUMNS=160 aider --show-repo-map --map-tokens 8192 --no-pretty --yes-always \
 ```text
 If you need to edit any of these files, ask me to *add them to the chat* first.
 
-.gitignore
-
-README.md
-
-canvas/README.md
-
-canvas/canvas.png
-
-canvas/check.sh
-
-canvas/export.mjs:
+canvas/app/src/core/adapter.ts:
 ⋮
-│export function loadLib(html = fs.readFileSync(PAGE, 'utf8')) {
-│  const blocks = [...html.matchAll(/<script\b[^>]*\bdata-lib\b[^>]*>([\s\S]*?)<\/script>/g)].map((m
-│  if (!blocks.length) throw new Error(`No <script data-lib> in ${PAGE}.`);
-│  const context = vm.createContext({});
-│  blocks.forEach((code, i) => vm.runInContext(code, context, { filename: `lib-${i}.js` }));
-│  if (!context.SysMLModel) throw new Error('The library blocks did not define SysMLModel.');
-│  return context.SysMLModel;
+│declare global {
+│  // The part of the model library that the adapter reads, beside what src/types.d.ts and session.t
+│  interface SysMLModelLibrary {
+│    readonly KINDS: Readonly<Record<string, KindRow>>;
+│    readonly RELATIONSHIPS: Readonly<Record<string, { line: LineRow; hideable?: boolean }>>;
+│    readonly VIEW_KINDS: Readonly<Record<string, ViewKindRow>>;
+│    /** An element's name in the text, trimmed; '' while it has none; null when its kind has none (
+│    textName(el: { kind: string; name?: unknown }): string | null;
+│    /** The typing of a usage (its "defined by" line), hidden or not, or null. */
+│    typingOf(model: Model, el: ModelElement): ModelRelationship | null;
+│    /** 'a part def' or 'an action flow view'; `capital` makes the article's first letter a capital
+│    an(label: string, capital?: boolean): string;
 ⋮
-│export function readBlock(html, id) {
-│  const match = html.match(new RegExp(`<script type="application/json" id="${id}">([\\s\\S]*?)</scr
-│  if (!match) throw new Error(`No <script id="${id}"> in ${PAGE}.`);
-│  return JSON.parse(match[1]);
+│export type PlaneNode = Node<NodeData, Shape> & {
+│  type: Shape;
+│  width: number;
+│  height: number;
+│  measured: { width: number; height: number };
+│  className: string;
 ⋮
-│const listOf = (value) => (Array.isArray(value) ? value : []);
+│export type EdgeData = {
+│  route: 'straight' | 'elbow';
+│  /** The marker's element id at the line's far end, markerId() of the row's name, or null. */
+│  marker: string | null;
+│  label: string;
+│  /** How far below the line's middle the label's baseline sits. */
+│  labelOffset: number;
+│  far: boolean;
+│  /** Whether each end is a border item, which a line leaves from just outside its square. */
+│  sourceBorder: boolean;
+⋮
+│export type PlaneEdge = Edge<EdgeData, 'line'> & { type: 'line'; data: EdgeData; className: string 
 │
 ⋮
-│export function readPage(html = fs.readFileSync(PAGE, 'utf8')) {
-│  const model = readBlock(html, 'model');
-│  const saved = readBlock(html, 'saved-notes');
-│  return { model, notes: listOf(saved.notes), archive: listOf(saved.archive) };
+│export interface Projection {
+│  /** The view's id. */
+│  readonly view: string;
+│  readonly far: boolean;
+│  readonly look: Look;
+│  /** A box, then the boxes inside it, each with its own, then its border items; at each level in t
+│  readonly nodes: PlaneNode[];
+│  /** One for each relationship that is not hidden and has both ends among the nodes, in the model'
+│  readonly edges: PlaneEdge[];
+│  /** Every node's rectangle from the view's origin, by its id: what the old page's layout calls re
 ⋮
-│export function readState(file) {
-│  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-│  if (!data || typeof data !== 'object' || !data.model) throw new Error(`${file} has no model.`);
-│  return { model: data.model, notes: listOf(data.notes), archive: listOf(data.archive) };
+│export interface ProjectionRead {
+│  /** The model object it was read from. */
+│  readonly model: Model;
+│  /** The id of the view it was read for. */
+│  readonly view: string;
+│  readonly far: boolean;
+│  readonly look: Look;
+│  /** Whether every place the view's nodes were laid out from, bar those of `options.places`, is th
+│  readonly exact: boolean;
+│  /** What each node says that no place can alter, with the view's saved place: in the order the no
 ⋮
-
-canvas/index.html
-
-canvas/save-state.mjs:
-⋮
-│const isNote = (n) => !!n && typeof n === 'object' && typeof n.id === 'string' && /^[A-Za-z0-9_-]{1
-⋮
-│const tidy = (list, fields) => (Array.isArray(list) ? list : [])
-⋮
-│const json = (value) => JSON.stringify(value, null, 2).replace(/</g, '\\u003c');
-│const replaceBetween = (text, start, end, block) => {
-│  const a = text.indexOf(start);
-│  const b = text.indexOf(end);
-│  if (a < 0 || b < a) throw new Error(`No ${start} … ${end} in ${PAGE}.`);
-│  return text.slice(0, a + start.length) + block + text.slice(b);
-⋮
-
-canvas/test/annotations-archive.test.mjs:
-⋮
-│async function resolvedNote(page, name, text) {
-│  const el = await placeElement(page, 'PartDefinition');
-│  await rename(page, el, name);
-│  const note = await addNote(page);
-│  await page.fill(`#notes-list li[data-note="${note}"] textarea.text`, text);
-│  await until(page, ([n, t]) => { const d = window.__store.get('notes/' + n); return Boolean(d) && 
-│  await page.evaluate((n) => window.__store.db.doc('notes/' + n).update({ response: 'Done.', resolv
-│  await until(page, (n) => document.querySelector(`#notes-list li[data-note="${n}"]`)?.classList.co
-│  return note;
-⋮
-│const archivedInStore = (n) => { const d = window.__store.dump(); return Boolean(d['archive/' + n])
+│export type Viewport = { x: number; y: number; zoom: number };
 │
 ⋮
-
-canvas/test/annotations-code.test.mjs:
-⋮
-│async function addCodeLink(page, el, path) {
-│  const before = await page.locator('#code-list li.code-link').count();
-│  await page.click('#add-code');
-│  await until(page, (count) => document.querySelectorAll('#code-list li.code-link').length > count,
-│  const row = page.locator('#code-list li.code-link').last();
-│  await row.locator('input.code-path').fill(path);
-│  await until(page, ([id, p]) => document.querySelector(`g[data-el="${id}"]`)?.textContent.includes
-│  return row;
+│export interface ReadLine {
+│  readonly from: number;
+│  readonly to: number;
+│  readonly fromBorder: boolean;
+│  readonly toBorder: boolean;
+│  readonly how: 'straight' | 'elbow';
+│  readonly edge: PlaneEdge;
 ⋮
 
-canvas/test/annotations-notes-free.test.mjs:
+canvas/app/src/core/checks.ts:
 ⋮
-│async function noteAt(page, point) {
-│  const before = await page.$$eval('#notes-list li[data-note]', (items) => items.map((li) => li.get
-│  await page.click('.palette button[data-tool="Note"]');
-│  await page.mouse.click(point.x, point.y);
-│  await until(page, (count) => document.querySelectorAll('#notes-list li[data-note]').length > coun
-│  const ids = await page.$$eval('#notes-list li[data-note]', (items) => items.map((li) => li.getAtt
-│  const added = ids.filter((id) => !before.includes(id));
-│  assert.equal(added.length, 1, `the Note tool added one note, not ${JSON.stringify(added)}`);
-│  return added[0];
+│export interface Diagnostic {
+│  /** The rule's name in the specification: 'validateNamespaceDistinguishibility'. */
+│  readonly rule: string;
+│  /** The metaclass the rule is on: 'Namespace'. */
+│  readonly metaclass: string;
+│  /** What breaks the rule: an element, a relationship, or (null) the package. */
+│  readonly type: 'el' | 'rel' | null;
+│  /** The element's or the relationship's id; null for the package. */
+│  readonly id: string | null;
+│  /** The qualified name of what breaks it. */
 ⋮
-
-canvas/test/behavior-actions.test.mjs:
-⋮
-│async function addView(page, kind) {
-│  const before = await page.locator('#drawing g.frame[data-view]').count();
-│  await page.selectOption('#new-view-kind', kind);
-│  await page.click('#new-view');
-│  await until(page, (count) => document.querySelectorAll('#drawing g.frame[data-view]').length > co
-│  return page.getAttribute('#drawing g.frame.is-active', 'data-view');
-⋮
-│async function fit(page) {
-│  await page.click('#zoom-fit');
-⋮
-│async function clickBox(page, id) {
-│  const at = await page.evaluate((elId) => {
-│    const g = document.querySelector(`#drawing g[data-el="${elId}"]`);
-│    if (!g) return null;
-│    const mid = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
-│    const points = Array.from(g.querySelectorAll(':scope > text')).map((t) => mid(t.getBoundingClie
-│    const outline = g.querySelector(':scope > .outline');
-│    if (outline) {
-│      const r = outline.getBoundingClientRect();
-│      points.push(mid(r));
-│      [8, 3].forEach((d) => [[r.left + d, r.top + d], [r.right - d, r.top + d], [r.left + d, r.bott
-⋮
-│async function placeInside(page, tool, hostId) {
-│  await fit(page);
-│  const at = await page.evaluate((id) => {
-│    const g = document.querySelector(`#drawing g[data-el="${id}"]`);
-│    const outline = g && g.querySelector(':scope > .outline');
-│    if (!outline) return null;
-│    const box = outline.getBoundingClientRect();
-│    let bottom = box.top + 20;
-│    g.querySelectorAll(':scope > g[data-el] > .outline').forEach((o) => {
-│      const r = o.getBoundingClientRect();
-⋮
-│async function drawEdge(page, tool, sourceId, targetId) {
-│  const before = await relationshipIds(page);
-│  await page.click(`.palette button[data-tool="${tool}"]`);
-│  await clickBox(page, sourceId);
-│  await clickBox(page, targetId);
-│  await until(page, (count) => document.querySelectorAll('g[data-rel]').length > count, before.leng
-│  const added = (await relationshipIds(page)).filter((id) => !before.includes(id));
-│  assert.equal(added.length, 1, `drawing a ${tool} added one edge, not ${JSON.stringify(added)}`);
-│  return added[0];
-⋮
-│async function refuseEdge(page, tool, sourceId, targetId) {
-│  const before = await relationshipIds(page);
-│  await page.click(`.palette button[data-tool="${tool}"]`);
-│  await clickBox(page, sourceId);
-│  await clickBox(page, targetId);
-│  const status = await page.textContent('#status');
-│  assert.deepEqual(await relationshipIds(page), before, 'no edge was drawn');
-│  await page.keyboard.press('Escape');
-│  return status;
-⋮
-│async function exported(page) {
-│  const text = await exportText(page);
-│  await page.click('#close-export');
-│  return text;
-⋮
-
-canvas/test/behavior-states.test.mjs:
-⋮
-│async function addView(page, kind) {
-│  const before = await page.locator('#drawing g.frame[data-view]').count();
-│  await page.selectOption('#new-view-kind', kind);
-│  await page.click('#new-view');
-│  await until(page, (count) => document.querySelectorAll('#drawing g.frame[data-view]').length > co
-│  return page.getAttribute('#drawing g.frame.is-active', 'data-view');
-⋮
-│async function fit(page) {
-│  await page.click('#zoom-fit');
-⋮
-│async function clickBox(page, id) {
-│  const at = await page.evaluate((elId) => {
-│    const g = document.querySelector(`#drawing g[data-el="${elId}"]`);
-│    if (!g) return null;
-│    const mid = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
-│    const points = Array.from(g.querySelectorAll(':scope > text')).map((t) => mid(t.getBoundingClie
-│    const outline = g.querySelector(':scope > .outline');
-│    if (outline) {
-│      const r = outline.getBoundingClientRect();
-│      points.push(mid(r));
-│      [8, 3].forEach((d) => [[r.left + d, r.top + d], [r.right - d, r.top + d], [r.left + d, r.bott
-⋮
-│async function placeInside(page, tool, hostId) {
-│  await fit(page);
-│  const at = await page.evaluate((id) => {
-│    const g = document.querySelector(`#drawing g[data-el="${id}"]`);
-│    const outline = g && g.querySelector(':scope > .outline');
-│    if (!outline) return null;
-│    const box = outline.getBoundingClientRect();
-│    let bottom = box.top + 20;
-│    g.querySelectorAll(':scope > g[data-el] > .outline').forEach((o) => {
-│      const r = o.getBoundingClientRect();
-⋮
-│async function drawEdge(page, tool, sourceId, targetId) {
-│  const before = await relationshipIds(page);
-│  await page.click(`.palette button[data-tool="${tool}"]`);
-│  await clickBox(page, sourceId);
-│  await clickBox(page, targetId);
-│  await until(page, (count) => document.querySelectorAll('g[data-rel]').length > count, before.leng
-│  const added = (await relationshipIds(page)).filter((id) => !before.includes(id));
-│  assert.equal(added.length, 1, `drawing a ${tool} added one edge, not ${JSON.stringify(added)}`);
-│  return added[0];
-⋮
-│async function refuseEdge(page, tool, sourceId, targetId) {
-│  const before = await relationshipIds(page);
-│  await page.click(`.palette button[data-tool="${tool}"]`);
-│  await clickBox(page, sourceId);
-│  await clickBox(page, targetId);
-│  const status = await page.textContent('#status');
-│  assert.deepEqual(await relationshipIds(page), before, 'no edge was drawn');
-│  await page.keyboard.press('Escape');
-│  return status;
-⋮
-│async function exported(page) {
-│  const text = await exportText(page);
-│  await page.click('#close-export');
-│  return text;
-⋮
-
-canvas/test/browser.test.mjs:
-⋮
-│async function addView(page, kind) {
-│  const before = await page.locator('#drawing g.frame[data-view]').count();
-│  await page.selectOption('#new-view-kind', kind);
-│  await page.click('#new-view');
-│  await until(page, (count) => document.querySelectorAll('#drawing g.frame[data-view]').length > co
-│  return page.getAttribute('#drawing g.frame.is-active', 'data-view');
-⋮
-│const rowIds = (page, id) => page.$$eval(`#drawing g.frame[data-view="${id}"] g.el[data-el]`, (grou
-│/** The ids of the relationship rows (g.rel[data-rel]) drawn in the frame of view `id`, top to bott
-│const relRowIds = (page, id) => page.$$eval(`#drawing g.frame[data-view="${id}"] g.rel[data-rel]`, 
-│
-⋮
-
-canvas/test/camera.test.mjs
-
-canvas/test/checks.test.mjs
-
-canvas/test/drawing.test.mjs:
-⋮
-│describe('drawing', () => {
-│  let browser;
-│  before(async () => { browser = await launch(); });
-│  after(() => browser?.close());
-│
-│  test('placing a part definition draws it selected and shows it in the inspector', async () => {
-│    const ctx = await openCanvas(browser);
-│    const { page } = ctx;
-│    const id = await placeElement(page, 'PartDefinition');
-│    assert.equal(await page.getAttribute(`g[data-el="${id}"]`, 'data-kind'), 'PartDefinition');
-⋮
-│  test('a part dragged a little down inside its part definition stays inside it, which is drawn to 
-│    const ctx = await openCanvas(browser);
-│    const { page } = ctx;
-│    const def = await placeElement(page, 'PartDefinition');
-│    const box = await page.locator(`g[data-el="${def}"] > rect.outline`).boundingBox();
-│    const part = await placeElement(page, 'PartUsage', { x: box.x + box.width / 2, y: box.y + box.h
-│    assert.equal(await page.locator(`g[data-el="${def}"] g[data-el="${part}"]`).count(), 1, 'the pa
-│    // Dragged by its header 40 drawing units down: still inside the definition as it was drawn hol
-│    const k = (await zoomLevel(page)) / 100;
-│    const r = await page.locator(`g[data-el="${part}"] > rect.outline`).boundingBox();
-⋮
-│    const rect = (id) => page.$eval(`g[data-el="${id}"] > rect.outline`, (e) => ({ y: +e.getAttribu
-⋮
-
-canvas/test/export.test.mjs
-
-canvas/test/fake-claude.mjs:
-⋮
-│export function installFakeClaude(seed) {
-│  const docs = new Map(); // path -> frozen body
-│  const snaps = new Map(); // path -> the snapshot handed out for the body now stored, so an unchan
-│  const listeners = new Set();
-│  const log = [];
-│  let minted = 0;
-│
-│  const metadata = Object.freeze({ fromCache: false, hasPendingWrites: false });
-│  const clone = (value) => JSON.parse(JSON.stringify(value));
-│  const freeze = (value) => {
-│    if (value && typeof value === 'object') Object.values(value).forEach(freeze), Object.freeze(val
-│    return value;
-│  };
-│  const isBody = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-│  const later = (value) => new Promise((resolve) => setTimeout(() => resolve(value), 0));
-│  const refuse = (code, message) => Promise.reject({ code, message });
-│
-⋮
-│  function checkPath(path, odd, what) {
-│    if (typeof path !== 'string') throw new TypeError(`${what} path must be a string`);
-│    const parts = path.split('/');
-│    if (parts.some((s) => !SEGMENT.test(s) || s === '.' || s === '..')) throw new TypeError(`${what
-│    if (parts.length % 2 !== (odd ? 1 : 0)) throw new TypeError(`${what} path "${path}" has ${parts
-│    return parts;
+│declare global {
+│  // The part of the model library that the checks call, beside what src/types.d.ts, session.ts and
+│  interface SysMLModelLibrary {
+│    /** Grasp's own problems, in the model's order: its elements', then its views', then its relati
+│    validate(model: Model): Problem[];
+│    /** The diagnostics of the specification's rules, sorted by rule and then by qualified name. */
+│    validateSpec(model: Model): Diagnostic[];
+│    /** The names of the specification's rules the library checks: 15 of the specification's 388. *
+│    readonly SPEC_RULES: readonly string[];
 │  }
-│  const parent = (path) => path.slice(0, path.lastIndexOf('/'));
+⋮
+│export interface ChecksState {
+│  /** The last result, or null before the first. */
+│  readonly found: Found | null;
+│  /** Whether the model may have changed since `found` was worked out, or nothing has been worked o
+│  readonly stale: boolean;
+⋮
+│export interface ChecksOptions {
+│  /**
+│   * Calls `run` once, `ms` from now, and returns what calls it off. Unless given: setTimeout and c
+│   * read only by the call of checksOf() that makes the session's checks.
+│   */
+│  later?: (run: () => void, ms: number) => () => void;
+⋮
+│export interface EntryAbout {
+│  readonly type: 'el' | 'rel' | 'view' | 'package' | 'none';
+│  readonly id: string;
+│  readonly pick: readonly Picked[];
+⋮
+
+canvas/app/src/core/commands.ts:
+⋮
+│export interface CommandsLibrary {
+│  readonly KINDS: Readonly<Record<string, {
+│    /** The kind in a sentence, and what a tool is called: 'part def'. */
+│    label: string;
+│    /** The kinds an element of this kind may own, or false for none. */
+│    contains: readonly string[] | false;
+│    /** Whether it sits on its owner's border (a port, a parameter). */
+│    onBorder?: boolean;
+│    /** The size a new one gets. */
+│    size: [number, number];
+⋮
+│  textName(el: { kind: string; name?: unknown }): string | null;
+⋮
+
+canvas/app/src/core/files.ts:
+⋮
+│export interface StateFile {
+│  /** The version of the format the model is saved in: the library's, grasp/2. */
+│  format: string;
+│  /** The revision of the model in the file this one started from: the file that was opened. */
+│  revision: string | null;
+│  /** When it was saved. */
+│  saved: string;
+│  model: Model;
+│  notes: unknown[];
+│  archive: unknown[];
+⋮
+│export function openText(lib: SysMLModelLibrary, text: string, file: FileRef, options?: SessionOpti
+│  let data: unknown;
+│  try {
+│    // A byte order mark that an editor put at the file's start is no part of its JSON.
+│    data = JSON.parse(text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text);
+│  } catch {
+│    throw new Error(`${file.name} isn't a state file: it isn't JSON.`);
+│  }
+│  return openSession(lib, data, file, options);
+⋮
+│type OpenFilePicker = (options?: {
+│  multiple?: boolean;
+│  types?: { description?: string; accept: Record<string, string[]> }[];
+⋮
+
+canvas/app/src/core/history.ts:
+⋮
+│export interface ModelElement {
+│  id: string;
+│  kind: string;
+│  name: string;
+│  doc: string;
+│  /** The id of the element that owns it; a definition, and a usage on the package, has none. */
+│  owner?: string;
+│  [field: string]: unknown;
+⋮
+│export interface ModelRelationship {
+│  id: string;
+│  kind: string;
+│  from: string;
+│  to: string;
+│  /** A line the views don't draw (a port's typing). */
+│  hidden?: boolean;
+│  [field: string]: unknown;
+⋮
+│export interface ModelView {
+│  id: string;
+│  kind: string;
+│  name: string;
+│  doc: string;
+│  x: number;
+│  y: number;
+│  layout: Record<string, Place>;
+│  options: Record<string, unknown>;
+│  [field: string]: unknown;
+⋮
+│export interface Model {
+│  format: string;
+│  revision: string | null;
+│  package: { name: string; doc: string };
+│  elements: ModelElement[];
+│  relationships: ModelRelationship[];
+│  views: ModelView[];
+⋮
+│export interface Touched {
+│  elements: string[];
+│  relationships: string[];
+│  views: string[];
+⋮
+│export interface Told {
+│  /**
+│   * What happened: a change made through edit(); a step taken back; a step made again; or the end 
+│   * changes, which changes nothing in the model, only the steps (the run became one step, or none)
+│   */
+│  by: 'edit' | 'undo' | 'redo' | 'end';
+│  /** What it touched. Empty lists when it touched none of the three (a change to the package, the 
+│  touched: Touched;
+│  /**
+│   * Whether it altered which elements, relationships and views there are, or their order, kinds, o
+⋮
+│export interface LogEntry {
+│  at: string;
+│  text: string;
+│  key?: string;
+⋮
+│export interface History {
+│  /**
+│   * The model, the Proxy of itself. Read it anywhere; write it only inside a change given to edit(
+│   * a whole new model in its place, which is then one undo step; outside a change that is refused.
+│   */
+│  model: Model;
+│  /** The undo steps, newest last. */
+│  readonly steps: readonly Step[];
+│  /** The steps Undo took back, the next for Redo last. */
+│  readonly undone: readonly Step[];
+⋮
+│export interface HistoryOptions {
+│  /** The log to start from: the one the file carried. */
+│  changes?: readonly LogEntry[];
+│  /** The time, as the log's entries carry it. The tests give their own clock. */
+│  now?: () => string;
+│  /**
+│   * What is done with a mistake in the page's code: a write to the model outside edit(), a change 
+│   * nothing yet changed the model, a listener that threw. Unless given, the mistake is thrown as a
+│   * once what the page is doing now is done, so the page goes on while the console, and the tests,
+│   */
+⋮
+│type ListName = (typeof LISTS)[number];
+│type Key = string | number | symbol;
+│/** An object or an array of the model, read and written by key. */
+│type Bag = Record<Key, unknown>;
+⋮
+│type Home =
+⋮
+│interface Notes {
+│  objects: Map<object, Map<Key, KeyNote>>;
+│  orders: Map<object, string[]>;
+│  lists: Map<unknown[], unknown[]>;
+│  replaced: Model | null;
+⋮
+│interface Recorded {
+│  what: string;
+│  key: string | null;
+│  touched: Touched;
+│  notes: Notes;
+│  log: string;
+│  logKey: string | null;
+│  /** The number of the state the model is in after it (mark). */
+│  state: number;
+│  /** While Undo has taken it back: what its keys and lists held just before, which Redo puts back.
+⋮
+│interface Capture {
+│  elements: Map<string, string>;
+│  relationships: Map<string, string>;
+│  views: Map<string, string>;
+│  places: Map<string, Map<string, string>>;
+│  order: Record<ListName, string[]>;
+│  rest: string;
+⋮
+│export function createHistory(model: Model, options: HistoryOptions = {}): History {
+│  const now = options.now ?? (() => new Date().toISOString());
+│  const report = options.mistake ?? throwLater;
 │
-│  function snapshot(path) {
-│    if (!snaps.has(path)) {
-│      const body = docs.get(path);
-│      snaps.set(path, Object.freeze({ id: path.slice(path.lastIndexOf('/') + 1), exists: body !== u
-│    }
-│    return snaps.get(path);
+│  // ---- The model keeps a note of every write made to it.
+│  //
+│  // Every object and array in the model is a Proxy of itself: its target is the plain object, whic
+│  // Proxies as its children, so whatever is read from the model is a Proxy, and reads go straight 
+│  // writes are trapped: before a key of an object changes, or is deleted, the object, the key and 
+│  // are noted (the first time in a change); before an array changes, a copy of its items is. So ed
 ⋮
-│  function passes(body, { field, op, value }) {
-│    const v = body[field];
-│    switch (op) {
-│      case '==': return JSON.stringify(v) === JSON.stringify(value);
-│      case '!=': return v !== undefined && JSON.stringify(v) !== JSON.stringify(value);
-│      case '<': return v !== undefined && v < value;
-│      case '<=': return v !== undefined && v <= value;
-│      case '>': return v !== undefined && v > value;
-│      case '>=': return v !== undefined && v >= value;
-│      case 'in': return Array.isArray(value) && value.includes(v);
-⋮
-│  const compare = (a, b) => (a === b ? 0 : a === undefined ? 1 : b === undefined ? -1 : a < b ? -1 
-│
-⋮
-│  function run(query) {
-│    const rows = [...docs.keys()]
-│      .filter((path) => parent(path) === query.path && query.filters.every((filter) => passes(docs.
-│      .sort((a, b) => {
-│        const byField = query.order ? compare(docs.get(a)[query.order.field], docs.get(b)[query.ord
-│        if (byField) return query.order.dir === 'desc' ? -byField : byField;
-│        return a < b ? -1 : 1;
-│      });
-│    return (query.limit ? rows.slice(0, query.limit) : rows).map(snapshot);
-⋮
-│  function querySnapshot(query, previous) {
-│    const now = run(query);
-│    const docChanges = () => {
-│      const changes = [];
-│      now.forEach((doc, newIndex) => {
-│        const oldIndex = previous.findIndex((old) => old.id === doc.id);
-│        if (oldIndex < 0) changes.push({ type: 'added', doc, oldIndex: -1, newIndex });
-│        else if (previous[oldIndex] !== doc) changes.push({ type: 'modified', doc, oldIndex, newInd
-│      });
-│      previous.forEach((old, oldIndex) => {
-│        if (!now.some((doc) => doc.id === old.id)) changes.push({ type: 'removed', doc: old, oldInd
-│      });
-⋮
-│  function deliver(listener) {
-│    setTimeout(() => {
-│      if (!listeners.has(listener)) return;
-│      if (listener.path !== undefined) return listener.next(snapshot(listener.path));
-│      const snap = querySnapshot(listener.query, listener.last);
-│      listener.last = snap.docs;
-│      listener.next(snap);
-│    }, 0);
-│  }
-│  function changed(path) {
-│    snaps.delete(path);
-│    for (const listener of listeners) {
-│      if (listener.path === path || (listener.query && listener.query.path === parent(path))) deliv
-│    }
-│  }
-│  function subscribe(listener) {
-│    listeners.add(listener);
-│    deliver(listener);
-│    return () => listeners.delete(listener);
-│  }
-│  function write(path, body) {
-│    docs.set(path, freeze(clone(body)));
-│    changed(path);
-│  }
-│  function merge(into, from) {
-│    for (const [key, value] of Object.entries(from)) into[key] = isBody(value) && isBody(into[key])
-│    return into;
-⋮
-│  function doc(path) {
-│    const parts = checkPath(path, false, 'document');
-│    const ref = {
-│      id: parts[parts.length - 1],
-│      path,
-│      get() { log.push({ op: 'get', path }); return later(snapshot(path)); },
-│      set(data) {
-│        log.push({ op: 'set', path });
-│        if (!isBody(data)) return refuse('invalid_argument', 'a document body must be a plain objec
-│        write(path, data);
-│        return later(undefined);
-│      },
-│      update(data) {
-│        log.push({ op: 'update', path });
-│        if (!isBody(data)) return refuse('invalid_argument', 'an update must be a plain object');
-│        if (!docs.has(path)) return refuse('invalid_argument', `update of a document that does not 
-│        write(path, merge(clone(docs.get(path)), clone(data)));
-│        return later(undefined);
-│      },
-│      delete() {
-│        log.push({ op: 'delete', path });
-│        docs.delete(path);
-│        changed(path);
-│        return later(undefined);
-│      },
-│      acquire({ holder, ttlMs, data } = {}) {
-│        log.push({ op: 'acquire', path });
-│        if (data) write(path, merge(clone(docs.get(path) || {}), clone(data)));
-│        const ttl = Math.min(600000, Math.max(1000, ttlMs || 30000));
-│        return later({ acquired: true, version: 1, expiresAt: new Date(Date.now() + ttl).toISOStrin
-│      },
-│      onSnapshot(next) { log.push({ op: 'onSnapshot', path }); return subscribe({ path, next }); },
-│      collection(sub) { return collection(`${path}/${sub}`); },
-⋮
-│  function query(spec) {
-│    return {
-│      where: (field, op, value) => query({ ...spec, filters: [...spec.filters, { field, op, value }
-│      orderBy: (field, dir = 'asc') => query({ ...spec, order: { field, dir } }),
-│      limit: (n) => query({ ...spec, limit: n }),
-│      get() { log.push({ op: 'get', path: spec.path }); return later(querySnapshot(spec, [])); },
-│      onSnapshot(next) { log.push({ op: 'onSnapshot', path: spec.path }); return subscribe({ query:
-│    };
-│  }
-│  function collection(path) {
-│    checkPath(path, true, 'collection');
-│    return Object.assign(query({ path, filters: [], order: null, limit: 0 }), {
-│      path,
-│      doc: (id) => doc(`${path}/${id ?? `fake${(minted += 1)}`}`),
-│      add(data) { const ref = doc(`${path}/fake${(minted += 1)}`); return ref.set(data).then(() => 
-│    });
-⋮
-│  const user = { can: () => later(true), isOwner: () => later(true), canEdit: () => later(true), id
-│  window.claude = {
-│    use(name) {
-│      log.push({ op: 'use', path: name });
-│      return later(name === 'db' ? db : name === 'user' ? user : null);
+│  const TRAPS: ProxyHandler<object> = {
+│    set(t, k, v) { noteWrite(t, k, false); (t as Bag)[k] = track(v, homeIn(t, k)); return true; },
+│    deleteProperty(t, k) { noteWrite(t, k, true); return delete (t as Bag)[k]; },
+│    defineProperty(t, k, d) {
+│      noteWrite(t, k, false);
+│      return Reflect.defineProperty(t, k, 'value' in d ? Object.assign({}, d, { value: track(d.valu
 │    },
-│  };
-│  window.__store = {
-│    db,
-│    log,
-│    get: (path) => (docs.has(path) ? clone(docs.get(path)) : undefined),
-│    dump: () => Object.fromEntries([...docs].map(([path, body]) => [path, clone(body)])),
 ⋮
 
-canvas/test/fixtures/annotations.json
-
-canvas/test/fixtures/behavior-actions.json
-
-canvas/test/fixtures/behavior-states.json
-
-canvas/test/fixtures/browser.json
-
-canvas/test/fixtures/format1.json
-
-canvas/test/fixtures/geometry.json
-
-canvas/test/fixtures/grid.json
-
-canvas/test/fixtures/interconnection.json
-
-canvas/test/fixtures/sequence.json
-
-canvas/test/geometry.test.mjs:
+canvas/app/src/core/probe.ts:
 ⋮
-│async function addView(page, kind) {
-│  const before = await page.locator('#drawing g.frame[data-view]').count();
-│  await page.selectOption('#new-view-kind', kind);
-│  await page.click('#new-view');
-│  await until(page, (count) => document.querySelectorAll('#drawing g.frame[data-view]').length > co
-│  return page.getAttribute('#drawing g.frame.is-active', 'data-view');
-⋮
-│async function activate(page, viewId) {
-│  await page.locator(`#drawing g.frame[data-view="${viewId}"] rect.tab`).click();
-│  await until(page, (id) => document.querySelector(`#drawing g.frame[data-view="${id}"]`)?.classLis
-⋮
-│async function clickIn(page, viewId, id) {
-│  await page.locator(`#drawing g.frame[data-view="${viewId}"] g[data-el="${id}"] .outline`).first()
-│  await until(page, ([v, elId]) => document.querySelector(`#drawing g.frame[data-view="${v}"] g[dat
-⋮
-│function footprint(page, id) {
-│  return page.evaluate((elId) => {
-│    const g = document.querySelector(`#drawing g.frame.is-active g.footprint[data-el="${elId}"]`);
-│    const o = g && g.querySelector('.outline');
-│    return g && o ? { width: +o.getAttribute('width'), height: +o.getAttribute('height'), classes: 
-│  }, id);
-⋮
-
-canvas/test/grid.test.mjs:
-⋮
-│const rows = (id) => `#drawing g.frame[data-view="${id}"] g.grid-row[data-el]`;
-│const heads = (id, col) => `#drawing g.frame[data-view="${id}"] g[data-action="sort"]${col ? `[data
+│export type ProbeLineId = (typeof PROBE_LINES)[number]['id'];
 │
-│async function addView(page, kind) {
-│  const before = await page.locator('#drawing g.frame[data-view]').count();
-│  await page.selectOption('#new-view-kind', kind);
-│  await page.click('#new-view');
-│  await until(page, (count) => document.querySelectorAll('#drawing g.frame[data-view]').length > co
-│  return page.getAttribute('#drawing g.frame.is-active', 'data-view');
 ⋮
-│async function showAll(page, id) {
-│  await page.click('#grid-show-all');
-│  await until(page, ([vid, count]) => document.querySelectorAll(`#drawing g.frame[data-view="${vid}
-⋮
-│describe('grid view', () => {
-│  let browser;
-│  before(async () => { browser = await launch(); });
-│  after(() => browser?.close());
+│export type ProbeState = 'pending' | 'yes' | 'no' | 'told';
 │
-│  test('a new grid view has no rows and no tool of its own, and the panel shows its options', async
-│    const ctx = await openCanvas(browser);
-│    const { page } = ctx;
-│    const id = await addView(page, 'GridView');
-│    assert.equal(await page.locator('.palette button[data-tool]:not([data-tool="Note"])').count(), 
 ⋮
-│  test('unticking a column takes it out of the table, and a header sorts the rows', async () => {
-│    const ctx = await openCanvas(browser);
-│    const { page } = ctx;
-│    const id = await addView(page, 'GridView');
-│    await showAll(page, id);
-│    const pageRow = `#drawing g.frame[data-view="${id}"] g[data-el="Page"]`;
-│    assert.equal(await page.locator(heads(id, 'doc')).count(), 1, 'the doc column has a header');
-│    assert.match(await page.textContent(pageRow), /SharePoint/, 'the doc column shows the doc');
-│    await page.uncheck('#grid-columns .grid-column[value="doc"]');
-│    await until(page, (vid) => !document.querySelector(`#drawing g.frame[data-view="${vid}"] g[data
+│export interface FolderHandle {
+│  readonly name: string;
+│  /** The browser's answer without asking the person: 'granted', 'prompt' or 'denied'. */
+│  queryPermission?: (how: { mode: 'readwrite' }) => Promise<string>;
 ⋮
-│    const order = () => page.$$eval(rows(id), (groups) => groups.map((g) => g.getAttribute('data-el
+│export interface FolderRecord {
+│  readonly handle: FolderHandle;
+│  /** The folder's name, as its handle gave it when it was picked. */
+│  readonly name: string;
+│  /** When it was remembered: ProbeEnv.date() then. */
+│  readonly at: string;
+│  /** The page load it was remembered in: ProbeEnv.load then. */
+│  readonly load: string;
 ⋮
-│  test('matrix mode puts the relationship between two elements in their cell', async () => {
-│    const ctx = await openCanvas(browser);
-│    const { page } = ctx;
-│    const id = await addView(page, 'GridView');
-│    await showAll(page, id);
-│    await page.selectOption('#grid-mode', 'matrix');
-│    await until(page, (vid) => document.querySelectorAll(`#drawing g.frame[data-view="${vid}"] g[da
-│    const cell = (row, col) => page.textContent(`#drawing g.frame[data-view="${id}"] g[data-el="${r
-│    assert.equal(await cell('ServerHost', 'Host'), ':>', 'ServerHost specializes Host');
-│    assert.equal(await cell('Page.hosts', 'Host'), ':', 'hosts is defined by Host');
+│export interface ProbeEnv {
+│  /** navigator.userAgent. */
+│  readonly userAgent: string;
+│  /** window.isSecureContext. */
+│  readonly secure: boolean;
+│  /** Whether window.showOpenFilePicker and window.showSaveFilePicker are functions. */
+│  readonly openPicker: boolean;
+│  readonly savePicker: boolean;
+│  /** window.showDirectoryPicker, bound to the window, which asks the person for a folder; null whe
+│  readonly pickFolder: (() => Promise<FolderHandle>) | null;
 ⋮
-│  test('a start or done node, which has no name, goes by its label in the table and in a matrix row
-│    const ctx = await openCanvas(browser);
-│    const { page } = ctx;
-│    await page.setInputFiles('#import-file', ACTIONS);
-│    await until(page, () => !!document.querySelector('#drawing g.frame[data-view="v-release"] g[dat
-│    const id = await addView(page, 'GridView');
-│    await page.click('#grid-show-all');
-│    await until(page, (vid) => !!document.querySelector(`#drawing g.frame[data-view="${vid}"] g.gri
-│    const cells = (elId) => page.$$eval(`#drawing g.frame[data-view="${id}"] g.grid-row[data-el="${
-│    assert.deepEqual(await cells('Release.start'), ['start', 'start', 'Release'], 'the kind and the
+
+canvas/app/src/core/selection.ts:
+⋮
+│export type PickedType = 'el' | 'rel' | 'view';
+│
+⋮
+│export interface Picked {
+│  readonly type: PickedType;
+│  readonly id: string;
+⋮
+│export interface Hit {
+│  /** The id of the view the plane shows. */
+│  readonly view: string;
+│  /** The ground, a node's element, or a line's relationship. */
+│  readonly type: 'ground' | 'el' | 'rel';
+│  /** The element's or the relationship's id; null for the ground. */
+│  readonly id: string | null;
+│  /** Where the pointer was, in the view's own units from the view's origin (React Flow's screenToF
+│  readonly at: { readonly x: number; readonly y: number };
+│  /** Whether Ctrl or ⌘ was held: the click adds to what is picked, or lets one thing go. */
+⋮
+│export interface Selection {
+│  readonly items: readonly Picked[];
+│  /** The last picked, `items[0]`, or null: what Details shows. */
+│  readonly last: Picked | null;
+│  readonly view: string | null;
+│  /**
+│   * Whether the element, relationship or view of this id is picked. It does not search the list: a
+│   * every node and line it draws, after every projection.
+│   */
+│  has(type: PickedType, id: string): boolean;
+⋮
+
+canvas/app/src/core/session.ts:
+⋮
+│declare global {
+│  // The part of the model library that opening and saving use, beside what src/types.d.ts declares
+│  interface SysMLModelLibrary {
+│    /** The version of the saved format that the library reads and writes: 2 for grasp/2. */
+│    readonly VERSION: number;
+│    /** The version a saved model names; the library's own when it names none. */
+│    versionOf(raw: unknown): number;
+│    /** A saved model, of this version or an older one, read into the current version: the model th
+│    normalize(raw: unknown): Model;
+│  }
+⋮
+│export type SessionOptions = Omit<HistoryOptions, 'changes'>;
+│
+│export interface Session {
+│  /** The model library the file was read with, which also names the format it is saved in. */
+│  readonly lib: SysMLModelLibrary;
+│  /** The file's name, which the top bar shows and a download is saved under. */
+│  readonly name: string;
+│  /** The file's handle, when it came through the picker: Save writes back through it. Null otherwi
+│  readonly handle: FileSystemFileHandle | null;
+│  /** The history: every change to the model goes through its edit(). */
+│  readonly history: History;
+│  /** The model, which is the history's: the Proxy of itself. */
+⋮
+
+canvas/app/src/panels/SidePanel.tsx:
+⋮
+│export interface SidePanelProps {
+│  /** The data-testid of the panel's root (helpers.mjs, TESTIDS): 'explorer', 'tools', 'validation'
+│  testId: string;
+│  /** The panel's title, in its header row: the name its strip shows. */
+│  title: string;
+│  /** The panel's own, under the header row. */
+│  children?: ReactNode;
+⋮
+
+canvas/app/src/panels/explorerRows.ts:
+⋮
+│declare global {
+│  // The part of the model library that the Explorer's rows read, beside what the core declares of 
+│  interface SysMLModelLibrary {
+│    /**
+│     * The rows of a browser view, in order: each element with what it owns under it, then the rela
+│     * in it; the package's relationships last. A view whose options are `{ roots: null, collapsed:
+│     * whole package with nothing folded: every element once, and every relationship both of whose 
+│     * of the model.
+│     */
+│    browserRows(model: Model, view: { options: { roots: null; collapsed: string[] } }): LibraryRow[
+│    /**
+│     * A relationship in words: 'DevHost specializes Host', 'hosts defined by Host', 'connection mo
+⋮
+│export interface RowWords {
+│  readonly kw: string;
+│  readonly name: string;
+│  readonly type: string;
+⋮
+│export interface ExplorerRows {
+│  readonly items: readonly RowItem[];
+│  readonly unfolded: readonly string[];
+│  readonly built: number;
+│  /**
+│   * The ids of the rows that are shown, in the tree's order: the package's row, and what is inside
+│   * shown row, its "Show more" row last among them. A new array at each call.
+│   */
+│  shown(): string[];
+│  wordsOf(row: string): RowWords | null;
+⋮
+
+canvas/app/src/panels/fieldHooks.ts:
+⋮
+│export type GroupName = (typeof GROUP_NAMES)[number];
+│
+⋮
+│export type FieldValue = string | number | boolean;
+│
+⋮
+│export interface FieldRow {
+│  readonly row: 'field';
+│  /** The field's name in FIELDS: the widget's data-testid is `field-<field>`. */
+│  readonly field: string;
+│  /** FIELD_LOOKS[field].label. */
+│  readonly label: string;
+│  /** The row's type, never 'list'. */
+│  readonly type: Exclude<FieldType, 'list'>;
+│  /**
+│   * What the field holds, by its hook's value() or as the item's property. A string or text: the s
+⋮
+
+canvas/app/src/plane/NotDrawnYet.tsx:
+⋮
+│export interface NotDrawnYetProps {
+│  /** The first sentence, from the adapter's notDrawnText: "A sequence view is not drawn yet." */
+│  text: string;
+⋮
+
+canvas/app/src/plane/nodes/BoxNode.tsx:
+⋮
+│export type BoxNodeProps = NodeProps<Node<BoxData, Shape>>;
+│
+⋮
+
+canvas/app/src/plane/nodes/PortNode.tsx:
+⋮
+│export type PortNodeProps = NodeProps<Node<BorderData, Shape>>;
+│
+⋮
+
+canvas/app/src/plane/nodes/SmallNode.tsx:
+⋮
+│export type SmallNodeProps = NodeProps<Node<SmallData, Shape>>;
+│
+⋮
+
+canvas/app/src/plane/viewStore.ts:
+⋮
+│export interface ViewSnapshot {
+│  readonly nodes: PlaneNode[];
+│  readonly edges: PlaneEdge[];
+│  /** Whether the plane is far: its zoom is under FAR. */
+│  readonly far: boolean;
+⋮
+
+canvas/app/src/shell/About.tsx:
+⋮
+│export interface AboutProps {
+│  /** Whether the panel is shown. */
+│  open: boolean;
+│  /** Called when the person closes it. */
+│  onClose: () => void;
+⋮
+
+canvas/app/src/shell/App.tsx:
+⋮
+│export interface GraspGlobal {
+│  /** The open file, or null. */
+│  readonly session: Session | null;
+│  /** The open file's view stores by view id (those made so far), or null with no file. */
+│  readonly views: ReadonlyMap<string, ViewStore> | null;
+│  /** The open file's selection, or null with no file. */
+│  readonly selection: Selection | null;
+⋮
+
+canvas/app/src/shell/EmptyCard.tsx:
+⋮
+│export interface EmptyCardProps {
+│  /**
+│   * The open file, or null when none is: its name, how many views it has, and how many of them are
+│   * have no tab anywhere. A view that is not closed floats over the editor, or the card would not 
+│   */
+│  file: { name: string; views: number; closed: number } | null;
+│  /** Opens a file, as the bar's Open does. */
+│  onOpen: () => void;
+│  /** Gives the closed views their tabs again, in the editor. */
+│  onShowViews: () => void;
+⋮
+
+canvas/app/src/shell/Toasts.tsx:
+⋮
+│export interface ToastsProps {
+│  /** The open file, or null. */
+│  session: Session | null;
+⋮
+
+canvas/app/src/shell/TopBar.tsx:
+⋮
+│export type ActionId = (typeof ACTIONS)[number]['id'];
+⋮
+│export interface TopBarProps {
+│  /** The open file, or null: its name shows in data-testid "file-name", then a dot while `session.
+│  session: Session | null;
+│  /** Called by Open. */
+│  onOpen: () => void;
+│  /** Called by Save and by Ctrl or ⌘ + S (step 7). */
+│  onSave: () => void;
+│  /** Called by About: App opens the About panel. */
+│  onAbout: () => void;
+⋮
+
+canvas/app/src/shell/dockContext.ts:
+⋮
+│export interface DockState {
+│  /** The open file, or null before one is opened. */
+│  session: Session | null;
+│  /** Opens a file, as the bar's Open does. */
+│  onOpen: () => void;
+│  /** Gives every view of the open file that has no tab its tab again, in the editor. */
+│  showViews: () => void;
+│  /** How many of the session's views have no tab anywhere, in the editor or floating over it. */
+│  closed: number;
+│  /**
+⋮
+
+canvas/app/src/types.d.ts:
+⋮
+│interface SysMLModelLibrary {
+│  /** The saved format's name, 'grasp/2'. */
+│  readonly FORMAT: string;
+⋮
+
+canvas/app/test/core.mjs:
+⋮
+│export function loadCore() {
+│  core ??= bundle();
+│  return core;
+⋮
+│async function bundlePlanes() {
+│  const result = await esbuild.build({
+│    absWorkingDir: ROOT,
+│    stdin: {
+│      contents: "export * from './core/index'; export * from './plane/viewStore';",
+│      resolveDir: path.join(ROOT, 'canvas', 'app', 'src'),
+│      sourcefile: 'planes-entry.ts',
+│      loader: 'ts',
+│    },
+│    bundle: true,
+⋮
+│export function loadWith(...files) {
+│  const key = files.join('\n');
+│  if (!bundles.has(key)) bundles.set(key, bundleWith(files));
+│  return bundles.get(key);
+│}
+│async function bundleWith(files) {
+│  const result = await esbuild.build({
+│    absWorkingDir: ROOT,
+│    stdin: {
+│      contents: ["export * from './core/index';", ...files.map((file) => `export * from './${file}'
+│      resolveDir: path.join(ROOT, 'canvas', 'app', 'src'),
+│      sourcefile: 'with-entry.ts',
+│      loader: 'ts',
+│    },
+│    bundle: true,
+⋮
+│export const readJSON = (file) => JSON.parse(readText(file));
+⋮
+
+canvas/app/test/files.test.mjs:
+⋮
+│function fakeDocument() {
+│  const body = { children: [] };
+│  const made = [];
+│  const document = {
+│    body,
+│    made,
+│    createElement(tag) {
+│      const listeners = new Map();
+│      const node = {
+│        tag,
+│        attributes: {},
+│        clicks: 0,
+│        setAttribute(name, value) { node.attributes[name] = String(value); },
+│        addEventListener(type, listener) { listeners.set(type, [...(listeners.get(type) ?? []), lis
+│        /** Tells the node's listeners of an event, as the browser does. */
+│        fire(type) { (listeners.get(type) ?? []).forEach((listener) => listener({ type, target: nod
+│        click() { node.clicks += 1; if (node.onclick) node.onclick(); },
+│        remove() { body.children = body.children.filter((child) => child !== node); },
+⋮
+│  body.appendChild = (node) => { body.children.push(node); return node; };
+⋮
+│describe('asking the browser for the file, and writing it', () => {
+│  test('where the browser has the picker, openFile asks it, and the session keeps the file\'s handl
+│    const { openFile, hasPicker } = await loadCore();
+│    const handle = fakeHandle('stronghold-proof.json', readText(EXAMPLE));
+│    const asked = [];
+│    const document = fakeDocument();
+│    const window = { showOpenFilePicker: async (options) => { asked.push(options); return [handle];
+│    const session = await withGlobals({ window, document }, async () => {
+│      assert.equal(hasPicker(), true);
+│      return openFile(lib);
+⋮
+│  test('saveFile downloads the file under its name, when it came through a file input', async () =>
+│    const { openText, saveFile } = await loadCore();
+│    const document = fakeDocument();
+│    const later = [];
+│    const session = openText(lib, readText(EXAMPLE), { name: 'stronghold-proof.json' }, { now: cloc
+│    session.history.edit(() => { Object.assign(session.model.views[0].layout.Host, { w: 400, h: 160
+│    let link = null;
+│    let text = null;
+│    await withGlobals({ window: {}, document, setTimeout: (fn, ms) => { later.push({ fn, ms }); ret
+│      assert.equal(await saveFile(session), 'download');
+│      [link] = document.made;
+│      text = await resolveObjectURL(link.href).text();
+⋮
+
+canvas/app/test/helpers.mjs:
+⋮
+│export const byTestId = (name) => `[data-testid="${name}"]`;
+│
+⋮
+│export async function openPage(browser, { url = PAGE_URL, picker = true, dialog = (d) => d.accept()
+│  const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+│  const page = await context.newPage();
+│  const problems = [];
+│  const requests = [];
+│  const dialogs = [];
+│  logs.set(page, problems);
+│  page.on('console', (message) => {
+│    if (message.type() === 'error' || message.type() === 'warning') problems.push(`console ${messag
+│  });
+⋮
+│export const stateFileAt = (file) => ({ name: path.basename(file), buffer: fs.readFileSync(file) })
+│export const stateFileOf = (name, state) => ({ name, buffer: Buffer.from(JSON.stringify(state)) });
+│
+⋮
+│export async function openStateFile(page, file) {
+│  assert.ok(await page.evaluate(() => !('showOpenFilePicker' in window)),
+│    'openStateFile needs a page opened with { picker: false }: a test cannot answer the browser\'s 
+│  const open = page.locator(byTestId(TESTIDS.open));
+│  const buttons = await open.count();
+│  assert.ok(buttons === 1, buttons
+│    ? `The page has ${buttons} Open buttons (data-testid "${TESTIDS.open}"), and only the bar's car
+│    : `The page has no Open button (data-testid "${TESTIDS.open}"), so ${file.name} cannot be opene
+│  let chooser = null;
+│  page.waitForEvent('filechooser', { timeout: WAIT }).then((asked) => { chooser = asked; }, () => {
+⋮
+│export const tabTitle = (view) => `${view.name} : ${view.kind}`;
+⋮
+│export async function untilDrawn(page, view) {
+│  const placed = Object.keys(view.layout).length;
+│  await soon(page, () => page.evaluate((selector) => !!document.querySelector(selector), planeOf(vi
+│    `No plane shows ${view.name} (data-testid "${TESTIDS.plane}", data-view "${view.id}"): its tab 
+│  const count = () => page.evaluate((selector) => document.querySelectorAll(selector).length, `${pl
+│  for (let nodes = await count(); nodes < placed;) {
+│    const before = nodes;
+│    ({ nodes } = await soon(page, async () => { const now = await count(); return now === before ? 
+│      `The plane of ${view.name} draws ${before} nodes for the ${placed} elements the view places.`
+│  }
+⋮
+│export async function selectBox(page, view, id) {
+│  const box = await boxOf(page, view.id, id);
+│  assert.ok(box, `The plane of ${view.name} draws no node for ${id}.`);
+│  await page.mouse.click(box.x + 24 * box.zoom, box.y + 14 * box.zoom);
+│  return soon(page, async () => { const now = await boxOf(page, view.id, id); return now && now.sel
+│    `A click on ${id} does not select it: its node has no class "selected".`);
+⋮
+│export function measure(planned, limit) {
+│  const samples = [];
+│  const over = () => samples.filter((s) => s.total >= limit).length;
+│  return {
+│    samples,
+│    add(sample) { samples.push(sample); },
+│    get settled() { return samples.length >= planned || over() > planned / 2 || samples.length - ov
+│    get median() {
+│      const sorted = samples.map((s) => s.total).sort((a, b) => a - b);
+│      const middle = sorted.length >> 1;
+│      return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+│    },
+│    toString() {
+│      const ms = (v) => v.toFixed(1);
+│      return samples.map((s) => (s.script === undefined ? ms(s.total) : `${ms(s.total)} (${ms(s.scr
+⋮
+│export const withInit = (browser, script) => ({
+│  newContext: async (options) => { const context = await browser.newContext(options); await context
+⋮
+│export async function showSide(page, name) {
+│  const testid = SIDES[name];
+│  assert.ok(testid, `No side panel is named ${name}. The side panels: ${Object.keys(SIDES).join(', 
+│  const shown = () => page.evaluate((selector) => {
+│    const el = document.querySelector(selector);
+│    return !!el && el.getBoundingClientRect().width >= 1 && el.getBoundingClientRect().height >= 1;
+│  }, byTestId(testid));
+│  if (await shown()) return;
+│  await page.getByRole('tab', { name, exact: true }).click();
+│  await soon(page, shown, `A click on ${name} on its strip did not show the ${name} panel (data-tes
+⋮
+│export const untilShown = (page, type, id, how) => soon(page, async () => (await shownIn(page)) ===
+⋮
+
+canvas/app/test/history.test.mjs:
+⋮
+│describe('the history', () => {
+│  test('a change is one step, undone and redone', async () => {
+│    const { history, told } = await open();
+│    const start = json(history);
+│    assert.equal(history.steps.length, 0, 'a history starts with no step');
+│    assert.equal(history.undo(), null, 'so there is nothing to take back');
+│    assert.equal(history.redo(), null, 'and nothing to make again');
+│    assert.deepEqual(told, [], 'and nobody is told');
+│
+│    assert.deepEqual(rename(history, 'Host', 'Hosting'), touches(['Host'], [], []), 'edit returns w
+⋮
+│  test('a mistake is thrown as an error of its own, once what the page is doing now is done', async
+│    const { createHistory } = await loadCore();
+│    const history = createHistory(lib.normalize(readJSON(EXAMPLE).model));
+│    const later = [];
+│    const setTimeout = globalThis.setTimeout;
+│    globalThis.setTimeout = (fn, ms) => { later.push({ fn, ms }); return 0; };
+│    try {
+│      el(history, 'Host').doc = 'written behind edit()';
+│      assert.deepEqual(rename(history, 'App', 'Application'), touches(['App'], [], []), 'the change
+│    } finally {
+⋮
+
+canvas/app/test/scale.test.mjs:
+⋮
+│async function showView(page, view) {
+│  const tab = await viewTab(page, view);
+│  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+│  await untilDrawn(page, view);
+⋮
+
+canvas/app/test/selection-core.test.mjs:
+⋮
+│const keys = (items) => items.map(key);
+⋮
+
+canvas/dist/app.js:
+│"use strict";(()=>{var __create=Object.create;var __defProp=Object.defineProperty;var __getOwnPropD
+⋮
+
+canvas/dist/model-lib.js:
+⋮
+│(function (root) {
+│  'use strict';
+│  const lib = root.SysMLModelLib;   // what the scripts register for the ones after them; metamodel
+│  const { METAMODEL } = lib;
+│
+│  // The kinds stand on the metamodel's classes. A class conforms to another when it is that class 
+│  // directly or through others.
+│  function conforms(metaclass, general) {
+│    if (metaclass === general) return true;
+│    const c = METAMODEL[metaclass];
+⋮
+│  const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+⋮
+│  function textName(el) {
+│    const kind = KINDS[el.kind];
+│    return kind && kind.fields.indexOf('name') >= 0 ? str(el.name).trim() : null;
+⋮
+│  function childrenOf(model, id) {
+│    const look = lookOf(model);
+│    if (look) return look.children(id).slice();
+│    return model.elements.filter((e) => (id === null || id === undefined ? e.owner === undefined : 
+⋮
+│(function (root) {
+│  'use strict';
+│  const lib = root.SysMLModelLib;
+│  const {
+│    KINDS, RELATIONSHIPS, VIEW_KINDS, MULTIPLICITY, textName, normalize, relIndex, reading, idsOf, 
+│    childrenOf, typingOf, commonOwner, quote, shown, qualified, featurePath, nameable, describe, de
+│    inheritedFeature, BODY, noteRecords, noteStatements, commentLines
+│  } = lib;
+│
+│  // The notes and the archived notes are written together, at the end of the package (noteRecords,
+⋮
+│  function textOf(model, notes, archive) {
+│    const ids = idsOf(model);
+│    const rels = relIndex(model);
+│    const noteList = noteRecords(notes, archive);
+│    const out = [];
+│    const imports = new Set();
+│    const line = (depth, text) => out.push('    '.repeat(depth) + text);
+│    const comment = (depth, head, text) => commentLines(depth, head, text).forEach((l) => out.push(
+│    const noteText = (n) => n.text + (n.response.trim() ? '\nClaude: ' + n.response.trim() : '');
+│    const listsBy = (list, key) => {
+⋮
+│    const helpers = {
+│      ids: ids, line: line, comment: comment, noteText: noteText, quote: quote, featurePath: featur
+│      notesOn: (id) => (notesBy.get(id) || []).slice(),
+│      // A note in its standard forms (noteStatements), written at depth through this object's own 
+│      // lines land where its other lines do; about null writes it inside the body it is in. Asks f
+│      note: function (depth, n, about, text) { noteStatements(n, about, text).forEach((s) => this.l
+│      needImport: (qualifiedName) => imports.add(qualifiedName),
+│      headOf: headOf, declaredIn: declaredIn, exposesOf: exposesOf,
+│      typingOf: (el) => typingOf(model, el),
+│      childrenOf: (id) => childrenOf(model, id),
+⋮
+
+canvas/dist/vendor.js:
+│"use strict";(()=>{var Q9=Object.create;var aS=Object.defineProperty;var J9=Object.getOwnPropertyDe
+│`+PS+e}var wS=!1;function SS(e,t){if(!e||wS)return"";wS=!0;var o=Error.prepareStackTrace;Error.prep
+│`),i=r.stack.split(`
+│`),s=n.length-1,a=i.length-1;1<=s&&0<=a&&n[s]!==i[a];)a--;for(;1<=s&&0<=a;s--,a--)if(n[s]!==i[a]){i
+│`+n[s].replace(" at new "," at ");return e.displayName&&l.includes("<anonymous>")&&(l=l.replace("<a
+│`).replace(VY,"")}function Yy(e,t,o){if(t=MN(t),MN(e)!==t&&o)throw Error(Se(425))}function vb(){}va
+│Error generating stack: `+i.message+`
+│`+i.stack}return{value:e,source:t,stack:n,digest:null}}function BS(e,t,o){return{value:e,source:nul
+⋮
+│+`).split(`
+│`)),c=p.reduce((d,u)=>d.concat(...u),[]);return[p,c]}return[[],[]]},[e]);return(0,ae.useEffect)(()=
+│        M${C.x},${C.y}h${C.width}v${C.height}h${-C.width}z`,fillRule:"evenodd",pointerEvents:"none"
+│
+│  npm install dockview-enterprise
+│  import 'dockview-enterprise'; // self-registers every enterprise module
+│`:`dockview: ${i}, but it is not registered.`}function K5(e,t){let o=`${e}|${(t===void 0?[]:[].conc
+⋮
+│`,Ppe=Xo.forwardRef(function(t,o){let r=H({props:t,name:"MuiTouchRipple"}),{center:n=!1,classes:i={
+│  0% {
+│    transform: rotate(0deg);
+│  }
+│
+│  100% {
+│    transform: rotate(360deg);
+│  }
+⋮
+│      `:null,$pe=typeof xI!="string"?Vr`
+│        animation: ${xI} 1.4s ease-in-out infinite;
+│      `:null,Gpe=e=>{let{classes:t,variant:o,color:r,disableShrink:n}=e,i={root:["root",o,`color${G
+│`&&(x.value+=" ");let S=P.boxSizing,C=JT(P.paddingBottom)+JT(P.paddingTop),_=JT(P.borderBottomWidth
+│`),S=x.selectionStart===T;P&&S&&x.setSelectionRange(T,T),r&&r(v)},ref:d,rows:i,style:s,...l}),(0,qg
+│  0% {
+│    left: -35%;
+│    right: 100%;
+│  }
+│
+│  60% {
+│    left: 100%;
+│    right: -90%;
+│  }
+│
+⋮
+│      `:null,_ge=e=>{let{classes:t,variant:o,color:r}=e,n={root:["root",`color${G(r)}`,o],dashed:["
+│  0% {
+│    opacity: 1;
+│  }
+│
+│  50% {
+│    opacity: 0.4;
+│  }
+│
+│  100% {
+⋮
+│      `:null,obe=A("span",{name:"MuiSkeleton",slot:"Root",overridesResolver:(e,t)=>{let{ownerState:
+│                90deg,
+│                transparent,
+│                ${(e.vars||e).palette.action.hover},
+│                transparent
+│              )`,content:'""',position:"absolute",transform:"translateX(-100%)",bottom:0,left:0,rig
+│    ${e.palette.mode==="light"?e.lighten(e.alpha(e.palette.divider,1),.88):e.darken(e.alpha(e.palet
+⋮
+
+canvas/dist/vendor/elkjs/elk.bundled.js:
+⋮
+│var PromisedWorker = /*#__PURE__*/function () {
+│  function PromisedWorker(worker) {
+│    var _this2 = this;
+│    _classCallCheck(this, PromisedWorker);
+│    if (worker === undefined) {
+│      throw new Error("Missing mandatory parameter 'worker'.");
+│    }
+│    this.resolvers = {};
+│    this.worker = worker;
+│    this.worker.onmessage = function (answer) {
+⋮
+│  return _createClass(PromisedWorker, [{
+│    key: "postMessage",
+│    value: function postMessage(msg) {
+│      var id = this.id || 0;
+│      this.id = id + 1;
+│      msg.id = id;
+│      var self = this;
+│      return new Promise(function (resolve, reject) {
+│        // prepare the resolver
+│        self.resolvers[id] = function (err, res) {
+│          if (err) {
+│            self.convertGwtStyleError(err);
+⋮
+│},{}],2:[function(require,module,exports){
+│(function (global){(function (){
+│'use strict';
+│
+│// --------------    FAKE ELEMENTS GWT ASSUMES EXIST   -------------- 
+│var $wnd;
+│if (typeof window !== 'undefined')
+│    $wnd = window
+│else if (typeof global !== 'undefined')
+│    $wnd = global // nodejs
+│else if (typeof self !== 'undefined')
+⋮
+│function NJd(){LJd();function h(f){var g=this;this.dispatch=function(a){var b=a.data;switch(b.cmd){
+│function j(b){var c=this;this.dispatcher=new h({postMessage:function(a){c.onmessage({data:a})}});th
+⋮
+│var dwe='object',ewe='boolean',fwe='number',gwe='string',hwe='function',iwe=2147483647,jwe='java.la
+⋮
+
+canvas/src/core/lib/model.js:
+⋮
+│(function (root) {
+│  'use strict';
+│  const lib = root.SysMLModelLib;   // what the scripts register for the ones after them; metamodel
+│  const { METAMODEL } = lib;
+│
+│  // The kinds stand on the metamodel's classes. A class conforms to another when it is that class 
+│  // directly or through others.
+│  function conforms(metaclass, general) {
+│    if (metaclass === general) return true;
+│    const c = METAMODEL[metaclass];
+⋮
+│  function textName(el) {
+│    const kind = KINDS[el.kind];
+│    return kind && kind.fields.indexOf('name') >= 0 ? str(el.name).trim() : null;
+⋮
+
+canvas/src/core/page/changes.js:
+⋮
+│(function (C) {
+│  'use strict';
+│  const S = C.state;
+│  const { M, PAUSE, HISTORY, undoButton, now, say, editable, viewById, render, applyMarks, check } 
+│
+│  const LISTS = ['elements', 'relationships', 'views'];
+│  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+│
+│  // ---- The model keeps a note of every write made to it.
+│  //
+⋮
+│  const TRAPS = {
+│    set: function (t, k, v) { noteWrite(t, k); t[k] = track(v, homeIn(t, k)); return true; },
+│    deleteProperty: function (t, k) { noteWrite(t, k); return delete t[k]; },
+│    defineProperty: function (t, k, d) {
+│      noteWrite(t, k);
+│      return Reflect.defineProperty(t, k, 'value' in d ? Object.assign({}, d, { value: track(d.valu
+│    }
+⋮
+
+canvas/src/core/page/state.js:
+⋮
+│(function (C) {
+│  'use strict';
+│  const S = C.state;
+│  const { M, status, palette, str } = C;
+│
+│  // ---- State.
+│
+│  const saved = readSaved();     // what this file holds: the model and the notes as last saved
+│  // What the page shows and does now, which the scripts share as S.name. The scripts it belongs to
+│  // the camera (camera.js), the pause before a save (changes.js), the palette's view kind (tools.j
+⋮
+│  function readJSON(id) {
+│    const block = document.getElementById(id);
+│    try { return block ? JSON.parse(block.textContent) : null; } catch (error) { return null; }
+⋮
+
+canvas/src/grid/page.js:
+⋮
+│(function (C) {
+│  'use strict';
+│  const S = C.state;
+│  const {
+│    M, ACTIONS, VIEW_PANELS, $, say, editable, f, plural, byNumber, viewById, frameAround, node, te
+│    onScreen, marksFor, edit, renderInspector, selectedView
+│  } = C;
+│
+│  // ---- The grid view: a table with a row per shown element, or a matrix of the shown elements ag
+│  // with the relationship kinds between them in the cells. Nothing is placed or moved by hand: the
+⋮
+│  ACTIONS.sort = function (hit) {
+│    const view = viewById(hit.view);
+│    if (!view || view.kind !== 'GridView' || M.GRID_COLUMNS.indexOf(hit.id) < 0) return;
+│    if (!editable()) { say('The order of the rows is part of the view, which can\'t be changed here
+│    const o = M.gridOptions(view);
+│    const next = o.sort === hit.id ? '-' + hit.id : o.sort === '-' + hit.id ? null : hit.id;
+│    const what = next === null ? 'Put the rows of ' + M.describeView(S.model, view) + ' back in the
+│      : 'Sorted the rows of ' + M.describeView(S.model, view) + ' by ' + hit.id + (next.charAt(0) =
+│    edit(() => {
+│      view.options.sort = next;
 ⋮
 
 canvas/test/helpers.mjs:
 ⋮
-│export function assertPageExists() {
-│  assert.ok(fs.existsSync(PAGE), `No canvas page at ${PAGE}. These tests drive canvas/index.html; b
-⋮
-│export function launch() {
-│  assertPageExists();
-│  return chromium.launch();
-⋮
-│export function pageSource() {
-│  assertPageExists();
-│  return fs.readFileSync(PAGE, 'utf8');
-⋮
-│export function embeddedModel(source = pageSource()) {
-│  const match = source.match(/<script\b[^>]*\bid=["']model["'][^>]*>([\s\S]*?)<\/script>/);
-│  assert.ok(match, 'index.html embeds the saved model in <script type="application/json" id="model"
-│  return JSON.parse(match[1]);
-⋮
-│export function modelLibSource(source = pageSource()) {
-│  const match = source.match(/<script\b[^>]*\bid=["']model-lib["'][^>]*>([\s\S]*?)<\/script>/);
-│  assert.ok(match, 'index.html holds the model library in <script id="model-lib">');
-│  return match[1];
-⋮
-│export function modelElementIds(model) {
-│  const elements = model?.elements;
-│  if (Array.isArray(elements)) return elements.map((element) => element.id);
-│  return elements ? Object.keys(elements) : [];
-⋮
-│export async function openCanvas(browser, { shared = false, seed = {} } = {}) {
+│export async function openCanvas(browser, { shared = false, seed = {}, init = null, file = PAGE } =
+│  assertPageExists(file);
 │  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 │  const errors = [];
 │  page.on('pageerror', (error) => errors.push(error.message));
 │  page.on('dialog', (dialog) => dialog.accept());
 │  if (shared) await page.addInitScript(installFakeClaude, seed);
-│  await page.goto(PAGE_URL);
+│  if (shared && init) await page.addInitScript(init);
+│  await page.goto(pathToFileURL(file).href);
 │  await page.waitForSelector('#canvas svg#drawing', { state: 'attached', timeout: WAIT });
-│  if (shared) {
-│    await until(page, () => window.__store.log.some((entry) =>
-⋮
-│export async function finish({ page, errors }) {
-│  assert.deepEqual(errors, [], 'the page threw no uncaught errors');
-│  await page.close();
-⋮
-│export async function until(page, predicate, arg, what) {
-│  try {
-│    await page.waitForFunction(predicate, arg, { timeout: WAIT, polling: 50 });
-│  } catch (error) {
-│    if (error.name !== 'TimeoutError') throw error;
-│    const status = await page.textContent('#status').catch(() => '(no #status)');
-│    const store = await page.evaluate(() => (window.__store ? JSON.stringify(window.__store.dump(),
-│    assert.fail(`Waited ${WAIT} ms for: ${what}.\n#status: ${status}${store ? `\nstore: ${store}` :
-│  }
-⋮
-│export const viewBox = (page) => page.getAttribute('#drawing', 'viewBox');
-│export const elementIds = (page) => page.$$eval('g[data-el]', (groups) => groups.map((g) => g.getAt
-│export const relationshipIds = (page) => page.$$eval('g[data-rel]', (groups) => groups.map((g) => g
-│/** The id (data-el or data-rel) of what carries is-selected, or null. */
-│export const selectedId = (page) => page.evaluate(() => {
-│  const selected = document.querySelector('.is-selected');
-│  return selected ? selected.getAttribute('data-el') ?? selected.getAttribute('data-rel') : null;
-⋮
-│export async function zoomLevel(page) {
-│  const text = await page.textContent('#zoom-level');
-│  const match = text.match(/(\d+(?:\.\d+)?)\s*%/);
-│  assert.ok(match, `#zoom-level shows a percentage, not "${text}"`);
-│  return Number(match[1]);
-⋮
-│export async function exportText(page) {
-│  await page.click('#export');
-│  await page.waitForSelector('#export-panel', { state: 'visible', timeout: WAIT });
-│  await until(page, () => document.querySelector('#export-text')?.value.trim().length > 0, null, '#
-│  return page.inputValue('#export-text');
-⋮
-│function findEmptyPoint() {
-│  const canvas = document.getElementById('canvas');
-│  const svg = document.getElementById('drawing');
-│  const box = svg.getBoundingClientRect();
-│  const RX = 170;
-│  const RY = 110;
-│  // The panel grows when something is selected, so its whole column counts as taken, not just wher
-│  const panel = document.getElementById('panel');
-│  const panelLeft = panel && !panel.hidden ? panel.getBoundingClientRect().left : Infinity;
-│  const drawn = (x, y) => {
-│    if (x >= panelLeft) return true;
-│    const hit = document.elementFromPoint(x, y);
-│    return !hit || !canvas.contains(hit) || Boolean(hit.closest('[data-el],[data-rel],[data-note],.
-⋮
-│function findEmptyPointInFrame(id) {
-│  const canvas = document.getElementById('canvas');
-│  const outline = document.querySelector(`#drawing g.frame[data-view="${id}"] > rect.outline`);
-│  if (!outline) return null;
-│  const box = outline.getBoundingClientRect();
-│  const stage = document.getElementById('drawing').getBoundingClientRect();
-│  const RX = 40;
-│  const RY = 30;
-│  const panel = document.getElementById('panel');
-│  const panelLeft = panel && !panel.hidden ? panel.getBoundingClientRect().left : Infinity;
-│  const drawn = (x, y) => {
-│    if (x >= panelLeft) return true;
-│    const hit = document.elementFromPoint(x, y);
-│    return !hit || !canvas.contains(hit) || Boolean(hit.closest('[data-el],[data-rel],[data-note],.
-⋮
-│export async function emptyPointIn(page, viewId) {
-│  const point = await page.evaluate(findEmptyPointInFrame, viewId);
-│  assert.ok(point, `found an empty spot inside the frame of view ${viewId}`);
-│  return point;
-⋮
-│export async function emptyPoint(page) {
-│  for (let attempt = 0; attempt < 6; attempt++) {
-│    const point = await page.evaluate(findEmptyPoint);
-│    if (point) return point;
-│    const canvas = await page.locator('#canvas').boundingBox();
-│    await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
-│    await page.mouse.wheel(0, 600);
-│  }
-│  assert.fail('found no empty spot on the plane to click, even after panning down six times');
-⋮
-│export async function clickElement(page, id) {
-│  const group = page.locator(`g[data-el="${id}"]`).first();
-│  const box = await group.boundingBox();
-│  assert.ok(box, `element ${id} has a bounding box`);
-│  await group.click({ position: { x: box.width * 0.35, y: box.height * 0.35 } });
 ⋮
 │export async function placeElement(page, tool, point) {
 │  const before = await elementIds(page);
@@ -685,429 +1053,242 @@ canvas/test/helpers.mjs:
 │  assert.equal(added.length, 1, `placing a ${tool} added one element, not ${JSON.stringify(added)}`
 │  return added[0];
 ⋮
-│export async function drawRelationship(page, tool, sourceId, targetId) {
-│  const before = await relationshipIds(page);
-│  await page.click(`.palette button[data-tool="${tool}"]`);
-│  await clickElement(page, sourceId);
-│  await clickElement(page, targetId);
-│  await until(page, (count) => document.querySelectorAll('g[data-rel]').length > count, before.leng
-│  await page.keyboard.press('Escape'); // in case the tool stays armed for another edge; the contra
-│  const added = (await relationshipIds(page)).filter((id) => !before.includes(id));
-│  assert.equal(added.length, 1, `drawing a ${tool} added one edge, not ${JSON.stringify(added)}`);
-│  return added[0];
+│export function measure(planned, limit) {
+│  const samples = [];
+│  const over = () => samples.filter((s) => s.total >= limit).length;
+│  return {
+│    samples,
+│    add(sample) { samples.push(sample); },
+│    get settled() { return samples.length >= planned || over() > planned / 2 || samples.length - ov
+│    get median() {
+│      const sorted = samples.map((s) => s.total).sort((a, b) => a - b);
+│      const middle = sorted.length >> 1;
+│      return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+│    },
+│    toString() {
+│      const ms = (v) => v.toFixed(1);
+│      return samples.map((s) => (s.script === undefined ? ms(s.total) : `${ms(s.total)} (${ms(s.scr
 ⋮
-│export async function rename(page, id, name) {
-│  await page.fill('#f-name', name);
-│  await until(page, ([elementId, newName]) => document.querySelector(`g[data-el="${elementId}"]`)?.
-│    [id, name], `the drawing shows ${id} renamed to "${name}"`);
+
+canvas/test/scale-model.mjs:
 ⋮
-│export async function addNote(page) {
-│  const before = await page.$$eval('#notes-list li[data-note]', (items) => items.map((li) => li.get
-│  await page.click('#add-note');
-│  await until(page, (count) => document.querySelectorAll('#notes-list li[data-note]').length > coun
-│  const ids = await page.$$eval('#notes-list li[data-note]', (items) => items.map((li) => li.getAtt
-│  const added = ids.filter((id) => !before.includes(id));
-│  assert.equal(added.length, 1, `adding a note added one li, not ${JSON.stringify(added)}`);
-│  return added[0];
+│export function scaleState(count) {
+│  return { model: scaleModel(count), notes: [], archive: [], changes: [] };
 ⋮
-│export const storeDoc = (page, docPath) => page.evaluate((p) => window.__store.get(p), docPath);
-│export const storeDump = (page) => page.evaluate(() => window.__store.dump());
+
+canvas/test/store-dump.test.mjs:
+⋮
+│const readJSON = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
+⋮
+
+plan/swarm/session-24-scratch/probe-10/ref.mjs:
+⋮
+│export function make(app, lib) {
+│  const LOOKS = app.FIELD_LOOKS, ORDER = app.GROUP_ORDER, GROUPS = app.GROUP_NAMES;
+│  const UNNAMED = app.UNNAMED, NOTHING = app.NOTHING;
+│  const named = (el) => lib.textName(el) || UNNAMED;
+│  const whatOf = (model, type, item) => (type === 'el' ? lib.describe(model, item) : type === 'rel'
+│  const general = (verb, noun) => ({
+│    none: 'nothing: take the line away',
+│    shown: (x) => !!lib.firstGeneral(x.model, x.item),
+│    value: (x) => { const r = lib.firstGeneral(x.model, x.item); return r ? r.to : ''; },
+│    write: (x, v) => { const r = lib.firstGeneral(x.model, x.item); if (!r) return; if (!v) { x.mod
+⋮
+│  const find = (model, p) => (p.type === 'el' ? lib.idsOf(model).get(p.id) : p.type === 'rel' ? mod
+⋮
+│  function formOf(session, picked, viewId) {
+│    const model = session.model;
+│    return lib.reading(model, () => {
+│      const item = find(model, picked);
+│      if (!item) return null;
+│      const d = lib.detailsOf(model, picked.type, item);
+│      const kind = viewKindFor(model, picked.id, viewId);
+│      const ok = (f) => has(model, picked.type, item, f, kind);
+│      const rowOf = (r) => (r.field ? (ok(r.field) ? fieldRow(model, picked.type, item, r.field) : 
+│      const placed = new Set(d.core.concat(d.advanced).filter((r) => r.field).map((r) => r.field));
+│      const own = (g) => ORDER[g].filter((f) => !placed.has(f) && ok(f));
+│      const main = d.core.map(rowOf).filter(Boolean).concat(own('main').filter((f) => f !== 'doc').
+⋮
+
+plan/swarm/session-24-scratch/probe-rd-10/ref.mjs:
+⋮
+│export function make(app) {
+│  const { FIELD_LOOKS, GROUP_ORDER } = app;
+│  const tableOf = (lib, type) => type === 'el' ? lib.KINDS : type === 'rel' ? lib.RELATIONSHIPS : l
+│  const listOf = (model, type) => type === 'el' ? model.elements : type === 'rel' ? model.relations
+│  const find = (model, p) => listOf(model, p.type).find((x) => x.id === p.id) || null;
+│  const nameOf = (lib, el) => lib.textName(el) || UNNAMED;
+│  const whatOf = (lib, model, type, item) => type === 'el' ? lib.describe(model, item) : type === '
+│  const general = (verb, noun) => ({
+│    none: 'nothing: take the line away',
+│    shown: (x) => !!x.lib.firstGeneral(x.model, x.item),
+⋮
+
+plan/swarm/session-24-scratch/probe-rd-12/ts/t.ts:
+⋮
+│interface Env { readonly wasm: { instantiate(bytes: Uint8Array): Promise<{ instance: { exports: Rec
+│interface Env2 { readonly wasm: { instantiate(bytes: Uint8Array<ArrayBuffer>): Promise<{ instance: 
+⋮
+
+plan/swarm/session-25-wip/10-impl-bar/canvas/app/src/shell/TopBar.tsx:
+⋮
+│export type ActionId = (typeof ACTIONS)[number]['id'];
+⋮
+│export interface TopBarProps {
+│  /** The open file, or null: its name shows in data-testid "file-name", then a dot while `session.
+│  session: Session | null;
+│  /** Called by Open. */
+│  onOpen: () => void;
+│  /** Called by Save and by Ctrl or ⌘ + S (step 7). */
+│  onSave: () => void;
+│  /** Called by About (step 12): App opens the About panel. Until step 12 the button is disabled an
+│  onAbout: () => void;
+⋮
+
+plan/swarm/session-25-wip/10-impl-hooks/canvas/app/src/panels/fieldHooks.ts:
+⋮
+│export type FieldValue = string | number | boolean;
 │
 ⋮
-
-canvas/test/index.js
-
-canvas/test/interconnection.test.mjs:
-⋮
-│async function addView(page, kind) {
-│  const before = await page.locator('#drawing g.frame[data-view]').count();
-│  await page.selectOption('#new-view-kind', kind);
-│  await page.click('#new-view');
-│  await until(page, (count) => document.querySelectorAll('#drawing g.frame[data-view]').length > co
-│  return page.getAttribute('#drawing g.frame.is-active', 'data-view');
-⋮
-│async function deleteSavedView(page) {
-│  await page.locator(`#drawing g.frame[data-view="${SAVED}"] rect.tab`).click();
-│  await until(page, (id) => document.querySelector(`#drawing g.frame[data-view="${id}"]`)?.classLis
-│  await page.click('#delete-view');
-│  await until(page, () => document.querySelectorAll('#drawing g.frame[data-view]').length === 1, nu
-⋮
-│async function importState(page, file) {
-│  await page.setInputFiles('#import-file', file);
-│  await until(page, () => /^Imported /.test(document.querySelector('#status')?.textContent || ''), 
-⋮
-│async function lookAt(page, id) {
-│  const stage = await page.locator('#canvas').boundingBox();
-│  const box = await page.locator(`g[data-el="${id}"]`).first().boundingBox();
-│  const panel = await page.locator('#panel').boundingBox();
-│  const openWidth = panel ? panel.x - stage.x : stage.width;
-│  await page.mouse.move(stage.x + 200, stage.y + 200);
-│  await page.mouse.wheel(Math.round(box.x + box.width / 2 - (stage.x + openWidth / 2)), Math.round(
-│  await until(page, (elId) => {
-│    const r = document.querySelector(`g[data-el="${elId}"]`).getBoundingClientRect();
-│    return r.top > 80 && r.bottom < innerHeight - 120;
-⋮
-│async function clickPort(page, id) {
-│  await page.locator(`g[data-el="${id}"] > .outline`).first().click();
-⋮
-│async function drawBetween(page, tool, a, b) {
-│  const before = await page.locator('g[data-rel]').count();
-│  await page.click(`.palette button[data-tool="${tool}"]`);
-│  await clickPort(page, a);
-│  await clickPort(page, b);
-│  await until(page, (count) => document.querySelectorAll('g[data-rel]').length > count, before, `a 
-│  const ids = await page.$$eval('g[data-rel]', (groups) => groups.map((g) => g.getAttribute('data-r
-│  const added = ids.filter((id, i) => ids.indexOf(id) === i).slice(-1);
-│  assert.equal(await page.locator(`g[data-rel="${added[0]}"]`).count(), 1, `drawing a ${tool} added
-│  return added[0];
-⋮
-│const glyphHeads = (page, id) => page.evaluate((elId) => {
-│  const glyph = document.querySelector(`g[data-el="${elId}"] path.glyph`);
-│  return glyph ? (glyph.getAttribute('d').match(/M/g) || []).length - 1 : 0;
+│export interface FieldRow {
+│  readonly row: 'field';
+│  /** The field's name in FIELDS: the widget's data-testid is `field-<field>`. */
+│  readonly field: string;
+│  /** FIELD_LOOKS[field].label. */
+│  readonly label: string;
+│  /** The row's type, never 'list'. */
+│  readonly type: Exclude<FieldType, 'list'>;
+│  /**
+│   * What the field holds, by its hook's value() or as the item's property. A string or text: the s
 ⋮
 
-canvas/test/loop.test.mjs
-
-canvas/test/model-lib.test.mjs:
+plan/swarm/session-25-wip/11-impl-commands/canvas/app/src/core/commands.ts:
 ⋮
-│function loadLib(source) {
-│  const sandbox = { console };
-│  sandbox.window = sandbox;
-│  vm.runInContext(modelLibSource(source), vm.createContext(sandbox), { filename: 'canvas/index.html
-│  assert.ok(sandbox.SysMLModel, 'the model-lib script sets window.SysMLModel');
-│  return sandbox.SysMLModel;
+│export interface CommandsLibrary {
+│  readonly KINDS: Readonly<Record<string, {
+│    /** The kind in a sentence, and what a tool is called: 'part def'. */
+│    label: string;
+│    /** The kinds an element of this kind may own, or false for none. */
+│    contains: readonly string[] | false;
+│    /** Whether it sits on its owner's border (a port, a parameter). */
+│    onBorder?: boolean;
+│    /** The size a new one gets. */
+│    size: [number, number];
 ⋮
-│function el(id, kind, name, extra) {
-│  const dot = id.lastIndexOf('.');
-│  return Object.assign({ id, kind, name }, dot >= 0 ? { owner: id.slice(0, dot) } : {}, extra || {}
-│}
-│function small(elements, relationships, view) {
-│  const layout = {};
-│  (view && view.show ? view.show : elements.map((e) => e.id)).forEach((id, i) => { layout[id] = { x
-│  return { format: 'stronghold-canvas/2', package: { name: 'P', doc: '' }, elements, relationships:
-│    views: [{ id: 'v1', kind: (view && view.kind) || 'GeneralView', name: 'v', layout, options: (vi
-│}
-│const note = (no, target, text, extra) => Object.assign({ id: 'n' + no, no, target, text, response:
-│
-│describe('model-lib', () => {
-│  test('toSysML turns the embedded saved model into a package, and validate finds nothing wrong wit
-│    const source = pageSource();
-│    const lib = loadLib(source);
-│    assert.equal(typeof lib.toSysML, 'function', 'SysMLModel.toSysML');
-│    assert.equal(typeof lib.validate, 'function', 'SysMLModel.validate');
-│
-│    const model = embeddedModel(source);
-│    assert.equal(model.format, 'stronghold-canvas/2', 'the page embeds a format-2 model');
-│    const text = lib.toSysML(model, []);
+│  childrenOf(model: Model, id: string | null): ModelElement[];
 ⋮
-│  test('a named transition out of an initial node with no entry action is a problem, and so is an u
-│    const lib = loadLib(pageSource());
-│    const els = [el('S', 'StateDefinition', 'S'), el('S.initial1', 'InitialNode', 'initial1'), el('
-│    const transition = (extra) => Object.assign({ id: 't0', kind: 'TransitionUsage', from: 'S.initi
-│    const named = lib.normalize(small(els, [transition({ name: 'begin' })], { kind: 'StateTransitio
-│    assert.match(lib.validate(named).map((p) => p.id + ': ' + p.message).join('\n'), /^t0: The tran
-│    const entry = lib.normalize(small(els.concat([el('S.init', 'ActionUsage', '', { role: 'entry' }
-│    assert.match(lib.validate(entry).map((p) => p.message).join('\n'), /The entry action of state d
-│    const unnamed = lib.normalize(small(els, [transition()], { kind: 'StateTransitionView' }));
-│    assert.equal(lib.validate(unnamed).length, 0);
-⋮
-│  test('a trigger or an accept payload that names no definition of the model is a problem; a defini
-│    const lib = loadLib(pageSource());
-│    const els = [el('Go', 'PartDefinition', 'Go'), el('S', 'StateDefinition', 'S'), el('S.idle', 'S
-│    const transition = (trigger) => lib.normalize(small(els, [{ id: 't1', kind: 'TransitionUsage', 
-│    assert.match(lib.validate(transition('go')).map((p) => p.id + ': ' + p.message).join('\n'), /^t
-│    ['Go', 'x : Go', 'after 10 [SI::s]', 'when ready', 'at t'].forEach((t) => assert.equal(lib.vali
-│    const accept = lib.normalize(small([el('A', 'ActionDefinition', 'A'), el('A.wait', 'ActionUsage
-│    assert.match(lib.validate(accept).map((p) => p.message).join('\n'), /The payload sig of action 
-⋮
-│  test('a send or accept action is a problem outside an action body, unless it is a state\'s entry,
-│    const lib = loadLib(pageSource());
-│    const send = { actionKind: 'send', payload: 'new Alert()' };
-│    const messages = (elements) => lib.validate(lib.normalize(small([el('Alert', 'ItemDefinition', 
-│    assert.match(messages([el('warn', 'ActionUsage', 'warn', send)]), /An action that sends is writ
-│    assert.match(messages([el('S', 'StateDefinition', 'S'), el('S.warn', 'ActionUsage', 'warn', sen
-│    assert.equal(messages([el('A', 'ActionDefinition', 'A'), el('A.warn', 'ActionUsage', 'warn', se
-│    assert.equal(messages([el('S', 'StateDefinition', 'S'), el('S.warn', 'ActionUsage', 'warn', Obj
-⋮
-│  test('a typed action\'s own parameter keeps its doc, code and generals in the text, and an event 
-│    const lib = loadLib(pageSource());
-│    const code = (path) => [{ path, language: 'typescript', text: path === 'q.ts' ? 'x' : '' }];
-│    const model = lib.normalize(small([el('B', 'ActionDefinition', 'B'), el('B.x', 'ParameterUsage'
-│      el('A.a2.q', 'ParameterUsage', 'q', { direction: 'in', doc: 'the doc of q', code: code('q.ts'
-│      el('C', 'PartDefinition', 'C'), el('C.p', 'PartUsage', 'p'), el('C.p.e1', 'EventOccurrenceUsa
-│      [{ id: 'ft', kind: 'FeatureTyping', from: 'A.a2', to: 'B' }, { id: 'sp', kind: 'Specializatio
-│    assert.equal(lib.validate(model).length, 0, JSON.stringify(lib.validate(model)));
-│    const text = lib.toSysML(model, []);
-│    assert.match(text, /action a2 : B \{\s+in item x;\s+in item q \{\s+doc \/\* the doc of q \*\/\s
-⋮
-│  test('a library name the geometry text can\'t see (a port named in on a part beside the one drawn
-│    const lib = loadLib(pageSource());
-│    const rug = { shape: 'Rectangle', length: 24, width: 12, unit: 'in', posX: 1, posY: 1 };
-│    const geometry = { kind: 'GeometryView', show: ['Sys.rug'], options: { scale: 40, unit: 'in' } 
-│    const problems = (elements, rels) => lib.validate(lib.normalize(small(elements, rels || [], geo
-│    const sys = [el('Sys', 'PartDefinition', 'Sys'), el('Sys.rug', 'PartUsage', 'rug', rug)];
-│    assert.equal(problems(sys.concat([el('Sys.tank', 'PartUsage', 'tank'), el('Sys.tank.in', 'PortU
-│    assert.equal(problems(sys.concat([el('Sys.rug.leg', 'PartUsage', 'leg'), el('Sys.rug.leg.m', 'P
-│    assert.match(problems(sys.concat([el('Sys.m', 'PortUsage', 'm')])), /^Sys\.m: The name m is one
-│    assert.match(problems(sys.concat([el('Sys.rug.m', 'PortUsage', 'm')])), /^Sys\.rug\.m: The name
+│  textName(el: { kind: string; name?: unknown }): string | null;
 ⋮
 
-canvas/test/sequence.test.mjs:
+plan/swarm/session-25-wip/11-impl-toasts/canvas/app/src/shell/Toasts.tsx:
 ⋮
-│async function savedLayout(page, viewId, elId) {
-│  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
-│  return page.evaluate(([key, v, id]) => {
-│    const raw = localStorage.getItem(key);
-│    const view = raw ? JSON.parse(raw).model.views.find((x) => x.id === v) : null;
-│    return view ? view.layout[id] : null;
-│  }, [STATE_KEY, viewId, elId]);
-⋮
-│async function addView(page, kind) {
-│  const before = await page.locator('#drawing g.frame[data-view]').count();
-│  await page.selectOption('#new-view-kind', kind);
-│  await page.click('#new-view');
-│  await until(page, (count) => document.querySelectorAll('#drawing g.frame[data-view]').length > co
-│  return page.getAttribute('#drawing g.frame.is-active', 'data-view');
-⋮
-│async function frameBox(page, id) {
-│  const box = await page.locator(`#drawing g.frame[data-view="${id}"] > rect.outline`).boundingBox(
-│  assert.ok(box, `the frame of view ${id} has a box`);
-│  return box;
-⋮
-│function points(d) {
-│  return d.split(/[ML]/).filter(Boolean).map((s) => s.split(',').map(Number));
-⋮
-│async function rowOf(page, viewId, relId) {
-│  const d = await page.getAttribute(`#drawing g.frame[data-view="${viewId}"] g[data-rel="${relId}"]
-│  const pts = points(d);
-│  assert.equal(pts[0][1], pts[1][1], `the message ${relId} is a horizontal line: ${d}`);
-│  return pts[0][1];
-⋮
-│async function drawMessage(page, from, to) {
-│  await page.click('.palette button[data-tool="Message"]');
-│  await page.mouse.click(from.x, from.y);
-│  await page.mouse.click(to.x, to.y);
-⋮
-│async function centreOf(page, viewId, elId) {
-│  const box = await page.locator(`#drawing g.frame[data-view="${viewId}"] g[data-el="${elId}"] > .o
-│  assert.ok(box, `${elId} is drawn in view ${viewId}`);
-│  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-⋮
-│async function twoLifelines(page) {
-│  const view = await addView(page, 'SequenceView');
-│  const frame = await frameBox(page, view);
-│  const left = await placeElement(page, 'PartUsage', { x: frame.x + frame.width * 0.3, y: frame.y +
-│  const right = await placeElement(page, 'PartUsage', { x: frame.x + frame.width * 0.72, y: frame.y
-│  return { view, left, right };
-⋮
-│describe('sequence view', () => {
-│  let browser;
-│  before(async () => { browser = await launch(); });
-│  after(() => browser?.close());
-│
-│  test('a new SequenceView offers part, event and message, and two parts placed become lifelines le
-│    const ctx = await openCanvas(browser);
-│    const { page } = ctx;
-│    const { view, left, right } = await twoLifelines(page);
-│    const tools = await page.$$eval('.palette button[data-tool]:not([data-tool="Note"])', (bs) => b
-⋮
-│  test('a second message lands on the next row, and setting its order in the panel swaps the rows',
-│    const ctx = await openCanvas(browser);
-│    const { page } = ctx;
-│    const { view, left, right } = await twoLifelines(page);
-│    const from = await centreOf(page, view, left);
-│    const to = await centreOf(page, view, right);
-│    await drawMessage(page, from, to);
-│    await until(page, () => document.querySelectorAll('g[data-rel][data-kind="Message"]').length ==
-│    await drawMessage(page, to, from);
-│    await until(page, () => document.querySelectorAll('g[data-rel][data-kind="Message"]').length ==
-⋮
-│    await until(page, ([v, a, b]) => {
-│      const y = (id) => +(document.querySelector(`#drawing g.frame[data-view="${v}"] g[data-rel="${
-│      return y(b) < y(a);
+│export interface ToastsProps {
+│  /** The open file, or null. */
+│  session: Session | null;
 ⋮
 
-canvas/test/shared.test.mjs:
+plan/swarm/session-25-wip/12-impl-about/canvas/app/src/shell/About.tsx:
 ⋮
-│const holdsElement = ([id, name]) => {
-│  const working = window.__store.get('model/working');
-│  const model = working && JSON.stringify(working.model ?? null);
-│  return Boolean(model) && model.includes(JSON.stringify(id)) && (!name || model.includes(name));
-⋮
-
-canvas/test/undo.test.mjs
-
-canvas/test/views.test.mjs:
-⋮
-│async function addView(page, kind) {
-│  const before = await page.locator('#drawing g.frame[data-view]').count();
-│  await page.selectOption('#new-view-kind', kind);
-│  await page.click('#new-view');
-│  await until(page, (count) => document.querySelectorAll('#drawing g.frame[data-view]').length > co
-│  return page.getAttribute('#drawing g.frame.is-active', 'data-view');
+│export interface AboutProps {
+│  /** Whether the panel is shown. */
+│  open: boolean;
+│  /** Called when the person closes it. */
+│  onClose: () => void;
 ⋮
 
-docs/REPO_MAP.md
-
-docs/sysml/README.md
-
-docs/sysml/check.sh
-
-docs/sysml/draw.mjs:
+plan/swarm/session-25-wip/12-impl-bar/canvas/app/src/shell/TopBar.tsx:
 ⋮
-│const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').rep
+│export type ActionId = (typeof ACTIONS)[number]['id'];
+⋮
+│export interface TopBarProps {
+│  /** The open file, or null: its name shows in data-testid "file-name", then a dot while `session.
+│  session: Session | null;
+│  /** Called by Open. */
+│  onOpen: () => void;
+│  /** Called by Save and by Ctrl or ⌘ + S (step 7). */
+│  onSave: () => void;
+│  /** Called by About: App opens the About panel. */
+│  onAbout: () => void;
+⋮
+
+plan/swarm/session-25-wip/12-impl-checks/canvas/app/src/core/checks.ts:
+⋮
+│export interface Diagnostic {
+│  /** The rule's name in the specification: 'validateNamespaceDistinguishibility'. */
+│  readonly rule: string;
+│  /** The metaclass the rule is on: 'Namespace'. */
+│  readonly metaclass: string;
+│  /** What breaks the rule: an element, a relationship, or (null) the package. */
+│  readonly type: 'el' | 'rel' | null;
+│  /** The element's or the relationship's id; null for the package. */
+│  readonly id: string | null;
+│  /** The qualified name of what breaks it. */
+⋮
+│declare global {
+│  // The part of the model library that the checks call, beside what src/types.d.ts, session.ts and
+│  interface SysMLModelLibrary {
+│    /** Grasp's own problems, in the model's order: its elements', then its views', then its relati
+│    validate(model: Model): Problem[];
+│    /** The diagnostics of the specification's rules, sorted by rule and then by qualified name. */
+│    validateSpec(model: Model): Diagnostic[];
+│    /** The names of the specification's rules the library checks: 15 of the specification's 388. *
+│    readonly SPEC_RULES: readonly string[];
+│  }
+⋮
+│export interface ChecksState {
+│  /** The last result, or null before the first. */
+│  readonly found: Found | null;
+│  /** Whether the model may have changed since `found` was worked out, or nothing has been worked o
+│  readonly stale: boolean;
+⋮
+│export interface ChecksOptions {
+│  /**
+│   * Calls `run` once, `ms` from now, and returns what calls it off. Unless given: setTimeout and c
+│   * read only by the call of checksOf() that makes the session's checks.
+│   */
+│  later?: (run: () => void, ms: number) => () => void;
+⋮
+│export interface EntryAbout {
+│  readonly type: 'el' | 'rel' | 'view' | 'package' | 'none';
+│  readonly id: string;
+│  readonly pick: readonly Picked[];
+⋮
+
+plan/swarm/session-25-wip/12-impl-probe/canvas/app/src/core/probe.ts:
+⋮
+│export type ProbeLineId = (typeof PROBE_LINES)[number]['id'];
 │
 ⋮
-│const compH = (n) => HEAD_H + LEAD * n + PAD_B;
-│const defH = (comps = [], minH = 0) => Math.max(minH, NAME_H + comps.reduce((sum, c) => sum + compH
+│export type ProbeState = 'pending' | 'yes' | 'no' | 'told';
 │
 ⋮
-│function draw(variant) {
-│  const page = variant === 'page';
-│  const ACCENT = page ? '#2F8C7E' : '#176B61';
-│  const out = [];
-│  const push = (s) => out.push(s);
-│
-│  function text(x, y, str, style, anchor = 'start') {
-│    const st = STYLE[style];
-│    let a = `<text x="${x}" y="${y}"`;
-│    if (anchor !== 'start') a += ` text-anchor="${anchor}"`;
-│    a += ` font-family="${st.ff}" font-size="${st.fs}"`;
-│    if (st.fw) a += ` font-weight="${st.fw}"`;
-│    if (st.fi) a += ' font-style="italic"';
-│    a += ' fill="currentColor"';
-│    if (st.op) a += ` fill-opacity="${st.op}"`;
-│    return `${a}>${esc(str)}</text>`;
+│export interface FolderHandle {
+│  readonly name: string;
+│  /** The browser's answer without asking the person: 'granted', 'prompt' or 'denied'. */
+│  queryPermission?: (how: { mode: 'readwrite' }) => Promise<string>;
 ⋮
-│  function spans(x, y, parts) {
-│    let a = `<text x="${x}" y="${y}" fill="currentColor">`;
-│    for (const [style, str] of parts) {
-│      const st = STYLE[style];
-│      a += `<tspan font-family="${st.ff}" font-size="${st.fs}"`;
-│      if (st.fw) a += ` font-weight="${st.fw}"`;
-│      if (st.op) a += ` fill-opacity="${st.op}"`;
-│      a += `>${esc(str)}</tspan>`;
-│    }
-│    return a + '</text>';
+│export interface FolderRecord {
+│  readonly handle: FolderHandle;
+│  /** The folder's name, as its handle gave it when it was picked. */
+│  readonly name: string;
+│  /** When it was remembered: ProbeEnv.date() then. */
+│  readonly at: string;
+│  /** The page load it was remembered in: ProbeEnv.load then. */
+│  readonly load: string;
 ⋮
-│  const box = (x, y, w, h, r = 0) =>
-│    `<rect class="outline" x="${x}" y="${y}" width="${w}" height="${h}"${r ? ` rx="${r}"` : ''} fil
-│  const rule = (x1, y, x2) =>
-⋮
-│  const hit = (d) => `<path class="hit" d="${d}" fill="none" stroke="transparent" stroke-width="12"
-│
-⋮
-│  function element(el, label, kind, body) {
-│    push(`<g data-el="${esc(el)}" data-label="${esc(label)}" data-kind="${kind}">`);
-│    body();
-│    push('</g>');
-⋮
-│  function def({ x, y, w, keyword, name, comps = [], minH = 0 }) {
-│    const h = defH(comps, minH);
-│    const cx = x + w / 2;
-│    push(box(x, y, w, h));
-│    push(text(cx, y + 16, keyword, 'kw', 'middle'));
-│    push(text(cx, y + 32, name, 'name', 'middle'));
-│    let cy = y + NAME_H;
-│    for (const c of comps) {
-│      push(rule(x, cy, x + w));
-│      push(text(cx, cy + 13, c.heading, 'head', 'middle'));
-⋮
-│  function usage({ x, y, w, h, name, r = 10, gap }) {
-│    if (gap) {
-│      const [g1, g2] = [gap.y - 8, gap.y + 8];
-│      const d = gap.side === 'right'
-│        ? `M${x + w},${g2} V${y + h - r} A${r},${r} 0 0 1 ${x + w - r},${y + h} H${x + r} A${r},${r
-│          ` V${y + r} A${r},${r} 0 0 1 ${x + r},${y} H${x + w - r} A${r},${r} 0 0 1 ${x + w},${y + 
-│        : `M${x},${g1} V${y + r} A${r},${r} 0 0 1 ${x + r},${y} H${x + w - r} A${r},${r} 0 0 1 ${x 
-│          ` V${y + h - r} A${r},${r} 0 0 1 ${x + w - r},${y + h} H${x + r} A${r},${r} 0 0 1 ${x},${
-│      push(`<path class="outline" d="${d}" fill="none" stroke="currentColor" stroke-width="1.25"/>`
-│    } else {
-⋮
-│  function port(px, py) {
-│    push(`<rect class="outline accent" x="${px - 8}" y="${py - 8}" width="16" height="16" rx="2.5" 
-│    push(`<path class="accent" d="M${px - 4.5},${py} H${px + 4.5} M${px - 2},${py - 2.5} L${px - 4.
-⋮
-│  function triangle(x, y, dir) {
-│    const base = y - dir * 12;
-│    push(`<path class="outline" d="M${x},${y} L${x - 7},${base} L${x + 7},${base} Z" fill="none" st
-│    return base;
-⋮
-│  function definedBy(x, y1, tipY) {
-│    const base = triangle(x, tipY, 1);
-│    push(hit(`M${x},${y1} V${base}`));
-│    push(`<line class="outline" x1="${x}" y1="${y1}" x2="${x}" y2="${base}" stroke="currentColor" s
-│    push(`<circle cx="${x - 4}" cy="${base - 4}" r="1.6" fill="currentColor"/>`);
-│    push(`<circle cx="${x + 4}" cy="${base - 4}" r="1.6" fill="currentColor"/>`);
+│export interface ProbeEnv {
+│  /** navigator.userAgent. */
+│  readonly userAgent: string;
+│  /** window.isSecureContext. */
+│  readonly secure: boolean;
+│  /** Whether window.showOpenFilePicker and window.showSaveFilePicker are functions. */
+│  readonly openPicker: boolean;
+│  readonly savePicker: boolean;
+│  /** window.showDirectoryPicker, bound to the window, which asks the person for a folder; null whe
+│  readonly pickFolder: (() => Promise<FolderHandle>) | null;
 ⋮
 
-docs/sysml/pilot-implementation/README.md
-
-docs/sysml/pilot-implementation/REPO_MAP.md
-
-docs/sysml/pilot-implementation/draw-maps.sh
-
-docs/sysml/pilot-implementation/pilot.aiderignore
-
-docs/sysml/pilot-implementation/projects/org.omg.kerml.owl.md
-
-docs/sysml/pilot-implementation/projects/org.omg.kerml.xpect.tests.md
-
-docs/sysml/pilot-implementation/projects/org.omg.kerml.xtext.md
-
-docs/sysml/pilot-implementation/projects/org.omg.kerml.xtext.ui.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.edit.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.editor.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.execution.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.interactive.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.interactive.tests.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.jupyter.installer.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.jupyter.jupyterlab.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.jupyter.kernel.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.logic.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.model.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.plantuml.eclipse.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.plantuml.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.uml.ecore.importer.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.xpect.tests.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.xtext.md
-
-docs/sysml/pilot-implementation/projects/org.omg.sysml.xtext.ui.md
-
-docs/sysml/pilot-implementation/projects/tool-support.md
-
-docs/sysml/save-notes.mjs:
+plan/swarm/session-25-wip/probes/10-review-code/lib.mjs:
 ⋮
-│const listOf = (v) => (Array.isArray(v) ? v : []);
-│// The same test the page uses: an id it can name a document by, an element, a place, and text.
-│const isNote = (n) =>
-│  !!n && typeof n === 'object' && typeof n.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(n.id) &&
-│  typeof n.el === 'string' && typeof n.text === 'string' && Number.isFinite(+n.x) && Number.isFinit
-│const pick = (n, keys) => Object.fromEntries(keys.filter((k) => n[k] !== undefined).map((k) => [k, 
-│const text = (v) => String(v ?? '');
-│
-⋮
-
-docs/sysml/stronghold-proof.html
-
-docs/sysml/stronghold-proof.svg
-
-docs/sysml/stronghold-proof.sysml
+│export const log = (...a) => console.log(...a);
 ```
