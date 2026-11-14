@@ -1,1 +1,0 @@
-{ "extends": "/tmp/claude-0/-home-user-Grasp/ce53ff6d-635d-545e-8f5c-7c12a87c85ff/scratchpad/rd-all/canvas/app/tsconfig.json", "compilerOptions": { "noEmit": true, "typeRoots": ["/tmp/claude-0/-home-user-Grasp/ce53ff6d-635d-545e-8f5c-7c12a87c85ff/scratchpad/rd-all/node_modules/@types"], "types": [] }, "include": ["t.ts"], "files": ["t.ts"] }

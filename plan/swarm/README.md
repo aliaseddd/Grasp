@@ -1,5 +1,7 @@
 # The scaffold for steps 8 to 13 of slice 1, and how a swarm fills it in
 
+> **Finished, kept as a reference.** The swarm's work is done: slice 1 closed in session 28. On November 14, 2026 the working files were removed from this folder: `briefs/`, `tasks*.json`, `session-24-scratch/` and `session-25-wip/`. What stays is this README, `shared.md` and `step-8.md` to `step-12.md`, whose contracts (test ids, accessible names, words) the tests and sources of `canvas/app/` cite by section. Where the text below names a brief, a task file or a scratch folder, read it from git history: `git show cc7eae2:plan/swarm/<path>`.
+
 Session 24 (November 13, 2026) designed steps 8 to 13 of `plan/slice-1.md` in one go and wrote this scaffold. Until then each step went: Claude wrote that step's outline, Sonnet agents wrote its tests and its code, and only then was the next step outlined (`plan/notes.md`, session 17, "How each step is built"). For steps 8 to 13 the outlines exist already, here, so stages 1 and 2 of that method are done for every step. Stages 3 to 8 remain, and this folder says how a later session runs them with many agents at once.
 
 Nothing in this folder is implementation. The page built from the scaffold behaves as it did at the end of step 7.
