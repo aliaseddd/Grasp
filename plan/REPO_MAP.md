@@ -116,6 +116,12 @@ canvas/app/src/core/adapter.ts:
 
 canvas/app/src/core/checks.ts:
 ⋮
+│export interface Problem {
+│  /** The id of the element, the relationship or the view it is about; null when it is about the pa
+│  readonly id: string | null;
+│  /** The sentence: "Two elements are named Host in the package." */
+│  readonly message: string;
+⋮
 │export interface Diagnostic {
 │  /** The rule's name in the specification: 'validateNamespaceDistinguishibility'. */
 │  readonly rule: string;
@@ -295,6 +301,25 @@ canvas/app/src/core/history.ts:
 │  order: Record<ListName, string[]>;
 │  rest: string;
 ⋮
+│export function createHistory(model: Model, options: HistoryOptions = {}): History {
+│  const now = options.now ?? (() => new Date().toISOString());
+│  const report = options.mistake ?? throwLater;
+│
+│  // ---- The model keeps a note of every write made to it.
+│  //
+│  // Every object and array in the model is a Proxy of itself: its target is the plain object, whic
+│  // Proxies as its children, so whatever is read from the model is a Proxy, and reads go straight 
+│  // writes are trapped: before a key of an object changes, or is deleted, the object, the key and 
+│  // are noted (the first time in a change); before an array changes, a copy of its items is. So ed
+⋮
+│  const TRAPS: ProxyHandler<object> = {
+│    set(t, k, v) { noteWrite(t, k, false); (t as Bag)[k] = track(v, homeIn(t, k)); return true; },
+│    deleteProperty(t, k) { noteWrite(t, k, true); return delete (t as Bag)[k]; },
+│    defineProperty(t, k, d) {
+│      noteWrite(t, k, false);
+│      return Reflect.defineProperty(t, k, 'value' in d ? Object.assign({}, d, { value: track(d.valu
+│    },
+⋮
 
 canvas/app/src/core/probe.ts:
 ⋮
@@ -388,10 +413,19 @@ canvas/app/src/core/session.ts:
 │  readonly history: History;
 │  /** The model, which is the history's: the Proxy of itself. */
 ⋮
+│  now(): string;
+⋮
 
 canvas/app/src/panels/Details.tsx:
 ⋮
 │export type DetailsTab = (typeof TABS)[number];
+⋮
+│export interface PickedFormProps {
+│  /** The open file. */
+│  session: Session;
+│  /** The tab that is shown, and what a change of it calls. */
+│  tab: DetailsTab;
+│  onTab: (tab: DetailsTab) => void;
 ⋮
 
 canvas/app/src/panels/SidePanel.tsx:
@@ -442,6 +476,21 @@ canvas/app/src/panels/explorerRows.ts:
 ⋮
 
 canvas/app/src/panels/fieldHooks.ts:
+⋮
+│export interface FieldLibrary {
+│  readonly FIELDS: Readonly<Record<string, FieldSpec>>;
+│  readonly KINDS: Readonly<Record<string, { label: string; fields: string[]; definedBy?: string }>>
+│  readonly RELATIONSHIPS: Readonly<Record<string, {
+│    label: string;
+│    fields: string[];
+│    /** The id of the element whose body declares the relationship, or null for the package. */
+│    owner(model: Model, rel: ModelRelationship, ids: Map<string, ModelElement>): string | null;
+│  }>>;
+│  readonly VIEW_KINDS: Readonly<Record<string, { label: string; fields: string[] }>>;
+⋮
+│  describeRel(model: Model, rel: ModelRelationship): string;
+│  /** A view in words: 'view proofStructure'. */
+│  describeView(model: Model, view: ModelView): string;
 ⋮
 │export type FieldValue = string | number | boolean;
 │
@@ -495,6 +544,12 @@ canvas/app/src/plane/nodes/SmallNode.tsx:
 ⋮
 
 canvas/app/src/plane/viewStore.ts:
+⋮
+│export interface ViewSnapshot {
+│  readonly nodes: PlaneNode[];
+│  readonly edges: PlaneEdge[];
+│  /** Whether the plane is far: its zoom is under FAR. */
+│  readonly far: boolean;
 ⋮
 │export interface ViewStore {
 │  readonly session: Session;
@@ -585,6 +640,13 @@ canvas/app/src/types.d.ts:
 │  readonly FORMAT: string;
 ⋮
 
+canvas/app/test/adapter.test.mjs:
+⋮
+│function scaleModel() {
+│  scale ??= lib.normalize(scaleState(5000).model);
+│  return { model: scale, views: Array.from(scale.views).filter(isGraph) };
+⋮
+
 canvas/app/test/core.mjs:
 ⋮
 │export function loadCore() {
@@ -616,6 +678,33 @@ canvas/app/test/core.mjs:
 │export const readText = (file) => fs.readFileSync(file, 'utf8');
 │/** A file's JSON. */
 │export const readJSON = (file) => JSON.parse(readText(file));
+⋮
+
+canvas/app/test/fieldHooks.test.mjs:
+⋮
+│describe('the fields of Details, without a browser', () => {
+│  test('the form of every element, line and view of the ten files is the library\'s details, laid o
+│    let forms = 0;
+│    for (const file of stateFiles()) {
+│      const { session, mistakes, model } = open(file);
+│      const front = model.views[0].id;
+│      for (const { type, item } of everything(model)) {
+│        const where = `${file.name}, ${type} ${item.id}`;
+│        const form = formOf(session, pick(type, item.id), front);
+│        forms++;
+⋮
+│  test('Specializes and Subsets are the element\'s first specialization line', () => {
+│    const { session, mistakes, model, history } = example();
+│    const form = (id) => formOf(session, pick('el', id), 'v-proof');
+│    const wordsOf = () => said(history);
+│    assert.equal(fieldRow(form('Host'), 'specializes'), undefined, 'Host starts no specialization l
+│    const server = pick('el', 'ServerHost');
+│    const row = fieldRow(form('ServerHost'), 'specializes');
+│    assert.ok(groupOf(form('ServerHost'), 'general').rows.includes(row) || groupOf(form('ServerHost
+│    assert.deepEqual(plain(row.choice), { id: 'Host', label: 'Host' });
+│
+⋮
+│    const push = (rel) => history.edit(() => { model.relationships.push(rel); return 'Drew a line';
 ⋮
 
 canvas/app/test/files.test.mjs:
@@ -741,6 +830,49 @@ canvas/app/test/helpers.mjs:
 │  await soon(page, shown, `A click on ${name} on its strip did not show the ${name} panel (data-tes
 ⋮
 
+canvas/app/test/history-walk.test.mjs:
+⋮
+│function oldPage(model) {
+│  const timers = [];
+│  const rendered = [];
+│  const C = {
+│    state: { model, history: [], changes: [], layout: null, selection: null, active: null, pending:
+│    M: lib, PAUSE: 800, HISTORY: 100, undoButton: {}, now: clock(), say() {}, editable: () => true,
+│    viewById: (id) => C.state.model.views.find((v) => v.id === id) || null,
+│    render: (touched, how) => { C.state.layout = { ids: lib.idsOf(C.state.model) }; rendered.push({
+│    applyMarks() {}, check() {}, persist() {}, resolve: () => null, setActive() {}, renderInspector
+│  };
+⋮
+│describe('the history, walked at random', () => {
+│  const files = stateFiles();
+│
+│  test('change for change, it does what the old page\'s changes.js does', async (t) => {
+│    const { createHistory } = await loadCore();
+│    const count = { changes: 0, keyOrder: 0, stale: 0 };
+│    for (const { name, file } of files) {
+│      // Seed 22 is among them because one of its walks meets the rarer of the two differences allo
+│      for (const seed of [1, 2, 22]) {
+│        const r = random(seed * 7919 + name.length);
+⋮
+│  test('where it differs from changes.js by design, each difference is the one meant', async () => 
+│    const { createHistory } = await loadCore();
+│    // The same things asked of either side: the old script, and the new history.
+│    const sides = () => {
+│      const old = oldPage(lib.normalize(readJSON(EXAMPLE).model));
+│      const mistakes = [];
+│      const history = createHistory(lib.normalize(readJSON(EXAMPLE).model), { now: clock(), mistake
+│      return [{
+│        get model() { return old.S.model; },
+│        replace: (model) => { old.S.model = model; },
+│        edit: (change, key) => old.C.edit(change, key),
+│        undo: () => old.C.undo(),
+│        steps: () => old.S.history.map((step) => step.what),
+│        mistakes: old.mistakes,
+│      }, {
+│        get model() { return history.model; },
+│        replace: (model) => { history.model = model; },
+⋮
+
 canvas/app/test/history.test.mjs:
 ⋮
 │describe('the history', () => {
@@ -766,6 +898,26 @@ canvas/app/test/history.test.mjs:
 │    } finally {
 ⋮
 
+canvas/app/test/selection-core.test.mjs:
+⋮
+│const keys = (items) => items.map(key);
+⋮
+
+canvas/build.mjs:
+⋮
+│export function readStateFile(file = STATE) {
+│  const state = JSON.parse(fs.readFileSync(file, 'utf8'));
+│  if (!state || typeof state !== 'object' || !state.model || typeof state.model !== 'object') throw
+│  for (const key of ['notes', 'archive']) {
+│    if (state[key] !== undefined && !Array.isArray(state[key])) throw new Error(`${file}: ${key} is
+│  }
+│  return { model: state.model, notes: state.notes || [], archive: state.archive || [] };
+⋮
+│export function libraryCode() {
+│  checkLinkage(LIBRARY, SHARED.library, []);
+│  return stitch(LIBRARY, (name) => `// ==== ${name}`);
+⋮
+
 canvas/dist/app.js:
 │"use strict";(()=>{var __create=Object.create;var __defProp=Object.defineProperty;var __getOwnPropD
 ⋮
@@ -774,6 +926,17 @@ canvas/dist/app.js:
 │`)){let line="",width=0;for(let word of para.split(/\s+/).filter(Boolean)){let w=textWidth(word,px)
 
 canvas/dist/model-lib.js:
+⋮
+│(function (root) {
+│  'use strict';
+│  const lib = root.SysMLModelLib = {};   // what the scripts register for the ones after them; api.
+│
+│  const freeze = (o) => { Object.values(o).forEach((v) => { if (v && typeof v === 'object') freeze(
+│  const METAMODEL = freeze({
+│    AcceptActionUsage: { general: ['ActionUsage'],
+│      owns: [
+│        { name: 'payloadParameter', type: 'ReferenceUsage', lower: 1, derived: true, subsets: ['Usa
+│      ],
 ⋮
 │(function (root) {
 │  'use strict';
@@ -796,6 +959,17 @@ canvas/dist/model-lib.js:
 │    const kind = KINDS[el.kind];
 │    return kind && kind.fields.indexOf('name') >= 0 ? str(el.name).trim() : null;
 ⋮
+│  function lookups(model) {
+│    const maps = new Map();
+│    const made = (key, make) => {
+│      let map = maps.get(key);
+│      if (!map) { map = make(); maps.set(key, map); }
+│      return map;
+│    };
+│    const push = (map, key, item) => {
+│      const list = map.get(key);
+│      if (list) list.push(item); else map.set(key, [item]);
+⋮
 │  function linesFrom(model, id, kind) {
 │    const look = lookOf(model);
 │    return look ? look.from(id, kind).slice() : model.relationships.filter((r) => r.from === id && 
@@ -805,18 +979,21 @@ canvas/dist/model-lib.js:
 │    if (look) return look.children(id).slice();
 │    return model.elements.filter((e) => (id === null || id === undefined ? e.owner === undefined : 
 ⋮
-│  function commonOwner(model, a, b, ids) {
-│    ids = ids || idsOf(model);
-│    const ca = chain(model, a, ids).slice(0, -1).map((e) => e.id);
-│    const cb = new Set(chain(model, b, ids).slice(0, -1).map((e) => e.id));
-│    let found = null;
-│    for (const id of ca) if (cb.has(id)) found = id;
-│    return found;
-⋮
 │  function featurePath(model, ownerId, el, ids) {
 │    const c = chain(model, el, ids);
 │    const start = ownerId === null ? 0 : c.findIndex((e) => e.id === ownerId) + 1;
 │    return c.slice(start).map(segment).join('.');
+⋮
+│  function describeRel(model, rel, ids) {
+│    ids = ids || idsOf(model);
+│    const a = ids.get(rel.from);
+│    const b = ids.get(rel.to);
+│    // An end with no name in the text is said by its kind (describe), not as "(unnamed)".
+│    const end = (e) => (!e ? '?' : textName(e) === null ? describe(model, e, ids) : shown(textName(
+│    const from = end(a);
+│    const to = end(b);
+│    if (rel.kind === 'Specialization') return from + ' specializes ' + to;
+│    if (rel.kind === 'FeatureTyping') return from + ' defined by ' + to;
 ⋮
 │  function describeView(model, view) { return 'view ' + shown(view.name); }
 ⋮
@@ -852,8 +1029,6 @@ canvas/dist/model-lib.js:
 │      headOf: headOf, declaredIn: declaredIn, exposesOf: exposesOf,
 │      typingOf: (el) => typingOf(model, el),
 │      childrenOf: (id) => childrenOf(model, id),
-│      describe: (el) => describe(model, el, ids),
-│      commonOwner: (a, b) => commonOwner(model, a, b, ids),
 ⋮
 │(function (root) {
 │  'use strict';
@@ -1001,6 +1176,8 @@ canvas/src/core/lib/model.js:
 │    if (metaclass === general) return true;
 │    const c = METAMODEL[metaclass];
 ⋮
+│  const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+⋮
 │  function textName(el) {
 │    const kind = KINDS[el.kind];
 │    return kind && kind.fields.indexOf('name') >= 0 ? str(el.name).trim() : null;
@@ -1016,11 +1193,21 @@ canvas/src/core/lib/model.js:
 │      const list = map.get(key);
 │      if (list) list.push(item); else map.set(key, [item]);
 ⋮
+│  function linesFrom(model, id, kind) {
+│    const look = lookOf(model);
+│    return look ? look.from(id, kind).slice() : model.relationships.filter((r) => r.from === id && 
+⋮
 │  function childrenOf(model, id) {
 │    const look = lookOf(model);
 │    if (look) return look.children(id).slice();
 │    return model.elements.filter((e) => (id === null || id === undefined ? e.owner === undefined : 
 ⋮
+│  function describe(model, el, ids) {
+│    ids = ids || idsOf(model);
+│    const owner = el.owner !== undefined ? ids.get(el.owner) : null;
+│    const name = textName(el);
+│    return KINDS[el.kind].label + (name === null ? '' : ' ' + shown(name)) + (owner ? ' in ' + show
+│  }
 │  function describeRel(model, rel, ids) {
 │    ids = ids || idsOf(model);
 │    const a = ids.get(rel.from);
@@ -1092,6 +1279,8 @@ canvas/src/core/lib/sysml.js:
 │      headOf: headOf, declaredIn: declaredIn, exposesOf: exposesOf,
 │      typingOf: (el) => typingOf(model, el),
 │      childrenOf: (id) => childrenOf(model, id),
+│      describe: (el) => describe(model, el, ids),
+│      commonOwner: (a, b) => commonOwner(model, a, b, ids),
 ⋮
 
 canvas/src/core/page/changes.js:
@@ -1114,6 +1303,24 @@ canvas/src/core/page/changes.js:
 │      noteWrite(t, k);
 │      return Reflect.defineProperty(t, k, 'value' in d ? Object.assign({}, d, { value: track(d.valu
 │    }
+⋮
+
+canvas/src/core/page/panel.js:
+⋮
+│(function (C) {
+│  'use strict';
+│  const S = C.state;
+│  const {
+│    M, VIEW_PANELS, FIELD_HOOKS, $, panel, showPanel, inspectorEmpty, fields, fKind, fPath, fViews,
+│    removeFromViewButton, deleteButton, viewFields, vKind, vShow, vMeta, vShowAdd, deleteViewButton
+│    problemsButton, undoButton, say, editable, newId, plural, relById, viewById, viewLayout, viewSh
+│    center, endpoints, marksFor, applyMarks, showPoint, blankField, edit, endEdit, undo, setActive,
+│  } = C;
+│
+⋮
+│  function setPanel(open) {
+│    panel.hidden = !open;
+│    showPanel.hidden = open;
 ⋮
 
 canvas/src/core/page/state.js:
@@ -1171,6 +1378,24 @@ canvas/test/build.test.mjs:
 │  return dir;
 ⋮
 
+canvas/test/fake-claude.mjs:
+⋮
+│export function installFakeClaude(seed) {
+│  const LIMIT = { body: 256 * 1024, depth: 32, documents: 25000, segment: 200, path: 1000, segments
+│  const docs = new Map(); // path -> frozen body
+│  const snaps = new Map(); // path -> the snapshot handed out for the body now stored, so an unchan
+│  const listeners = new Set();
+│  const log = [];
+│  let minted = 0;
+│  let waiting = 0; // answers on their way
+│  let lastActive = performance.now(); // when a call was last made or answered
+│
+⋮
+│  const freeze = (value) => {
+│    if (value && typeof value === 'object') Object.values(value).forEach(freeze), Object.freeze(val
+│    return value;
+⋮
+
 canvas/test/helpers.mjs:
 ⋮
 │export function assertPageExists(file = PAGE) {
@@ -1200,6 +1425,16 @@ canvas/test/helpers.mjs:
 │  await until(page, () => document.querySelector('#export-text')?.value.trim().length > 0, null, '#
 │  return page.inputValue('#export-text');
 ⋮
+│export async function emptyPoint(page) {
+│  for (let attempt = 0; attempt < 6; attempt++) {
+│    const point = await page.evaluate(findEmptyPoint);
+│    if (point) return point;
+│    const canvas = await page.locator('#canvas').boundingBox();
+│    await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
+│    await page.mouse.wheel(0, 600);
+│  }
+│  assert.fail('found no empty spot on the plane to click, even after panning down six times');
+⋮
 │export async function clickElement(page, id) {
 │  const group = page.locator(`g[data-el="${id}"]`).first();
 │  const box = await group.boundingBox();
@@ -1215,6 +1450,9 @@ canvas/test/helpers.mjs:
 │  const added = (await elementIds(page)).filter((id) => !before.includes(id));
 │  assert.equal(added.length, 1, `placing a ${tool} added one element, not ${JSON.stringify(added)}`
 │  return added[0];
+⋮
+│export const storedModel = (page) => page.evaluate(() => {
+│  try { return window.SysMLModel.readStore(window.__store.dump()).model; } catch (error) { return n
 ⋮
 │export function measure(planned, limit) {
 │  const samples = [];
@@ -1234,6 +1472,17 @@ canvas/test/helpers.mjs:
 ⋮
 
 canvas/test/scale-model.mjs:
+⋮
+│export function scaleModel(count) {
+│  if (!Number.isInteger(count) || count < SHARED.length) throw new RangeError(`a scale model has at
+│  const services = Math.floor((count - SHARED.length) / PER_SERVICE);
+│  const spares = count - SHARED.length - services * PER_SERVICE;
+│  const elements = [];
+│  const relationships = [];
+│  const layouts = { definitions: {}, deployment: {}, workflows: {} };
+│  const columns = Math.max(1, Math.ceil(Math.sqrt(services + spares / 3)));
+│  const cell = (view, i) => ({ x: ORIGIN.x + (i % columns) * CELL[view][0], y: ORIGIN.y + Math.floo
+│
 ⋮
 │export function scaleState(count) {
 │  return { model: scaleModel(count), notes: [], archive: [], changes: [] };
