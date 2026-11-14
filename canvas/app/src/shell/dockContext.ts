@@ -22,10 +22,17 @@ export interface DockState {
    * in Dock.tsx it throws.
    */
   showView: (viewId: string) => void;
+  /**
+   * Opens the text tab of the open file, or brings it to the front (slice 2: plan/slice-2.md, section 4, seam 10). The
+   * tab is no view's: its Dockview panel id is `text`, it holds views/TextTab.tsx, and it is titled
+   * `<package name>.sysml`. It goes into the editor beside the views' tabs, as a view's tab would. With no file open
+   * it does nothing. It changes no selection, and the view that was in front stays the session's view in front.
+   */
+  showText: () => void;
 }
 
 export const DockContext = createContext<DockState>({
-  session: null, onOpen: () => {}, showViews: () => {}, closed: 0, showView: () => {},
+  session: null, onOpen: () => {}, showViews: () => {}, closed: 0, showView: () => {}, showText: () => {},
 });
 
 /** What the dock holds now. A side panel's component calls it; it renders again when the dock's state changes. */

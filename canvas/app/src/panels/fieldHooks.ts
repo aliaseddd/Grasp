@@ -17,6 +17,13 @@
 // the model by itself), slice 2's (the notes' labels) or the old page's status line, which the new page has not.
 
 import type { Model, ModelElement, ModelRelationship, ModelView, Picked, PickedType, Session, Touched } from '../core';
+import { GEOMETRY_HOOKS } from './hooks/geometry';
+import { SEQUENCE_HOOKS } from './hooks/sequence';
+
+// What the two files of panels/hooks/ export is this module's too: their tables, and slice 1's ORDER_LOCKED, which
+// moved into hooks/sequence.ts with the order hook.
+export * from './hooks/geometry';
+export * from './hooks/sequence';
 
 // ---- The model library, as far as the fields read it.
 
@@ -113,8 +120,6 @@ export const NOTHING = 'nothing';
 export const NOT_HELD = 'not held yet';
 /** What such a row says when the pointer rests on it (its `title`), as on the old page. */
 export const notHeldWhy = (label: string): string => `The canvas doesn't hold ${label} yet: the text leaves it as SysML has it.`;
-/** Why a message's order cannot be changed in slice 1: changing it must re-sort the messages, which slice 2 does. */
-export const ORDER_LOCKED = 'The order can\'t be changed here yet. The old page changes it until slice 2.';
 
 // ---- How each field looks: its label, its place, and what the row in FIELDS does not say of its widget.
 
@@ -282,13 +287,17 @@ function generalHooks(verb: string, noun: string): FieldHook {
  * - **parallel.** locked: while the model holds a TransitionUsage whose owner, by
  *   lib.RELATIONSHIPS.TransitionUsage.owner(model, rel, ids), is this item's id: 'Is Parallel can't change while ' +
  *   describe + ' holds transitions, as in SysON.' Else null. Its words are the generic ones.
- * - **order**, a message's place in time. locked: always, ORDER_LOCKED. So it is shown and never changed in slice 1;
- *   the old hook's write, which re-sorts the messages, comes with slice 2.
+ *
+ * **Slice 2** (plan/slice-2.md, section 4, seam 9): the hooks of the sequence view's and the geometry view's fields
+ * are in files of their own, panels/hooks/sequence.ts (SEQUENCE_HOOKS, package 2-10's: a message's `order`, which
+ * was this table's locked hook in slice 1 and moved there as it was) and panels/hooks/geometry.ts (GEOMETRY_HOOKS,
+ * package 2-11's). FIELD_HOOKS is OWN_HOOKS below, then those two tables, in that order: a later table's hook of a
+ * field takes the place of an earlier one's.
  *
  * Every other field has no hook: it is the item's own property, shown by its row's type, and its change is said in
  * the generic words (changeField).
  */
-export const FIELD_HOOKS: Readonly<Record<string, FieldHook>> = {
+const OWN_HOOKS: Readonly<Record<string, FieldHook>> = {
   name: {
     said: (x) => {
       if (x.type === 'el') return `Renamed to ${x.lib.describe(x.model, x.item as ModelElement)}`;
@@ -351,8 +360,9 @@ export const FIELD_HOOKS: Readonly<Record<string, FieldHook>> = {
       return holds ? `Is Parallel can't change while ${x.lib.describe(x.model, x.item as ModelElement)} holds transitions, as in SysON.` : null;
     },
   },
-  order: { locked: () => ORDER_LOCKED },
 };
+
+export const FIELD_HOOKS: Readonly<Record<string, FieldHook>> = { ...OWN_HOOKS, ...SEQUENCE_HOOKS, ...GEOMETRY_HOOKS };
 
 // ---- The form: what Details shows for what is picked, as plain data.
 

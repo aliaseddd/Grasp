@@ -11,12 +11,34 @@
 // - The tool in hand is a session's Tools (toolsOf): the Tools view arms it, a plane gives it every click, a palette
 //   asks it what can be made at a point and gives it the choice, and the toasts say what it has to say.
 //
+// - The actions (slice 2: plan/slice-2.md, section 4, seam 8, and section 5) are every command that is no creation
+//   tool: Delete, Edit label, Add note, Undo and the others, each a row of one table. A row and what it does are
+//   written in a file of core/actions/, its package's; actions() joins the rows, and ask() is the one way a row is
+//   asked, from a key (core/keys.ts), a control (shell/ActionControl.tsx) or the palette. Beside them: the gestures
+//   that Escape calls off (gesturesOf), and what place() and draw() share with the actions (drawProblem, freshElement,
+//   freshRelationship).
+//
 // Nothing here is React's and nothing asks for a browser: the core's tests run it in Node
-// (canvas/app/test/commands.test.mjs).
+// (canvas/app/test/commands.test.mjs, actions.test.mjs).
 
-import { LOOK, isDrawn, project } from './adapter';
+import { LOOK, elementOf, project } from './adapter';
 import type { LineRow, Projection, Rect } from './adapter';
+import { hasReader, placerOf, rendererOf } from './readers/index';
 import { selectionOf } from './selection';
+import { nextSaying, saysOf } from './says';
+import { FILE_ACTIONS } from './actions/file';
+import { CAMERA_ACTIONS } from './actions/camera';
+import { REMOVE_ACTIONS } from './actions/remove';
+import { VIEW_ACTIONS } from './actions/views';
+import { LABEL_ACTIONS } from './actions/labels';
+import { NOTE_ACTIONS } from './actions/notes';
+import { CODE_ACTIONS } from './actions/code';
+import { TEXT_ACTIONS } from './actions/text';
+import { SEQUENCE_ACTIONS } from './actions/sequence';
+import { BROWSER_ACTIONS } from './actions/browser';
+import { CONNECT_ACTIONS } from './actions/connect';
+import { REPARENT_ACTIONS } from './actions/reparent';
+import { GEOMETRY_ACTIONS } from './actions/geometry';
 import type { Model, ModelElement, ModelRelationship } from './history';
 import type { Session } from './session';
 import type { Hit, Picked } from './selection';
@@ -80,11 +102,12 @@ export interface CommandsLibrary {
 /** The library a session was opened with, as the commands read it. */
 export const libOf = (session: Session): CommandsLibrary => session.lib as unknown as CommandsLibrary;
 
-// ---- The words, which are the old page's (canvas/src/core/page/base.js, interconnection/page.js, behavior/page.js).
+// ---- The words, which are the old page's (canvas/src/core/page/base.js, interconnection/page.js, behavior/page.js,
+// and from slice 2 sequence/page.js; the geometry view's two tools are a part and an item, which have theirs).
 
 /**
  * What a tool's button says on hover, by kind: every element and relationship kind in the row of a view kind that a
- * plane draws. A kind with no entry has no tooltip.
+ * body draws. A kind with no entry has no tooltip.
  */
 export const TOOL_TITLE: Readonly<Record<string, string>> = {
   PartDefinition: 'A part definition: square corners',
@@ -114,6 +137,8 @@ export const TOOL_TITLE: Readonly<Record<string, string>> = {
   StateUsage: 'A state: rounded corners, inside a state def, a state, a part def or a part, or on the plane',
   InitialNode: 'The initial node: where a state begins, with one transition to its first state',
   TransitionUsage: 'A transition from a state to the next: trigger [guard] / effect',
+  EventOccurrenceUsage: 'An event occurrence: a dot on a lifeline, where a message starts or ends',
+  Message: 'A message between two lifelines or events, a row in time order',
 };
 
 /**
@@ -149,6 +174,8 @@ export const TOOL_HINT: Readonly<Record<string, string | readonly [string, strin
   StateUsage: 'Click where the state goes: inside a state def or a state, or on the plane.',
   InitialNode: 'Click inside a state def or a state to put its initial node there.',
   TransitionUsage: ['Click the state the transition leaves…', 'Now click the state it leads to.'],
+  EventOccurrenceUsage: 'Click a lifeline, the dashed line under a part\'s head, to put an event on it.',
+  Message: ['Click the event or lifeline the message comes from…', 'Now click the event or lifeline it goes to.'],
 };
 
 /** What a new element is named after, by kind: PartDef1, part1. A kind with no entry is named after its own name. */
@@ -158,6 +185,7 @@ export const BASE_NAME: Readonly<Record<string, string>> = {
   ActionDefinition: 'ActionDef', ActionUsage: 'action', ParameterUsage: 'param', ForkNode: 'fork', JoinNode: 'join',
   DecisionNode: 'decision', MergeNode: 'merge', StartNode: 'start', DoneNode: 'done',
   StateDefinition: 'StateDef', StateUsage: 'state', InitialNode: 'initial',
+  EventOccurrenceUsage: 'event',
 };
 
 /**
@@ -189,15 +217,15 @@ export interface Tool {
  * Tool (type 'el' for a key of KINDS, 'rel' for a key of RELATIONSHIPS; its label the row's own `label`).
  *
  * The answer is empty ([]) for a kind whose row is empty (a grid view, a browser view), for a kind the library does
- * not hold, and for a kind no plane draws (isDrawn() of core/adapter.ts is false: a sequence view and a geometry view
- * list tools in the library, but a tool that nothing can be clicked with is worse than none, so slice 1 lists none;
- * slice 2 draws those kinds and lists them). A name in a row that is neither an element kind nor a relationship kind
- * is left out, and so is a group left empty by that.
+ * not hold, and for a kind no body draws yet (hasReader() of core/readers is false: a sequence view and a geometry
+ * view list tools in the library, but a tool that nothing can be clicked with is worse than none; each lists its
+ * tools from the commit that brings its reader). A name in a row that is neither an element kind nor a relationship
+ * kind is left out, and so is a group left empty by that.
  */
 export function toolGroups(lib: SysMLModelLibrary, viewKind: string): Tool[][] {
   const l = lib as unknown as CommandsLibrary;
   const row = l.VIEW_KINDS[viewKind];
-  if (!row || !isDrawn(lib, viewKind)) return [];
+  if (!row || !hasReader(lib, viewKind)) return [];
   const groups: Tool[][] = [[]];
   for (const name of row.tools) {
     if (name === '|') { groups.push([]); continue; }
@@ -207,6 +235,16 @@ export function toolGroups(lib: SysMLModelLibrary, viewKind: string): Tool[][] {
     else if (rel) groups[groups.length - 1].push({ kind: name, type: 'rel', label: rel.label });
   }
   return groups.filter((group) => group.length > 0);
+}
+
+/**
+ * Whether a line can be drawn in a view: the tools of its kind hold a relationship kind (a general view's do; a
+ * geometry view's do not). False for a view the model does not hold, and for a view no body draws yet. A plane asks
+ * it for `data-grips` (plan/slice-2.md, section 4, seam 6), so that no component reads a view's record.
+ */
+export function drawsLines(session: Session, viewId: string): boolean {
+  const view = session.model.views.find((v) => v.id === viewId);
+  return !!view && toolGroups(session.lib, view.kind).some((group) => group.some((tool) => tool.type === 'rel'));
 }
 
 /**
@@ -288,7 +326,8 @@ function plan(l: CommandsLibrary, model: Model, projection: Projection, view: Mo
   const boxUnder = (): ModelElement | null => {
     let best: { el: ModelElement; area: number } | null = null;
     for (const node of projection.nodes) {
-      const el = ids.get(node.id);
+      const id = elementOf(node);
+      const el = id === null ? undefined : ids.get(id);
       const r = projection.rects.get(node.id);
       if (!el || !r || !Array.isArray(l.KINDS[el.kind]?.contains) || !l.canContain(el.kind, kind) || !holds(r, p)) continue;
       if (!best || r.w * r.h < best.area) best = { el, area: r.w * r.h };
@@ -343,12 +382,57 @@ function plan(l: CommandsLibrary, model: Model, projection: Projection, view: Mo
   return { owner: null, place: { x: Math.round(p.x - w / 2), y: Math.round(p.y - 20), w, h } };
 }
 
-/** The view of the model that hit names, which a plane draws; throws for a view the caller should not have named. */
-function drawnView(session: Session, viewId: string, what: string): Model['views'][number] {
+/** The view of the model that a command names; throws for a view the model does not hold. */
+function viewNamed(session: Session, viewId: string, what: string): Model['views'][number] {
   const view = session.model.views.find((v) => v.id === viewId);
   if (!view) throw new Error(`${what}: the model holds no view ${viewId}.`);
-  if (!isDrawn(session.lib, view.kind)) throw new Error(`${what}: no plane draws a view of kind ${view.kind}.`);
   return view;
+}
+
+/**
+ * A new element of `kind`, named `name` and owned by `ownerId` (null: at the top of the package), as place() makes
+ * one. It is not yet in the model: the caller pushes it onto model.elements inside its own edit(). Whatever makes an
+ * element makes it here: place(), a kind's placer, and the label editor for what a typed label asks for.
+ *
+ * Its id is 'e', then the time in ms in base 36, then five characters by Math.random in base 36 (the old page's
+ * newId), made again while the model holds that id. Its keys, in this order: id, kind, name, doc (''), then each
+ * other field of its kind's row that FIELDS holds and stores, at its starting value (the old page's blankField: a row
+ * with `stored: false` gets nothing; `fresh()` when the row has one; false for a bool; the first of `values` for an
+ * enum; '' for the rest), then `owner` when it has one. Two starting values differ: a ParameterUsage's `direction` is
+ * 'in', and an element whose `direction` would be '' and whose owner is a PortDefinition gets 'out' (an item on a port
+ * def has to go some way).
+ *
+ * It checks nothing: whether the owner may hold the kind is the caller's to ask. A kind that is no element kind is a
+ * mistake of the caller: it throws.
+ */
+export function freshElement(session: Session, kind: string, name: string, ownerId: string | null): ModelElement {
+  const l = libOf(session);
+  if (!l.KINDS[kind]) throw new Error(`freshElement: ${kind} is no element kind.`);
+  const model = session.model;
+  const taken = new Set(model.elements.map((e) => e.id));
+  const el: ModelElement = { id: newId('e', (id) => taken.has(id)), kind, name, doc: '' };
+  for (const field of l.KINDS[kind].fields) if (el[field] === undefined) blankField(l, el, field);
+  if (kind === 'ParameterUsage') el.direction = 'in';
+  else if (el.direction === '' && ownerId !== null && model.elements.find((e) => e.id === ownerId)?.kind === 'PortDefinition') el.direction = 'out';
+  if (ownerId !== null) el.owner = ownerId;
+  return el;
+}
+
+/**
+ * A new relationship of `kind` from the element `fromId` to the element `toId`, as draw() makes one. It is not yet in
+ * the model: the caller pushes it onto model.relationships inside its own edit(). Its id is 'r' and the rest as an
+ * element's. Its keys, in this order: id, kind, from, to, then each field of its kind's row at its starting value, as
+ * for an element. It checks nothing (drawProblem does). A kind that is no relationship kind is a mistake of the
+ * caller: it throws.
+ */
+export function freshRelationship(session: Session, kind: string, fromId: string, toId: string): ModelRelationship {
+  const l = libOf(session);
+  const row = l.RELATIONSHIPS[kind];
+  if (!row) throw new Error(`freshRelationship: ${kind} is no relationship kind.`);
+  const taken = new Set(session.model.relationships.map((r) => r.id));
+  const rel: ModelRelationship = { id: newId('r', (id) => taken.has(id)), kind, from: fromId, to: toId };
+  for (const field of row.fields) blankField(l, rel, field);
+  return rel;
 }
 
 /**
@@ -394,38 +478,40 @@ function drawnView(session: Session, viewId: string, what: string): Model['views
  *    kind of NODE_HOME, which has no header to hang from, y = max(LOOK.childTop, round(p.y - r.y - h / 2)). The owner
  *    grows to hold it by the adapter's own rule; nothing is written to the owner.
  *
- * **The element.** Its id is 'e', then the time in ms in base 36, then five characters by Math.random in base 36 (the
- * old page's newId), made again while the model holds that id. Its keys, in this order: id, kind, name
- * (freeName(lib, model, kind, owner or null)), doc (''), then each other field of its kind's row that FIELDS holds
- * and stores, at its starting value (the old page's blankField: a row with `stored: false` gets nothing; `fresh()`
- * when the row has one; false for a bool; the first of `values` for an enum; '' for the rest), then `owner` when it
- * has one. Two starting values differ: a ParameterUsage's `direction` is 'in', and an element whose `direction` would
- * be '' and whose owner is a PortDefinition gets 'out' (an item on a port def has to go some way).
+ * **The element** is freshElement(session, kind, freeName(lib, model, kind, owner or null), owner or null), which
+ * says what its id and its keys are.
  *
  * **The write** is one history.edit(), with no key: the element pushed onto model.elements, and its place put into
  * view.layout under its id. Its words, for Undo's tooltip and the log: 'Added ' + lib.describe(model, the element),
  * as 'Added part def PartDef1', 'Added part part1 in Host', 'Added start in test'. It returns
  * { made: { type: 'el', id }, words }. It picks nothing and says nothing: Tools does (below).
  *
- * A view the model does not hold, a view of a kind no plane draws and a kind that is no element kind are mistakes of
- * the caller: it throws.
+ * **A view of another renderer** (slice 2, seam 1). All of the above is the rule of place of the four graph kinds.
+ * For a view whose kind has another renderer, place() hands the click to that kind's placer,
+ * placerOf(renderer)(session, kind, hit) of core/readers, a function of core/actions/<renderer>.ts, and returns what
+ * it returns: one edit(), or a refusal, as here.
+ *
+ * A view the model does not hold, a view of a kind nothing can be placed in (no body draws it yet, or its renderer
+ * has no placer: a grid view, a browser view) and a kind that is no element kind are mistakes of the caller: it
+ * throws.
  */
 export function place(session: Session, kind: string, hit: Hit): Outcome {
   const l = libOf(session);
   if (!l.KINDS[kind]) throw new Error(`place: ${kind} is no element kind.`);
   const model = session.model;
-  const view = drawnView(session, hit.view, 'place');
+  const view = viewNamed(session, hit.view, 'place');
+  const renderer = rendererOf(session.lib, view.kind);
+  if (renderer !== 'graph') {
+    const placer = renderer !== null && hasReader(session.lib, view.kind) ? placerOf(renderer) : null;
+    if (!placer) throw new Error(`place: nothing can be placed in a view of kind ${view.kind}.`);
+    return placer(session, kind, hit);
+  }
   const projection = project(session.lib, model, view);
   const found = plan(l, model, projection, view, kind, hit);
   if ('refused' in found) return { refused: found.refused };
 
   const owner = found.owner;
-  const taken = new Set(model.elements.map((e) => e.id));
-  const el: ModelElement = { id: newId('e', (id) => taken.has(id)), kind, name: freeName(session.lib, model, kind, owner ? owner.id : null), doc: '' };
-  for (const field of l.KINDS[kind].fields) if (el[field] === undefined) blankField(l, el, field);
-  if (kind === 'ParameterUsage') el.direction = 'in';
-  else if (el.direction === '' && owner && owner.kind === 'PortDefinition') el.direction = 'out';
-  if (owner) el.owner = owner.id;
+  const el = freshElement(session, kind, freeName(session.lib, model, kind, owner ? owner.id : null), owner ? owner.id : null);
 
   let words = '';
   session.history.edit(() => {
@@ -438,34 +524,24 @@ export function place(session: Session, kind: string, hit: Hit): Outcome {
 }
 
 /**
- * Draws a relationship of `kind` from the element `fromId` to the element `toId`: the old page's pairProblem and
- * createRel. It checks first and writes after.
+ * Why draw() would refuse a relationship of `kind` from the element `fromId` to the element `toId`, or null when it
+ * would draw it: the old page's pairProblem. It writes nothing. draw() asks it; so does whatever must know beforehand
+ * (a line being dragged asks it for each kind of the view's row, core/actions/connect.ts), so a tool's line and a
+ * dragged line are refused in the same words.
  *
- * **The checks**, in this order, each a refusal with the sentence given, bare (Tools adds ESCAPE_HINT):
+ * **The four checks**, in this order, each with the sentence given, bare:
  * 1. the kind's own rule on the first end, RELATIONSHIPS[kind].first(model, from, lib.idsOf(model));
  * 2. the two ends are one element: 'Pick two different elements.';
  * 3. the model already holds a relationship of this kind from the one to the other, hidden or not:
  *    'That is already drawn.';
  * 4. the kind's own rule on the pair, RELATIONSHIPS[kind].ends(model, from, to, ids).
  *
- * **The relationship.** Its id is 'r' and the rest as an element's. Its keys, in this order: id, kind, from, to, then
- * each field of its kind's row at its starting value, as for an element. It is never hidden.
- *
- * **The write** is one history.edit(), with no key. For a FeatureTyping, a usage has one definition: the typing the
- * usage has already (lib.typingOf(model, from), hidden or not) is taken out of model.relationships first, in the same
- * step, so Undo brings it back where it was. Then the new relationship is pushed onto model.relationships. Its
- * words: 'Drew ' + lib.describeRel(model, the relationship), as 'Drew App specializes Page', 'Drew hosts defined by
- * App', 'Drew connection hosts to app'. It returns { made: { type: 'rel', id }, words }.
- *
- * **The notes.** On the old page the notes on a replaced typing move to the new line. Slice 1 neither shows nor
- * changes a note (plan/slice-1.md, section 7, item 10), and the session's notes are outside the history, so a note
- * moved here would stay moved after Undo brought the old line back. So `session.notes` is not touched: a note on the
- * replaced line keeps naming it by its id and its kept label, the old page lists such a note under that label and
- * leaves it out of the export, and Undo makes it right again. Slice 2, which shows notes, moves them.
+ * `but` is the id of a relationship that check 3 leaves out: the line whose end is being moved, which may not stand
+ * in its own way. The other three checks do not read it.
  *
  * An id that names no element and a kind that is no relationship kind are mistakes of the caller: it throws.
  */
-export function draw(session: Session, kind: string, fromId: string, toId: string): Outcome {
+export function drawProblem(session: Session, kind: string, fromId: string, toId: string, but?: string): string | null {
   const l = libOf(session);
   const row = l.RELATIONSHIPS[kind];
   if (!row) throw new Error(`draw: ${kind} is no relationship kind.`);
@@ -477,33 +553,74 @@ export function draw(session: Session, kind: string, fromId: string, toId: strin
   if (!to) throw new Error(`draw: no element ${toId}.`);
 
   const first = row.first(model, from, ids);
-  if (first) return { refused: first };
-  if (from.id === to.id) return { refused: 'Pick two different elements.' };
-  if (model.relationships.some((r) => r.kind === kind && r.from === from.id && r.to === to.id)) return { refused: 'That is already drawn.' };
-  const ends = row.ends(model, from, to, ids);
-  if (ends) return { refused: ends };
+  if (first) return first;
+  if (from.id === to.id) return 'Pick two different elements.';
+  if (model.relationships.some((r) => r.kind === kind && r.from === from.id && r.to === to.id && r.id !== but)) return 'That is already drawn.';
+  return row.ends(model, from, to, ids) || null;
+}
 
-  const taken = new Set(model.relationships.map((r) => r.id));
-  const rel: ModelRelationship = { id: newId('r', (id) => taken.has(id)), kind, from: from.id, to: to.id };
-  for (const field of row.fields) blankField(l, rel, field);
+/**
+ * Draws a relationship of `kind` from the element `fromId` to the element `toId`: the old page's pairProblem and
+ * createRel. It checks first and writes after.
+ *
+ * **The checks** are drawProblem(session, kind, fromId, toId): its four, in its order, each a refusal with the
+ * sentence given, bare (Tools adds ESCAPE_HINT).
+ *
+ * **The relationship** is freshRelationship(session, kind, fromId, toId), which says what its id and its keys are. It
+ * is never hidden.
+ *
+ * **The write** is one history.edit(), with no key: the new relationship is pushed onto model.relationships. Its
+ * words: 'Drew ' + lib.describeRel(model, the relationship), as 'Drew App specializes Page', 'Drew hosts defined by
+ * App', 'Drew connection hosts to app'. It returns { made: { type: 'rel', id }, words }.
+ *
+ * **A "defined by" line from a usage that has a definition already** (slice 2: plan/slice-2.md, section 2, "A typing
+ * that is drawn again is no longer replaced"). A usage has one definition. So for a FeatureTyping whose first end has
+ * a typing (lib.typingOf(model, from), hidden or not), nothing new is made and nothing is taken out: in the one
+ * edit(), that typing's `to` becomes the new definition and its `hidden` key is deleted, as the Typed by field of
+ * Details moves the end and its tick draws the line (panels/fieldHooks.ts, `type` and `typeLine`). The relationship
+ * keeps its id, its place in the model's order and its other fields, so the notes pinned to it stay on it, through
+ * Undo and Redo too. The words are the same, 'Drew hosts defined by App', and what is returned as made is that
+ * typing. Until slice 2 the old typing was taken out and a new one pushed, as on the old page, which then moves the
+ * old line's notes to the new one; after Undo those notes pointed at nothing.
+ *
+ * An id that names no element and a kind that is no relationship kind are mistakes of the caller: it throws.
+ */
+export function draw(session: Session, kind: string, fromId: string, toId: string): Outcome {
+  const l = libOf(session);
+  const problem = drawProblem(session, kind, fromId, toId);
+  if (problem !== null) return { refused: problem };
+
+  // A usage has one definition: its typing, when it has one, gets its other end moved and is shown.
+  const has = kind === 'FeatureTyping' ? l.typingOf(session.model, session.model.elements.find((e) => e.id === fromId)!) : null;
+  const moved = has ? has.id : null;
+  const rel = moved === null ? freshRelationship(session, kind, fromId, toId) : null;
 
   let words = '';
+  let made = '';
   session.history.edit(() => {
     const rels = session.model.relationships;
-    if (kind === 'FeatureTyping') {
-      const old = l.typingOf(session.model, session.model.elements.find((e) => e.id === from.id)!);
-      if (old) rels.splice(rels.findIndex((r) => r.id === old.id), 1);
+    let drawn: ModelRelationship;
+    if (rel) {
+      rels.push(rel);
+      drawn = rel;
+    } else {
+      drawn = rels.find((r) => r.id === moved)!;
+      drawn.to = toId;
+      delete drawn.hidden;
     }
-    rels.push(rel);
-    words = 'Drew ' + l.describeRel(session.model, rel);
+    made = drawn.id;
+    words = 'Drew ' + l.describeRel(session.model, drawn);
     return words;
   });
-  return { made: { type: 'rel', id: rel.id }, words };
+  return { made: { type: 'rel', id: made }, words };
 }
 
 // ---- The tool in hand.
 
-/** Something the tools have to say: a sentence, and a number that grows with each saying, so the same sentence said twice is said anew. */
+/**
+ * Something said: a sentence, and a number that grows with each saying, so the same sentence said twice is said anew.
+ * The numbers are one row for a session (nextSaying of core/says.ts), whether its tool in hand said it or saysOf did.
+ */
 export interface Saying {
   readonly text: string;
   readonly n: number;
@@ -529,18 +646,19 @@ export interface Saying {
  *   ask which view is in front: the click does. A kind the library does not hold is a mistake of the caller: it
  *   throws.
  * - **`putDown()`** puts the tool down: `armed`, `first` and `said` are null. With no tool in hand it changes nothing
- *   and tells nobody. Escape calls it (panels/Tools.tsx).
+ *   and tells nobody. Escape calls it, through the action `put-down` (core/actions/file.ts).
  *
  * **`click(hit)`** offers a click on a plane to the tool in hand, before the click picks anything
  * (plane/Plane.tsx, `clicked`). With no tool in hand it does nothing and returns false, and the click then picks
  * (the selection's click()). With a tool in hand it returns true whatever came of the click, made or refused: while
  * a tool is in hand a click on a plane picks nothing by itself, and what the tool makes is picked by the tool.
  * `hit.add` (Ctrl or ⌘ held) changes nothing. With a tool in hand:
- * 1. **The view.** When the model holds no view `hit.view`, or a plane does not draw its kind, the tool is put down
- *    and nothing is said. When toolGroups() of the view's kind does not list the tool, the tool is put down and
+ * 1. **The view.** When the model holds no view `hit.view`, or no body draws its kind (hasReader() is false), the
+ *    tool is put down and nothing is said. When toolGroups() of the view's kind does not list the tool, the tool is put down and
  *    `said` is '<A view kind's label> has no <the tool's label> tool, so the tool was put down.', as 'A state
  *    transition view has no part def tool, so the tool was put down.' (lib.an(label, true) begins it).
- * 2. **An element tool**: place(session, armed.kind, hit). Made: the tool is put down, `said` is null, and the
+ * 2. **An element tool**: place(session, armed.kind, hit), which for a view of another renderer than `graph` is its
+ *    kind's placer. Made: the tool is put down, `said` is null, and the
  *    element is picked, selectionOf(session).set([made]). Refused: nothing is written, the tool stays in hand, and
  *    `said` is the refusal as place() gives it.
  * 3. **A relationship tool, on the ground or on a line** (`hit.type` is not 'el', or its id names no element): the
@@ -551,7 +669,7 @@ export interface Saying {
  * 5. **A relationship tool, on an element, with a first end**: draw(session, armed.kind, first, hit.id). Refused:
  *    `said` is the refusal + ESCAPE_HINT, and the tool and its first end stay, so another second end can be clicked.
  *    Made: the tool is put down and the relationship is picked, selectionOf(session).set([made]). `said` is null,
- *    unless no view of a kind a plane draws places both ends in its layout (a first end clicked on one plane and a
+ *    unless no view of a kind a body draws places both ends in its layout (a first end clicked on one plane and a
  *    second on another): then nothing draws the line, and `said` is the step's words + '. No view shows both ends, so
  *    the line is not drawn anywhere yet.'
  * The order, when something is made: the history.edit() (whose listeners draw it), then `armed`, `first` and `said`
@@ -570,7 +688,7 @@ export interface Saying {
  * **The palette** (plane/Palette.tsx).
  * - **`offers(hit)`** is what can be made at a right-click: the tools of toolGroups() of the hit's view kind, each
  *   group keeping the tools the rules would not refuse there, a group left empty left out. [] when nothing can be
- *   made, when the model holds no such view and when no plane draws its kind. It does not read the tool in hand, and
+ *   made, when the model holds no such view and when no body draws its kind. It does not read the tool in hand, and
  *   changes nothing.
  *   - On the ground: each element kind that place() would put there (so no port, no parameter, no control node), and
  *     no relationship kind.
@@ -578,6 +696,10 @@ export interface Saying {
  *     hold; on a port or a parameter, which holds nothing, none), and each relationship kind whose `first` rule
  *     accepts the element as a first end.
  *   - On a line, and for an id that names nothing: nothing.
+ *   - In a view of another renderer than `graph` (slice 2) the rule of place is its kind's placer, which answers a
+ *     click and has no way to say beforehand what it would refuse. So there every element kind of the row is
+ *     offered, on the ground and on an element, and the placer says why when the choice is refused; the
+ *     relationship kinds are offered as in a graph view.
  * - **`choose(kind, hit)`** is a choice from the palette: whatever is in hand is put down, the tool of `kind` is
  *   taken in hand, and it is given the click `hit`, exactly as click(hit) above. So an element kind is placed at the
  *   right-click's point, inside the box that was clicked, and is picked, with no tool in hand afterwards; and a
@@ -625,7 +747,6 @@ function makeTools(session: Session): Tools {
   let armed: Tool | null = null;
   let first: string | null = null;
   let said: Saying | null = null;
-  let n = 0;
   let depth = 0;
   let dirty = false;
 
@@ -648,7 +769,7 @@ function makeTools(session: Session): Tools {
   const setFirst = (next: string | null): void => { if (next !== first) { first = next; dirty = true; } };
   const setSaid = (text: string | null): void => {
     if (text === null) { if (said !== null) { said = null; dirty = true; } return; }
-    said = { text, n: ++n };
+    said = { text, n: nextSaying(session) };
     dirty = true;
   };
   const putDown = (): void => batch(() => { setArmed(null); setFirst(null); setSaid(null); });
@@ -673,7 +794,7 @@ function makeTools(session: Session): Tools {
     const tool = armed;
     batch(() => {
       const view = viewOf(hit.view);
-      if (!view || !isDrawn(session.lib, view.kind)) { putDown(); return; }
+      if (!view || !hasReader(session.lib, view.kind)) { putDown(); return; }
       if (!lists(view.kind, tool.kind)) {
         putDown();
         setSaid(`${l.an(l.VIEW_KINDS[view.kind].label, true)} has no ${tool.label} tool, so the tool was put down.`);
@@ -705,7 +826,7 @@ function makeTools(session: Session): Tools {
       }
       const out = draw(session, tool.kind, taken.id, element.id);
       if ('refused' in out) { setSaid(out.refused + ESCAPE_HINT); return; }
-      const shown = session.model.views.some((v) => isDrawn(session.lib, v.kind) && v.layout[taken.id] && v.layout[element.id]);
+      const shown = session.model.views.some((v) => hasReader(session.lib, v.kind) && v.layout[taken.id] && v.layout[element.id]);
       putDown();
       if (!shown) setSaid(out.words + '. No view shows both ends, so the line is not drawn anywhere yet.');
       sel.set([out.made]);
@@ -715,14 +836,16 @@ function makeTools(session: Session): Tools {
 
   const offers = (hit: Hit): Tool[][] => {
     const view = viewOf(hit.view);
-    if (!view || !isDrawn(session.lib, view.kind)) return [];
+    if (!view || !hasReader(session.lib, view.kind)) return [];
     const model = session.model;
     const ids = l.idsOf(model);
     const element = hit.type === 'el' && hit.id !== null ? ids.get(hit.id) : undefined;
     if (hit.type === 'rel' || (hit.type === 'el' && !element)) return [];
-    const projection = project(session.lib, model, view);
+    // The graph kinds' rule of place is asked beforehand; a view of another renderer has its placer, which is not.
+    const projection = rendererOf(session.lib, view.kind) === 'graph' ? project(session.lib, model, view) : null;
     const kept = (tool: Tool): boolean => {
       if (tool.type === 'el') {
+        if (!projection) return true;
         const found = plan(l, model, projection, view, tool.kind, hit);
         if ('refused' in found) return false;
         return element ? found.owner?.id === element.id : true;
@@ -767,4 +890,172 @@ function makeTools(session: Session): Tools {
       return () => { listeners.delete(listener); };
     },
   };
+}
+
+// ---- The actions (slice 2).
+
+/**
+ * An action: a command that is no creation tool, as a row of the table (plan/architecture.md, contract 4;
+ * plan/slice-2.md, section 5, lists every row).
+ *
+ * - **`id`** names it: 'delete', 'remove-from-view', 'edit-label'. A control that asks it carries the id as
+ *   `data-action`.
+ * - **`title`** is what a menu and a tooltip call it.
+ * - **`key`** is its keyboard shortcut, as core/keys.ts spells a press: a key ('Delete', 'F2', '+'), a chord
+ *   ('Mod+Z', 'Alt+ArrowUp'), or 'printable' for any key that types a character. No key: it has no shortcut.
+ * - **`choices(session, at)`**, for an action that asks which (the view kinds of New view): what can be chosen there,
+ *   each with the id that run() takes as its `choice` and the words a menu shows.
+ * - **`applies(session, at)`** is true where the action can be asked, or the sentence that says why not. It takes no
+ *   choice: a control for one thing among several is shown only on the things it applies to, and run() still checks
+ *   the one it was given.
+ * - **`run(session, at, choice)`** does it: one history.edit(), or a call of notesOf(), or a call of the shell's hand.
+ *   It returns what it made, to be picked (Outcome's `made`); or a refusal it could not know before it ran
+ *   (Outcome's `refused`), which is said as applies()'s sentence is; or nothing, when it made nothing to pick.
+ *
+ * `at` is where the action was asked for: the Hit of a right-click, or null from the top bar and from a key. An
+ * action with no `at` works on the selection.
+ */
+export interface Action {
+  readonly id: string;
+  readonly title: string;
+  readonly key?: string;
+  choices?(session: Session, at: Hit | null): { id: string; title: string }[];
+  applies(session: Session, at: Hit | null): true | string;
+  run(session: Session, at: Hit | null, choice?: string): Outcome | void;
+}
+
+let TABLE: readonly Action[] | null = null;
+let BY_ID: Map<string, Action> | null = null;
+
+/**
+ * The table: every row that is built, put together the first time it is asked for, from the rows each file of
+ * core/actions/ exports as an array, so the order in which the modules load does not matter. The same array at each
+ * call. The rows come file by file, in the order of section 5's table: file.ts (undo, redo, save, put-down), then
+ * camera.ts, remove.ts, views.ts, labels.ts, notes.ts, code.ts, text.ts, sequence.ts, browser.ts, and last the three
+ * files section 5 gives no row (connect.ts, reparent.ts, geometry.ts); inside a file, in its array's order.
+ *
+ * A row that is not built is not in the table: its array is empty in the scaffold's skeleton, so its key does
+ * nothing and its controls are not shown until its package fills the array. Two rows of one id are a mistake of
+ * whoever added the second: it throws, naming the id. Of two rows with one key, the earlier is the key's
+ * (core/keys.ts).
+ */
+export function actions(): readonly Action[] {
+  if (!TABLE) {
+    const table = [
+      ...FILE_ACTIONS, ...CAMERA_ACTIONS, ...REMOVE_ACTIONS, ...VIEW_ACTIONS, ...LABEL_ACTIONS, ...NOTE_ACTIONS, ...CODE_ACTIONS,
+      ...TEXT_ACTIONS, ...SEQUENCE_ACTIONS, ...BROWSER_ACTIONS, ...CONNECT_ACTIONS, ...REPARENT_ACTIONS, ...GEOMETRY_ACTIONS,
+    ];
+    const byId = new Map<string, Action>();
+    for (const action of table) {
+      if (byId.has(action.id)) throw new Error(`actions: two rows of the table are called ${action.id}.`);
+      byId.set(action.id, action);
+    }
+    TABLE = Object.freeze(table);
+    BY_ID = byId;
+  }
+  return TABLE;
+}
+
+/** The row of an action, by its id; null for an id no row has: a row that is not built, or a mistake. */
+export function actionOf(id: string): Action | null {
+  actions();
+  return (BY_ID as Map<string, Action>).get(id) ?? null;
+}
+
+/**
+ * The actions the right-click palette lists under the creation tools, as ids in the menu's order: what is about the
+ * thing that was clicked, and not Undo or Save, which apply everywhere. The palette shows an entry for each that is in
+ * the table and applies at the right-click's Hit (plane/Palette.tsx).
+ */
+export const PALETTE: readonly string[] = Object.freeze(['edit-label', 'add-note', 'show-in-view', 'remove-from-view', 'message-up', 'message-down', 'delete']);
+
+/**
+ * Asks an action: the one way an action is asked, from a key (core/keys.ts), a control (shell/ActionControl.tsx) or
+ * the palette. `at` is the Hit of a right-click, or null (the default) from the top bar and from a key; `choice` is
+ * what was chosen of the action's choices, or what the caller gives it otherwise (the character typed, a note's id).
+ *
+ * 1. It calls the row's applies(session, at). A sentence is said, saysOf(session).say(sentence), and returned as
+ *    `{ refused }`; run() is not called.
+ * 2. Otherwise it calls run(session, at, choice), and returns what that returns:
+ *    - `{ refused }`: the sentence is said the same way. Nothing is picked.
+ *    - `{ made, words }`: what was made is picked, alone: selectionOf(session).set([made]).
+ *    - nothing: nothing is picked, and what is picked stays (the selection lets go by itself of what left the model).
+ * An action that worked says nothing here: its run says what it has to say.
+ *
+ * An id that no row of the table has is a mistake of the caller: it throws. A control for a row that may not be built
+ * yet asks actionOf(id) first, and is not shown while that is null.
+ */
+export function ask(session: Session, id: string, at: Hit | null = null, choice?: string): Outcome | void {
+  const action = actionOf(id);
+  if (!action) throw new Error(`ask: the table holds no action ${id}.`);
+  const applies = action.applies(session, at);
+  if (applies !== true) {
+    saysOf(session).say(applies);
+    return { refused: applies };
+  }
+  const out = action.run(session, at, choice);
+  if (!out) return undefined;
+  if ('refused' in out) saysOf(session).say(out.refused);
+  else selectionOf(session).set([out.made]);
+  return out;
+}
+
+/**
+ * Whether a thing may be changed: true, or the sentence that says why not. Every action, every change of a Details
+ * row and the label editor ask it before they write. It is true for everything a session holds, until slice 5, where
+ * an element of a library can be picked and answers with a sentence (plan/architecture.md, contract 4).
+ */
+export function editable(_session: Session, _picked: Picked): true | string {
+  return true;
+}
+
+/**
+ * The gestures in progress that Escape can call off, for a session: a line being drawn, a pin being dragged, a
+ * message moved by its line. A gesture adds itself at its start and takes itself out at its end; the action
+ * `put-down` (core/actions/file.ts) calls them all off before it does anything else.
+ *
+ * - **`add(cancel)`** adds a gesture, by the function that calls it off, and returns what takes it out again. The
+ *   gesture calls that at its end, however it ends; calling it twice changes nothing.
+ * - **`open`** is how many gestures are in progress now.
+ * - **`cancelAll()`** calls off every gesture in progress, in the order they were added, each once, and leaves none
+ *   open, whether or not a gesture takes itself out while it is called off. Every one is called even when another
+ *   throws; the first error is thrown on once all have been called. With none open it does nothing.
+ *
+ * It tells nobody: nothing draws from it. A gesture that React Flow runs itself (a node's drag, a marquee) is not
+ * among them: React Flow gives no way to call one off.
+ */
+export interface Gestures {
+  add(cancel: () => void): () => void;
+  readonly open: number;
+  cancelAll(): void;
+}
+
+const GESTURES = new WeakMap<Session, Gestures>();
+
+/** The gestures in progress of a session: the same object each time it is asked for, kept by the session object itself, weakly. */
+export function gesturesOf(session: Session): Gestures {
+  let kept = GESTURES.get(session);
+  if (!kept) {
+    // Each gesture by an object of its own, so that one function added twice is two gestures.
+    const going = new Set<{ cancel: () => void }>();
+    kept = {
+      add(cancel) {
+        const mine = { cancel };
+        going.add(mine);
+        return () => { going.delete(mine); };
+      },
+      get open() { return going.size; },
+      cancelAll() {
+        const all = Array.from(going);
+        going.clear();
+        let failed: { error: unknown } | null = null;
+        for (const gesture of all) {
+          try { gesture.cancel(); } catch (error) { failed ??= { error }; }
+        }
+        if (failed) throw failed.error;
+      },
+    };
+    GESTURES.set(session, kept);
+  }
+  return kept;
 }

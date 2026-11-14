@@ -22,6 +22,17 @@ export const MINIMAP_MASK = 'rgba(238, 242, 244, 0.7)';
 /** A disabled icon on the ink bar. */
 export const BAR_DISABLED = 'rgba(255, 255, 255, 0.35)';
 
+/**
+ * Slice 2's colours, added once by its scaffold (plan/slice-2.md, section 6; plan/architecture.md, contract 26: a
+ * slice adds the colours it needs and changes none).
+ * - WARNING: a badge's ground, behind its white "!" (5.4 to 1 against white).
+ * - RESOLVED: the grey of a resolved note's pin: its ground when it is on something, its border when it is free.
+ * - UNFIT: the grey of a line in hand that fits nothing, and of the outline of what it is over.
+ */
+export const WARNING = '#B3470B';
+export const RESOLVED = '#8A959D';
+export const UNFIT = '#8A959D';
+
 /** The measures, in px. */
 export const BAR_HEIGHT = 40;
 export const TAB_BAR_HEIGHT = 32;
@@ -31,6 +42,12 @@ export const FONT_FAMILY = 'Roboto, Arial, sans-serif';
 /** The ring that shows where the keyboard's focus is: its width, and how far it stands off what it rings. */
 export const FOCUS_WIDTH = 2;
 export const FOCUS_OFFSET = 2;
+/** A grip, the handle a line is dragged from: how wide it is, and how far its middle stands outside a node's side (clear of a border item there). */
+export const GRIP = 8;
+export const GRIP_OFF = 14;
+/** A badge and a pin, across: each keeps this size on the screen at any zoom (plane/marks/marks.css). */
+export const BADGE = 16;
+export const PIN = 22;
 
 /** A size in px as Material UI's type takes it, in rem of the browser's 16 px, so it follows the browser's own text size. */
 const rem = (px: number): string => `${px / 16}rem`;
@@ -83,10 +100,17 @@ export const cssVariables: Readonly<Record<string, string>> = {
   '--grasp-text-secondary': TEXT_SECONDARY,
   '--grasp-white': WHITE,
   '--grasp-minimap-mask': MINIMAP_MASK,
+  '--grasp-warning': WARNING,
+  '--grasp-resolved': RESOLVED,
+  '--grasp-unfit': UNFIT,
   '--grasp-bar-height': `${BAR_HEIGHT}px`,
   '--grasp-tab-bar-height': `${TAB_BAR_HEIGHT}px`,
   '--grasp-font-size': `${FONT_SIZE}px`,
   '--grasp-small-font-size': `${SMALL_FONT_SIZE}px`,
   '--grasp-font-family': FONT_FAMILY,
   '--grasp-focus-width': `${FOCUS_WIDTH}px`,
+  '--grasp-grip': `${GRIP}px`,
+  '--grasp-grip-off': `${GRIP_OFF}px`,
+  '--grasp-badge': `${BADGE}px`,
+  '--grasp-pin': `${PIN}px`,
 };

@@ -5,6 +5,10 @@
 // React Flow runs in it: it imports React Flow's types only, so that tsc checks its nodes and edges against the
 // library's own where a plane hands them over, and the core's Node tests still load it (canvas/app/test/core.mjs).
 //
+// From slice 2 it is the reader of the four graph kinds (core/readers/graph.ts) among the readers of the other
+// kinds, and each node and edge says who it is: its element or its relationship, its view, and its marks, which the
+// adapter never reads or sets (plan/slice-2.md, section 4, seams 4 and 5).
+//
 // The rules of place and size are the old page's, ported from its page scripts, which stay as they are:
 // graphLayout, portRect, straight, elbow and endpoints in canvas/src/core/page/layout.js; nameLine, the keyword lines,
 // compartmentsOf, portName and the far form in canvas/src/core/page/drawing.js; the item's line in
@@ -17,7 +21,10 @@
 // rectangles and points exactly.
 
 import type { Edge, Node, Position } from '@xyflow/react';
+import { codeRowsOf } from './codeLinks';
 import type { Model, ModelElement, ModelRelationship, ModelView, Place } from './history';
+import { NO_MARKS } from './marks';
+import type { Marks } from './marks';
 import { textWidth } from './roboto';
 
 // ---- The model library, as far as the adapter reads it.
@@ -207,8 +214,20 @@ export type End = Rect & { border: boolean };
 /** A compartment: its title and its rows, each row one line of text, already wrapped. */
 export type Compartment = { head: string; lines: string[] };
 
+/**
+ * Who a node is (slice 2, seam 5), which every node's data says beside what its shape draws.
+ * - `element` is the id of the element the node stands for, or null for a node that stands for none (a geometry
+ *   view's axes). Two nodes can name one element (a lifeline's head and its line), and from slice 3 a node's id is no
+ *   element's id: whatever needs the element asks elementOf(node), never the node's id.
+ * - `view` is the id of the view the node is drawn in.
+ * - `marks` is how many problems the element has and the notes pinned to it (core/marks.ts). The adapter never reads
+ *   or sets it: it gives every new node NO_MARKS and carries the field over from the node before, as it carries
+ *   `selected`; a view's store sets it.
+ */
+export type Who = { element: string | null; view: string; marks: Marks };
+
 /** What BoxNode draws. Far: keyword and name are '', compartments is empty and glyph is null. */
-export type BoxData = {
+export type BoxData = Who & {
   form: 'box';
   far: boolean;
   /** The first line: «abstract part def», «in item», «perform send action», «state» «parallel». */
@@ -224,7 +243,7 @@ export type BoxData = {
 };
 
 /** What PortNode draws. Far: name is '' and glyph is null. */
-export type BorderData = {
+export type BorderData = Who & {
   form: 'border';
   far: boolean;
   side: Side;
@@ -237,7 +256,7 @@ export type BorderData = {
 };
 
 /** What SmallNode draws: a control node, a start, a done, an entry or an event. Far: name is ''. */
-export type SmallData = { form: 'small'; far: boolean; name: string };
+export type SmallData = Who & { form: 'small'; far: boolean; name: string };
 
 export type NodeData = BoxData | BorderData | SmallData;
 
@@ -261,8 +280,15 @@ export type PlaneNode = Node<NodeData, Shape> & {
   className: string;
 };
 
-/** What LineEdge draws. Far: label is ''. */
+/**
+ * What LineEdge draws. Far: label is ''. From slice 2 (seam 5) an edge also says who it is: `relationship` is the id
+ * of the relationship it draws, which relationshipOf(edge) gives; `view` the id of the view it is drawn in; `marks`
+ * the relationship's marks, which the adapter gives as NO_MARKS and carries over, and a view's store sets.
+ */
 export type EdgeData = {
+  relationship: string;
+  view: string;
+  marks: Marks;
   route: 'straight' | 'elbow';
   /** The marker's element id at the line's far end, markerId() of the row's name, or null. */
   marker: string | null;
@@ -370,7 +396,11 @@ export interface Placed {
 
 // ---- What the adapter does.
 
-/** Whether a plane draws views of this kind: the four whose row says `graph`. The others show a card. */
+/**
+ * Whether the adapter's own project() reads views of this kind: the four whose row says `graph`. Until slice 2 this
+ * also answered "does a plane draw it"; that is now hasReader() of core/readers, which the commands, the Tools view
+ * and a view's store ask. Only the adapter and core/readers/graph.ts ask this.
+ */
 export function isDrawn(lib: SysMLModelLibrary, viewKind: string): boolean {
   return lib.VIEW_KINDS[viewKind]?.renderer === 'graph';
 }
@@ -378,6 +408,19 @@ export function isDrawn(lib: SysMLModelLibrary, viewKind: string): boolean {
 /** What the card of a kind no plane draws says first, as the old page says it: "A sequence view is not drawn yet." */
 export function notDrawnText(lib: SysMLModelLibrary, viewKind: string): string {
   return `${lib.an(lib.VIEW_KINDS[viewKind]?.label ?? viewKind, true)} is not drawn yet.`;
+}
+
+/**
+ * The element a node stands for, by its id, or null for a node that stands for none: `node.data.element`. A Hit, a
+ * mark and whatever else is about the element are built from this, never from the node's id (contract 5).
+ */
+export function elementOf(node: { data: { element: string | null } }): string | null {
+  return node.data.element;
+}
+
+/** The relationship an edge draws, by its id: `edge.data.relationship`. */
+export function relationshipOf(edge: { data: { relationship: string } }): string {
+  return edge.data.relationship;
 }
 
 /** The id of a marker's element in the page, from the library's name for the marker: grasp-m-general. */
@@ -570,13 +613,11 @@ function compartmentsOf(lib: SysMLModelLibrary, model: Model, el: ModelElement, 
       if (lines.length) out.push({ head: el.actionKind, lines });
     }
   }
-  if (Array.isArray(el.code) && el.code.length > 0) {
+  // The code links' words are core/codeLinks.ts's (contract 10); here each is cut to the box's width.
+  const code = codeRowsOf(lib, model, el);
+  if (code.length > 0) {
     const chars = Math.max(8, Math.floor((width - 2 * look.pad) / look.codeChar));
-    const lines = (el.code as unknown[]).map((link) => {
-      const path = link && typeof link === 'object' ? str((link as { path?: unknown }).path) : '';
-      return px ? fitTail(path.trim() || '(no path)', room, px) : fitPath(path.trim() || '(no path)', chars);
-    });
-    out.push({ head: 'code', lines });
+    out.push({ head: 'code', lines: code.map((row) => (px ? fitTail(row, room, px) : fitPath(row, chars))) });
   }
   return out;
 }
@@ -759,6 +800,9 @@ function readView(lib: SysMLModelLibrary, model: Model, view: ModelView, far: bo
         type: 'line',
         className: row.cls,
         data: {
+          relationship: rel.id,
+          view: view.id,
+          marks: NO_MARKS,
           route: row.route === 'elbow' ? 'elbow' : 'straight',
           marker: row.marker ? markerId(row.marker) : null,
           label: far || !row.label ? '' : row.label(rel, model, ids),
@@ -791,6 +835,9 @@ function readView(lib: SysMLModelLibrary, model: Model, view: ModelView, far: bo
     const { el, row, shape } = e;
     if (e.isBox) {
       e.data = {
+        element: el.id,
+        view: view.id,
+        marks: NO_MARKS,
         form: 'box',
         far,
         keyword: far ? '' : keywordOf(shape, el, row),
@@ -801,7 +848,7 @@ function readView(lib: SysMLModelLibrary, model: Model, view: ModelView, far: bo
       };
     } else {
       const named = shape === 'event' ? nameLine(lib, model, ids, el, row) : shape === 'bar' || shape === 'diamond' ? lib.textName(el) || '' : '';
-      e.data = { form: 'small', far, name: far ? '' : named };
+      e.data = { element: el.id, view: view.id, marks: NO_MARKS, form: 'small', far, name: far ? '' : named };
     }
   }
   return { model, view: view.id, far, look, exact, nodes, index, lines };
@@ -936,7 +983,7 @@ function layOut(lib: SysMLModelLibrary, model: Model, read: ProjectionRead, plac
       const owner = rs[e.parent];
       px = r.x - owner.x;
       py = r.y - owner.y;
-      data = { form: 'border', far, side: sides[i], glyph: e.glyph, name: e.name, nameAt: portName(sides[i], lineWay(i), look.port) };
+      data = { element: e.id, view: read.view, marks: NO_MARKS, form: 'border', far, side: sides[i], glyph: e.glyph, name: e.name, nameAt: portName(sides[i], lineWay(i), look.port) };
       own = false;
     } else {
       px = X[i];
@@ -946,6 +993,10 @@ function layOut(lib: SysMLModelLibrary, model: Model, read: ProjectionRead, plac
       else data = e.data as NodeData;
     }
     const old = oldOf(i, e.id);
+    // The marks are the store's: carried over from the node before, and NO_MARKS for a node with none before it,
+    // whatever marks the data that was read last has come to hold.
+    const marks = old ? old.data.marks : NO_MARKS;
+    if (data.marks !== marks) data = { ...data, marks };
     let node: PlaneNode;
     if (old && old.type === e.shape && old.parentId === e.parentId && old.className === e.className && old.width === r.w && old.height === r.h
       && old.position.x === px && old.position.y === py && (old.data === data || sameValue(old.data, data))) {
@@ -979,12 +1030,14 @@ function settleEdges(lines: readonly ReadLine[], previous: Projection | null): {
     for (const edge of previous.edges) was.set(edge.id, edge);
   }
   let same = true;
-  const edges = lines.map(({ edge }, i) => {
-    const old = was?.get(edge.id);
+  const edges = lines.map(({ edge: template }, i) => {
+    const old = was?.get(template.id);
+    // The marks are the store's: an edge carries those of the edge before it, and a new edge its template's NO_MARKS.
+    const edge = old && old.data.marks !== template.data.marks ? { ...template, data: { ...template.data, marks: old.data.marks } } : template;
     let out: PlaneEdge;
     if (old && sameEdge(old, edge)) out = old;
     else {
-      out = { ...edge };
+      out = edge === template ? { ...edge } : edge;
       if (old) {
         if (sameValue(old.data, out.data)) out.data = old.data;
         if (old.selected !== undefined) out.selected = old.selected;
@@ -1032,7 +1085,8 @@ function compose(view: ModelView, read: ProjectionRead, laid: Laid, edges: Plane
  *    label offset come from its row's `line`.
  * 5. A node or edge that reads the same as in `previous` is the same object, and its `data` too. A changed one is a
  *    new object that keeps `selected` and `dragging` from the one before, and its `data` object too when only its
- *    place or size changed. When every node and edge is the same object, in the same order, and `far` and `look` are
+ *    place or size changed. `data.marks` is never read for this and never set: a node or an edge carries the marks of
+ *    the one before it, and NO_MARKS when there was none (slice 2, seam 4). When every node and edge is the same object, in the same order, and `far` and `look` are
  *    the same, the result is `previous` itself.
  * 6. Far: words are left out (BoxData, BorderData, SmallData, EdgeData say which), sizes stay, and every node's
  *    className gains `far`.

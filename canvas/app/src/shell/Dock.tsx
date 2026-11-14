@@ -1,20 +1,27 @@
 // Everything under the top bar (data-testid "dock"): Dockview with the two strips, their side panels, and the editor
 // group holding one tab per view of the open file. Step 5 built it with every panel an empty state and each view's
 // tab body empty; step 6 put a plane in each tab (Plane.tsx). Each side panel's body is its own file under panels/,
-// which its step builds: Explorer (step 9), Details (10), Tools (11), Validation (12).
+// which its step builds: Explorer (step 9), Details (10), Tools (11), Validation (12), and in slice 2 Notes (package
+// 2-7). Slice 2's scaffold (plan/slice-2.md, section 4, seam 10) adds the Notes panel, the text tab, the tabs that
+// follow the model's views, the New view button, and the hands the dock lends the actions.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DockviewReact, themeLight } from 'dockview-react';
 import type {
-  DockviewApi, DockviewGroupPanelApi, DockviewReadyEvent, IDockviewPanelHeaderProps, IDockviewPanelProps, IWatermarkPanelProps,
+  DockviewApi, DockviewGroupPanelApi, DockviewReadyEvent, IDockviewHeaderActionsProps, IDockviewPanelHeaderProps, IDockviewPanelProps, IWatermarkPanelProps,
 } from 'dockview-react';
-import { selectionOf } from '../core';
-import type { ModelView, Session } from '../core';
+import Add from '@mui/icons-material/Add';
+import { handsOf, packageNameOf, selectionOf, viewsOf } from '../core';
+import type { Session, ShellHands, ViewRow } from '../core';
 import { DetailsPanel } from '../panels/Details';
 import { ExplorerPanel } from '../panels/Explorer';
+import { NotesPanel } from '../panels/Notes';
 import { ToolsPanel } from '../panels/Tools';
 import { ValidationPanel } from '../panels/Validation';
-import { Plane } from '../plane/Plane';
+import { lentCamera, lentReveal } from '../views/lends';
+import { TextTab } from '../views/TextTab';
+import { ViewHost } from '../views/ViewHost';
+import { ActionButton } from './ActionControl';
 import { DockContext, useDock } from './dockContext';
 import type { DockState } from './dockContext';
 import { EmptyCard } from './EmptyCard';
@@ -23,14 +30,14 @@ import { TAB_BAR_HEIGHT } from './theme';
 /** Where the dock's layout is kept in this browser: localStorage, under this key. */
 export const LAYOUT_KEY = 'grasp-app:layout:1';
 
-/** The side panels, by Dockview panel id, in their strip's order. Left: Explorer (in front at first), Tools, Validation. Right: Details. */
-export const LEFT_PANELS = ['explorer', 'tools', 'validation'] as const;
+/** The side panels, by Dockview panel id, in their strip's order. Left: Explorer (in front at first), Tools, Validation, Notes. Right: Details. */
+export const LEFT_PANELS = ['explorer', 'tools', 'validation', 'notes'] as const;
 export const RIGHT_PANELS = ['details'] as const;
 export type SidePanelId = (typeof LEFT_PANELS)[number] | (typeof RIGHT_PANELS)[number];
 
 /** The panels' titles, which the strips show running up the strip. */
 export const PANEL_TITLES: Readonly<Record<SidePanelId, string>> = {
-  explorer: 'Explorer', tools: 'Tools', validation: 'Validation', details: 'Details',
+  explorer: 'Explorer', tools: 'Tools', validation: 'Validation', notes: 'Notes', details: 'Details',
 };
 
 /** The width of each side's panel in a fresh browser, beside its strip (plan/slice-1.md, section 4), and the strip's own. */
@@ -90,10 +97,16 @@ export function readLayout(text: string | null): LayoutRecord {
 }
 
 /** A view's tab title, as tests find it (helpers.mjs, tabTitle): its name, then its kind. */
-export const viewTitle = (view: Pick<ModelView, 'name' | 'kind'>): string => `${view.name} : ${view.kind}`;
+export const viewTitle = (view: Pick<ViewRow, 'name' | 'kind'>): string => `${view.name} : ${view.kind}`;
 
 /** A view's Dockview panel id. */
 export const viewPanelId = (viewId: string): string => `view:${viewId}`;
+
+/** The Dockview panel id of the text tab, the one tab of the editor that is no view's. */
+export const TEXT_PANEL = 'text';
+
+/** The text tab's title: the package's name as a .sysml file's, `StrongholdProof.sysml`; `model.sysml` for a package with no name. */
+export const textTitle = (session: Session): string => `${packageNameOf(session) || 'model'}.sysml`;
 
 /**
  * What a view's panel is made with: the view's id and the session it is a view of. A tab draws the session in its own
@@ -105,11 +118,18 @@ export interface ViewParams {
   session: Session;
 }
 
+/** What the text tab's panel is made with: the session whose text it shows (ViewParams says why not the context's). */
+export interface TextParams {
+  session: Session;
+}
+
 export interface DockProps {
   /** The open file, or null before one is opened. */
   session: Session | null;
   /** Opens a file: what the empty editor's card calls (App's open, the same as the bar's Open). */
   onOpen: () => void;
+  /** Saves the open file (App's onSave): the hand `save` that the dock gives the session's actions with its own. */
+  onSave: () => void;
 }
 
 /**
@@ -122,8 +142,8 @@ export interface DockProps {
  *   `position: { referenceGroup }`, in the order of LEFT_PANELS and RIGHT_PANELS, the record's `front` made active.
  *   Never `api.clear()`: it empties the edge groups.
  * - Each side panel's body is its component under panels/ (COMPONENTS below), as wide as its panel, inside SidePanel
- *   (panels/SidePanel.tsx): its root carries data-testid "explorer", "tools", "validation" or "details" (helpers.mjs,
- *   TESTIDS). A panel reads the open file through useDock() (dockContext.ts). The dock makes each once, in onReady,
+ *   (panels/SidePanel.tsx): its root carries data-testid "explorer", "tools", "validation", "notes" or "details"
+ *   (helpers.mjs, TESTIDS). A panel reads the open file through useDock() (dockContext.ts). The dock makes each once, in onReady,
  *   and Dockview keeps it mounted while its tab is hidden or its side collapsed.
  * - Strips: names run up the left strip, first name on top; the name of the view that is shown is teal, and none is
  *   while its side is collapsed. A click on the name in front collapses the side to its strip; a click on a name
@@ -138,8 +158,9 @@ export interface DockProps {
  *   width. `onDidCollapsedChange` on each edge group writes whether it is collapsed, `onDidActivePanelChange` on the
  *   left one `front`. (Dockview tells a group of its size at every layout, changed or not, and `api.width` is the
  *   editor's width, not the dock's: neither says whose doing a width is.)
- * - Views: when `session` changes, every `view:` panel goes and one is added per view of `session.model.views`, in
- *   the model's order: id viewPanelId(view.id), component 'view', params ViewParams, title viewTitle(view). The first
+ * - Views: when `session` changes, every `view:` panel goes, and the text tab with them, and one panel is added per
+ *   view of the session (viewsOf(session), core/session.ts: the dock reads no record of the model), in the model's
+ *   order: id viewPanelId(view.id), component 'view', params ViewParams, title viewTitle(view). The first
  *   goes into a group of its own, `api.addGroup()`, when the editor holds no view (with no position, or one relative
  *   to the left group, Dockview puts it into the edge group), the rest beside it by `referencePanel`; the first is in
  *   front. A view that floats over the editor is not in it. A view's tab body is empty until step 6.
@@ -166,8 +187,35 @@ export interface DockProps {
  *   history tells of a change that touched a view (`told.touched.views`, or `told.views === null`), the panel of each
  *   view that has one gets its title again (`panel.api.setTitle`), so a name typed into Details shows on the tab as
  *   it is typed.
+ * - **Slice 2** (plan/slice-2.md, section 4, seam 10):
+ *   - **The Notes panel** is the fourth of the left strip, after Validation: panel id `notes`, component NotesPanel
+ *     (panels/Notes.tsx). Which left panel is in front is remembered for it as for the others.
+ *   - **A view's tab holds ViewHost** (views/ViewHost.tsx), which picks the view's body.
+ *   - **The tabs follow the model's views.** When the session's history tells of a change that altered the
+ *     structure (`told.structure`), the dock compares viewsOf(session) with the views it knew: a view that is new to
+ *     the model gets its tab, in front, beside the tab of the view in front when that one is in the editor, else as
+ *     addViews puts a missing one; and the tab of a view that left the model is taken away. So a view added by New
+ *     view, or brought back by Undo, shows at once, and a view deleted, or taken back by Undo, leaves no tab behind.
+ *     A tab that a person closed stays closed: only a view the model did not hold before gets a tab by itself.
+ *   - **The text tab** (`showText` of the context, DockState says what it does): panel id TEXT_PANEL, component
+ *     'text' holding `<TextTab session />` (views/TextTab.tsx), titled textTitle(session), which follows the
+ *     package's name as the views' titles follow theirs. It is added beside a view's tab in the editor, or into a new
+ *     group when the editor holds none, and is in front; asked again it is made the one in front of its group. It is
+ *     no view: the rule of the view in front passes over it, so the view that was in front stays in front for the
+ *     selection and the Tools view while the text is read.
+ *   - **New view**: each group of the editor (not the two strips) has, at the end of its tab bar, after its last
+ *     tab (Dockview's left header actions), `<ActionButton session action="new-view" testId="new-view" />` with the
+ *     icon of a plus: it opens the action's choices, the view kinds, as a menu. An ActionButton of a row that is not
+ *     in the table renders nothing, so the button shows once package 2-4 has built the row. It is there only while a
+ *     file is open.
+ *   - **The hands** (core/hands.ts). While a session is in the dock, the dock gives it its ShellHands,
+ *     `handsOf(session).give(hands)`, and takes them back (null) when the session leaves: `save` is `onSave`;
+ *     `showText` and `showView` are the context's; `showPanel(id)` brings a side panel to the front of its strip
+ *     and opens its side when it is collapsed (an id that names no side panel does nothing); `camera` and `reveal`
+ *     are what the mounted bodies lend, lentCamera and lentReveal of views/lends.ts; `copy(text)` is the
+ *     clipboard's writeText, and rejects when the browser has no clipboard for the page or refuses.
  */
-export function Dock({ session, onOpen }: DockProps): JSX.Element {
+export function Dock({ session, onOpen, onSave }: DockProps): JSX.Element {
   const root = useRef<HTMLDivElement>(null);
   const [api, setApi] = useState<DockviewApi | null>(null);
   // Counts the panels added and removed, so that what the card says of the closed views is read again.
@@ -177,17 +225,46 @@ export function Dock({ session, onOpen }: DockProps): JSX.Element {
   }, [api, session]);
   const showView = useCallback((viewId: string): void => {
     if (!api || !session) return;
-    const view = session.model.views.find((v) => v.id === viewId);
+    const view = viewsOf(session).find((v) => v.id === viewId);
     if (!view) return;
     const panel = api.getPanel(viewPanelId(view.id));
     if (panel) panel.api.setActive();
     else addViews(api, session, view);
   }, [api, session]);
+  const showText = useCallback((): void => {
+    if (!api || !session) return;
+    const panel = api.getPanel(TEXT_PANEL);
+    if (panel) { panel.api.setActive(); return; }
+    const params: TextParams = { session };
+    api.addPanel({ id: TEXT_PANEL, component: 'text', title: textTitle(session), params, position: editorPlace(api, session) }).api.setActive();
+  }, [api, session]);
   const context = useMemo<DockState>(() => {
-    const closed = api && session ? session.model.views.filter((view) => !api.getPanel(viewPanelId(view.id))).length : 0;
-    return { session, onOpen, showViews, closed, showView };
+    const closed = api && session ? viewsOf(session).filter((view) => !api.getPanel(viewPanelId(view.id))).length : 0;
+    return { session, onOpen, showViews, closed, showView, showText };
     // `panels` is here for its changes only: a panel added or removed changes what getPanel answers.
-  }, [api, session, onOpen, showViews, showView, panels]);
+  }, [api, session, onOpen, showViews, showView, showText, panels]);
+
+  // The hands the dock lends the session's actions (see the contract's "The hands").
+  useEffect(() => {
+    if (!api || !session) return undefined;
+    const hands: ShellHands = {
+      save: onSave,
+      showText,
+      showView,
+      showPanel: (id) => {
+        const panel = isSidePanel(id) ? api.getPanel(id) : undefined;
+        if (!panel) return;
+        if (panel.group.api.isCollapsed()) panel.group.api.expand();
+        panel.api.setActive();
+      },
+      camera: (viewId, how) => { lentCamera(session, viewId, how); },
+      reveal: (viewId, rect) => lentReveal(session, viewId, rect),
+      copy: (text) => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('This page has no clipboard.'))),
+    };
+    const kept = handsOf(session);
+    kept.give(hands);
+    return () => { if (kept.hands === hands) kept.give(null); };
+  }, [api, session, onSave, showText, showView]);
 
   useEffect(() => {
     if (!api) return undefined;
@@ -226,20 +303,33 @@ export function Dock({ session, onOpen }: DockProps): JSX.Element {
     return () => { changed.dispose(); removed.dispose(); };
   }, [api, session]);
 
-  // A view's tab names its view at every moment: a change that touched a view gives each view's panel its title again.
-  useEffect(() => {
-    if (!api || !session) return undefined;
-    return session.history.listen((told) => {
-      if (told.views !== null && told.touched.views.length === 0) return;
-      for (const view of session.model.views) api.getPanel(viewPanelId(view.id))?.api.setTitle(viewTitle(view));
-    });
-  }, [api, session]);
-
-  // A new session: its views replace the old ones.
+  // A new session: its views replace the old ones, and the text tab of the file before goes with them.
   useEffect(() => {
     if (!api) return;
-    for (const panel of [...api.panels]) if (panel.id.startsWith(VIEW_PREFIX)) api.removePanel(panel);
+    for (const panel of [...api.panels]) if (panel.id.startsWith(VIEW_PREFIX) || panel.id === TEXT_PANEL) api.removePanel(panel);
     if (session) addViews(api, session);
+  }, [api, session]);
+
+  // The tabs follow the model. A change of the structure: a view that is new to the model gets its tab, in front, and
+  // the tab of a view that left it goes. Then a view's tab names its view at every moment: a change that touched a
+  // view gives each view's panel its title again, and the text tab its own.
+  useEffect(() => {
+    if (!api || !session) return undefined;
+    let known = new Set(viewsOf(session).map((view) => view.id));
+    return session.history.listen((told) => {
+      if (told.structure) {
+        const views = viewsOf(session);
+        const now = new Set(views.map((view) => view.id));
+        for (const panel of [...api.panels]) {
+          if (panel.id.startsWith(VIEW_PREFIX) && (panel.params as Partial<ViewParams> | undefined)?.session === session && !now.has(panel.id.slice(VIEW_PREFIX.length))) api.removePanel(panel);
+        }
+        for (const view of views) if (!known.has(view.id) && !api.getPanel(viewPanelId(view.id))) addViews(api, session, view, selectionOf(session).view);
+        known = now;
+      }
+      if (told.views !== null && told.touched.views.length === 0) return;
+      for (const view of viewsOf(session)) api.getPanel(viewPanelId(view.id))?.api.setTitle(viewTitle(view));
+      api.getPanel(TEXT_PANEL)?.api.setTitle(textTitle(session));
+    });
   }, [api, session]);
 
   const onReady = useCallback((event: DockviewReadyEvent) => {
@@ -256,6 +346,7 @@ export function Dock({ session, onOpen }: DockProps): JSX.Element {
           components={COMPONENTS}
           tabComponents={TAB_COMPONENTS}
           watermarkComponent={Watermark}
+          leftHeaderActionsComponent={TabBarEnd}
           onReady={onReady}
         />
       </div>
@@ -271,12 +362,26 @@ const isSidePanel = (id: string): boolean => (LEFT_PANELS as readonly string[]).
 const SIDES = ['left', 'right'] as const;
 type Side = (typeof SIDES)[number];
 
-// A view's tab draws `params.session`'s view `params.viewId` (ViewParams says why not the context's session).
-const ViewPanel = ({ params }: IDockviewPanelProps<ViewParams>): JSX.Element => <Plane session={params.session} viewId={params.viewId} />;
+// A view's tab holds ViewHost (views/ViewHost.tsx), which draws `params.session`'s view `params.viewId` with the body
+// its kind names (ViewParams says why not the context's session).
+const ViewPanel = ({ params }: IDockviewPanelProps<ViewParams>): JSX.Element => <ViewHost session={params.session} viewId={params.viewId} />;
+
+// The text tab holds TextTab (views/TextTab.tsx), which shows the text of `params.session`'s model.
+const TextPanel = ({ params }: IDockviewPanelProps<TextParams>): JSX.Element | null => <TextTab session={params.session} />;
 
 const COMPONENTS = {
-  explorer: ExplorerPanel, tools: ToolsPanel, validation: ValidationPanel, details: DetailsPanel, view: ViewPanel,
+  explorer: ExplorerPanel, tools: ToolsPanel, validation: ValidationPanel, notes: NotesPanel, details: DetailsPanel, view: ViewPanel, text: TextPanel,
 };
+
+/**
+ * What stands at the end of a group's tab bar, after its last tab: in a group of the editor, with a file open, the
+ * New view button. The two strips have none.
+ */
+function TabBarEnd({ group }: IDockviewHeaderActionsProps): JSX.Element | null {
+  const { session } = useDock();
+  if (!session || (SIDES as readonly string[]).includes(group.id)) return null;
+  return <ActionButton session={session} action="new-view" icon={<Add fontSize="small" />} testId="new-view" />;
+}
 
 /** A side panel's tab: its title and no close button. Shift + press must not float it, which Dockview does on pointerdown. */
 function SideTab({ api }: IDockviewPanelHeaderProps): JSX.Element {
@@ -294,7 +399,7 @@ const TAB_COMPONENTS = { side: SideTab };
 
 function Watermark(_props: IWatermarkPanelProps): JSX.Element {
   const { session, onOpen, showViews, closed } = useDock();
-  const file = session ? { name: session.name, views: session.model.views.length, closed } : null;
+  const file = session ? { name: session.name, views: viewsOf(session).length, closed } : null;
   return <EmptyCard file={file} onOpen={onOpen} onShowViews={showViews} />;
 }
 
@@ -393,22 +498,27 @@ function setUpSides(api: DockviewApi, root: HTMLElement): void {
 // The views.
 
 /**
- * Adds a tab for each view of the session that has none. They go into the editor: beside a view that is there, or,
- * when it holds none, into a new group of its own. A view floating over the editor is no place to put the others.
- * The first one added is in front.
+ * Where a new tab of the editor goes: beside the tab of the view `beside` when that view has one in the editor, else
+ * beside the first view of the model, in its order, that has one there; or, when the editor holds no view, into a new
+ * group of its own (with no position, or one relative to an edge group, Dockview would put the panel into a strip). A
+ * view floating over the editor is no place to put the others.
  */
-function addViews(api: DockviewApi, session: Session, only?: ModelView): void {
-  const views: readonly ModelView[] = session.model.views;
-  const panelOf = (view: ModelView) => api.getPanel(viewPanelId(view.id));
-  const missing = views.filter((view) => !panelOf(view) && (!only || view === only));
-  let anchor = views.find((view) => panelOf(view)?.group.api.location.type === 'grid');
+function editorPlace(api: DockviewApi, session: Session, beside?: string | null): { referencePanel: string } | { referenceGroup: ReturnType<DockviewApi['addGroup']> } {
+  const inEditor = (viewId: string): boolean => api.getPanel(viewPanelId(viewId))?.group.api.location.type === 'grid';
+  const anchor = beside != null && inEditor(beside) ? beside : viewsOf(session).find((view) => inEditor(view.id))?.id;
+  return anchor !== undefined ? { referencePanel: viewPanelId(anchor) } : { referenceGroup: api.addGroup() };
+}
+
+/**
+ * Adds a tab for each view of the session that has none, or for the one view `only`. They go into the editor
+ * (editorPlace, with `beside`). The first one added is in front.
+ */
+function addViews(api: DockviewApi, session: Session, only?: ViewRow, beside?: string | null): void {
+  const missing = viewsOf(session).filter((view) => !api.getPanel(viewPanelId(view.id)) && (!only || view.id === only.id));
   let first: ReturnType<DockviewApi['addPanel']> | null = null;
   for (const view of missing) {
-    // With no view in the editor, a new group of its own: with no position the panel would join an edge group.
-    const position = anchor ? { referencePanel: viewPanelId(anchor.id) } : { referenceGroup: api.addGroup() };
     const params: ViewParams = { viewId: view.id, session };
-    const panel = api.addPanel({ id: viewPanelId(view.id), component: 'view', title: viewTitle(view), params, position });
-    anchor = anchor ?? view;
+    const panel = api.addPanel({ id: viewPanelId(view.id), component: 'view', title: viewTitle(view), params, position: editorPlace(api, session, beside) });
     first = first ?? panel;
   }
   first?.api.setActive();

@@ -83,6 +83,11 @@ const wordsOf = (node) => String(node.className).split(/\s+/).filter(Boolean);
 const shownIn = (view, ids) => new Set(Object.keys(view.layout).filter((id) => ids.has(id)));
 /** Compares as JSON, so that an array or an object made in the library's realm equals one of this realm. */
 const same = (actual, expected, message) => assert.deepEqual(plain(actual), plain(expected), message);
+/**
+ * What a node's data says of its shape, less who the node is: slice 2 gives every node's data its element, its view
+ * and its marks (plan/slice-2.md, section 4, seam 5), which readers.test.mjs and marks.test.mjs hold for every node.
+ */
+const said = ({ element, view, marks, ...rest }) => rest;
 const near = (actual, expected, tolerance, message) => {
   assert.ok(Math.abs(actual - expected) <= tolerance, `${message} (${actual} is not within ${tolerance} of ${expected}).`);
 };
@@ -856,7 +861,7 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
     // Host: an abstract part def, its doc in a room of 344 px (368 less a pad at each side), by Roboto's widths.
     const host = nodes.get('Host');
     assert.equal(host.type, 'rect', 'A part def should be a rect.');
-    same(host.data, box('«abstract part def»', 'Host', [{ head: 'doc', lines: HOST_ROWS }]), 'Host should say «abstract part def», Host, and its doc in 4 rows.');
+    same(said(host.data), box('«abstract part def»', 'Host', [{ head: 'doc', lines: HOST_ROWS }]), 'Host should say «abstract part def», Host, and its doc in 4 rows.');
     assert.ok(host.data.compartments[0].lines.every((line) => textWidth(line, LOOK.rowType) <= 344), 'Host\'s rows should be at most 344 px wide.');
     assert.equal(host.data.compartments[0].lines.join(' '), hostEl.doc.split(/\s+/).join(' '), 'Host\'s rows, joined by spaces, should give its doc\'s words.');
     assert.deepEqual(wordsOf(host).sort(), ['abstract', 'def'], 'Host\'s className should be def and abstract.');
@@ -873,23 +878,23 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
 
     const hosts = nodes.get('Page.hosts');
     assert.equal(hosts.type, 'rounded', 'A part should be rounded.');
-    same(hosts.data, box('«part»', 'hosts : Host [1..*]', []), 'Page.hosts should say «part» and hosts : Host [1..*].');
+    same(said(hosts.data), box('«part»', 'hosts : Host [1..*]', []), 'Page.hosts should say «part» and hosts : Host [1..*].');
     assert.ok(wordsOf(hosts).includes('usage') && !wordsOf(hosts).includes('def') && !wordsOf(hosts).includes('abstract'), 'A part\'s className should have usage.');
     assert.equal(hosts.parentId, 'Page', 'Page.hosts should be in Page.');
     assert.deepEqual(hosts.position, { x: 96, y: 104 }, 'Page.hosts should lie at its saved 96, 104.');
     assert.deepEqual([hosts.width, hosts.height], [180, 110], 'Page.hosts should keep its saved 180 by 110.');
     const app = nodes.get('Page.app');
     assert.equal(app.type, 'rounded', 'A part should be rounded.');
-    same(app.data, box('«part»', 'app : App [1]', []), 'Page.app should say «part» and app : App [1].');
+    same(said(app.data), box('«part»', 'app : App [1]', []), 'Page.app should say «part» and app : App [1].');
     assert.ok(wordsOf(app).includes('usage'), 'A part\'s className should have usage.');
 
     // The four ports. The typing of each is hidden, and still names the port's definition.
     const port = (side, name, nameAt) => ({ form: 'border', far: false, side, glyph: null, name, nameAt });
     assert.equal(nodes.get('Page.hosts.api').type, 'port', 'A port should be a port.');
-    same(nodes.get('Page.hosts.api').data, port('right', 'api : ~StrongholdApp', { x: 20, y: 2, anchor: 'start' }), 'Page.hosts.api is conjugated.');
-    same(nodes.get('Host.api').data, port('right', 'api : ~StrongholdApp', { x: 20, y: 2, anchor: 'start' }), 'Host.api is conjugated.');
-    same(nodes.get('Page.app.api').data, port('left', 'api : StrongholdApp', { x: -4, y: 23, anchor: 'end' }), 'Page.app.api is not conjugated.');
-    same(nodes.get('App.api').data, port('right', 'api : StrongholdApp', { x: 20, y: 2, anchor: 'start' }), 'App.api is not conjugated.');
+    same(said(nodes.get('Page.hosts.api').data), port('right', 'api : ~StrongholdApp', { x: 20, y: 2, anchor: 'start' }), 'Page.hosts.api is conjugated.');
+    same(said(nodes.get('Host.api').data), port('right', 'api : ~StrongholdApp', { x: 20, y: 2, anchor: 'start' }), 'Host.api is conjugated.');
+    same(said(nodes.get('Page.app.api').data), port('left', 'api : StrongholdApp', { x: -4, y: 23, anchor: 'end' }), 'Page.app.api is not conjugated.');
+    same(said(nodes.get('App.api').data), port('right', 'api : StrongholdApp', { x: 20, y: 2, anchor: 'start' }), 'App.api is not conjugated.');
     for (const id of ['Page.hosts.api', 'Host.api', 'Page.app.api', 'App.api']) assert.equal(nodes.get(id).type, 'port', `${id} should be a port.`);
   });
 
@@ -906,7 +911,7 @@ describe('the adapter: one view of a model as the nodes and edges of a plane', (
       assert.equal(node.parentId, want.parent, `${id} should be in ${want.parent}.`);
       assert.deepEqual(node.position, want.position, `${id} should lie at ${JSON.stringify(want.position)}.`);
       assert.deepEqual([node.width, node.height], want.size, `${id} should be ${want.size.join(' by ')}.`);
-      same(node.data, want.data, `${id} should say what its element says.`);
+      same(said(node.data), want.data, `${id} should say what its element says.`);
       if (want.words) for (const word of want.words) assert.ok(wordsOf(node).includes(word), `The className of ${id} should have ${word}.`);
     };
 

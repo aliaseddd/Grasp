@@ -1,0 +1,72 @@
+/* Where a thing's marks stand on a plane (plan/slice-2.md, section 4, seam 4): `.grasp-marks` is the one element that
+   holds a node's or a line's pins and, last, its badge (plane/marks/Pin.tsx, Badge.tsx). It exists only on a marked
+   thing that is drawn near. It is scaled by the inverse of the plane's zoom (--grasp-zoom, which plane/Plane.tsx gives
+   to every .grasp-marks of its plane when the zoom changes), so a mark keeps its size on the screen. The element
+   itself takes no pointer; what it holds does. */
+.grasp-plane .grasp-marks {
+  position: absolute;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  width: max-content;
+  pointer-events: none;
+  --grasp-marks-scale: calc(1 / var(--grasp-zoom, 1));
+}
+.grasp-plane .grasp-marks > * {
+  flex: none;
+  pointer-events: all;
+}
+
+/* On a box: a row across the top edge at its right end, its middle on the edge. The box's border is 1 px, and the row
+   is placed from inside it. */
+.grasp-plane .react-flow__node > .grasp-marks {
+  right: -1px;
+  top: -0.5px;
+  transform: translateY(-50%) scale(var(--grasp-marks-scale));
+  transform-origin: right center;
+}
+/* On a border item: beside the square, on the side away from its name, which is the side of its owner's inside. */
+.grasp-plane .react-flow__node > .grasp-marks[data-side='right'] {
+  right: calc(100% + 2px);
+  top: 50%;
+  transform-origin: right center;
+}
+.grasp-plane .react-flow__node > .grasp-marks[data-side='left'] {
+  right: auto;
+  left: calc(100% + 2px);
+  top: 50%;
+  transform-origin: left center;
+}
+.grasp-plane .react-flow__node > .grasp-marks[data-side='top'] {
+  right: auto;
+  left: 50%;
+  top: calc(100% + 2px);
+  transform: translateX(-50%) scale(var(--grasp-marks-scale));
+  transform-origin: center top;
+}
+.grasp-plane .react-flow__node > .grasp-marks[data-side='bottom'] {
+  right: auto;
+  left: 50%;
+  top: auto;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%) scale(var(--grasp-marks-scale));
+  transform-origin: center bottom;
+}
+/* On a small node: above it. */
+.grasp-plane .react-flow__node > .grasp-marks[data-side='above'] {
+  right: auto;
+  left: 50%;
+  top: auto;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%) scale(var(--grasp-marks-scale));
+  transform-origin: center bottom;
+}
+
+/* On a line: at its middle, in React Flow's label renderer, over the boxes the line lies in. The renderer takes no
+   pointer and is in the view's units; `left` and `top` are the line's middle (plane/edges/LineEdge.tsx). */
+.grasp-plane .react-flow__edgelabel-renderer > .grasp-marks {
+  z-index: 1500;
+  transform: translate(-50%, -50%) scale(var(--grasp-marks-scale));
+  transform-origin: center center;
+}

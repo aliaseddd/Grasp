@@ -1,0 +1,26 @@
+/* A plane's zoom controls (plane/Plane.tsx): React Flow's two zoom buttons, the readout between them
+   (plane/ZoomReadout.tsx, which stands after both in the document), then the fit button. The controls are a column. */
+.grasp-plane .react-flow__controls-zoomin {
+  order: 1;
+}
+.grasp-plane .grasp-zoom-readout {
+  order: 2;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 26px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--grasp-line);
+  background: var(--grasp-white);
+  color: var(--grasp-ink);
+  font-family: var(--grasp-font-family);
+  font-size: 11px;
+  line-height: 14px;
+  text-align: center;
+  user-select: none;
+}
+.grasp-plane .react-flow__controls-zoomout {
+  order: 3;
+}
+.grasp-plane .react-flow__controls-button:not(.react-flow__controls-zoomin, .react-flow__controls-zoomout) {
+  order: 4;
+}

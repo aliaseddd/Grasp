@@ -1,5 +1,6 @@
-// The card of a view whose kind no plane draws yet: a sequence, geometry, grid or browser view (plan/slice-1.md,
-// section 2, "Which views a tab draws"). The old page treats a kind with no renderer the same way.
+// The card of a view whose kind no body draws yet: a sequence, geometry, grid or browser view (plan/slice-1.md,
+// section 2, "Which views a tab draws"). The old page treats a kind with no renderer the same way. From slice 2 it is
+// views/ViewHost.tsx that shows it, inside a root like a plane's, until the kind's body lands.
 
 import { Paper, Typography } from '@mui/material';
 

@@ -8,8 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { after, afterEach, before, describe, test } from 'node:test';
 import {
-  boxOf, BROWSER_FRAMES, byTestId, closePages, EXAMPLE, finish, frame, FRAMES, headerOf, launch, near, openPage, openStateFile, soon,
-  stateFileAt, stateFileOf, TESTIDS, untilDrawn, viewTab, WAIT,
+  boxOf, BROWSER_FRAMES, byTestId, closePages, EXAMPLE, fieldIn, finish, headerOf, idle, launch, near, NOTHING_PICKED, openPage, openStateFile, planeOf,
+  saysIn, selectBox, showSide, shownIn, soon, stateFileAt, stateFileOf, TESTIDS, toast, toastAfter, untilDrawn, viewTab, WAIT,
 } from './helpers.mjs';
 
 const NAME = path.basename(EXAMPLE);
@@ -26,11 +26,6 @@ async function openExample(browser, options = {}) {
   await viewTab(opened.page, VIEW);
   await untilDrawn(opened.page, VIEW);
   return opened;
-}
-
-/** Waits for some frames, so that a thing that should not happen has had its time to. */
-async function idle(page) {
-  for (let i = 0; i < FRAMES; i++) await frame(page);
 }
 
 /** Waits until Host is drawn at `where` (px, give or take 2), or fails with `what`. */
@@ -233,6 +228,93 @@ describe('save, undo, redo and their keys', () => {
     await page.keyboard.press('Control+z');
     await idle(page);
     await seenAt(page, { x: was.x + DRAG.x, y: was.y + DRAG.y }, 'Ctrl + Z in a text field undid the drag of the model');
+    await finish(opened);
+  });
+
+  // Slice 2 (plan/slice-2.md, section 8, package 2-1, "What changes for a person, on purpose"): the keys are rows of the
+  // action table, read by core/keys.ts from the page's one listener, and a key whose action does not apply says why.
+  test('a key pressed where its action does not apply says why in a toast', async () => {
+    const opened = await openExample(browser);
+    const { page } = opened;
+    await page.evaluate(() => {
+      window.__keys = [];
+      addEventListener('keydown', (e) => { if (e.ctrlKey && ['z', 'y'].includes(e.key.toLowerCase())) window.__keys.push(e.defaultPrevented); });
+    });
+    const steps = [
+      ['Control+z', 'There is nothing to undo.'],
+      ['Control+y', 'There is nothing to redo.'],
+      ['Control+Shift+z', 'There is nothing to redo.'],
+      ['Control+z', 'There is nothing to undo.'],
+    ];
+    let last = 0;
+    for (const [key, sentence] of steps) {
+      await page.keyboard.press(key);
+      const said = await toastAfter(page, last, `${key} with nothing to do`);
+      assert.equal(said.text, sentence, `${key} with nothing to do`);
+      last = said.said;
+    }
+    assert.deepEqual(await page.evaluate(() => window.__keys), [true, true, true, true], 'A key of the table is taken where its action does not apply too: its default is prevented.');
+    assert.equal(await button(page, TESTIDS.fileName).textContent(), NAME, 'A refused key changed the file.');
+
+    // Where the action applies the key acts and says nothing new: the drag is undone.
+    const was = await dragHost(page);
+    await page.keyboard.press('Control+z');
+    await seenAt(page, was, 'Ctrl + Z did not undo the drag');
+    await idle(page);
+    assert.ok(((await toast(page))?.said ?? last) === last, `An Undo that had a step to take back said something: ${JSON.stringify(await toast(page))}.`);
+    await finish(opened);
+  });
+
+  test('with no file open a key does nothing and says nothing', async () => {
+    const bare = await openPage(browser, { picker: false });
+    const { page } = bare;
+    await page.evaluate(() => {
+      window.__keys = [];
+      addEventListener('keydown', (e) => { window.__keys.push([e.key, e.defaultPrevented]); });
+    });
+    for (const key of ['Control+z', 'Control+y', 'Escape', 'Delete']) await page.keyboard.press(key);
+    await idle(page);
+    assert.equal(await toast(page), null, 'With no file open a key of the table said something.');
+    assert.deepEqual((await page.evaluate(() => window.__keys)).filter(([key]) => !['Control', 'Shift'].includes(key)), [['z', false], ['y', false], ['Escape', false], ['Delete', false]],
+      'With no file open a key of the table was taken from the browser.');
+    await finish(bare);
+  });
+
+  test('Escape with no tool in hand lets go of what is picked', async () => {
+    const opened = await openExample(browser);
+    const { page } = opened;
+    const picked = () => page.evaluate((plane) => [...document.querySelectorAll(`${plane} .selected`)].map((el) => el.getAttribute('data-id')), planeOf(VIEW.id));
+    const pressedTools = () => page.evaluate(() => [...document.querySelectorAll('button[data-testid="tool"][aria-pressed="true"]')].map((b) => b.getAttribute('data-tool')));
+
+    await selectBox(page, VIEW, BOX);
+    await soon(page, async () => (await shownIn(page)) === `el:${BOX}`, `Details does not show ${BOX} after a click on it.`);
+    await page.keyboard.press('Escape');
+    await soon(page, async () => (await picked()).length === 0, async () => `After Escape with no tool in hand ${(await picked()).join(', ')} is still picked.`);
+    await soon(page, async () => (await saysIn(page)) === NOTHING_PICKED, 'After Escape Details still shows what was picked.');
+    assert.equal(await toast(page), null, 'Escape said something.');
+    assert.equal(await button(page, TESTIDS.undo).isEnabled(), false, 'Letting go of what is picked wrote an undo step.');
+
+    // With a tool in hand, Escape puts the tool down and what is picked stays; the next Escape lets go of it.
+    await selectBox(page, VIEW, BOX);
+    await showSide(page, 'Tools');
+    const tool = page.locator(`${byTestId(TESTIDS.tools)} button[data-testid="tool"][data-tool="PartDefinition"]`);
+    await tool.click();
+    await soon(page, async () => (await pressedTools()).length === 1, 'A click on the part def tool did not take it in hand.');
+    await page.keyboard.press('Escape');
+    await soon(page, async () => (await pressedTools()).length === 0, 'Escape did not put the tool down.');
+    await idle(page);
+    assert.deepEqual(await picked(), [BOX], 'Escape with a tool in hand let go of what is picked as well: it does one thing.');
+    await page.keyboard.press('Escape');
+    await soon(page, async () => (await picked()).length === 0, 'The second Escape did not let go of what is picked.');
+
+    // From a text field the key is the field's: what is picked stays.
+    await selectBox(page, VIEW, BOX);
+    const name = fieldIn(page, 'name');
+    await soon(page, async () => (await name.count()) === 1, `Details shows no name field for ${BOX}.`);
+    await name.click();
+    await page.keyboard.press('Escape');
+    await idle(page);
+    assert.deepEqual(await picked(), [BOX], 'Escape in a text field of Details let go of what is picked.');
     await finish(opened);
   });
 

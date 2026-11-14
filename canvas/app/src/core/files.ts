@@ -9,6 +9,7 @@
 // What needs no browser (a file's text into a session, a session into a file's text) is apart from what does, so the
 // core's tests run the first in Node and stand in for the browser in the second.
 
+import { notesOf } from './notes';
 import { openSession } from './session';
 import type { FileRef, Session, SessionOptions } from './session';
 import type { LogEntry, Model } from './history';
@@ -45,12 +46,13 @@ export function openText(lib: SysMLModelLibrary, text: string, file: FileRef, op
   return openSession(lib, data, file, options);
 }
 
-/** The session as a state file. Its model, notes, archive and log are the session's own, not copies. */
+/**
+ * The session as a state file. Its model and log are the session's own, not copies; its notes and archive are what
+ * notesOf(session).file() gives, as a grasp/2 state file keeps them (contract 15).
+ */
 export function stateFile(session: Session): StateFile {
-  return {
-    format: session.lib.FORMAT, revision: session.revision, saved: session.now(), model: session.model, notes: session.notes,
-    archive: session.archive, changes: session.changes,
-  };
+  const { notes, archive } = notesOf(session).file();
+  return { format: session.lib.FORMAT, revision: session.revision, saved: session.now(), model: session.model, notes, archive, changes: session.changes };
 }
 
 /** The session as a state file's text, as the old page's Download state writes it. */
@@ -165,13 +167,15 @@ function download(name: string, text: string): void {
 /**
  * Saves the session's file: back through its handle when it came through the picker, as a download under its name
  * otherwise. A run of changes still open is ended first, so the log says what the file holds. Resolves with where the
- * file went, once it is written, and the session then has no unsaved changes but those made while it was written.
+ * file went, once it is written, and the session then has no unsaved changes but those made, to the model or to a
+ * note, while it was written.
  * Rejects when the browser refuses the write (the person did not allow it, the disk is full), and the session stays as
  * it was; a writable that failed is aborted, so it does not stay open on the file.
  */
 export async function saveFile(session: Session): Promise<'handle' | 'download'> {
   session.history.endEdit();
   const mark = session.history.mark();
+  const notesMark = notesOf(session).mark();
   const text = stateText(session);
   if (session.handle) {
     const writable = await session.handle.createWritable();
@@ -184,7 +188,7 @@ export async function saveFile(session: Session): Promise<'handle' | 'download'>
       throw error;
     }
   } else download(session.name, text);
-  session.saved(mark);
+  session.saved(mark, notesMark);
   return session.handle ? 'handle' : 'download';
 }
 

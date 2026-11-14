@@ -251,3 +251,30 @@ function about(type: 'el' | 'rel' | 'view', id: string, model?: Model): EntryAbo
   }
   return { type, id, pick };
 }
+
+// ---- The entries (slice 2; package 2-6 builds them).
+
+/**
+ * An entry of the checks, in one form for every list (plan/architecture.md, contract 8): the list it is in
+ * ('problems', 'rules'; from slice 5, 'specification'), the sentence, and what a click selects, or null when it is
+ * about the package or about nothing that can be found. A consumer reads the entries, so it shows a new list without
+ * new code.
+ */
+export interface Entry {
+  readonly list: string;
+  readonly message: string;
+  readonly about: Picked | null;
+}
+
+const NO_ENTRIES: readonly Entry[] = Object.freeze([]);
+
+/**
+ * The entries of a session's checks: every list in one form, `problems` first, each with what a click selects
+ * (aboutProblem, aboutDiagnostic); the same array while the result is the same. They are of the last result
+ * (checksOf(session).state.found): whoever reads them listens to the checks, which keeps the checks live.
+ *
+ * THE SCAFFOLD'S SKELETON: it gives an empty list. Package 2-6 builds it; until then nothing carries a badge.
+ */
+export function entriesOf(_session: Session): readonly Entry[] {
+  return NO_ENTRIES;
+}

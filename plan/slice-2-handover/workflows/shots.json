@@ -1,0 +1,133 @@
+{
+ "connect-menu": {
+  "name": "connect-menu",
+  "rated": false,
+  "package": "2-2",
+  "scenario": "The example. A line dragged from the bottom grip of `hosts` and let go on `app`, where two kinds fit.",
+  "items": [
+   "A menu at the place the line was let go.",
+   "It lists \"specializes\" and \"connection\", one a row, and nothing else.",
+   "The dashed line from the grip of `hosts` to the menu's corner is still drawn.",
+   "`app` has a dashed teal outline.",
+   "The grips of `hosts` are shown, each clear of its port.",
+   "The menu covers no part of `hosts`."
+  ]
+ },
+ "label-editor": {
+  "name": "label-editor",
+  "rated": false,
+  "package": "2-3",
+  "scenario": "The example at 150%. `hosts` picked, then F2.",
+  "items": [
+   "One text box over the name line of `hosts`.",
+   "It holds `hosts[1..*] : Host`, all of it selected.",
+   "The text is centred, in the size the name is drawn at.",
+   "The box is at least as wide as the name was.",
+   "The box's border is teal.",
+   "No other box or line has moved."
+  ]
+ },
+ "badges": {
+  "name": "badges",
+  "rated": false,
+  "package": "2-6",
+  "scenario": "The example, with `App` renamed to `Page`, so that two part defs have one name. The Validation panel is shown.",
+  "items": [
+   "A round \"!\" badge at the top right corner of each of the two part defs named `Page`.",
+   "No badge on any other box.",
+   "Neither badge covers a keyword or a name.",
+   "The Validation panel says how many problems there are, in digits.",
+   "The panel lists the problem in a sentence that names `Page`."
+  ]
+ },
+ "notes": {
+  "name": "notes",
+  "rated": true,
+  "package": "2-7",
+  "scenario": "The annotations fixture, its view fitted, the Notes panel shown and the archive opened.",
+  "items": [
+   "The Notes panel lists three notes, numbered 1, 2 and 3 from the top.",
+   "Note 1 says it is on part def Host; note 2 on the connection mount; note 3 on the plane.",
+   "Note 2 shows Claude's answer under its text and is marked resolved.",
+   "\"Archive \u00b7 1\" stands under the notes, with note 4 listed under it and a Restore button.",
+   "On the plane, pin 1 sits on the top edge of `Host`.",
+   "Pin 2 sits at the middle of the line `mount`, and is grey.",
+   "Pin 3 stands on the empty plane and is hollow.",
+   "No pin covers a name or another pin.",
+   "No text of a note is cut off."
+  ]
+ },
+ "text-tab": {
+  "name": "text-tab",
+  "rated": false,
+  "package": "2-9",
+  "scenario": "The example, its text tab in front.",
+  "items": [
+   "A tab titled `StrongholdProof.sysml` beside the view's tab, in front.",
+   "The text begins `package StrongholdProof {`.",
+   "The text is in a fixed-width font and its lines are not wrapped mid-word.",
+   "A Copy button at the top of the tab.",
+   "A line at the top that says no problem was found."
+  ]
+ },
+ "sequence": {
+  "name": "sequence",
+  "rated": true,
+  "package": "2-10",
+  "scenario": "The sequence fixture, `loginSequence` fitted, both sides collapsed.",
+  "items": [
+   "Three heads in one row at the top, left to right `client`, `server`, `auth`, each a rounded box with \u00abpart\u00bb and its name line.",
+   "A dashed line down from the middle of each head, as long as the others.",
+   "Two dots on the line of `client`, named `loginSent` and `loginDone`.",
+   "Four arrows, each on a row of its own, from the top: `login`, `checkCredentials`, `credentialsOk`, `loggedIn`.",
+   "Each arrow is level, has a closed, unfilled head at the end it goes to, and its name above it.",
+   "`login` starts at the dot `loginSent`, and `loggedIn` ends at the dot `loginDone`.",
+   "Pin 1 at the middle of `login`.",
+   "No name overlaps a line or another name."
+  ]
+ },
+ "geometry": {
+  "name": "geometry",
+  "rated": true,
+  "package": "2-11",
+  "scenario": "The geometry fixture, `plan` fitted, both sides collapsed.",
+  "items": [
+   "`room` as a rectangle a third wider than it is high.",
+   "Inside it `desk` and `cabinet` as smaller rectangles and `pillar` as a circle.",
+   "`desk` is left of `cabinet`, and `pillar` is above both, between them.",
+   "Each footprint has two lines of words: \u00abpart\u00bb and its name; its shape with its dimensions and unit, as \"Box 2 \u00d7 1 \u00d7 0.75 m\".",
+   "The words of a small footprint are below it, not across its outline.",
+   "Two axes from the lower left corner of `room`, named x and y, x to the right and y up.",
+   "A scale bar under the x axis that reads \"1 m\" and is an eighth as long as `room` is wide.",
+   "Pin 1 on `desk`."
+  ]
+ },
+ "grid": {
+  "name": "grid",
+  "rated": true,
+  "package": "2-12",
+  "scenario": "The grid fixture, `elementTable` in front, both sides collapsed.",
+  "items": [
+   "A table with one header row: kind, name, type, multiplicity, owner, doc, specializes.",
+   "Thirteen rows under it.",
+   "The header is set apart from the rows by weight or ground.",
+   "Every cell's text starts at its column's left edge, and a text too long for its cell ends in an ellipsis.",
+   "The row of `Host` carries pin 1 at its right end.",
+   "The table is as wide as the tab or scrolls; no column is cut off without a scroll bar."
+  ]
+ },
+ "browser": {
+  "name": "browser",
+  "rated": true,
+  "package": "2-13",
+  "scenario": "The browser fixture, `modelTree` in front, both sides collapsed.",
+  "items": [
+   "A tree of rows, one for each element, each reading \u00abkeyword\u00bb then its name, with `: Type [multiplicity]` for a usage.",
+   "What an element owns is under it, stepped in a level.",
+   "The row of `Host` is folded: its triangle points right and nothing is under it.",
+   "The lines are rows too, under the element they are declared in, as \u00abconnection\u00bb mount.",
+   "The row of `hosts` carries pin",
+   "Every row is as high as the others, and no row's text is cut off."
+  ]
+ }
+}

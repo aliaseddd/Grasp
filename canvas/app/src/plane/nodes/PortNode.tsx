@@ -3,7 +3,11 @@
 
 import { memo } from 'react';
 import type { Node, NodeProps } from '@xyflow/react';
+import { NO_MARKS } from '../../core';
 import type { BorderData, Shape } from '../../core';
+import { Badge } from '../marks/Badge';
+import { Pins } from '../marks/Pin';
+import { NodeGrips } from './Grips';
 
 export type PortNodeProps = NodeProps<Node<BorderData, Shape>>;
 
@@ -17,6 +21,12 @@ export type PortNodeProps = NodeProps<Node<BorderData, Shape>>;
  *   it (`out`) or both (`inout`); none for null. And the name, `.grasp-port-name`, 12 px, outside the square at
  *   data.nameAt (a baseline's start, middle or end, from the square's corner), in an svg that does not clip.
  * - **Far**: neither. Always the one inert element with the classes `source target`, as BoxNode has it. Memoized.
+ *
+ * Slice 2, as BoxNode says it for every node component: the inert element carries `data-of="el:<id>"`; the name
+ * carries `data-label="el:<id>"`; near and marked, `.grasp-marks` holds the pins and the badge, with `data-side` the
+ * border item's side, by which plane/marks/marks.css stands it beside the square on the side away from the name (the
+ * side of its owner's inside); and one grip, `{NodeGrips({ far: data.far, side: data.side })}`, on the square's outer
+ * side: the side of its owner's border it sits on.
  */
 export function PortNode({ data, selected, width, height }: PortNodeProps): JSX.Element {
   return <Port data={data} selected={selected} width={width} height={height} />;
@@ -60,14 +70,22 @@ function arrow(side: BorderData['side'], way: 'in' | 'out' | 'inout', w: number,
 const Port = memo(function Port({ data, width, height }: PortViewProps): JSX.Element {
   const w = width ?? 16;
   const h = height ?? 16;
+  const of = data.element === null ? undefined : `el:${data.element}`;
   return (
     <>
-      <span className="grasp-node-handle source target" />
+      <span className="grasp-node-handle source target" data-of={of} />
+      {NodeGrips({ far: data.far, side: data.side })}
+      {!data.far && of !== undefined && data.marks !== NO_MARKS && (
+        <div className="grasp-marks nodrag nopan" data-side={data.side}>
+          <Pins marks={data.marks} of={of} />
+          <Badge marks={data.marks} of={of} />
+        </div>
+      )}
       {!data.far && (
         <svg className="grasp-port-svg" width={w} height={h} aria-hidden="true">
           {data.glyph && <path className="grasp-port-glyph" d={arrow(data.side, data.glyph, w, h)} />}
           {data.name !== '' && (
-            <text className="grasp-port-name" x={data.nameAt.x} y={data.nameAt.y} textAnchor={data.nameAt.anchor}>{data.name}</text>
+            <text className="grasp-port-name" data-label={of} x={data.nameAt.x} y={data.nameAt.y} textAnchor={data.nameAt.anchor}>{data.name}</text>
           )}
         </svg>
       )}

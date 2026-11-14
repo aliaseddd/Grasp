@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import { after, afterEach, before, describe, test } from 'node:test';
 import {
   BROWSER_FRAMES, boxOf, byTestId, closePages, EXAMPLE, fieldIn, finish, frame, launch, modelOf, nodeOf, openIn, openPage, openStateFile, selectBox, showSide,
-  soon, stateFileAt, stateFileOf, TESTIDS, undo, until, untilDrawn,
+  pickRow, soon, stateFileAt, stateFileOf, TESTIDS, undo, until, untilDrawn,
 } from './helpers.mjs';
 
 const view = modelOf(EXAMPLE).views[0];
@@ -325,13 +325,24 @@ describe('the Validation panel', () => {
     const tab = page.getByRole('tab', { name: 'Validation', exact: true });
     await openStateFile(page, stateFileAt(EXAMPLE));
     await untilDrawn(page, view);
-    assert.equal(await checks(), 0, 'The model was checked before the Validation panel was shown.');
+    // From slice 2 the checks run while any body or panel that shows them is shown (plan/architecture.md, contract 8):
+    // a plane shows the marks, so the example's plane has the model checked once, with the Validation panel hidden.
+    assert.equal(await checks(), 1, `With the example's plane shown and the Validation panel hidden the model was checked ${await checks()} times, not once.`);
+    // No body shown from here on: the view's tab is closed, and only the panel can have the model checked.
+    const viewTabOf = page.getByRole('tab', { name: `${view.name} : ${view.kind}`, exact: true });
+    await viewTabOf.hover();
+    await viewTabOf.locator('.dv-default-tab-action').first().click();
+    await soon(page, async () => (await viewTabOf.count()) === 0, `The close control of the tab of ${view.name} was clicked and its tab is still there.`);
     await showSide(page, 'Validation');
     await untilLists(page);
-    assert.equal(await checks(), 1, `Showing the Validation panel made ${await checks()} checks, not 1.`);
+    assert.equal(await checks(), 1, `Showing the Validation panel, with the result up to date, made ${(await checks()) - 1} checks, not none.`);
 
     await showSide(page, 'Explorer');
-    await rename(page, 'App', 'Host');
+    // The rename is made from the Explorer's row, since no plane is shown to click the box on.
+    await pickRow(page, 'el', 'App');
+    const name = fieldIn(page, 'name');
+    await soon(page, async () => (await name.count()) > 0, 'Details shows no name field (data-testid "field-name") for App.');
+    await name.fill('Host');
     await aSecond();
     assert.equal(await checks(), 1, `A change made while the Validation panel was hidden was checked after the pause (${await checks()} checks, not 1).`);
     await showSide(page, 'Validation');

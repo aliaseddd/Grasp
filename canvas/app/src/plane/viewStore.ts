@@ -4,12 +4,17 @@
 // its camera, far or near, and which of its nodes and lines the session's selection names. React reads it through useSyncExternalStore.
 //
 // It knows no React, no Dockview and no DOM, how no node looks, and no rule of place or size: those are the
-// adapter's (core/adapter.ts), which it calls. It imports React Flow's types only, so Node tests load it
-// (canvas/app/test/core.mjs).
+// adapter's (core/adapter.ts) and, for a graph body of another renderer, its kind's reader's (core/readers), which it
+// calls. It imports React Flow's types only, so Node tests load it (canvas/app/test/core.mjs).
+//
+// From the scaffold of slice 2 on, package 2-5 owns this file (plan/slice-2.md, section 3).
 
 import type { EdgeChange, NodeChange } from '@xyflow/react';
-import { FAR, fit, isDrawn, linesDrawn, notDrawnText, placesFor, project, projectStep, selectionOf } from '../core';
-import type { Ask, Picked, PlaneEdge, PlaneNode, Projection, Session, Told, Viewport } from '../core';
+import {
+  elementOf, enderOf, FAR, fit, graphBodied, hasReader, linesDrawn, marksOf, NO_MARKS, notDrawnText, placesFor, project, projectStep, readerOf,
+  relationshipOf, rendererOf, saysOf, selectionOf,
+} from '../core';
+import type { Ask, Listed, ModelView, Picked, PlaneEdge, PlaneNode, Projection, Reader, Session, Told, Viewport } from '../core';
 
 /**
  * What a plane renders. A new object only when something in it changed; `nodes` and `edges` each likewise. `nodes` is
@@ -99,11 +104,62 @@ export interface ViewSnapshot {
  * - **A projection that throws** (a model the adapter cannot read) leaves the store showing what it showed, until
  *   the next change that can have altered its view projects again. It does not keep the session's other stores from
  *   hearing the change: each store hears it, and the first error is thrown on to the history, which reports it.
+ *
+ * Slice 2 (plan/slice-2.md, section 4, seams 3, 4 and 5), built by its scaffold:
+ *
+ * - **Who a node is.** A node says its element in `data.element` (elementOf), which is null for a node that stands
+ *   for none, and two nodes can name one element. An edge says its relationship (relationshipOf). The store sets
+ *   `selected` and the marks by those, never by a node's or an edge's id: a node is selected when its element is
+ *   picked, and a node with no element is never selected and never marked.
+ * - **The marks** (seam 4), beside `selected`: each node carries `data.marks`, the very object
+ *   marksOf(session).of('el', its element) gives (NO_MARKS for a node with no element), and each edge
+ *   of('rel', its relationship). The store sets them after every projection and after every change of the marks it
+ *   hears: a new object only for a node or an edge whose marks or `selected` differ, with a new `data` only where the
+ *   marks differ, in a new array, every other the object it was. A change of the marks that changes a node of the
+ *   snapshot tells the subscribers once. **Live or idle**: the store listens to marksOf(session) only while it has a
+ *   subscriber itself. So the marks, and through them the checks, are live while a plane is shown, and a hidden tab
+ *   runs no check. Marks that changed while nobody listened are set at the first read after the next subscription.
+ * - **A graph body of another renderer** (seam 3: the sequence view, the geometry view), told by graphBodied() and
+ *   readerOf() of core/readers. What differs from a view of the four graph kinds:
+ *   - **The projection** is the kind's reader's: `reader.read(lib, model, view, { far, previous })`, which gives a
+ *     Projection. It carries no `read`, and never goes through projectStep.
+ *   - **Which nodes a drag moves**: only the node the press named. dragStarted(nodeId) is React Flow's
+ *     onNodeDragStart, which comes before the first step; React Flow drags every selected node, and the store leaves
+ *     the changes of every other node out, so the others stay where the reader puts them. A gesture whose press was
+ *     not named takes the first node its first step reports as dragged. In a view of the four graph kinds
+ *     dragStarted changes nothing: every node React Flow reports moves, as before.
+ *   - **A step** is `reader.step(start, asks)`: the projection of that step, from the projection the gesture began
+ *     from and what React Flow asks of the pressed node. The reader holds the node to what its kind allows. A reader
+ *     with no step() draws no step. When the view crosses FAR during the gesture, the steps go on from the reader's
+ *     far (or near) projection of the model.
+ *   - **The gesture's end** is `enderOf(renderer)(session, viewId, start, asks)`, a function of
+ *     core/actions/<renderer>.ts, with the projection the gesture began from and the asks of the pressed node at the
+ *     release. It writes through history.edit() and answers with what it touched; the store then shows the model as
+ *     written. A sentence (`{ refused }`) is said, saysOf(session).say(sentence), and the store shows the model's own
+ *     projection again, as it does after an end that wrote nothing (null, and a renderer with no ender).
+ *   - **A marquee** picks the things whose rectangle, as the reader's `listed(projection)` gives it, lies whole
+ *     inside the rectangle: elements and relationships alike, each once, in the order they are listed; a thing with
+ *     no rectangle is never picked, and a line is left out while the snapshot draws no lines.
+ * - **The marquee of a view of the four graph kinds** is as step 9 has it, by each node's element: a node with no
+ *   element is left out.
+ * - **A view whose body is a component** (a grid view, a browser view: graphBodied() is false) has the empty
+ *   snapshot, whatever its reader: such a reader gives no Projection, and the store never asks it. `drawn` is still
+ *   whether a body draws the view.
+ * - **preview(next)** draws a step that is no node's drag (a message moved by its line, which React Flow does not
+ *   report): the store shows `next`, with `selected` and the marks set as on any projection, tells its subscribers
+ *   when the snapshot is new, and writes nothing. preview(null) puts the model's projection back. A change of the
+ *   history the store hears, and a view crossing FAR, put the model's projection back by themselves; the gesture's
+ *   next step draws its preview again.
+ * - **`zoom`** is the zoom of the viewport last seen, 1 before any. watchZoom(listener) calls listener whenever it
+ *   changes, and never for a pan. A watcher does not make the store live.
+ * - **Package 2-5** (a box moved into another owner) builds here: it asks core/actions/reparent.ts at a step and at
+ *   the end. The box a dragged box would land in is outlined when its node's `className` holds the word `landing`
+ *   beside the adapter's words (plane/nodes/grips.css draws it).
  */
 export interface ViewStore {
   readonly session: Session;
   readonly viewId: string;
-  /** Whether a plane draws this view's kind (the adapter's isDrawn). When false the tab shows the card. */
+  /** Whether a body draws this view's kind (hasReader of core/readers). When false the tab shows the card. */
   readonly drawn: boolean;
   /** What the card says first (the adapter's notDrawnText). */
   readonly notDrawn: string;
@@ -130,14 +186,34 @@ export interface ViewStore {
   edgesChanged(changes: EdgeChange<PlaneEdge>[]): void;
   /** The marquee's rectangle now, in the view's own units from the view's origin: picks what it covers (step 9). */
   marquee(rect: { x: number; y: number; width: number; height: number }): void;
+  /** React Flow's onNodeDragStart: the node the press named. In a graph body of another renderer only that node moves. */
+  dragStarted(nodeId: string): void;
+  /** Draws a step that is no node's drag, and writes nothing; null puts the model's projection back. */
+  preview(next: Projection | null): void;
+  /** The zoom of the viewport last seen; 1 before any. */
+  readonly zoom: number;
+  /** Calls `listener` whenever `zoom` changes, never for a pan, and returns what stops it. */
+  watchZoom(listener: () => void): () => void;
 }
 
 /** How far, in screen px, the pointer must go from where a drag or a resize began before it is a gesture and not a click. */
 export const CLICK_DISTANCE = 4;
 
+/** How a view is read: by the adapter (`reader` null), or by the reader of another renderer whose body is a graph body. */
+interface How {
+  readonly renderer: string;
+  readonly reader: Reader<Projection> | null;
+}
+
 /** A gesture in progress: the projection it began from, what it has asked by node id, and the nodes React Flow drags. */
 interface Gesture {
   readonly start: Projection;
+  /** For another renderer: the projection its steps go on from. It is `start` until the view crosses FAR. */
+  base: Projection;
+  /** How the view was read when the gesture began. */
+  readonly how: How;
+  /** For another renderer: the one node the gesture moves, which the press named. Null in a view of the graph kinds. */
+  readonly only: string | null;
   readonly asks: Map<string, Ask>;
   readonly dragging: Set<string>;
   /** Whether a step has gone CLICK_DISTANCE from the press: until then the press writes and draws nothing. */
@@ -147,6 +223,8 @@ interface Gesture {
 }
 
 const EMPTY: ViewSnapshot = { nodes: [], edges: [], far: false };
+/** How a view of the four graph kinds is read: by the adapter itself. */
+const GRAPH: How = { renderer: 'graph', reader: null };
 /** What a snapshot has for `edges` while the adapter's linesDrawn says no line is drawn. */
 const NO_EDGES: PlaneEdge[] = [];
 
@@ -181,10 +259,10 @@ interface Item { id: string; selected?: boolean }
 interface Select { type: string; id?: string; selected?: boolean }
 
 /**
- * The list with a new object for each item a `select` change names, reading as `says` says: a new array; null when
- * the changes name no item of the list.
+ * The list with a new object for each item a `select` change names, reading as `says` says of that item: a new array;
+ * null when the changes name no item of the list.
  */
-function renewed<T extends Item>(list: T[], changes: readonly Select[], says: (id: string) => boolean): T[] | null {
+function renewed<T extends Item>(list: T[], changes: readonly Select[], says: (item: T) => boolean): T[] | null {
   let out: T[] | null = null;
   for (const change of changes) {
     if (change.type !== 'select' || change.id === undefined) continue;
@@ -192,7 +270,7 @@ function renewed<T extends Item>(list: T[], changes: readonly Select[], says: (i
     const at = current.findIndex((item) => item.id === change.id);
     if (at < 0) continue;
     out ??= [...list];
-    const is = says(change.id);
+    const is = says(current[at]);
     // A copy that reads as the selection says: `selected` is written only where it would otherwise differ.
     out[at] = (current[at].selected ?? false) === is ? { ...current[at] } : { ...current[at], selected: is };
   }
@@ -217,10 +295,33 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   let projected = 0;
   let gesture: Gesture | null = null;
   const selection = selectionOf(session);
-  /** Whether the nodes' and lines' marks may differ from the selection: set by a change of it that a stale or hidden store heard. */
+  const marks = marksOf(session);
+  /** What takes the store's listener off the marks, while the store has a subscriber. */
+  let stopMarks: (() => void) | null = null;
+  /**
+   * Whether the nodes' and lines' `selected` and marks may differ from what the selection and the marks say: set by a
+   * change of the selection that a stale or hidden store heard, and when the store begins to listen to the marks.
+   */
   let outdated = false;
+  const zoomWatchers = new Set<() => void>();
+  /** The node the last press named (React Flow's onNodeDragStart), until its gesture ends. */
+  let pressed: string | null = null;
+  /** Whether the projection is a preview's, not the model's. */
+  let previewing = false;
+  /** What the reader of another renderer lists of the projection, for the marquee: worked out when first asked for. */
+  let listed: Listed[] | null = null;
 
   const viewOf = () => session.model.views.find((view) => view.id === viewId);
+  /** How a view is read; null for a kind with no reader yet, and for one whose body is a component: nothing to project. */
+  const howOf = (view: ModelView): How | null => {
+    const renderer = rendererOf(session.lib, view.kind);
+    if (renderer === null || !graphBodied(renderer)) return null;
+    if (renderer === 'graph') return GRAPH;
+    const reader = readerOf(renderer) as Reader<Projection> | null;
+    return reader ? { renderer, reader } : null;
+  };
+  const picked = (node: PlaneNode): boolean => { const el = elementOf(node); return el !== null && selection.has('el', el); };
+  const pickedEdge = (edge: PlaneEdge): boolean => selection.has('rel', relationshipOf(edge));
 
   /** Makes the snapshot of the projection: the object it was while its nodes, edges and far are the same. */
   const adopt = (): void => {
@@ -231,8 +332,9 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   };
 
   /**
-   * Sets `selected` on the projection's nodes and edges as the selection says: a new object for each that differs, in a
-   * new array, every other the object it was. Nothing is replaced when nothing differs.
+   * Sets `selected` and the marks on the projection's nodes and edges as the selection and the marks say: a new object
+   * for each that differs, with a new `data` only where its marks differ, in a new array, every other the object it
+   * was. Nothing is replaced when nothing differs.
    */
   const mark = (): void => {
     outdated = false;
@@ -240,17 +342,25 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
     if (!p) return;
     let nodes: PlaneNode[] | null = null;
     p.nodes.forEach((n, i) => {
-      const is = selection.has('el', n.id);
-      if ((n.selected ?? false) === is) return;
+      const el = elementOf(n);
+      const is = el !== null && selection.has('el', el);
+      const now = el !== null ? marks.of('el', el) : NO_MARKS;
+      const same = (n.selected ?? false) === is;
+      if (same && n.data.marks === now) return;
       nodes ??= [...p.nodes];
-      nodes[i] = { ...n, selected: is };
+      const data = n.data.marks === now ? n.data : { ...n.data, marks: now };
+      nodes[i] = same ? { ...n, data } : { ...n, selected: is, data };
     });
     let edges: PlaneEdge[] | null = null;
     p.edges.forEach((e, i) => {
-      const is = selection.has('rel', e.id);
-      if ((e.selected ?? false) === is) return;
+      const rel = relationshipOf(e);
+      const is = selection.has('rel', rel);
+      const now = marks.of('rel', rel);
+      const same = (e.selected ?? false) === is;
+      if (same && e.data.marks === now) return;
       edges ??= [...p.edges];
-      edges[i] = { ...e, selected: is };
+      const data = e.data.marks === now ? e.data : { ...e.data, marks: now };
+      edges[i] = same ? { ...e, data } : { ...e, selected: is, data };
     });
     if (nodes || edges) projection = { ...p, nodes: nodes ?? p.nodes, edges: edges ?? p.edges };
   };
@@ -261,14 +371,26 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
     // Not stale from here on, even if the projection throws: the store then shows what it showed, and projects again
     // at the next change, not at the next read, which is React's render.
     stale = false;
+    previewing = false;
+    listed = null;
     const before = snapshot;
     const view = viewOf();
-    if (!view) {
+    const how = view ? howOf(view) : null;
+    if (!view || !how) {
       projection = null;
     } else {
       projected++;
       const open = gesture && gesture.passed && !gesture.cancelled ? gesture : null;
-      if (open) {
+      if (how.reader) {
+        // A graph body of another renderer: its reader's projection, and for an open gesture its reader's step.
+        const reader = how.reader;
+        if (open && reader.step) {
+          open.base = reader.read(session.lib, session.model, view, { far, previous: open.base });
+          projection = dragged(reader.step(open.base, [...open.asks.values()]), open);
+        } else {
+          projection = reader.read(session.lib, session.model, view, { far, previous: projection });
+        }
+      } else if (open) {
         const { places } = placesFor(session.lib, session.model, view, open.start, [...open.asks.values()]);
         projection = dragged(projectStep(session.lib, session.model, view, open.start, places, { far, previous: projection }), open);
       } else {
@@ -282,16 +404,22 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
 
   const tell = (): void => { for (const listener of [...listeners]) listener(); };
 
-  /** Remembers a viewport. When it crosses FAR, the view is far or near from then on, and a live store tells. */
+  /**
+   * Remembers a viewport. When it crosses FAR, the view is far or near from then on, and a live store tells. When its
+   * zoom is another than the one before, whoever watches the zoom is told.
+   */
   const see = (next: Viewport): Viewport => {
-    viewport = { x: next.x, y: next.y, zoom: next.zoom };
+    const was = viewport ? viewport.zoom : 1;
+    const seen = { x: next.x, y: next.y, zoom: next.zoom };
+    viewport = seen;
     const now = next.zoom < FAR;
     if (now !== far) {
       far = now;
       stale = true;
       if (listeners.size > 0 && refresh()) tell();
     }
-    return viewport;
+    if (next.zoom !== was) for (const watcher of [...zoomWatchers]) watcher();
+    return seen;
   };
 
   const getSnapshot = (): ViewSnapshot => {
@@ -300,9 +428,29 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
     return snapshot;
   };
 
+  /** A change of the marks, heard while the store has a subscriber: they are set, and the subscribers told when a node or an edge is new. */
+  const marksChanged = (): void => {
+    if (stale || !projection) { outdated = true; return; }
+    const before = snapshot;
+    mark();
+    adopt();
+    if (snapshot !== before) tell();
+  };
+
   const subscribe = (listener: () => void): (() => void) => {
     listeners.add(listener);
-    return () => { listeners.delete(listener); };
+    if (!stopMarks) {
+      // Live from here: the marks are worked out before listen() returns, and nobody is told for it; the subscriber
+      // reads next, and that read sets them.
+      stopMarks = marks.listen(marksChanged);
+      outdated = true;
+    }
+    return () => {
+      if (!listeners.delete(listener) || listeners.size > 0 || !stopMarks) return;
+      const stop = stopMarks;
+      stopMarks = null;
+      stop();
+    };
   };
 
   const camera = (width?: number, height?: number): Viewport => {
@@ -365,21 +513,60 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
     return false;
   };
 
-  /** A step of the gesture: its asks worked out, the view projected with their places, the subscribers told. */
+  /**
+   * A step of the gesture: its asks worked out, the view projected with their places, the subscribers told. In a
+   * graph body of another renderer the step is its reader's.
+   */
   const step = (view: View, g: Gesture): void => {
     if (!projection) return;
-    const { places } = placesFor(session.lib, session.model, view, g.start, [...g.asks.values()]);
-    projection = dragged(projectStep(session.lib, session.model, view, g.start, places, { far, previous: projection }), g);
+    if (g.how.reader) {
+      if (!g.how.reader.step) return;
+      projection = dragged(g.how.reader.step(g.base, [...g.asks.values()]), g);
+      previewing = false;
+      listed = null;
+    } else {
+      const { places } = placesFor(session.lib, session.model, view, g.start, [...g.asks.values()]);
+      projection = dragged(projectStep(session.lib, session.model, view, g.start, places, { far, previous: projection }), g);
+    }
     mark();
     adopt();
     tell();
   };
 
-  /** The gesture's end: its last asks' places written as one undo step in placesFor's words, or nothing written. */
+  /** Shows the model's own projection in place of a gesture's last step, or of a preview. */
+  const showModel = (): void => {
+    const before = snapshot;
+    stale = true;
+    refresh();
+    adopt();
+    if (snapshot !== before) tell();
+  };
+
+  /**
+   * The gesture's end: its last asks' places written as one undo step in placesFor's words, or nothing written. In a
+   * graph body of another renderer the end is its kind's ender's, which writes or says why not.
+   */
   const finish = (view: View, g: Gesture): void => {
     gesture = null;
+    pressed = null;
     if (!projection) return;
     projection = undragged(projection);
+    if (g.how.reader) {
+      // The gesture is over before its end is written, as below. What the ender wrote reaches the store through the
+      // history; when nothing did (a refusal, an end where it began, a renderer with no ender), the model's own
+      // projection takes the place of the gesture's last step.
+      const ender = enderOf(g.how.renderer);
+      const before = projected;
+      const result = ender ? ender(session, viewId, g.start, [...g.asks.values()]) : null;
+      if (result && 'refused' in result) saysOf(session).say(result.refused);
+      if (projected === before) {
+        stale = true;
+        refresh();
+        adopt();
+        tell();
+      }
+      return;
+    }
     const { places, words } = placesFor(session.lib, session.model, view, g.start, [...g.asks.values()]);
     let touched = null;
     if (words !== null) {
@@ -408,18 +595,27 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   const nodesChanged = (changes: NodeChange<PlaneNode>[]): void => {
     refresh();
     if (!projection) return;
-    const chosen = renewed(projection.nodes, changes, (id) => selection.has('el', id));
+    const chosen = renewed(projection.nodes, changes, picked);
     if (chosen) {
       projection = { ...projection, nodes: chosen };
       adopt();
     }
     const view = viewOf();
+    // In a graph body of another renderer only one node moves: the one the press named, or, when no press was named,
+    // the first this gesture's first step reports as dragged. `only` is null in a view of the graph kinds.
+    const how = gesture ? gesture.how : view ? howOf(view) : null;
+    let only: string | null = null;
+    if (how && how.reader) {
+      const first = changes.find((c) => c.type === 'position' && c.dragging === true);
+      only = gesture ? gesture.only : pressed ?? (first && first.type === 'position' ? first.id : null);
+    }
     // The nodes this array resizes: a position with no `dragging` is a resize's only beside such a dimensions change.
     const steps: Ask[] = [];
     const draggedNow: string[] = [];
     const ends: Ask[] = [];
     let ended = false;
     for (const c of changes) {
+      if (only !== null && (c.type === 'position' || c.type === 'dimensions') && c.id !== only) continue;
       if (c.type === 'position' && c.position) {
         if (c.dragging === true) { if (!gesture?.cancelled) { steps.push({ id: c.id, move: c.position }); draggedNow.push(c.id); } }
         else if (c.dragging === false && gesture?.dragging.has(c.id)) { ends.push({ id: c.id, move: c.position }); ended = true; }
@@ -440,12 +636,12 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
       return;
     }
     if (!gesture) {
-      if (steps.length === 0) { if (chosen) tell(); return; }
-      gesture = { start: projection, asks: new Map(), dragging: new Set(), passed: false, cancelled: false };
+      if (steps.length === 0 || !how) { if (chosen) tell(); return; }
+      gesture = { start: projection, base: projection, how, only, asks: new Map(), dragging: new Set(), passed: false, cancelled: false };
     }
     if (gesture.cancelled) {
       // An undo (or another change of the history) was heard in the middle of it: only its end is heard.
-      if (ended) gesture = null;
+      if (ended) { gesture = null; pressed = null; }
       if (chosen) tell();
       return;
     }
@@ -455,6 +651,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
       if (!gesture.passed) {
         // A press that never went CLICK_DISTANCE from where it began: a click, which writes and draws nothing.
         gesture = null;
+        pressed = null;
         if (chosen) tell();
         return;
       }
@@ -470,14 +667,14 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   const edgesChanged = (changes: EdgeChange<PlaneEdge>[]): void => {
     refresh();
     if (!projection) return;
-    const edges = renewed(projection.edges, changes, (id) => selection.has('rel', id));
+    const edges = renewed(projection.edges, changes, pickedEdge);
     if (!edges) return;
     projection = { ...projection, edges };
     adopt();
     tell();
   };
 
-  const drawnNow_ = (): boolean => { const view = viewOf(); return !!view && isDrawn(session.lib, view.kind); };
+  const drawnNow_ = (): boolean => { const view = viewOf(); return !!view && hasReader(session.lib, view.kind); };
   let drawnWas = drawnNow_();
   const watch = (listener: () => void): (() => void) => {
     watchers.add(listener);
@@ -486,22 +683,62 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
 
   const marquee = (rect: { x: number; y: number; width: number; height: number }): void => {
     refresh();
-    const picked: Picked[] = [];
-    if (projection) {
+    const covered: Picked[] = [];
+    const within = (r: { x: number; y: number; w: number; h: number }): boolean => (
+      r.x >= rect.x && r.y >= rect.y && r.x + r.w <= rect.x + rect.width && r.y + r.h <= rect.y + rect.height
+    );
+    const view = viewOf();
+    const how = view ? howOf(view) : null;
+    if (projection && how && how.reader) {
+      // Another renderer: the things whose rectangle, as its reader lists it, lies inside. A message between two
+      // lifelines has no node of its own, so a line is picked by its own rectangle and not by its two ends.
+      listed ??= how.reader.listed(projection);
+      const seen = new Set<string>();
+      for (const thing of listed) {
+        if (!thing.rect || !within(thing.rect) || (thing.type === 'rel' && snapshot.edges === NO_EDGES)) continue;
+        const key = `${thing.type}:${thing.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        covered.push({ type: thing.type, id: thing.id });
+      }
+    } else if (projection) {
       const { rects } = projection;
       const inside = new Set<string>();
       for (const node of snapshot.nodes) {
+        const el = elementOf(node);
         const r = rects.get(node.id);
-        if (r && r.x >= rect.x && r.y >= rect.y && r.x + r.w <= rect.x + rect.width && r.y + r.h <= rect.y + rect.height) {
+        if (el !== null && r && within(r)) {
           inside.add(node.id);
-          picked.push({ type: 'el', id: node.id });
+          covered.push({ type: 'el', id: el });
         }
       }
       if (inside.size > 0) {
-        for (const edge of snapshot.edges) if (inside.has(edge.source) && inside.has(edge.target)) picked.push({ type: 'rel', id: edge.id });
+        for (const edge of snapshot.edges) if (inside.has(edge.source) && inside.has(edge.target)) covered.push({ type: 'rel', id: relationshipOf(edge) });
       }
     }
-    selection.set(picked.length > 0 ? picked : [{ type: 'view', id: viewId }]);
+    selection.set(covered.length > 0 ? covered : [{ type: 'view', id: viewId }]);
+  };
+
+  const dragStarted = (nodeId: string): void => { pressed = nodeId; };
+
+  const preview = (next: Projection | null): void => {
+    if (next === null) {
+      if (previewing) showModel();
+      return;
+    }
+    const before = snapshot;
+    projection = next;
+    stale = false;
+    previewing = true;
+    listed = null;
+    mark();
+    adopt();
+    if (snapshot !== before) tell();
+  };
+
+  const watchZoom = (listener: () => void): (() => void) => {
+    zoomWatchers.add(listener);
+    return () => { zoomWatchers.delete(listener); };
   };
 
   // Every change of the selection: a live store marks its nodes and lines and tells once if the snapshot is new; a
@@ -550,6 +787,10 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
     nodesChanged,
     edgesChanged,
     marquee,
+    dragStarted,
+    preview,
+    get zoom() { return viewport ? viewport.zoom : 1; },
+    watchZoom,
   };
 }
 

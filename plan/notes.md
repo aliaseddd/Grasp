@@ -4224,3 +4224,52 @@ scripts.
   `npm ci && npm run check && npm test` by itself, with `# todo 7` and seven checks `"todo"` in `plan/status.json`.
 - **Its first hour** should build the grips and try a press on one in the page, and measure the four limits with the
   grips mounted: the plan's one unproved technique and its one unmeasured cost (section 12, "What is not proved").
+
+## Session 31, November 14, 2026: the scaffold of slice 2 built, not landed; halted to move the conversation
+
+On `claude/gracious-fermi-hxid8e`, from `780788b` (main, with pull request #58 merged). Damon's word: execute the plan
+of slice 2, with agents on Fable 5.2 at high effort. At about 14:10 UTC he halted the session so that the conversation
+could be moved. The lead is Claude; agents beside it, seven, each building one stage of package 2-1.
+
+**Package 2-1 is built and not landed.** One commit holds it as the stages left it. `plan/slice-2-handover/README.md`
+says what is left of it, the decisions that wait for the lead, and what the builders of rounds 1 and 2 must be told;
+the stages' reports and the session's workflow scripts are beside it. This entry is short on purpose: the session
+that lands the package completes it from those reports, and the folder then goes.
+
+### The baseline, on this container
+
+| Command | Result |
+|---|---|
+| `npm ci` | exit 0 |
+| `npm run check` | exit 0 |
+| `npm test` | `# tests 470`, `# pass 468`, `# fail 2`, `# todo 0`; 353 s |
+
+Both failures are timed tests of `scale.test.mjs` on untouched code: a drag step 17.3 ms starting against 16, and a
+pan step of the 2,112-node view 26.0 ms starting against 25. `node --test --test-timeout=120000
+canvas/app/test/scale.test.mjs` alone, three times: pass (drag 11.4 / 9.0; pan 11.8 / 11.4, 10.3 / 11.6, 19.0 /
+22.0), fail (a pan step of definitions 14.7 / 18.1 against 16), pass (drag 14.6 / 10.8; pan 12.0 / 11.9, 9.9 / 14.0,
+14.4 / 21.0). The container is about a quarter slower than session 30's (which opened the 5,000-element model in
+605 ms; here 717 to 787) and runs close to the limits before any change. No limit was touched.
+
+### Package 2-1 as it stands
+
+- **Built in stages**, each by one agent, one after another in the main tree: the grips probe (stage 0, in a worktree
+  of its own, before anything was built on grips); the core's seams (A); the plane's and the views' (B); the shell's
+  and the panels' (C); the shared test parts with the tests of criteria 2, 4 and 5 (D1, in a worktree beside C); the
+  tests of criteria 3 and 6, the retired page's test and the screenshots' skeletons (D2); integration (E).
+- **The grips work.** React Flow leaves a press on a grip alone (18 gestures of 18), `nokey` and `nodrag` are both
+  needed, and with grips on every near node no median of the timed tests differed from the same tree without them by
+  more than the runs differ among themselves. So the plan did not come back to Damon on this point.
+- **The last full run**, alone, on the tree before the state documents: `# tests 559`, `# pass 552`, `# fail 0`,
+  `# todo 7`, 401 s. `scale.test.mjs` in that run: opens 680 ms; a drag step 14.4 / 10.7 ms; a keystroke 39.7 / 33.2,
+  and 36.7 / 30.1 with 150 problems; a pan step 10.8 / 10.4, 10.5 / 11.2, and 15.5 / 17.9 for the 2,112-node view.
+- **Criterion 9's three runs with grips mounted are not made.** One full run and one run of `scale.test.mjs` alone
+  with `standin-connect.patch` in: every limit held.
+- **No review was run**, and three decisions that change the tree wait for the lead (a selected line raised so that
+  every end grip can be pressed; the runner's 120 s for a whole test file; one test of slice 1 named otherwise in
+  section 7). The hand-over has each with its numbers.
+
+### For the next session
+
+Read `plan/slice-2-handover/README.md` first. Then, in its order: the decisions, the review, the mends, the three
+runs, this entry completed, package 2-1 landed; then round 1.
