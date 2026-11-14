@@ -111,7 +111,7 @@ describe('the Tools view', () => {
     await finish(opened);
   });
 
-  test("the Tools view lists the tools of the view in front, in the groups of its kind's row", async () => {
+  test("the Tools view lists the tools of the view in front, in the groups of its kind", async () => {
     const cases = [[EXAMPLE, 'v-proof'], [INTERCONNECTION, 'v-ic'], [fixture('behavior-actions'), 'v-release'], [fixture('behavior-states'), 'v-host']];
     for (const [file, id] of cases) {
       const view = viewOf(file, id);

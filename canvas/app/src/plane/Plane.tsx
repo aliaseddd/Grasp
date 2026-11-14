@@ -184,6 +184,10 @@ export interface PlaneProps {
  *   renderer.
  * - **An entry's plane props** (seam 3): the `flow` of the view kind's entry in the registry, cut to FLOW_PROPS
  *   (`elevateNodesOnSelect`), is spread onto React Flow.
+ * - **`elevateEdgesOnSelect`**: a selected line is drawn over the boxes it crosses, on every plane. Without it a
+ *   selected line's end grips (EndGrips) lie under the node the end is on, or under another line, and cannot be
+ *   pressed: 19 of the 116 line ends of the ten files, against none with it (plan/notes.md keeps the numbers). It is
+ *   the plane's own prop, not one an entry may set.
  * - **The camera's hand** (seam 8; views/lends.ts): while React Flow is mounted the plane lends its camera and its
  *   `reveal`. The camera zooms by a step of ZOOM_STEP about the plane's middle ('in', 'out'), held between MIN_ZOOM
  *   and MAX_ZOOM; moves the window over the view by PAN_STEP screen px ('left', 'right', 'up', 'down': 'left' shows
@@ -476,6 +480,7 @@ function Flow({ store, root, openPalette, reach, body, flow }: FlowProps & { ope
       maxZoom={MAX_ZOOM}
       onlyRenderVisibleElements={snapshot.nodes.length > LARGE_VIEW}
       panOnDrag={PAN_BUTTONS}
+      elevateEdgesOnSelect
       panOnScroll
       panOnScrollSpeed={1}
       zoomOnScroll={false}

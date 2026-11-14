@@ -94,7 +94,7 @@ npm run shots           # the screenshots into canvas/app/shots/; npm run shots 
 npm run test:old        # the old page's and the model library's tests
 ```
 
-`npm test` runs its files one after another (`--test-concurrency=1`): beside each other, each running a Chromium that draws in software, the timed tests fail on a machine of four processors. One file: `node --test --test-timeout=120000 canvas/app/test/<file>`. The timed tests (`scale.test.mjs`, `instant.test.mjs`) print their medians as the runner's diagnostics, and a limit they miss is their failure's message, with every sample split into the script's part and the frame's.
+`npm test` runs its files one after another (`--test-concurrency=1`): beside each other, each running a Chromium that draws in software, the timed tests fail on a machine of four processors. One file: `node --test --test-timeout=600000 canvas/app/test/<file>`. The limit is for a whole file, whatever a test inside it allows itself: the test of every line by dragging (`connect.test.mjs`) has five minutes of its own. The timed tests (`scale.test.mjs`, `instant.test.mjs`) print their medians as the runner's diagnostics, and a limit they miss is their failure's message, with every sample split into the script's part and the frame's.
 
 ## The screenshots
 
