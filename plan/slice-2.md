@@ -1,6 +1,6 @@
 # Slice 2, "Editing parity": the plan
 
-November 14, 2026, session 30. Written for Damon's approval, as `plan/slice-1.md` was. It is package 2-0 of `plan/architecture.md`. Nothing of the slice is built yet: the scaffold, package 2-1, starts once Damon has approved this plan.
+November 14, 2026, session 30. Approved by Damon on November 14, 2026, with each of the five points that waited for him as the plan has it (section 12). It is package 2-0 of `plan/architecture.md`. Nothing of the slice is built yet: the scaffold, package 2-1, is next.
 
 ## Context
 
@@ -12,10 +12,10 @@ This document is the slice's design. It has three readers. Damon approves it. Th
 
 1. **The slice is sixteen packages**, 2-0 to 2-15, as the architecture cut them. This plan is 2-0. The scaffold, 2-1, fixes twelve seams (section 4) so that packages 2-2 to 2-13 can be built side by side, in two rounds, without two of them changing one file.
 2. **The two probes are answered** (section 2): the sequence view and the geometry view each get a graph body. React Flow serves both through its public props, by rules their readers must keep, and the plane's camera, marquee, right-click and every shared gesture then come with no code.
-3. **What a person can do on the old page is 112 capabilities** (section 7), each with the name of the test that proves it on the new page. 38 are proved by tests of slice 1 that pass today. Six things the old page does are left out, and need Damon's word by name.
+3. **What a person can do on the old page is 112 capabilities** (section 7), each with the name of the test that proves it on the new page. 38 are proved by tests of slice 1 that pass today. Six things the old page does are left out, each approved by Damon by name.
 4. **Every command is a row of one table** (section 5), 32 rows, asked in one way, and a row that does not apply says why in a sentence. That is how criterion 6 is met once for the whole page.
 5. **Two things are built otherwise than the architecture says** (section 12). A line is drawn and reconnected by a gesture of Grasp's own, not React Flow's: React Flow cannot put a reconnect anchor at the end of a line the page routes itself, and its handles cost two subscriptions each. And the feature packages are built in two rounds, because a body's tests in the page need the first round's code.
-6. **What waits for Damon** is in section 12: the plan's approval, the six capabilities left out, one sentence of contract 9, and the behaviours that differ from the architecture or the old page.
+6. **What Damon decided** is in section 12: the plan's approval, the six capabilities left out, one sentence of contract 9, a key with no file open, and the behaviours that differ from the architecture or the old page.
 
 ## 1. Where the project stands
 
@@ -68,7 +68,7 @@ Both answered "a graph body". Section 2 gives the answers, what decided each, th
 
 ## 2. What the architecture leaves to this plan, and how the plan settles it
 
-`plan/architecture.md`, section 4, lists these under "Its plan decides" and "What it finds out first". Each is settled here, with its reason. Section 12 repeats the ones Damon should look at.
+`plan/architecture.md`, section 4, lists these under "Its plan decides" and "What it finds out first". Each is settled here, with its reason. Section 12 says what Damon decided on the ones that were his.
 
 ### The sequence view and the geometry view: a graph body each
 
@@ -709,7 +709,7 @@ Four things about the table:
 
 - **`Mod`** is Control, or ⌘ on a Mac. `ALIASES` of `core/keys.ts` reads `Mod+Shift+Z` as `Mod+Y`, `=` as `+` and `_` as `-`. An alias is not a second shortcut of its own: it is one more spelling of an action's `key`, kept where the keys are read. Slice 7's Help lists the aliases beside the keys.
 - **Where a key is the page's.** A chord with `Mod` acts as slice 1's keys act today. Any other key does not act when the event comes from a text field. The arrows, `F2`, `Alt` with an arrow and a `printable` key also do not act when the event comes from inside a widget that uses them itself: an element with the role `tree`, `menu`, `listbox`, `tablist`, `radiogroup` or `grid`. `Delete` and `Escape` act from such a widget, so a row picked in the Explorer is deleted by `Delete`.
-- **With no file open** there is no session and no table. The page's only commands are then Open and About, and a key of the table does nothing. This is the one place where a key is not answered, and section 12 says so to Damon.
+- **With no file open** there is no session and no table. The page's only commands are then Open and About, and a key of the table does nothing. This is the one place where a key is not answered, and Damon approved it (section 12).
 - **Open and About** stay the top bar's own buttons. They need no session, and an `Action` is asked with one.
 
 ### What an undo step holds
@@ -1078,7 +1078,7 @@ This is the list of criterion 3. It was made from two readings of the old page, 
 
 **The model library's, not the page's.** The readers also listed what the library says and writes: each check's sentence (96 sentences in 40 lines of the readings), each line kind's rule, and the form of the text for each kind. The library does not change in this slice. Its Node tests and the ten pinned texts hold those, and lines 7, 37, 61 and 80 hold that the page still shows them.
 
-**Left out, for Damon to approve by name** (section 12 asks):
+**Left out, approved by Damon by name** on November 14, 2026 (section 12):
 
 1. **The page keeping the work in this browser by itself.** The old page saves every change into the browser's storage, and starts from that copy the next time. The new page saves when Save is pressed, and asks before unsaved work is lost (`keys.test.mjs › the page asks before a reload loses changes, and not once saved`). Decided for slice 1 (`plan/direction.md`, "Decided for slice 1", Saving).
 2. **The window's place and zoom remembered across a reload.** The architecture leaves it to slice 3 ("Left to later slices").
@@ -1117,7 +1117,7 @@ And two sayings of judgment, as in slice 1:
 ### Package 2-1. The scaffold
 
 - **Delivers.** Every seam of section 4, built and tested; a skeleton of every file that packages 2-2 to 2-15 own, with its contract as a comment; the tests of the "Done when" checks and of criteria 2 to 6, written first, seen to fail and marked todo. The page behaves as before, with the four differences listed below.
-- **Built by** the lead, alone, once Damon has approved this plan.
+- **Built by** the lead, alone. Damon approved this plan on November 14, 2026, so it can start.
 - **What a skeleton is.** A file a later package owns exists, with its exported types and signatures and each contract as a comment. A function nothing calls yet throws `"<name>: package 2-N builds it"`. What the page already calls keeps what the page shows today: a reader, a body, a gesture and a set of node types that are not built are `null`; a list of rows or of hooks is empty; a section's `applies` answers false; a component renders nothing; `notesOf` carries the file's notes through; `entriesOf` gives an empty list.
 - **What changes for a person, on purpose.** (1) A key of the table pressed where its action does not apply now says why in a toast: `Mod+Z` with nothing to undo, `Mod+Y` with nothing to redo. (2) Escape with no tool in hand lets go of what is picked. (3) The Undo and Redo buttons, when greyed, carry their sentence as their tooltip. (4) The middle mouse button drags the plane. Everything else is as slice 1 left it: a row that is not built is not in the table, a body that is not built shows its card, and no grip is mounted.
 - **Changes in existing files**, beyond the seams of section 4:
@@ -1290,7 +1290,7 @@ And two sayings of judgment, as in slice 1:
   - **A new note**: its id is `n`, then the time in base 36, then five characters at random; its number is the largest among the open and the archived notes, plus one; its text is empty; `by` is `user`; `targetLabel` is the library's `labelFor(model, id)`, or "the plane" for a free note.
   - **A free note in a state file** follows section 2's rule, for an open note and for an archived one. A new or a moved free note's place is in whole numbers. A free note whose view has left the model is saved with that view's last `x` and `y` added.
   - **A note on something that left the model is kept.** `open` still holds it. The panel lists it "on <its kept label>, which is no longer in the model", or "on something no longer in the model" when it kept no label. It has no pin, and the text leaves it out, as the model library does today. When Undo brings its target back, the pin is there again. A free note whose view left the model is listed "on a view no longer in the model".
-  - **A note's label follows a rename.** After a change of the model, each open note whose target is in the model and whose `targetLabel` is not `labelFor` gets the new label, and the listeners are told. This does not change `mark()`: the change of the model already made the file unsaved, and Undo puts the label back the same way. Nothing is synced when a file is opened. (Contract 9's comment says the label is "as it was when the note was written"; section 12 puts that to Damon.)
+  - **A note's label follows a rename.** After a change of the model, each open note whose target is in the model and whose `targetLabel` is not `labelFor` gets the new label, and the listeners are told. This does not change `mark()`: the change of the model already made the file unsaved, and Undo puts the label back the same way. Nothing is synced when a file is opened. (Contract 9's comment says the label is "as it was when the note was written"; Damon approved keeping the old page's way, section 12.)
   - **No step.** No change to a note is undone by Undo. Each changes `mark()`.
 - **Decided: the panel.**
   - With no file: "No file is open." With no note: "No notes yet. Right-click a box, a line or the plane and choose Add note." An Add note button, an `ActionButton` for `add-note` with no hit, stands at the top right of the panel.
@@ -1554,7 +1554,7 @@ And two sayings of judgment, as in slice 1:
 
 ### The order inside the slice
 
-1. **Package 2-0**: this plan and the two probes. Done when Damon approves the plan.
+1. **Package 2-0**: this plan and the two probes. Done: Damon approved the plan on November 14, 2026.
 2. **Package 2-1**, alone. Every later package starts from its commit, or from a commit made on top of it.
 3. **The first round: packages 2-2 to 2-9**, side by side, each from the scaffold's commit. No two own one file, and none needs another's code for its own tests: each tests what it builds, against the scaffold. Each lands as one commit of the lead's, in whatever order they are ready.
 4. **The second round: packages 2-10 to 2-13**, side by side, each from the commit that holds the first round. A body's tests in the page use what the first round built: the view's section of Details for its options (2-4), a badge (2-6) and a pin (2-7) on what it draws, `rename` for a tree's row (2-3), a line dragged to a lifeline (2-2).
@@ -1714,7 +1714,7 @@ Damon chose these eleven on November 14, 2026. They add to the "Done when" of `p
 How the criteria meet the plan:
 
 - **Criterion 2 is `fixtures.test.mjs`'s first test.** It asks each view's reader, in Node, what the view lists, and finds one thing in the page for each entry. So a body that draws a card, or drops a row, fails it. It is todo until the last of the four bodies lands; each body's own tests hold its kind before that.
-- **Criterion 3's N is 112** (section 7). The list comes with this plan for approval, with six things left out for Damon to approve by name. Before package 2-15 the lead counts the 112 names against the runner's list of passing tests.
+- **Criterion 3's N is 112** (section 7). The list came with this plan for approval, with six things left out, which Damon approved by name. Before package 2-15 the lead counts the 112 names against the runner's list of passing tests.
 - **Criteria 4 and 5 are generated**, as package 2-2's brief says, from the model library's own rules, so the test and the page are held to the same table and not to each other. Criterion 4's test drags one pair for each class of the ten files' 2,260 pairs (221 classes, all eight kinds of line among them, 62 pairs with a menu) and one for each pair of kinds of a generated model, about 800 drags. Criterion 5's finds, for each of the nine kinds, a line in the ten files that another node may take an end of.
 - **Criterion 6 has three tests** (package 2-14's brief): every row asked in Node; every key pressed in the page; every greyed control read in the page. A gesture's refusals are in its package's tests and in criteria 4 and 5.
 - **Criteria 7 and 8 need a reviewer that has not seen the code**: a fresh agent given the image and its list, or the four points with their scale, and nothing else.
@@ -1726,7 +1726,7 @@ How the criteria meet the plan:
 
 Damon decided that criterion 3 replaces one deliverable of package 2-14. In section 4 of `plan/architecture.md`, the row of package 2-14 said: "A table from each of the old page's test files to the new test that takes its place, or to the reason it is dropped." It now says that the package keeps the capability list of this plan's section 7. The edit is made in the commit that brings this plan. It changes no contract.
 
-## 12. Where the plan departs from the architecture, and what waits for Damon
+## 12. Where the plan departs from the architecture, and what Damon decided
 
 ### Where it departs
 
@@ -1742,13 +1742,15 @@ No contract of `plan/architecture.md` is changed. These are the places where the
 8. **Files the architecture does not name**: section 3 lists the scaffold's. The packages add `core/actions/code.ts` (2-8), `core/actions/browser.ts` (2-13), `core/actions/camera.ts` and `plane/ZoomReadout.tsx` (2-14), `panels/ShownSection.tsx` (2-4) and `plane/gestures/ConnectLayer.tsx` (2-2).
 9. **Package 2-14 gains the camera's keys and the zoom's readout.** The old page has them and no package of the architecture does.
 
-### What waits for Damon
+### What Damon decided
 
-1. **The plan itself.** The scaffold starts only on an approved plan, because every later package starts from its commit.
-2. **Six capabilities of the old page that the slice leaves out**, to approve by name (section 7): the page keeping the work in this browser by itself; the window's place and zoom remembered across a reload; the claude.ai store and its read-only states; following the system's dark setting; the layout for a narrow window; driving the drawing by touch. The first four were decided before, in `plan/direction.md` and `plan/architecture.md`. The last two are new here.
-3. **One sentence of contract 9.** Its record says of `targetLabel`: "the target in words, as it was when the note was written". The old page keeps that label current: after a rename it follows the new name, so that Claude reads the current one, and that is line 75 of section 7. The plan does what the old page does: the label follows a rename while the target is in the model, and stays as it last was once the target is gone. If Damon reads the contract's sentence as binding, line 75 is left out instead, and the plan says so by name.
-4. **With no file open, a key says nothing** (section 2). Criterion 6 says "whenever a key is refused". The plan reads a page with no file as having no actions to refuse. If Damon reads it otherwise, a key then says "No file is open." and the scaffold builds that.
-5. **Departures 1, 5 and 6 above**, which change how the page behaves from what the architecture or the old page says.
+Damon approved the plan on November 14, 2026: "Approved, all five as you have them." The five points that waited for him, each decided as the plan has it:
+
+1. **The plan itself: approved.** The scaffold, package 2-1, can start. Every later package starts from its commit.
+2. **Six capabilities of the old page are left out, each approved by name** (section 7): the page keeping the work in this browser by itself; the window's place and zoom remembered across a reload; the claude.ai store and its read-only states; following the system's dark setting; the layout for a narrow window; driving the drawing by touch. Criterion 3 counts none of the six as a failure.
+3. **A note's label follows a rename, as on the old page.** Contract 9's record says of `targetLabel`: "the target in words, as it was when the note was written". The old page keeps that label current: after a rename it follows the new name, so that Claude reads the current one, and that is line 75 of section 7. Damon approved the plan's way: the label follows a rename while the target is in the model, and stays as it last was once the target is gone. The contract's text is not edited; this item is where its sentence is read.
+4. **With no file open, a key says nothing** (section 2). A page with no file has no actions to refuse, so criterion 6 does not ask for a sentence there.
+5. **Three behaviours that differ from the old page: approved.** Deleting something keeps the notes on it (departure 5). The Delete key does not delete a view; a button of Details does (departure 6). There is no Note tool; a note is added by a right-click or from the Notes panel (departure 6). With these goes departure 1, the gesture of Grasp's own for drawing and moving a line, which Damon approved with the plan.
 
 ### What is not proved
 

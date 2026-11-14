@@ -103,6 +103,20 @@ Damon's three choices: React Flow's mark is hidden on the planes and credited in
 
 One departure from "What was checked": Dockview is pinned at 8.9.0, not 8.8.3, for all three of its packages, because `dockview-react` 8.8.3 now installs the 8.9.0 core.
 
+## Decided for slice 2
+
+Slice 2's plan, `plan/slice-2.md`, approved by Damon on November 14, 2026, settles what this document and `plan/architecture.md` leave open for the slice. In short, with the reasons in that plan's sections 2 and 12:
+
+- **The sequence view and the geometry view are React Flow nodes and edges**, as the four graph kinds are. Two probes built both ways for each and answered the same (`plan/spikes/sequence/`, `plan/spikes/geometry/`).
+- **A line is drawn and reconnected by a gesture of Grasp's own**, on handles of its own, and not by React Flow's connecting, which decision 2 names. React Flow puts its reconnect anchors at its own edge ends, and the page's lines route their own. What a person gets is what decision 2 says: handles on a node, a menu when more than one kind fits, an end dragged to another node.
+- **Every command is a row of one action table**, asked in one way, and a refusal is always a sentence.
+- **Notes are kept when what they are on is deleted**, and found again when Undo brings it back. A "defined by" line drawn again keeps its id, so its notes stay on it.
+- **The Notes panel is on the left strip.** A note is added by a right-click or from the panel. There is no Note tool.
+- **New view is a button at the end of the tab bar; Delete view is a button of Details.** The Delete key does not delete a view.
+- **A box dropped into another owner is one undo step** with its move.
+- **Six things the old page does are left out of the slice**, each approved by name: the page keeping the work in this browser by itself; the window's place and zoom remembered across a reload; the claude.ai store and its read-only states; following the system's dark setting; the layout for a narrow window; driving the drawing by touch.
+- **The feature packages are built in two rounds**, the four new view kinds after the rest.
+
 ## What is dropped, and what survives of Grasp
 
 Readers sorted every one of the 620 port entries by the need it serves and by what would most plausibly provide it under this plan; `scope.md` lists them. The counts:
@@ -134,7 +148,7 @@ Each of these is found out at the start of the slice that depends on it, and eac
 - **OpenSysML's module on Damon's machine.** WebAssembly runs there at compiled speed, so the module very likely runs; how long the real module takes to load and parse there is unmeasured. Measured at the start of the fourth slice; if it is too slow, text import falls back to Claude's side, where the same module runs in Node.
 - **The module's kind vocabulary.** How its kinds (`partUsage`, an `actionUsage` for a transition) map onto metaclass names, settled by the round-trip test over every fixture.
 - **What the module flags that the pilot accepts.** It agrees with the pilot's corpus on 522 of 924 files; its diagnostics in the page are a second opinion until the round trips show where they differ, and the pilot stays the authority.
-- **Sequence and geometry views.** Whether React Flow nodes serve them or custom SVG inside the tab does; a day's probe per view kind in the second slice decides.
+- **Sequence and geometry views.** Answered at the start of the second slice (`plan/notes.md`, session 30): React Flow nodes and edges serve both. Each probe built React Flow nodes and one SVG component on one layout function and drove both with real pointer events: 79 of 79 checks for the sequence view, 143 of 143 for the geometry view, with nothing of React Flow patched. The SVG component was half the code in both, and faster: about twice in a step of the sequence view's drags and in the geometry view's first mount. It would have had to build the camera's controls, the marquee, the right-click and the connecting again.
 
 ## The fourteen decisions of the strategies document, under the cut
 

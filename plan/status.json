@@ -19,9 +19,9 @@
       ]
     },
     {
-      "id": 2, "name": "Editing parity", "status": "open",
-      "plan": "plan/slice-2.md", "criteria": "plan/slice-2.md, section 10", "package": "2-0",
-      "note": "session 30: the plan is written and waits for Damon's approval; nothing of the slice is built. The two probes are answered: a graph body for the sequence view and for the geometry view (plan/spikes/sequence/README.md, plan/spikes/geometry/README.md). Package 2-1, the scaffold, starts once the plan is approved; it writes the twelve checks of plan/slice-2.md, section 9, as tests and lists them here."
+      "id": 2, "name": "Editing parity", "status": "in progress",
+      "plan": "plan/slice-2.md", "criteria": "plan/slice-2.md, section 10", "package": "2-0", "next_package": "2-1",
+      "note": "session 30: package 2-0 is done. Damon approved the plan on November 14, 2026, with its five points as the plan has them (plan/slice-2.md, section 12). The two probes are answered: a graph body for the sequence view and for the geometry view (plan/spikes/sequence/README.md, plan/spikes/geometry/README.md). Nothing of the slice is built. Package 2-1, the scaffold, is next; it writes the twelve checks of plan/slice-2.md, section 9, as tests and lists them here, seven of them todo."
     },
     { "id": 3, "name": "The workspace folder and the loop through GitHub", "status": "open" },
     { "id": 4, "name": "Every concept, in the standard form", "status": "open" },

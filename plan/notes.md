@@ -4065,7 +4065,7 @@ Damon answered the plan's questions; `plan/architecture.md`, sections 8 and 9, h
 
 So the plan's departures and questions are closed. The next step is `plan/slice-2.md`.
 
-## Session 30, November 14, 2026: slice 2 planned, its two probes answered; nothing built yet
+## Session 30, November 14, 2026: slice 2 planned and approved, its two probes answered; nothing built yet
 
 On `claude/bold-sagan-bsllj2`, from `a0239de` (main, with pull request #57 merged). Damon's word: lead slice 2;
 write its design, `plan/slice-2.md`, run the two probes, and build the scaffold, package 2-1, once he has approved the
@@ -4074,9 +4074,9 @@ archived by package 2-15 at the slice's end, which this session designs and does
 list takes the place of package 2-14's table of the 33 old test files. The lead is Claude; agents beside it, seven,
 each on the session's own model: two probes, two readers of the old page, three reviewers of one brief each.
 
-**No code of the page changed, and the plan is not approved yet.** The session wrote `plan/slice-2.md`, the two
-probes' folders, one row of `plan/architecture.md`, `plan/status.json`, two paragraphs of `plan/spikes/README.md` and
-this entry. The scaffold starts when Damon approves the plan.
+**No code of the page changed.** The session wrote `plan/slice-2.md`, the two probes' folders, one row of
+`plan/architecture.md`, `plan/status.json`, two paragraphs of `plan/spikes/README.md` and this entry. Damon approved the
+plan the same day (below), and asked the session to record that and stand by: the scaffold is not begun.
 
 ### The baseline
 
@@ -4195,10 +4195,32 @@ hand have not run in the page, and the four limits with slice 2's additions are 
 session's stop hook asks that no untracked file be left, and the probes' agents were still writing. The commit after
 it holds their final state.
 
+### Damon's approval, the same day
+
+Damon read the report of commit `800cc82` and answered: "Approved, all five as you have them. Update the repo and
+standby." The five, as `plan/slice-2.md`, section 12, now records them:
+
+1. **The plan is approved.** The scaffold can start.
+2. **Six capabilities of the old page are left out, each by name**: the page keeping the work in this browser by
+   itself; the window's place and zoom remembered across a reload; the claude.ai store and its read-only states;
+   following the system's dark setting; the layout for a narrow window; driving the drawing by touch.
+3. **A note's label follows a rename, as on the old page**, though contract 9's record says "as it was when the note
+   was written". `plan/architecture.md` is not edited for it: the plan's section 12 is where that sentence is read.
+4. **With no file open, a key says nothing.**
+5. **Three behaviours differ from the old page**: deleting something keeps its notes; the Delete key does not delete
+   a view; there is no Note tool.
+
+What the approval changed in the repository: the plan's opening, its section 7 ("Left out, approved by Damon by
+name") and its section 12 ("What Damon decided"); `plan/direction.md`, which gains "Decided for slice 2" and whose
+open question on the sequence and geometry views is answered; `plan/status.json`, where slice 2 is "in progress" with
+package 2-0 done; and the README's "Next". **On Damon's word the session stood by after that**: package 2-1 is not
+begun. `plan/REPO_MAP.md` was not drawn again: no code of the page changed, and the map would only gain the probes'
+scripts.
+
 ### For the next session
 
-- **Damon's approval of `plan/slice-2.md`**: the plan; six capabilities of the old page to leave out, by name (section
-  7); one sentence of contract 9 about a note's label; what a key does with no file open; and the three departures
-  that change how the page behaves (section 12).
-- **Then package 2-1, the scaffold**, alone, as its brief says (section 8). It ends in one commit that passes
+- **Package 2-1, the scaffold**, alone, as its brief says (`plan/slice-2.md`, section 8), when Damon says go. It starts
+  as every slice starts (`npm ci`, `npm run check`, `npm test`), and ends in one commit that passes
   `npm ci && npm run check && npm test` by itself, with `# todo 7` and seven checks `"todo"` in `plan/status.json`.
+- **Its first hour** should build the grips and try a press on one in the page, and measure the four limits with the
+  grips mounted: the plan's one unproved technique and its one unmeasured cost (section 12, "What is not proved").
