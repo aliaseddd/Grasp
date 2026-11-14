@@ -4,6 +4,8 @@ Drawn by [aider](https://aider.chat) 0.86.2 with `aider --show-repo-map` on Nove
 
 The map is what an AI pair programmer sees of this repository before it opens a file. Read it as a table of contents: the new page's TypeScript in `canvas/app/`, the old page's scripts and the model library in `canvas/src/`, the tests in `canvas/test/` and `canvas/app/test/`, and the SysML scripts in `docs/sysml/`. The built pages (`canvas/index.html`, `canvas/dist/`) are generated, and aider doesn't read their inline or bundled scripts. Stronghold's code, which this repository held until November 7, is in the Stronghold repository now; its map from then is in this file's history.
 
+It is one of the project state documents: read it with `status.json` (where the work stands) and `notes.md` (what the last session left), and use it to find the file to open. It lists code only; the plan and the decisions are in `direction.md` and `slice-1.md`.
+
 To redraw it after changes, from the repository root (aider needs a model name to start, but drawing the map makes no API call). aider maps the files of the last commit, not staged changes, so commit first:
 
 ```sh
