@@ -1,0 +1,28 @@
+/* What both candidates share: the page's colours (canvas/app/src/shell/theme.ts), the host, and the markers. */
+:root {
+  --grasp-ink: #182630;
+  --grasp-teal: #176B61;
+  --grasp-teal-soft: #E7F1EF;
+  --grasp-ground: #EEF2F4;
+  --grasp-white: #FFFFFF;
+  --grasp-dots: #B9C3CB;
+  --grasp-line: #E2E7EB;
+  --grasp-line-strong: #B4BFC8;
+  --grasp-text-secondary: #5B6973;
+  --grasp-problem: #B3261E;
+  --grasp-font-family: Roboto, Arial, sans-serif;
+}
+html, body { margin: 0; height: 100%; overflow: hidden; font-family: var(--grasp-font-family); color: var(--grasp-ink); }
+#host { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; background: var(--grasp-ground); }
+.seq-markers { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+.seq-marker-closed { fill: var(--grasp-white); stroke: context-stroke; stroke-width: 1.25; stroke-linejoin: round; }
+.seq-marker-open { fill: none; stroke: context-stroke; stroke-width: 1.25; stroke-linejoin: round; }
+/* A React Flow plane in the page's colours, and a frame on it (slice 3): a white sheet under a title to drag it by. */
+.seq-plane { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.seq-plane .react-flow {
+  --xy-background-color: var(--grasp-ground);
+  --xy-background-pattern-dots-color: var(--grasp-dots);
+  font-family: var(--grasp-font-family);
+}
+.seq-frame { width: 100%; height: 100%; box-sizing: border-box; background: var(--grasp-white); border: 1px solid var(--grasp-line-strong); }
+.seq-frame-title { height: 28px; box-sizing: border-box; line-height: 27px; padding: 0 10px; font-size: 13px; background: var(--grasp-teal-soft); border-bottom: 1px solid var(--grasp-line-strong); cursor: grab; }

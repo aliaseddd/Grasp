@@ -1,0 +1,60 @@
+/* The spike's look, for both candidates: the same ink, the same sizes, so that the two screenshots compare. */
+:root { --ink: #1f2933; --grey: #5b6770; --teal: #0e7c7b; --ground: #f5f6f7; --white: #fff; --red: #b3261e; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body { font: 12px/15px Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--ink); }
+#host { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.geo-host { display: block; width: 100%; height: 100%; background: var(--ground); user-select: none; }
+.editor { position: fixed; box-sizing: border-box; margin: 0; padding: 0; border: 1px solid var(--teal); font: inherit; z-index: 10; }
+
+/* The axes and the scale bar: the same SVG in both. */
+.geo-axes { pointer-events: none; }
+.geo-axis { fill: none; stroke: var(--ink); stroke-width: 1; stroke-opacity: 0.6; }
+.geo-arrow { fill: var(--ink); fill-opacity: 0.6; }
+.geo-origin { fill: var(--ink); fill-opacity: 0.6; }
+.geo-label { font: italic 400 11.5px Roboto, Arial, sans-serif; fill: var(--ink); fill-opacity: 0.7; }
+.geo-scale { font: 400 10.5px ui-monospace, Menlo, monospace; fill: var(--ink); fill-opacity: 0.7; }
+
+/* A footprint's outline: SVG in both. */
+.outline { fill: var(--white); stroke: var(--ink); stroke-width: 1; }
+.no-shape .outline { stroke-dasharray: 5 3; stroke-opacity: 0.7; }
+.selected > .outline, .selected > .foot-shape > .outline { stroke: var(--teal); stroke-width: 2.5; }
+
+/* ---- Candidate B: one <svg>. */
+.geo-body { touch-action: none; }
+.geo-body.fixed { background: none; overflow: visible; }
+.geo-body .footprint text { font: 12px Roboto, "Helvetica Neue", Arial, sans-serif; fill: var(--ink); }
+.geo-body .kw { fill: var(--grey); }
+.geo-body .footprint .geo-dims { font: 11px ui-monospace, Menlo, monospace; fill-opacity: 0.8; }
+.geo-body .no-shape .geo-dims { font: italic 11px Roboto, Arial, sans-serif; fill-opacity: 0.6; }
+.geo-body .pin, .geo-body .badge { cursor: pointer; }
+.geo-body .pin circle { fill: var(--teal); stroke: var(--white); stroke-width: 2; }
+.geo-body .pin.is-free circle { fill: var(--white); stroke: var(--teal); }
+.geo-body .badge rect { fill: var(--red); stroke: var(--white); stroke-width: 2; }
+.geo-body .pin text, .geo-body .badge text { fill: var(--white); font: 600 11px/1 Roboto, Arial, sans-serif; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.geo-body .pin.is-free text { fill: var(--teal); }
+
+/* ---- Candidate A: React Flow's nodes. A node's own element takes no pointer (its `style`); what is drawn in it does. */
+.graph-body .react-flow { --xy-background-color: var(--ground); }
+.graph-body .geo-node { font: 12px/15px Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--ink); user-select: none; }
+.graph-body .footprint { position: relative; width: 100%; height: 100%; }
+.graph-body .foot-shape, .graph-body .axes-shape { position: absolute; left: 0; top: 0; overflow: visible; }
+.graph-body .outline { pointer-events: auto; }
+.graph-body .css-outline { position: absolute; left: 0; top: 0; box-sizing: border-box; background: var(--white); border: 1px solid var(--ink); }
+.graph-body .words { position: absolute; white-space: nowrap; pointer-events: auto; }
+.graph-body .words.inside { left: 12px; top: 5px; }
+.graph-body .words.below { left: 50%; top: 100%; margin-top: 4px; transform: translateX(-50%); text-align: center; }
+.graph-body .kw { color: var(--grey); }
+.graph-body .geo-dims { font: 11px/15px ui-monospace, Menlo, monospace; opacity: 0.8; }
+.graph-body .no-shape .geo-dims { font: italic 11px/15px Roboto, Arial, sans-serif; opacity: 0.6; }
+.graph-body .pin, .graph-body .badge {
+  position: absolute; top: -9px; width: 18px; height: 18px; margin-left: -9px; box-sizing: border-box; border-radius: 9px;
+  border: 2px solid var(--white); background: var(--teal); color: var(--white); font: 600 11px/14px Roboto, Arial, sans-serif;
+  text-align: center; cursor: pointer; pointer-events: auto;
+}
+.graph-body .badge { top: -8px; width: 16px; height: 16px; margin-left: -8px; border-radius: 4px; background: var(--red); line-height: 12px; }
+.graph-body .pin.is-free { position: static; display: block; margin: 0; background: var(--white); border-color: var(--teal); color: var(--teal); }
+
+/* ---- The nest page: frames on a plane. */
+.frame { box-sizing: border-box; width: 100%; height: 100%; border: 1px solid #9aa5b1; background: var(--ground); }
+.frame-title { height: 24px; padding: 0 8px; font: 600 12px/24px Roboto, Arial, sans-serif; background: #e4e7eb; cursor: grab; }
+.frame-body { position: absolute; left: 0; top: 24px; right: 0; bottom: 0; }
