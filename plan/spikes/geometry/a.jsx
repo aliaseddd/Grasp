@@ -9,7 +9,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyn
 import { Background, BackgroundVariant, Controls, ReactFlow, useReactFlow, useStore } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Axes, AxisMarker } from './axes.jsx';
-import { AXIS, CLICK_DISTANCE, barFor } from './layout.js';
+import { AXIS, CLICK_DISTANCE, barFor, drawnBox } from './layout.js';
 
 // ---- The projection: the layout as React Flow's nodes.
 
@@ -17,15 +17,19 @@ import { AXIS, CLICK_DISTANCE, barFor } from './layout.js';
 const PASS = { pointerEvents: 'none' };
 const NONE = [];
 const AXES_PAD = 16;
-const DATA_KEYS = ['el', 'shape', 'w', 'h', 'inside', 'keyword', 'name', 'text', 'toScale', 'badge', 'pins', 'picked', 'no', 'bar', 'scale', 'unit'];
+const DATA_KEYS = ['el', 'shape', 'w', 'h', 'ox', 'oy', 'inside', 'keyword', 'name', 'text', 'toScale', 'badge', 'pins', 'picked', 'no', 'bar', 'scale', 'unit'];
 const sameData = (a, b) => DATA_KEYS.every((k) => a[k] === b[k]);
 
 /**
  * The view as React Flow's nodes: a footprint, then what it holds, then the axes, then the free notes' pins.
- * - A footprint's node is its rectangle (a circle's is its bounding square). Its `position` is its rectangle's corner
- *   from its owner's rectangle's corner (React Flow's parent-relative place), which the layout works out from the
- *   owner's origin (its bottom-left corner, or a round owner's centre) and y up.
+ * - A footprint's node is the rectangle around everything it draws (drawnBox: its outline, its marks, its words below
+ *   it), so that React Flow, which mounts a node only while its rectangle is in sight when onlyRenderVisibleElements
+ *   is on, keeps the words of a footprint whose outline has left the plane. The outline stands at data.ox, data.oy in
+ *   it. With window.SPIKE_BOX_FOOT the node is the outline's rectangle alone, to show what that does.
+ * - Its `position` is its node's corner from its owner's node's corner (React Flow's parent-relative place), which
+ *   the layout works out from the owner's origin (its bottom-left corner, or a round owner's centre) and y up.
  * - `zIndex` is the place in the drawing order, so that what the layout draws later lies on top, as footAt() says.
+ *   (window.SPIKE_NO_Z leaves it out, and window.SPIKE_NO_PASS the `style` below, to show what each is for.)
  * - `selected` is React Flow's own field, as the page's store sets it. With window.SPIKE_PICK_IN_DATA the pick goes
  *   into the node's `data` instead and `selected` stays false, so that React Flow never raises a picked footprint.
  * - A node that reads the same as in `previous` is the same object; one that only moved keeps its `data`.
@@ -52,21 +56,24 @@ export function project(snapshot, previous, frame) {
     if (!previous || previous[nodes.length] !== node) same = false;
     nodes.push(node);
   };
+  const boxes = new Map();
   L.feet.forEach((foot, i) => {
-    const owner = foot.parent === null ? null : L.byId.get(foot.parent);
+    const box = window.SPIKE_BOX_FOOT ? foot : drawnBox(foot);
+    boxes.set(foot.id, box);
+    const owner = foot.parent === null ? null : boxes.get(foot.parent);
     put({
       id: prefix + foot.id,
       type: 'foot',
-      position: owner ? { x: foot.x - owner.x, y: foot.y - owner.y } : { x: foot.x + dx, y: foot.y + dy },
-      parentId: owner ? prefix + owner.id : top,
-      width: foot.w,
-      height: foot.h,
-      measured: { width: foot.w, height: foot.h },
-      zIndex: i + 1,
-      style: PASS,
+      position: owner ? { x: box.x - owner.x, y: box.y - owner.y } : { x: box.x + dx, y: box.y + dy },
+      parentId: owner ? prefix + foot.parent : top,
+      width: box.w,
+      height: box.h,
+      measured: { width: box.w, height: box.h },
+      zIndex: window.SPIKE_NO_Z ? undefined : i + 1,
+      style: window.SPIKE_NO_PASS ? undefined : PASS,
       selected: !window.SPIKE_PICK_IN_DATA && selection.has(foot.id),
       className: 'geo-node',
-      data: { el: foot.id, shape: foot.shape, w: foot.w, h: foot.h, inside: foot.inside, keyword: foot.keyword, name: foot.name, text: foot.text, toScale: foot.toScale, badge: marks.badges[foot.id] || 0, pins: marks.pins[foot.id] || NONE, picked: !!window.SPIKE_PICK_IN_DATA && selection.has(foot.id) },
+      data: { el: foot.id, shape: foot.shape, w: foot.w, h: foot.h, ox: foot.x - box.x, oy: foot.y - box.y, inside: foot.inside, keyword: foot.keyword, name: foot.name, text: foot.text, toScale: foot.toScale, badge: marks.badges[foot.id] || 0, pins: marks.pins[foot.id] || NONE, picked: !!window.SPIKE_PICK_IN_DATA && selection.has(foot.id) },
     });
   });
   const size = { width: AXIS + AXES_PAD + 80, height: AXIS + AXES_PAD + 32 };
@@ -158,13 +165,15 @@ export function sideOf(store, frame) {
 /**
  * A footprint: its outline as SVG, its two lines of words, its marks on its top edge. SVG, because a circle needs it for
  * its hit area, and because the size of a box drawn by CSS (as BoxNode's is) is rounded to whole px of the view before
- * the plane's zoom, so it is not to scale: run.cjs measures both (window.SPIKE_CSS_OUTLINE draws the CSS box).
+ * the plane's zoom, so it is not to scale: run.cjs measures both (window.SPIKE_CSS_OUTLINE draws the CSS box). For
+ * the same reason the outline is put at data.ox, data.oy in its node by a transform, not by left and top: a place
+ * given by CSS layout is rounded to whole px too (window.SPIKE_PLACE_BY_LAYOUT shows it: 1.2 px off at zoom 4).
  */
 const Foot = memo(function Foot({ data, selected }) {
   const { w, h } = data;
   const mark = data.shape === 'circle' ? w / 2 : w - 12;
   return (
-    <div className={'footprint' + (data.toScale ? '' : ' no-shape') + (selected || data.picked ? ' selected' : '')} data-el={data.el}>
+    <div className={'footprint' + (data.toScale ? '' : ' no-shape') + (selected || data.picked ? ' selected' : '')} data-el={data.el} style={window.SPIKE_PLACE_BY_LAYOUT ? { left: data.ox, top: data.oy, width: w, height: h } : { transform: `translate(${data.ox}px,${data.oy}px)`, width: w, height: h }}>
       {window.SPIKE_CSS_OUTLINE && data.shape === 'rect'
         ? <div className="outline css-outline" style={{ width: w, height: h }} />
         : (

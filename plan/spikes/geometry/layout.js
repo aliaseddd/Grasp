@@ -133,16 +133,29 @@ export function layOut(read, moves, previous) {
     else same = false;
     byId.set(part.id, foot);
     feet.push(foot);
-    // A small footprint carries its two lines below itself, centred on it: room for them below, and to either side
-    // by about what the longer line needs, 6.6 px a character.
-    const half = foot.inside ? 0 : Math.max((foot.keyword + foot.name).length, foot.text.length) * 3.3;
-    x1 = Math.min(x1, foot.x, foot.x + foot.w / 2 - half);
+    const all = drawnBox(foot);
+    x1 = Math.min(x1, all.x);
     y1 = Math.min(y1, foot.y);
-    x2 = Math.max(x2, foot.x + foot.w, foot.x + foot.w / 2 + half);
-    y2 = Math.max(y2, foot.y + foot.h + (foot.inside ? 0 : 34));
+    x2 = Math.max(x2, all.x + all.w);
+    y2 = Math.max(y2, all.y + all.h);
   });
   if (same) return previous;
   return { read, view: read.view, scale: read.scale, unit: read.unit, origin: o, axis: AXIS, bar: read.bar, feet, byId, bounds: { x: x1, y: y1, w: x2 - x1, h: y2 - y1 } };
+}
+
+/** How far a footprint's marks stand above its top edge. */
+export const MARK_ROOM = 10;
+
+/**
+ * The rectangle around everything a footprint draws: its outline, its marks above its top edge, and, for a small
+ * footprint, its two lines of words below it, centred on it: 34 px below, and to either side by about what the longer
+ * line needs, 6.6 px a character (the old page's measure).
+ */
+export function drawnBox(foot) {
+  const half = foot.inside ? 0 : Math.max((foot.keyword + foot.name).length, foot.text.length) * 3.3;
+  const x = Math.min(foot.x, foot.x + foot.w / 2 - half);
+  const x2 = Math.max(foot.x + foot.w, foot.x + foot.w / 2 + half);
+  return { x, y: foot.y - MARK_ROOM, w: x2 - x, h: foot.h + MARK_ROOM + (foot.inside ? 0 : 34) };
 }
 
 /** What lies at a point of the view: the id of the topmost footprint there, or null for the ground. */

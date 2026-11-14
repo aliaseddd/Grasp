@@ -618,30 +618,41 @@ async function panSteps(page, which) {
   return { total: median(steps.map((t) => t.total)), frame: median(steps.map((t) => t.frame)), worst: Math.max(...steps.map((t) => t.total)), mounted: await page.evaluate(() => document.querySelectorAll('[data-el]').length), zoom: (await state(page)).cam.zoom };
 }
 
-// ---- Candidate A only: ways it was tried to break.
+// ---- Candidate A only: the ways it was tried to break, each with the setting that breaks it and the one that does not.
 
 async function onlyA(browser, helper) {
+  // A node whose own element takes the pointer, as every node of the page does today; and nodes with no zIndex.
+  let page = await open(browser, 'a', '?show=none&pass=0');
+  await fresh(page, 'room');
+  const corner = await click(page, view(2.2 + 0.8, 4.3 + 0.8));
+  check('a', 3, 'DEFECT if a footprint\'s node takes the pointer itself (no `style` that passes it on): a click in the corner of a circle\'s bounding square, outside the circle, is what lies under it (the room)', corner.hit && corner.hit.id === 'room', corner.hit ? `it counts as ${corner.hit.id}` : 'no hit');
+  await page.close();
+  page = await open(browser, 'a', '?show=none&z=none');
+  await fresh(page, 'room');
+  const over = await click(page, view(6.75, 0.75));
+  check('a', 3, 'DEFECT if the nodes carry no zIndex: a footprint drawn later lies on top of another one\'s part (the rug over the cabinet)', over.hit && over.hit.id === 'rug', over.hit ? `a click on the rug where it lies over the cabinet hits ${over.hit.id}: React Flow puts what a footprint holds above every footprint that is not held` : 'no hit');
+  await page.close();
   // 1. A snap grid on the plane.
-  let page = await open(browser, 'a', '?show=none&snap=10');
+  page = await open(browser, 'a', '?show=none&snap=10');
   const snapped = await drops(page, 'a', { zooms: [1], count: 10 });
   numbers.a.snapGridDropError = snapped.reported;
   check('a', 5, 'DEFECT if the plane had a snap grid (snapToGrid with a grid of 10 px, which the page does not set): a drop is reported within half the rounding step of where the pointer let go', snapped.reported <= 0.0005 + 1e-9, `the reported position is up to ${fix(snapped.reported, 4)} m from the drop; without a grid, ${fix(numbers.a.drop.reported, 5)} m`);
   await page.close();
-  // 2. onlyRenderVisibleElements, which the page sets for a view of more than 300 nodes: a footprint just off the
-  //    plane's edge is not drawn, and its words, which would be in sight, go with it.
-  page = await open(browser, 'a');
-  for (const cull of [false, true]) {
-    await fresh(page, 'room', { cull });
-    // The drum's circle ends 3 px above the plane's top edge; its two lines of words would be inside the plane.
+  // 2. onlyRenderVisibleElements, which the page sets for a view of more than 300 nodes: React Flow then mounts a node
+  //    only while its rectangle is in sight. With the node the outline's rectangle alone (?box=foot), a footprint just
+  //    off the plane's edge takes its words with it, which would be in sight. As built, the node covers the words.
+  for (const query of ['?show=none&box=foot', '?show=none']) {
+    page = await open(browser, 'a', query);
+    await fresh(page, 'room', { cull: true });
+    // The drum's circle ends 3 px above the plane's top edge; its two lines of words are inside the plane.
     await page.evaluate(() => window.spike.setCamera({ x: 200, y: -21, zoom: 1 }));
     await frame(page);
-    const seen = await page.evaluate(() => { const w = document.querySelector('[data-el="drum"] .uname'); const r = w && w.getBoundingClientRect(); return { drawn: !!w, top: r ? r.y : null }; });
-    if (!cull) check('a', 1, 'a footprint just outside the plane\'s edge keeps its words, which are in sight (onlyRenderVisibleElements off, as for a view of up to 300 nodes)', seen.drawn && seen.top > 0, `words drawn at ${fix(seen.top, 1)} px from the top edge`);
-    else {
-      numbers.a.cullHidesWords = !seen.drawn;
-      check('a', 1, 'DEFECT with onlyRenderVisibleElements on (the page\'s setting above 300 nodes): the words of a footprint just outside the edge stay drawn', seen.drawn, seen.drawn ? 'drawn' : 'the footprint\'s node is not mounted, so its words, 4 to 34 px inside the plane, are not drawn');
-    }
+    const seen = await page.evaluate(() => { const w = document.querySelector('[data-el="drum"] .uname'); const r = w && w.getBoundingClientRect(); return { drawn: !!w, top: r ? r.y : null, mounted: document.querySelectorAll('[data-el]').length }; });
+    if (query.includes('box=foot')) check('a', 1, 'DEFECT if a footprint\'s node is its outline\'s rectangle alone, with onlyRenderVisibleElements on (the page\'s setting above 300 nodes): the words of a footprint just outside the plane\'s edge stay drawn', seen.drawn, seen.drawn ? 'drawn' : 'the footprint\'s node is not mounted, so its words, 4 to 34 px inside the plane, are not drawn');
+    else check('a', 1, 'with onlyRenderVisibleElements on (the page\'s setting above 300 nodes), a footprint whose outline is just outside the plane\'s edge keeps its words, which are in sight: its node is the rectangle around all it draws', seen.drawn && seen.top > 0, `words drawn ${fix(seen.top, 1)} px inside the top edge; ${seen.mounted} of 12 footprints mounted`);
+    await page.close();
   }
+  page = await open(browser, 'a');
   // 3. elevateNodesOnSelect, React Flow's default, which the page's plane does not turn off.
   await fresh(page, 'room', { elevate: true });
   await page.evaluate(() => { window.spike.store.onHit = null; window.spike.store.select(['room']); });
@@ -680,6 +691,17 @@ async function onlyA(browser, helper) {
   }
   numbers.a.cssOutlinePx = fix(worst, 2);
   check('a', 2, 'DEFECT if a footprint\'s outline is a CSS box on an element (as BoxNode draws a box) and not SVG: it stays to scale at every zoom', worst < 0.5, `its size is rounded to whole px of the view before the plane's zoom: largest edge error ${fix(worst, 2)} px (${detail.join('; ')})`);
+  await page.close();
+  // The same rounding for a place: the outline put in its node by left and top instead of a transform.
+  page = await open(browser, 'a', '?show=none&place=layout');
+  await fresh(page, 'room');
+  let off = 0; const places = [];
+  for (const zoom of [1, 2, 4]) {
+    const m = await painted(page, helper, 'room.table.vase', zoom);
+    off = Math.max(off, Number.isNaN(m.worst) ? 99 : m.worst);
+    places.push(`at ${zoom}: edges off by ${m.errors.join(' ')} px`);
+  }
+  check('a', 2, 'DEFECT if a footprint\'s outline is put in its node by CSS left and top and not by a transform: it stays in place at every zoom', off < 0.5, `its place is rounded to whole px of the view before the plane's zoom: the vase's edges are off by up to ${fix(off, 2)} px (${places.join('; ')})`);
   await page.close();
   // 5. The marquee, which the plane has from React Flow: Shift and a drag, begun on the ground and begun on a footprint.
   page = await open(browser, 'a');
@@ -879,12 +901,14 @@ async function nest(browser) {
   await nest(browser);
   await browser.close();
 
-  let failed = 0;
+  let failed = 0; let shown = 0;
   for (const c of ['a', 'b']) {
     console.log(`\n== Candidate ${c.toUpperCase()}: ${c === 'a' ? 'a graph body (React Flow)' : 'a component body (one SVG)'} ==`);
     for (const r of rows.filter((x) => x.c === c).sort((x, y) => x.item - y.item)) {
-      if (!r.ok) failed++;
-      console.log(`${r.ok ? 'pass' : 'FAIL'}  ${r.item ? 'item ' + String(r.item).padStart(2) : '       '}  ${r.name}${r.detail ? '\n               ' + r.detail : ''}`);
+      const defect = r.name.startsWith('DEFECT');
+      if (!r.ok && defect) shown++;
+      if (!r.ok && !defect) failed++;
+      console.log(`${r.ok ? 'pass' : defect ? 'SHOWN' : 'FAIL'}  ${r.item ? 'item ' + String(r.item).padStart(2) : '       '}  ${r.name}${r.detail ? '\n               ' + r.detail : ''}`);
     }
   }
   console.log('\n== Measurements ==');
@@ -899,15 +923,16 @@ async function nest(browser) {
     if (n.mount500AllMounted) console.log(`  500 footprints with onlyRenderVisibleElements off: ${ms(n.mount500AllMounted)}`);
     console.log(`  one step of a drag of an owner with its 9 parts, 500 footprints at the fit, median of 30: ${step(n.steps)}`);
     console.log(`  the same at zoom 1: ${step(n.stepsNear)}`);
-    console.log(`  one step of a pan by the wheel, 500 footprints at the fit: ${step(n.pan)}`);
+    if (n.stepsAllMounted) console.log(`  the same at the fit with onlyRenderVisibleElements off: ${step(n.stepsAllMounted)}`);
+    console.log(`  one step of a pan by the wheel, 500 footprints at the fit: ${step(n.pan).replace('pointermove', 'wheel')}`);
     console.log(`  beyond the brief, 5,000 footprints (500 owners of 9 parts): mount ${ms(n.mount5000)}`);
     console.log(`    a step of the drag: ${step(n.steps5000)}`);
-    console.log(`    a step of a pan: ${step(n.pan5000)}`);
-    if (n.stepsAllMounted) console.log(`  the same at the fit with onlyRenderVisibleElements off: ${step(n.stepsAllMounted)}`);
+    console.log(`    a step of a pan: ${step(n.pan5000).replace('pointermove', 'wheel')}`);
     console.log(`  drop error over ${n.drop.count} drops at zooms 0.5, 1, 2: reported against the pointer ${n.drop.reported.toExponential(2)} m (per zoom ${Object.entries(n.drop.perZoom).map(([z, v]) => z + ': ' + v.toExponential(2)).join(', ')}; the part in mm ${fix(n.drop.reportedMm, 3)} mm); drawn against reported ${n.drop.drawn.toExponential(1)} m`);
     console.log(`  painted outline against its place, zooms 1, 2, 4: ${n.paintedPx} px`);
   }
   console.log(`\n  A with a snap grid of 10 px: drop error ${fix(numbers.a.snapGridDropError, 4)} m`);
   console.log(`  A with a CSS-border outline: painted edge error ${numbers.a.cssOutlinePx} px`);
-  console.log(`\n${rows.length} checks, ${failed} failed. A check named DEFECT fails on purpose: it shows what a setting or a way of drawing does.`);
+  console.log(`\n${rows.length} checks: ${rows.length - failed - shown} pass, ${failed} fail, and ${shown} are named DEFECT and marked SHOWN: each reproduces, on purpose, what a setting or a way of drawing does that the candidate as built avoids.`);
+  process.exit(failed ? 1 : 0);
 })().catch((e) => { console.error(e); process.exit(1); });

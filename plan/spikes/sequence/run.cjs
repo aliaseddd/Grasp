@@ -567,9 +567,9 @@ async function crossing(browser, name, query, select = false) {
   return found;
 }
 
-async function connecting(browser) {
+async function connecting(browser, how = '1') {
   // React Flow's own connecting, from a handle to a handle: can it join an event and a lifeline's dashed line?
-  const page = await open(browser, 'a', '?connect=1');
+  const page = await open(browser, 'a', '?connect=' + how);
   await setCamera(page, { x: 90, y: 30, zoom: 0.8 });
   const out = [];
   const join = async (name, from, to, source, target) => {
@@ -732,26 +732,35 @@ const CANDIDATES = [
     console.log(['item', ...CANDIDATES.map((c) => c.key.toUpperCase())].join(' | '));
     items.forEach((item, i) => console.log([item, ...CANDIDATES.map((c) => { const list = Object.values(report[c.key])[i]; const bad = list.filter((x) => !x.pass).length; return bad ? `FAIL (${bad} of ${list.length})` : `pass (${list.length})`; })].join(' | ')));
     console.log('\n===== Tries to break candidate A =====');
+    console.log('The synthetic view with only what the window shows mounted (?cull=1), scrolled 2240 px down:');
     const tall = await culling(browser, '');
-    const heads = await culling(browser, '&heads=1');
-    console.log(`A lifeline's node as tall as the view, only what the window shows mounted, scrolled 2240 px down: ${tall.rowsDrawn} of ${tall.rows} rows in the window drawn, ${tall.linesDrawn} of ${tall.lines} dashed lines (${tall.nodes} nodes, ${tall.edges} edges mounted)`);
-    console.log(`A lifeline's node its head alone (?heads=1), the same: ${heads.rowsDrawn} of ${heads.rows} rows in the window drawn, ${heads.linesDrawn} of ${heads.lines} dashed lines (${heads.nodes} nodes, ${heads.edges} edges mounted)`);
+    const heads = await culling(browser, '&shape=heads');
+    for (const [title, c] of [['a lifeline as a head node and a line node as tall as the view', tall], ['a lifeline as its head node alone (?shape=heads)', heads]]) {
+      const pass = c.rowsDrawn === c.rows && c.linesDrawn === c.lines;
+      console.log(`${pass ? 'ok  ' : 'FAIL'}  ${title}: ${c.rowsDrawn} of ${c.rows} rows in the window drawn, ${c.linesDrawn} of ${c.lines} dashed lines (${c.nodes} nodes, ${c.edges} edges mounted)`);
+    }
     const several = await severalSelected(browser);
-    console.log(`A head dragged while its own lifeline, another lifeline and an event of it are selected: ${several.pass ? 'ok' : 'FAIL'}  [${several.note}]`);
+    console.log(`${several.pass ? 'ok  ' : 'FAIL'}  a head dragged while another lifeline and an event of that one are selected too  [${several.note}]`);
     for (const e of [...tall.errors, ...heads.errors]) errors.push('culling: ' + e);
     console.log('\n===== Where a lifeline\'s dashed line crosses the label of a message between two other lifelines, which is on top? =====');
     for (const [name, query, pick, title] of [
-      ['a', '&flat=1', false, 'A, edges at React Flow\'s own depth (?flat=1)'], ['a', '', false, 'A'], ['a', '', true, 'A, that lifeline selected'],
-      ['a', '&rows=nodes&cull=0', false, 'A with a message a node'], ['a', '&rows=nodes&cull=0', true, 'A with a message a node, that lifeline selected'],
-      ['b', '', false, 'B'], ['b', '', true, 'B, that lifeline selected'],
+      ['a', '&cull=0', false, 'A'], ['a', '&cull=0', true, 'A, that lifeline selected'], ['a', '&cull=0&frame=1', true, 'A in a frame, that lifeline selected'],
+      ['a', '&cull=0&flat=1', false, 'A, edges at React Flow\'s own depth (?flat=1)'], ['a', '&cull=0&frame=1&flat=1', false, 'A in a frame, edges at React Flow\'s own depth'],
+      ['a', '&cull=0&shape=tall', false, 'A, a lifeline one tall node (?shape=tall)'], ['a', '&cull=0&shape=tall', true, 'A, a lifeline one tall node, that lifeline selected'],
+      ['a', '&cull=0&shape=tall&flat=1', false, 'A, a lifeline one tall node, edges at React Flow\'s own depth'],
+      ['a', '&cull=0&rows=nodes', true, 'A with a message a node, that lifeline selected'],
+      ['b', '', true, 'B, that lifeline selected'],
     ]) {
       const c = await crossing(browser, name, query, pick);
-      console.log(`${title}: ${c ? `${c.top} (${c.message} over ${c.lifeline})` : 'no such crossing in the data'}`);
+      console.log(`${!c ? '    ' : c.top === 'the label' ? 'ok  ' : 'FAIL'}  ${title}: ${c ? `${c.top} is on top (${c.message} over ${c.lifeline})` : 'no such crossing in the data'}`);
     }
     console.log('\n===== What candidate A gets from React Flow: connecting by a drag from a handle (a.html?connect=1) =====');
     const joined = await connecting(browser);
     for (const x of joined.out) console.log(`${x.pass ? 'ok  ' : 'FAIL'}  ${x.name}  [${x.note}]`);
     for (const e of joined.errors) errors.push('connecting: ' + e);
+    // The page's inert handle kept beside the real ones: the same first drag.
+    const inert = await connecting(browser, 'inert');
+    console.log(`${inert.out[0].pass && !inert.errors.length ? 'ok  ' : 'FAIL'}  the same first drag with the page's inert handle kept in every node (?connect=inert)  [${inert.errors.length ? 'the page throws: ' + inert.errors[0].split('\n')[0] : inert.out[0].note}]`);
     console.log('\n===== A name too long for its head =====');
     for (const [name, query, title] of [['a', '', 'A'], ['b', '', 'B'], ['b', '&spill=1', 'B without its cut (?spill=1)']]) {
       const long = await longName(browser, name, query);
@@ -767,12 +776,14 @@ const CANDIDATES = [
     console.log(`Shared by both, not counted: layout.js ${linesOf(['layout.js']).code}, store.js ${linesOf(['store.js']).code}, markers.jsx ${linesOf(['markers.jsx']).code} lines of code`);
     const kb = (f) => Math.round(fs.statSync(path.join(HERE, 'dist', f)).size / 1024);
     console.log(`Bundles, minified: a.js ${kb('a.js')} kB (React, React DOM, React Flow), b.js ${kb('b.js')} kB (React, React DOM)`);
-    for (const [name, query, title] of [['a', '', 'A'], ['a', 'rows=nodes&cull=0', 'A with a message a node'], ['b', '', 'B']]) {
+    console.log(`Chromium ${browser.version()}, headless, window ${SIZE.width} by ${SIZE.height}, device scale 1`);
+    for (const [name, query, title] of [['a', 'cull=0', 'A, everything mounted'], ['a', 'cull=1', 'A, only what the window shows mounted'], ['a', 'rows=nodes&cull=0', 'A with a message a node, everything mounted'], ['b', '', 'B']]) {
       const fixture = await mountTimes(browser, name, query ? '?' + query : '');
       const big = await mountTimes(browser, name, '?data=synthetic&camera=20,20,1' + (query ? '&' + query : ''));
       console.log(`${title}: mount to the first painted frame: fixture ${ms(median(fixture))} ms (${fixture.map(ms).join(', ')}); 20 lifelines and 300 messages ${ms(median(big))} ms (${big.map(ms).join(', ')})`);
     }
-    for (const [name, query, title] of [['a', '', 'A'], ['a', '&cull=1', 'A, only what the window shows mounted (?cull=1)'], ['a', '&rows=nodes&cull=0', 'A with a message a node (?rows=nodes)'], ['b', '', 'B']]) {
+    for (const [name, query, title] of [['a', '&cull=0', 'A, everything mounted (?cull=0)'], ['a', '&cull=1', 'A, only what the window shows mounted (?cull=1; the page\'s rule for this view, which has more than 300 nodes)'],
+      ['a', '&rows=nodes&cull=0', 'A with a message a node, everything mounted (?rows=nodes&cull=0)'], ['b', '', 'B (everything mounted)']]) {
       const runs = [];
       for (let i = 0; i < 3; i++) runs.push(await stepTimes(browser, name, query));
       const of = (what, key) => ms(median(runs.map((r) => r[what][key])));

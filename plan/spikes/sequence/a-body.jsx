@@ -3,18 +3,23 @@
 // to React Flow as controlled props; a drag's steps are worked out by the store, and only its end writes.
 //
 // What the reader gives (`project` below, the `Projection` of contract 5):
-// - a lifeline is one node as tall as the view: the head, and the dashed line under it. The node's own element takes
-//   no pointer (the node's `style`); the head does. `?heads=1` makes the node the head alone, to show what that loses.
-// - an event is a 16 by 16 node, a child of its lifeline's node.
+// - a lifeline is two nodes. Its head is a node with the element's id, 180 by 60 as the layout says, which is what a
+//   person picks and drags. Its dashed line is a second node, `<id>:line`, as wide as the head and as tall as the
+//   view, under everything (`zIndex: -1`), which takes no pointer and is never selected or dragged.
+// - an event is a 16 by 16 node, a child of its lifeline's line node.
 // - a message is an edge from the node its line starts on to the node it ends on (an event's node, else the
-//   lifeline's), whose data holds how far under each node's top the line runs. A succession is an edge too. Both
-//   have `zIndex: 1`, so that they are drawn over the lifelines' nodes: React Flow draws an edge under every node
-//   otherwise, and a lifeline's dashed line then runs over the labels of the messages that cross it (`?flat=1`).
+//   lifeline's line node), whose data holds how far under each node's top the line runs. A succession is an edge too.
+//   Both have `zIndex: 1`.
 // - a free pin is a node that takes no pointer.
+//
+// The other shapes are kept to show what each loses (the README says what):
+//   ?shape=tall   a lifeline is one node as tall as the view, head and dashed line together, that takes no pointer but on its head
+//   ?shape=heads  a lifeline is one node, its head alone, with the dashed line drawn out of it
+//   ?flat=1       the edges keep React Flow's own depth, under every node
+//   ?rows=nodes   a message is a node as wide as its line and 16 high, so that React Flow's own node drag moves its row
 // `?frame=1` is the slice 3 case: every node is a child of one frame node.
-// `?rows=nodes` is the other way to give a message: a node as wide as its line and 16 high (with the loop's height
-// more for one that comes back), so that React Flow's own node drag moves its row.
 // `?connect=1` gives the nodes real connection handles: an event's dot, and a strip down a lifeline's dashed line.
+// `?connect=inert` gives them those and keeps the page's inert handle too.
 
 import { createContext, memo, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Background, BackgroundVariant, ConnectionMode, Controls, Handle, MiniMap, Position, ReactFlow, SelectionMode, useInternalNode, useReactFlow } from '@xyflow/react';
@@ -40,6 +45,8 @@ export function makeFlowStore(shared, options) {
   let pressed = null;    // the node under the pointer, from onNodeDragStart
   let rowDragged = false;
   const inFrame = () => (frame ? { x: FRAME.pad, y: FRAME.title + FRAME.pad } : { x: 0, y: 0 });
+  /** The node a lifeline's events hang on and its messages end on: its line node, or the one node it has. */
+  const anchor = (id) => (options.shape === 'split' ? id + ':line' : id);
 
   /** The same object while its key is the same, so React Flow renders only what changed. */
   const kept = (id, key, make) => {
@@ -71,20 +78,28 @@ export function makeFlowStore(shared, options) {
     const eventsOf = new Map(d.lifelines.map((l) => [l.id, []]));
     for (const e of d.events) eventsOf.get(e.lifeline).push(e);
     for (const l of d.lifelines) {
-      const height = options.heads ? l.h : d.bottom - l.y;
       const mark = marks.by.get(l.id);
       const selected = picked.has(l.id);
+      const column = d.bottom - l.y;
+      const position = { x: l.x + off.x, y: l.y + off.y };
+      if (options.shape === 'split') {
+        nodes.push(kept(anchor(l.id), ['d', l.x, l.y, l.w, l.h, column, off.x, off.y].join('|'), () => ({
+          id: anchor(l.id), type: 'line', parentId, position, width: l.w, height: column, measured: { width: l.w, height: column },
+          handles: HANDLES, zIndex: -1, selectable: false, draggable: false, style: NO_POINTER,
+          data: { lifeline: l.id, head: l.h, bottom: column, connect: options.connect },
+        })));
+      }
+      const height = options.shape === 'tall' ? column : l.h;
       nodes.push(kept(l.id, [l.key, height, selected, JSON.stringify(mark), off.x, off.y].join('|'), () => ({
-        id: l.id, type: 'lifeline', parentId, position: { x: l.x + off.x, y: l.y + off.y },
-        width: l.w, height, measured: { width: l.w, height }, handles: HANDLES, selected,
-        style: options.heads ? undefined : NO_POINTER,
-        data: { name: l.name, keyword: l.keyword, head: l.h, bottom: d.bottom - l.y, mark, connect: options.connect },
+        id: l.id, type: 'lifeline', parentId, position, width: l.w, height, measured: { width: l.w, height }, handles: HANDLES, selected,
+        style: options.shape === 'tall' ? NO_POINTER : undefined,
+        data: { name: l.name, keyword: l.keyword, head: l.h, bottom: options.shape === 'split' ? null : column, mark, connect: options.connect },
       })));
       for (const e of eventsOf.get(l.id)) {
         const emark = marks.by.get(e.id);
         const eselected = picked.has(e.id);
         nodes.push(kept(e.id, ['e', l.id, e.name, l.w, e.cy - l.y, eselected, JSON.stringify(emark)].join('|'), () => ({
-          id: e.id, type: 'event', parentId: l.id, position: { x: l.w / 2 - 8, y: e.cy - l.y - 8 },
+          id: e.id, type: 'event', parentId: anchor(l.id), position: { x: l.w / 2 - 8, y: e.cy - l.y - 8 },
           width: 16, height: 16, measured: { width: 16, height: 16 }, handles: HANDLES, selected: eselected,
           data: { name: e.name, mark: emark, connect: options.connect },
         })));
@@ -116,8 +131,8 @@ export function makeFlowStore(shared, options) {
       const ty = m.dotB ? 8 : m.y + (m.self ? EVENT_GAP : 0);
       const mark = marks.by.get(m.id);
       const selected = picked.has(m.id);
-      const source = m.dotA ? m.from : m.fromLifeline;
-      const target = m.dotB ? m.to : m.toLifeline;
+      const source = m.dotA ? m.from : anchor(m.fromLifeline);
+      const target = m.dotB ? m.to : anchor(m.toLifeline);
       edges.push(kept(m.id, ['m', source, target, sy, ty, m.self, m.label, m.lifted, selected, JSON.stringify(mark)].join('|'), () => ({
         id: m.id, type: 'message', source, target, selected, className: 'message' + (m.lifted ? ' lifted' : ''), zIndex: options.flat ? undefined : 1,
         data: { sy, ty, self: m.self, dotA: m.dotA, dotB: m.dotB, label: m.label, mark },
@@ -145,6 +160,8 @@ export function makeFlowStore(shared, options) {
     shared, options,
     subscribe(fn) { tellers.add(fn); return () => { tellers.delete(fn); }; },
     getSnapshot() { project(); return snapshot; },
+    /** Whether only what the window shows is mounted: as asked, else by the page's rule (more than LARGE_VIEW nodes). */
+    culled() { project(); return options.cull === null ? snapshot.nodes.length > LARGE_VIEW : options.cull; },
     /** Where the view's origin is on the plane: the frame's inside, or the plane's own origin. */
     origin() { const off = inFrame(); return frame ? { x: frame.x + off.x, y: frame.y + off.y } : off; },
     /** onNodeDragStart: the node under the pointer is the one that moves, whatever else is selected. */
@@ -220,8 +237,9 @@ export function makeFlowStore(shared, options) {
       window.addEventListener('pointerup', up, true);
       window.addEventListener('pointercancel', cancel, true);
     },
-    /** Whether the click that follows is the end of a row's drag, and so no click. */
+    /** Whether the click that follows is the end of a row's drag, and so no click. Any new press forgets it. */
     wasRowDrag() { const was = rowDragged; rowDragged = false; return was; },
+    pressedAnywhere() { rowDragged = false; },
   };
   return store;
 }
@@ -251,17 +269,31 @@ function Marks({ id, mark, x, y }) {
   );
 }
 
-const LifelineNode = memo(function LifelineNode({ id, data, width }) {
+/** A lifeline's dashed line, and with ?connect=1 the handle along it. */
+function Dashed({ id, data, width }) {
   return (
     <>
-      {/* The page's inert handle, so React Flow draws lines to the node; with real handles (?connect=1) it must go:
-          it has no side, and React Flow's connection line throws when it is the nearest handle to the pointer. */}
-      {data.connect
-        ? <Handle type="source" position={Position.Bottom} className="seq-strip" style={{ top: data.head, height: data.bottom - data.head }} />
-        : <span className="seq-handle source target" />}
+      {/* The page's inert handle, so React Flow draws lines to the node. With real handles (?connect=1) it must go, or
+          come after them: it counts as the node's first source handle and has no side, so a connection begun from a
+          real handle that has no id is taken to begin from it, and React Flow's connection line throws
+          (?connect=inert keeps it, first, to show that). */}
+      {data.connect !== '1' && <span className="seq-handle source target" />}
+      {data.connect && <Handle type="source" position={Position.Bottom} className="seq-strip" style={{ top: data.head, height: data.bottom - data.head }} />}
       <svg className="seq-over" width={width} height={data.bottom}>
         <path data-shape="line" data-id={id} className="seq-dashed" d={`M${width / 2},${data.head} V${data.bottom}`} />
       </svg>
+    </>
+  );
+}
+
+const LineNode = memo(function LineNode({ data, width }) {
+  return <Dashed id={data.lifeline} data={data} width={width} />;
+}, (a, b) => a.data === b.data && a.width === b.width);
+
+const LifelineNode = memo(function LifelineNode({ id, data, width }) {
+  return (
+    <>
+      {data.bottom === null ? <span className="seq-handle source target" /> : <Dashed id={id} data={data} width={width} />}
       <div data-shape="head" data-id={id} className="seq-head" style={{ height: data.head }}>
         <div className="seq-keyword">{data.keyword}</div>
         <div className="seq-name"><span data-label={id}>{data.name}</span></div>
@@ -274,7 +306,8 @@ const LifelineNode = memo(function LifelineNode({ id, data, width }) {
 const EventNode = memo(function EventNode({ id, data }) {
   return (
     <>
-      {data.connect ? <Handle type="source" position={Position.Right} className="seq-on-dot" /> : <span className="seq-handle source target" />}
+      {data.connect !== '1' && <span className="seq-handle source target" />}
+      {data.connect && <Handle type="source" position={Position.Right} className="seq-on-dot" />}
       <svg className="seq-over" width="16" height="16">
         <circle data-shape="event" data-id={id} className="seq-dot" cx="8" cy="8" r="6" />
         <text className="seq-event-name" data-label={id} x="18" y="3">{data.name}</text>
@@ -359,7 +392,7 @@ const LinkLine = memo(function LinkLine({ id, a, b }) {
   );
 });
 
-const NODE_TYPES = { lifeline: LifelineNode, event: EventNode, row: RowNode, pin: PinNode, frame: FrameNode };
+const NODE_TYPES = { lifeline: LifelineNode, line: LineNode, event: EventNode, row: RowNode, pin: PinNode, frame: FrameNode };
 const EDGE_TYPES = { message: MessageEdge, link: LinkEdge };
 const PRO_OPTIONS = { hideAttribution: true };
 const MULTI_SELECTION_KEYS = ['Control', 'Meta'];
@@ -374,7 +407,7 @@ export function SequenceFlow({ store }) {
   const [sized, setSized] = useState(false);
   useEffect(() => { setSized(root.current.clientWidth > 0 && root.current.clientHeight > 0); }, []);
   return (
-    <div ref={root} className="seq-a seq-plane" onContextMenu={(e) => e.preventDefault()}>
+    <div ref={root} className="seq-a seq-plane" onContextMenu={(e) => e.preventDefault()} onPointerDownCapture={store.pressedAnywhere}>
       {sized && <Store.Provider value={store}><Flow store={store} shared={shared} root={root} /></Store.Provider>}
     </div>
   );
@@ -395,13 +428,12 @@ function Flow({ store, shared, root }) {
   const onPaneClick = useCallback((event) => clicked(event, 'ground', null), [clicked]);
   const onNodeDragStart = useCallback((event, node) => store.pressedNode(node.id), [store]);
   // ?connect=1: React Flow's own connecting, from a handle to a handle. What it joins is logged, with where it ended.
-  const onConnect = useCallback((c) => { shared.connects.push({ source: c.source, target: c.target }); }, [shared]);
+  const onConnect = useCallback((c) => { shared.connects.push({ source: c.source.replace(/:line$/, ''), target: c.target.replace(/:line$/, '') }); }, [shared]);
   const onConnectEnd = useCallback((event, state) => {
     const p = toFlow.current({ x: event.clientX, y: event.clientY });
     const o = store.origin();
-    shared.connectEnds.push({ from: state.fromNode ? state.fromNode.id : null, to: state.toNode ? state.toNode.id : null, valid: state.isValid, where: shared.at({ x: p.x - o.x, y: p.y - o.y }) });
+    shared.connectEnds.push({ valid: state.isValid, where: shared.at({ x: p.x - o.x, y: p.y - o.y }) });
   }, [store, shared]);
-  const cull = store.options.cull === null ? snapshot.nodes.length > LARGE_VIEW : store.options.cull;
   return (
     <ReactFlow
       nodes={snapshot.nodes}
@@ -416,7 +448,7 @@ function Flow({ store, shared, root }) {
       defaultViewport={camera}
       minZoom={MIN_ZOOM}
       maxZoom={MAX_ZOOM}
-      onlyRenderVisibleElements={cull}
+      onlyRenderVisibleElements={store.culled()}
       panOnScroll
       panOnScrollSpeed={1}
       zoomOnScroll={false}
@@ -434,7 +466,7 @@ function Flow({ store, shared, root }) {
       nodeClickDistance={CLICK_DISTANCE}
       nodeDragThreshold={0}
       autoPanOnNodeDrag={false}
-      nodesConnectable={store.options.connect}
+      nodesConnectable={!!store.options.connect}
       connectionMode={ConnectionMode.Loose}
       onConnect={onConnect}
       onConnectEnd={onConnectEnd}
