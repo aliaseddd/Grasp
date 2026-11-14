@@ -10,6 +10,15 @@
 //   point, and the event the point is above, or null below the last. Only core/actions/sequence.ts reads it.
 // - `sequenceStep`: the view as a step leaves it; a message's drag calls it, for each step.
 // - `sequenceResult`: what the last step would write.
+// - **What step() reads.** step(data, asks) gets no model, and the store hands it a spread copy of what read() gave
+//   (plane/viewStore.ts sets `selected` and the marks in a copy, `{ ...projection, nodes, edges }`). So the reader
+//   keeps lib, model and view in a field of its own on the projection it gives, which a spread copy keeps, and reads
+//   them back from there in step(); a WeakMap keyed by the projection object misses the copy. Projection, PlaneNode
+//   and PlaneEdge hold no lifeline and no message: the reader gives its nodes and edges its own data, with Who's
+//   `element`, `view` and `marks` (core/adapter.ts), and casts them to PlaneNode and PlaneEdge.
+// - **The order of the nodes.** In the projection's nodes each lifeline's head comes before its `<id>:line` node,
+//   then the events, the line node's children: the test helpers thingIn, pointOn, gripOf and pinOf take an
+//   element's first node.
 //
 // While `sequenceReader` is null a sequence view is not drawn by a body: its tab shows the card and it lists no tools.
 

@@ -8,16 +8,16 @@
 import assert from 'node:assert/strict';
 import { after, afterEach, before, describe, test } from 'node:test';
 import path from 'node:path';
+import { loadCore } from './core.mjs';
 import {
-  boxOf, byTestId, closePages, drawn, EXAMPLE, finish, FIXTURES, frame, groundPoint, headerOf, launch, modelOf, near, openIn, planeOf,
-  rowItemIn, showSide, showView, soon, stateFileAt, TESTIDS, viewTab, wordsOf,
+  boxOf, byTestId, closePages, drawn, EXAMPLE, finish, FIXTURES, frame, groundPoint, headerOf, launch, lib, modelOf, near, openIn, planeOf,
+  rowItemIn, showSide, showView, soon, stateFileAt, TEN, TESTIDS, viewTab, wordsOf,
 } from './helpers.mjs';
 
 const VIEW = modelOf(EXAMPLE).views[0];
 const FUEL = path.join(FIXTURES, 'interconnection.json');
 const RELEASE = path.join(FIXTURES, 'behavior-actions.json');
 const HOST = path.join(FIXTURES, 'behavior-states.json');
-const SEQUENCE = path.join(FIXTURES, 'sequence.json');
 const viewOf = (file, id) => modelOf(file).views.find((v) => v.id === id);
 
 const PALETTE = byTestId(TESTIDS.palette);
@@ -39,11 +39,19 @@ async function rightClickIn(page, view, id, at) {
 }
 
 /**
- * Waits until the palette is in the document, and reads it: the menu's rectangle and its entries in order, each as
- * `data-tool`, '|' for a separator, or its text when it has no data-tool; `items` has each entry's tool, text, height
- * and whether it is disabled. `what` says where the right-click was, for the failure.
+ * Waits until the palette is in the document, and reads it: the menu's rectangle; `entries`, what can be made, in order,
+ * each as `data-tool`, '|' for a separator, or its text when it has neither data-tool nor data-action; and `actions`,
+ * the ids of the action entries under them. `items` has every entry's tool, action, text, height and whether it is
+ * disabled. `what` says where the right-click was, for the failure.
+ *
+ * From slice 2 the palette lists, under the creation tools and a rule, an entry for each action of PALETTE that is in
+ * the table and applies at its Hit (plan/slice-2.md, seam 8; plane/Palette.tsx): which ones depends on what packages
+ * have built, so `entries` stops above that rule. Of what stands under it, menu() requires only what the palette's
+ * contract says: a rule between the tools and the actions when there are both, then only entries with data-action,
+ * each an id of PALETTE, in PALETTE's order, none twice.
  */
 async function menu(page, what) {
+  const { PALETTE: ACTIONS } = await loadCore();
   await soon(page, async () => (await page.locator(PALETTE).count()) > 0, `A right-click on ${what} opened no menu (data-testid "${TESTIDS.palette}").`);
   const read = await page.evaluate((selector) => {
     const el = document.querySelector(selector);
@@ -52,7 +60,7 @@ async function menu(page, what) {
     const items = [...el.children].map((child) => {
       const box = child.getBoundingClientRect();
       return {
-        role: child.getAttribute('role'), tool: child.getAttribute('data-tool'), text: child.textContent.trim(), height: box.height,
+        role: child.getAttribute('role'), tool: child.getAttribute('data-tool'), action: child.getAttribute('data-action'), text: child.textContent.trim(), height: box.height,
         disabled: child.getAttribute('aria-disabled') === 'true',
       };
     });
@@ -60,7 +68,14 @@ async function menu(page, what) {
   }, PALETTE);
   assert.ok(read, `The menu (data-testid "${TESTIDS.palette}") left the page as it was read.`);
   assert.equal(read.role, 'menu', `The element with data-testid "${TESTIDS.palette}" has role "${read.role}", not "menu".`);
-  return { ...read, entries: read.items.map((i) => (i.role === 'separator' ? '|' : i.tool ?? i.text)) };
+  const first = read.items.findIndex((i) => i.action !== null);
+  const made = first < 0 ? read.items : read.items.slice(0, Math.max(first - 1, 0));
+  const under = first < 0 ? [] : read.items.slice(first);
+  if (first > 0) assert.equal(read.items[first - 1].role, 'separator', `The menu on ${what} has no rule between what can be made and the actions.`);
+  const actions = under.map((i) => i.action);
+  assert.ok(under.every((i) => i.action !== null && i.tool === null && ACTIONS.includes(i.action)), `Under the actions' rule the menu on ${what} holds something else than an action of PALETTE: ${under.map((i) => i.action ?? i.tool ?? i.text).join(', ')}.`);
+  assert.deepEqual(actions, ACTIONS.filter((id) => actions.includes(id)), `The actions on ${what} are not in PALETTE's order, or one is listed twice: ${actions.join(', ')}.`);
+  return { ...read, entries: made.map((i) => (i.role === 'separator' ? '|' : i.tool ?? i.text)), actions };
 }
 
 /** Waits until the palette is gone from the document. */
@@ -168,6 +183,15 @@ describe('the right-click palette', () => {
     const at = await lineMiddle(page, VIEW, 'mount');
     await page.mouse.click(at.x, at.y, { button: 'right' });
     const found = await menu(page, 'the line mount');
+    assert.deepEqual(found.entries, found.actions.length === 0 ? ['Nothing can be made here.'] : [], `The menu on a line offers to make ${found.entries.join(', ')}.`);
+    assert.ok(found.items.every((i) => i.tool === null), 'An entry of the menu on a line carries a data-tool.');
+    if (found.actions.length > 0) {
+      // An action applies on the line (seam 8): the menu holds its entries, and neither a rule nor the sentence, as the
+      // palette's contract says.
+      assert.equal(found.items.length, found.actions.length, `The menu on a line, where only actions apply, holds ${found.items.map((i) => i.action ?? i.text).join(', ')}.`);
+      await finish(opened);
+      return;
+    }
     assert.equal(found.items.length, 1, `The menu on a line holds ${found.items.length} entries, not one.`);
     assert.equal(found.items[0].role, 'menuitem', 'The one entry is not a menuitem.');
     assert.equal(found.items[0].disabled, true, 'The one entry is not aria-disabled="true".');
@@ -287,13 +311,19 @@ describe('the right-click palette', () => {
     const found = await menu(page, 'Host');
     await rightClick({ x: found.rect.x + found.rect.width + 200, y: Math.max(found.rect.y - 100, plane.y + 10) }, 'the backdrop of the open menu');
     await closeMenu(page);
-    const seq = viewOf(SEQUENCE, 'v-seq');
-    const other = await openIn(browser, stateFileAt(SEQUENCE));
+    // The card of a view whose kind has no reader yet: the first of the ten files' views. Once every kind's package has
+    // built its reader no tab shows a card, and this part has nothing to say (seams.test.mjs › ViewHost shows a card
+    // for a kind with no body, likewise).
+    const core = await loadCore();
+    const unbuilt = TEN.flatMap((file) => modelOf(file).views.filter((view) => !core.hasReader(lib, view.kind)).map((view) => ({ file, view })))[0];
+    if (!unbuilt) { await finish(opened); return; }
+    const { file: cardFile, view: seq } = unbuilt;
+    const other = await openIn(browser, stateFileAt(cardFile));
     try {
       const tab = await viewTab(other.page, seq);
       if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
       const card = other.page.locator(`${planeOf(seq.id)} .grasp-card`);
-      await soon(other.page, async () => (await card.count()) === 1, 'The tab of v-seq shows no card (.grasp-card).');
+      await soon(other.page, async () => (await card.count()) === 1, `The tab of ${seq.name} shows no card (.grasp-card).`);
       const box = await card.boundingBox();
       await other.page.evaluate(() => {
         window.__contextmenus = [];
@@ -303,8 +333,8 @@ describe('the right-click palette', () => {
       await frame(other.page);
       await frame(other.page);
       const events = await other.page.evaluate(() => window.__contextmenus.map((e) => e.defaultPrevented));
-      assert.ok(events.length > 0 && events.every(Boolean), 'A right-click on the card of v-seq was not prevented: the browser\'s own menu would show.');
-      assert.equal(await other.page.locator(PALETTE).count(), 0, 'A right-click on the card of v-seq opened a menu.');
+      assert.ok(events.length > 0 && events.every(Boolean), `A right-click on the card of ${seq.name} was not prevented: the browser's own menu would show.`);
+      assert.equal(await other.page.locator(PALETTE).count(), 0, `A right-click on the card of ${seq.name} opened a menu.`);
       await finish(other);
     } finally {
       await other.context.close();

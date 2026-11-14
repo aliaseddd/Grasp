@@ -10,7 +10,9 @@
 //   border and a teal number; a grey border when resolved), each at its `x` and `y` from the top left corner of its
 //   offset parent, and draws again when marksOf(session).listen tells.
 // - A pin hears its own pointerdown and calls pinOf(session).press(noteId, pointer, useBody())
-//   (plane/gestures/pin.ts). It stops its click from reaching its node, so a click on a pin picks nothing.
+//   (plane/gestures/pin.ts). It stops its click from reaching its node, so a click on a pin picks nothing (flow 9):
+//   a pin's click reaches its node or its edge through React, a line's pin too, though it is in React Flow's label
+//   renderer (a React portal of the edge component), so the pin calls stopPropagation() on the React click event.
 //
 // What the scaffold fixes for it:
 // - `Pins` is rendered inside `.grasp-marks` (plane/marks/marks.css), before the badge, by every node component and,
@@ -24,6 +26,7 @@
 //   has a free pin, and far (below 25% zoom) it renders none. A component body renders it inside the element whose top left corner is the
 //   view's origin, so the pins scroll with what they float on.
 // - Both may read useBody(): a pin exists only on a marked thing. Its stylesheet is plane/marks/pin.css.
+//   The package creates it and imports it from this file.
 
 import type { Marks } from '../../core';
 import type { BodyProps } from '../../views/bodies';

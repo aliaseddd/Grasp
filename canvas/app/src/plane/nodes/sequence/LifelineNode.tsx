@@ -11,6 +11,11 @@
 //   down the dashed line, and nowhere else, so that a click, a drop of a line or of a pin, and a tool's click on the
 //   dashed line count for the lifeline, and a drag there pans the plane. An event is a child node of it, drawn by
 //   slice 1's shape `event` (plane/nodes/SmallNode.tsx).
+// - **How the line takes the pointer only on its strip.** React Flow gives every node's element `pointer-events: all`
+//   (the plane passes onNodeClick) and spreads the node's `style` after it, so the reader gives the line node
+//   `style: { pointerEvents: 'none' }`, and the strip inside it sets `pointer-events: all`. grips.css outlines a node
+//   under the pointer, and one that `data-over` names, by its whole rectangle, which for the line is as tall as the
+//   view: sequence.css sets the line node's own look for both instead.
 //
 // What the scaffold fixes for a node component of another renderer is said in plane/nodes/sequence/index.ts and, in
 // full, in plane/Plane.tsx: who it is (`data-of`), its marks (`.grasp-marks`, with `<Pins />` and `<Badge />`), its
@@ -18,7 +23,8 @@
 // gesture is over it (`data-over`). A node component never reads the body's context (views/bodyContext.ts).
 //
 // Nothing imports this file until index.ts names its components: the registry (views/bodies.ts) reads index.ts and
-// nothing else of this folder. Its stylesheet is plane/nodes/sequence/sequence.css, beside it.
+// nothing else of this folder. Its stylesheet is plane/nodes/sequence/sequence.css, beside it. The package
+// creates it and imports it from the folder's index.ts.
 
 import type { NodeProps } from '@xyflow/react';
 

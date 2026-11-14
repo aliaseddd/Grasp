@@ -17,8 +17,8 @@
 //   brings it to the front of its strip and opens the side when it is collapsed.
 // - Every button that asks an action is an ActionButton (shell/ActionControl.tsx): Add note (`add-note`, no hit), a
 //   note's number (`show-note`), Archive, Restore and Delete, each with the note's id as its `choice`.
-// - Its stylesheet is panels/notes.css, beside it. Its data-testid names are seam 12's: `note` (with `data-note`),
-//   `archive-list`.
+// - Its stylesheet is panels/notes.css, beside it. The package creates it and imports it from this file. Its
+//   data-testid names are seam 12's: `note` (with `data-note`), `archive-list`.
 //
 // Until package 2-7 builds it, it shows the empty state every panel had in slice 1: one sentence under its title.
 

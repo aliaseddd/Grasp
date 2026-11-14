@@ -14,11 +14,14 @@
 //   element exists only on a marked thing, keeps its size on the screen at any zoom, carries `nodrag nopan`, and lets
 //   the pointer through to its children only.
 // - `of` is 'el:<id>' or 'rel:<id>': the element or the relationship the marks are of.
-// - On a node the badge is inside the node's own element, so its click reaches the node. On a line it is in React
-//   Flow's label renderer, outside the edge's element: there a click on it reaches no edge, and the badge makes the
-//   Hit itself (useBody(): `{ view: viewId, type: 'rel', id, at: toView(pointer), add }`, offered to the tool in hand
-//   and then to the selection, as plane/Plane.tsx offers a click).
+// - Badge writes NO click handler. On a node the badge is inside the node's own element, so its click reaches the
+//   node. On a line it is in React Flow's label renderer, outside the edge's element in the DOM, but
+//   EdgeLabelRenderer is a React portal of the edge component, and React carries the click through the portal to the
+//   edge's onClick (plane/Plane.tsx's onEdgeClick), so a click on a line's badge is a click on the line too. A
+//   handler of its own would handle the click twice: Ctrl + click on a line's badge would add the line and take it
+//   away again.
 // - It may read useBody(): a badge exists only on a marked thing. Its stylesheet is plane/marks/badge.css.
+//   The package creates it and imports it from this file.
 
 import type { Marks } from '../../core';
 

@@ -112,7 +112,7 @@ const BENCH_ENTRY = `
       // What the shell will give the actions: the two hands a mounted body lends.
       handsOf(made).give({
         save() {}, showText() {}, showView() {}, showPanel() {}, copy: () => Promise.resolve(),
-        camera: (viewId, how) => { lentCamera(made, viewId, how); },
+        camera: (viewId, how) => lentCamera(made, viewId, how),
         reveal: (viewId, rect) => lentReveal(made, viewId, rect),
       });
     }
@@ -193,6 +193,7 @@ const untilNodes = (page, viewId, count) => soon(page, () => page.evaluate(([pla
 // one row for each inside BodyFrame. Each row carries data-thing, a control of its own that stops its click, and
 // something with data-pass over it, as a pin is. It leaves the body's hands on the bench (BENCH_BODY).
 const STAND_IN_ROWS_READER = `
+  export * from './grid?real';
   import type { Reader } from './index';
   export const GRID_ROW = 28, GRID_HEAD = 32, GRID_MARKS = 72, MATRIX_SIDE = 200, MATRIX_CELL = 96;
   export const GRID_WIDTHS = {};
@@ -204,6 +205,7 @@ const STAND_IN_ROWS_READER = `
   export function orderRows(): never { throw new Error('a stand-in'); }
 `;
 const STAND_IN_ROWS_BODY = `
+  export * from './GridBody?real';
   import { useRef } from 'react';
   import { readView } from '../core';
   import { BodyFrame } from './BodyFrame';
@@ -242,6 +244,7 @@ const STAND_IN_ROWS_BODY = `
 
 // Stand-ins for packages 2-6's and 2-7's components: a badge of 16 px and pins of 22 px, as their briefs size them.
 const STAND_IN_BADGE = `
+  export * from './Badge?real';
   import type { Marks } from '../../core';
   export function Badge({ marks, of }: { marks: Marks; of: string }): JSX.Element | null {
     if (marks.problems === 0) return null;
@@ -249,6 +252,7 @@ const STAND_IN_BADGE = `
   }
 `;
 const STAND_IN_PINS = `
+  export * from './Pin?real';
   import { useSyncExternalStore } from 'react';
   import { marksOf } from '../../core';
   import type { Marks, Session } from '../../core';
@@ -266,8 +270,10 @@ const STAND_IN_PINS = `
 `;
 
 // A stand-in for package 2-2's gesture: it follows a press on a grip on the window, sets `state` past 4 px, calls
-// swallow(), and leaves what it was handed on the plane's root as JSON (data-probe). It writes nothing to the model.
+// swallow(), and leaves what it was handed on the plane's root as JSON (data-probe), and the body's hands it was handed
+// on the window (BENCH_GESTURE_BODY). It writes nothing to the model.
 const STAND_IN_CONNECT = `
+  export * from './connect?real';
   import type { ViewStore } from '../viewStore';
   import type { BodyHands } from '../../views/bodyContext';
   export const GRIP_DISTANCE = 4;
@@ -286,6 +292,7 @@ const STAND_IN_CONNECT = `
         const root = press.target.closest('[data-testid="plane"]')!;
         const saw = { grip: press.grip, element: press.element, relationship: press.relationship, ends: press.ends, moves: 0, over: '' as string | null, ended: false };
         const write = (): void => root.setAttribute('data-probe', JSON.stringify(saw));
+        (window as unknown as { BENCH_GESTURE_BODY: BodyHands }).BENCH_GESTURE_BODY = body;
         press.target.setPointerCapture(press.pointerId);
         const move = (event: PointerEvent): void => {
           saw.moves += 1;
@@ -320,6 +327,50 @@ const STAND_IN_CONNECT = `
     return gesture!;
   };
 `;
+
+// What the scaffold left of the files later packages fill, whatever they have built, for a test of a seam that holds
+// with none of them: each begins with the real module (a local export shadows a starred one) and gives its skeleton's
+// value. No gesture (connectOf null, package 2-2), no pin and no badge (2-7, 2-6), no note (2-7); no reader of the
+// sequence view (2-10).
+const NO_CONNECT = `
+  export * from './connect?real';
+  export const connectOf = null;
+`;
+const NO_PINS = `
+  export * from './Pin?real';
+  export function Pins(): null { return null; }
+  export function FreePins(): null { return null; }
+`;
+const NO_BADGE = `
+  export * from './Badge?real';
+  export function Badge(): null { return null; }
+`;
+const NO_NOTES = STAND_IN_NOTES.replace('const file = fileNotesOf(session);', 'const file = { notes: [] as unknown[], archive: [] as unknown[] };');
+assert.ok(NO_NOTES !== STAND_IN_NOTES, 'NO_NOTES is STAND_IN_NOTES of core.mjs with no note: that stand-in no longer reads the file\'s notes as this file expects.');
+const NO_SEQUENCE_READER = `
+  export * from './sequence?real';
+  export const sequenceReader = null;
+`;
+/**
+ * No action row of a later package: each file of core/actions/ but file.ts (the scaffold's four rows) with its array
+ * empty, by its module's path, as a bench's `swaps` take them. A test that says what a page shows with no such row, or
+ * with only its own stand-in rows, starts from these, so a row a package builds cannot change what it asserts.
+ */
+const NO_ROWS = Object.fromEntries(Object.entries({
+  labels: 'LABEL_ACTIONS', notes: 'NOTE_ACTIONS', remove: 'REMOVE_ACTIONS', views: 'VIEW_ACTIONS', code: 'CODE_ACTIONS', text: 'TEXT_ACTIONS',
+  camera: 'CAMERA_ACTIONS', connect: 'CONNECT_ACTIONS', reparent: 'REPARENT_ACTIONS', sequence: 'SEQUENCE_ACTIONS', geometry: 'GEOMETRY_ACTIONS',
+  browser: 'BROWSER_ACTIONS',
+}).map(([file, rows]) => [`core/actions/${file}`, `
+  export * from './${file}?real';
+  import type { Action } from '../commands';
+  export const ${rows}: readonly Action[] = [];
+`]));
+/** No section of Details applies: the three of panels/sections.ts, each with a component that draws, were it shown. */
+const NO_SECTIONS = Object.fromEntries([['ShownSection', 'shownSection', 'shown'], ['ViewSection', 'viewSection', 'view'], ['CodeSection', 'codeSection', 'code']].map(([file, name, id]) => [`panels/${file}`, `
+  export * from './${file}?real';
+  import type { Section } from './sections';
+  export const ${name}: Section = { id: '${id}', applies: () => false, Component: () => <div data-testid="${id}-section">A section that does not apply.</div> };
+`]));
 
 // ---- The built page.
 
@@ -501,6 +552,9 @@ describe('the seams of slice 2\'s scaffold, on a bench with stand-ins', () => {
   });
 
   const GRID = 'grid.json';
+  // The stand-in rows body in v-table; a plane in v-proof; the card of a kind with no body in v-seq, whose reader is
+  // null here whatever package 2-10 has built; and the card of a view the model does not hold. No row of a later
+  // package is in the table, so the palette lists only what can be made.
   const rowsBench = () => bench({
     files: [fixture(GRID), fixture('sequence.json')],
     views: [
@@ -509,7 +563,7 @@ describe('the seams of slice 2\'s scaffold, on a bench with stand-ins', () => {
       { file: 'sequence.json', view: 'v-seq', width: 640, height: 300 },
       { file: GRID, view: 'no-such-view', width: 640, height: 300 },
     ],
-    swaps: { 'core/readers/grid': STAND_IN_ROWS_READER, 'views/GridBody': STAND_IN_ROWS_BODY },
+    swaps: { ...NO_ROWS, 'core/readers/sequence': NO_SEQUENCE_READER, 'core/readers/grid': STAND_IN_ROWS_READER, 'views/GridBody': STAND_IN_ROWS_BODY },
   });
   const BODY = `${byTestId(TESTIDS.body)}[data-view="v-table"]`;
   const row = (id) => `${BODY} [data-thing="el:${id}"]`;
@@ -599,7 +653,7 @@ describe('the seams of slice 2\'s scaffold, on a bench with stand-ins', () => {
     await soon(page, async () => (await palette.count()) === 1, 'A right-click on a row of a BodyFrame opened no palette.');
     const menu = await rectOf(page, byTestId(TESTIDS.palette));
     assert.ok(near(menu.x, p.x, 2) && near(menu.y, p.y, 10), `The palette is at ${menu.x}, ${menu.y}, not at the pointer ${p.x}, ${p.y}.`);
-    assert.equal((await palette.textContent()).trim(), 'Nothing can be made here.', 'A grid view has no tools, so the palette says so.');
+    assert.equal((await palette.textContent()).trim(), 'Nothing can be made here.', 'A grid view has no tools, and no action of the bench applies, so the palette says so.');
     assert.deepEqual(await page.evaluate(() => window.seamsMenu), [true], 'The browser\'s own menu was not stopped.');
     assert.equal((await B(page, 'hits')).length, count, 'A right-click is no click.');
     await page.keyboard.press('Escape');
@@ -920,11 +974,90 @@ describe('the seams of slice 2\'s scaffold, on a bench with stand-ins', () => {
     await finish(opened);
   });
 
+  test('while a line is in hand, a node\'s grip and the way to it are that node to hitAt, and a line\'s grip is passed over', async () => {
+    const FILE = path.basename(EXAMPLE);
+    const V = 'v-proof';
+    const opened = await openPage(browser, {
+      url: await bench({ files: [EXAMPLE], views: [{ file: FILE, view: V, width: 1300, height: 700 }], swaps: { 'plane/gestures/connect': STAND_IN_CONNECT } }),
+    });
+    const { page } = opened;
+    await untilNodes(page, V, 13);
+    const root = (name) => page.evaluate(([s, n]) => document.querySelector(s).getAttribute(n), [planeOf(V), name]);
+    const over = async () => JSON.parse(await root('data-probe')).over;
+    const hitAt = (p) => page.evaluate((q) => window.BENCH_GESTURE_BODY.hitAt(q), p);
+
+    // A line taken in hand from Host's left grip, as above, with the line s-DevHost picked: its grips are shown.
+    await B(page, 'pick', FILE, [{ type: 'rel', id: 's-DevHost' }]);
+    const host = await boxOf(page, V, 'Host');
+    await page.mouse.move(host.x + 30 * host.zoom, host.y + 20 * host.zoom);
+    const grip = await soon(page, () => page.evaluate((s) => {
+      const el = document.querySelector(s);
+      const r = el.getBoundingClientRect();
+      return getComputedStyle(el).visibility === 'visible' ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+    }, `:is(${thingOf(V, 'el', 'Host')}) > [data-grip="left"]`), 'The pointer over Host does not show its grips.');
+    await page.mouse.move(host.x + 4, host.y + host.height / 2);
+    await page.mouse.move(grip.x, grip.y);
+    await page.mouse.down();
+    await page.mouse.move(grip.x + 10, grip.y + 30, { steps: 3 });
+    await soon(page, async () => (await root('data-connecting')) === '', 'With a line in hand the root does not carry data-connecting.');
+
+    // Every near node shows its grips: on App's, and on the way from App's side to it, the line is over App. Each
+    // spot is one where nothing lies over the grip, as the page lays it out.
+    const spots = await page.evaluate((s) => {
+      const node = document.querySelector(s);
+      const n = node.getBoundingClientRect();
+      return [...node.querySelectorAll(':scope > [data-grip]')].map((g) => {
+        const r = g.getBoundingClientRect();
+        const side = g.getAttribute('data-grip');
+        const at = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        const way = side === 'left' ? { x: (r.right + n.left) / 2, y: at.y } : side === 'right' ? { x: (n.right + r.left) / 2, y: at.y }
+          : side === 'top' ? { x: at.x, y: (r.bottom + n.top) / 2 } : { x: at.x, y: (n.bottom + r.top) / 2 };
+        const top = (p) => document.elementFromPoint(p.x, p.y) === g;
+        return { side, at, way, clear: top(at) && top(way), shown: getComputedStyle(g).visibility === 'visible' };
+      });
+    }, thingOf(V, 'el', 'App'));
+    assert.equal(spots.length, 4);
+    assert.ok(spots.every((spot) => spot.shown), 'With a line in hand App\'s grips are not shown.');
+    const clear = spots.filter((spot) => spot.clear);
+    assert.ok(clear.length >= 2, `Only ${clear.length} of App's grips are clear of what lies over them: the example is not the one this test was written for.`);
+    const bare = await groundPoint(page, { id: V, name: V });
+    for (const spot of clear) {
+      for (const [where, p] of [['grip', spot.at], ['way to the grip', spot.way]]) {
+        await page.mouse.move(bare.x, bare.y, { steps: 2 });
+        await soon(page, async () => (await over()) === null, 'Over the ground the line is over something.');
+        await page.mouse.move(p.x, p.y, { steps: 4 });
+        await soon(page, async () => (await over()) === 'el:App', async () => `With a line in hand, over App's ${spot.side} ${where} hitAt answers ${(await over()) ?? 'the ground'}, not App.`);
+        assert.equal(await page.evaluate((s) => document.querySelector(s).getAttribute('data-over'), thingOf(V, 'el', 'App')), 'fits', `Over App's ${spot.side} ${where} the line does not outline App.`);
+        const hit = await hitAt(p);
+        assert.deepEqual([hit.view, hit.type, hit.id], [V, 'el', 'App']);
+      }
+    }
+
+    // A selected line's grips, at its ends, are passed over: hitAt answers there what it answers with the grip gone.
+    const ends = await soon(page, () => page.evaluate((s) => {
+      const circles = [...(document.querySelector(s)?.querySelectorAll('circle[data-grip]') ?? [])];
+      if (circles.length !== 2) return null;
+      return circles.map((c) => {
+        const r = c.getBoundingClientRect();
+        const p = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        const shown = window.BENCH_GESTURE_BODY.hitAt(p);
+        c.style.display = 'none';
+        const gone = window.BENCH_GESTURE_BODY.hitAt(p);
+        c.style.display = '';
+        return { grip: c.getAttribute('data-grip'), shown, gone };
+      });
+    }, thingOf(V, 'rel', 's-DevHost')), 'A selected line shows no grip at each end.');
+    for (const end of ends) assert.deepEqual(end.shown, end.gone, `hitAt on the line's ${end.grip} grip does not pass over it.`);
+    await page.mouse.up();
+    await soon(page, async () => (await root('data-connecting')) === null, 'After the release the root still carries data-connecting.');
+    await finish(opened);
+  });
+
   test('a graph body of another renderer is drawn by the plane: who a node is, its entry\'s plane props, and only the pressed node moves', async () => {
     // Stand-ins for packages 2-10 and 2-11: a reader that gives a Projection (core.mjs), node and edge types that add
     // none to slice 1's (so the entry counts as built), and for the sequence view an ender.
-    const TYPES = 'export const nodeTypes = {}; export const edgeTypes = {};';
-    const geometry = STAND_IN_PLANE_READER.replace(/sequenceReader/g, 'geometryReader').replace(/\bASKED\b/g, 'GEO_ASKED')
+    const TYPES = "export * from './index?real'; export const nodeTypes = {}; export const edgeTypes = {};";
+    const geometry = STAND_IN_PLANE_READER.replace("'./sequence?real'", "'./geometry?real'").replace(/sequenceReader/g, 'geometryReader').replace(/\bASKED\b/g, 'GEO_ASKED')
       .replace(/export function sequenceStep[^\n]*\n\s*export function sequenceResult[^\n]*\n/, 'export function geometryResult(): null { return null; }\n');
     assert.ok(geometry.includes('geometryResult') && !geometry.includes('sequence'));
     const SEQ = 'sequence.json';
@@ -932,7 +1065,7 @@ describe('the seams of slice 2\'s scaffold, on a bench with stand-ins', () => {
     const opened = await openPage(browser, {
       url: await bench({
         files: [fixture(SEQ), fixture(GEO)],
-        views: [{ file: SEQ, view: 'v-seq', width: 900, height: 620 }, { file: GEO, view: 'v-plan', width: 420, height: 300 }],
+        views: [{ file: SEQ, view: 'v-seq', width: 900, height: 620 }, { file: GEO, view: 'v-plan', width: 420, height: 300 }, { file: SEQ, view: 'v-all', width: 420, height: 300 }],
         swaps: {
           'core/readers/sequence': STAND_IN_PLANE_READER, 'core/actions/sequence': STAND_IN_PLANE_ACTIONS, 'plane/nodes/sequence/index': TYPES,
           'core/readers/geometry': geometry, 'plane/nodes/geometry/index': TYPES,
@@ -942,7 +1075,9 @@ describe('the seams of slice 2\'s scaffold, on a bench with stand-ins', () => {
     const { page } = opened;
     await untilNodes(page, 'v-seq', 7);
     await untilNodes(page, 'v-plan', 5);
+    await untilNodes(page, 'v-all', 9);
     const nodeAt = (view, id) => `${planeOf(view)} ${NODE}[data-id=${JSON.stringify(id)}]`;
+    const z = (view, id) => page.evaluate((s) => Number(getComputedStyle(document.querySelector(s)).zIndex), nodeAt(view, id));
     const selected = (view) => page.evaluate(([plane, node]) => [...document.querySelectorAll(`${plane} ${node}.selected`)].map((el) => el.getAttribute('data-id')), [planeOf(view), NODE]);
     const middle = async (selector) => { const r = await rectOf(page, selector); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; };
 
@@ -964,6 +1099,7 @@ describe('the seams of slice 2\'s scaffold, on a bench with stand-ins', () => {
     assert.deepEqual([hit.view, hit.type, hit.id], ['v-seq', 'el', 'Login.client'], 'A Hit names the node\'s element, never the node\'s id.');
     await soon(page, async () => (await selected('v-seq')).length === 2, 'The two nodes of a picked element are not both selected.');
     assert.deepEqual((await selected('v-seq')).sort(), ['Login.client', 'Login.client:line']);
+    assert.ok((await z('v-seq', 'Login.client:line')) < 1000, 'A picked lifeline\'s line node is raised over the messages: the sequence view\'s entry does not turn elevateNodesOnSelect off.');
     // A right-click on it opens the palette with the same element.
     await page.mouse.click(p.x, p.y, { button: 'right' });
     await soon(page, async () => (await page.locator(byTestId(TESTIDS.palette)).count()) === 1, 'A right-click on a node opened no palette.');
@@ -990,9 +1126,12 @@ describe('the seams of slice 2\'s scaffold, on a bench with stand-ins', () => {
     assert.deepEqual(await rectOf(page, nodeAt('v-seq', 'Login.server')), server);
     assert.deepEqual((await selected('v-seq')).sort(), ['Login.auth', 'Login.server'], 'A drag changed what is picked.');
 
-    // An entry's plane props: React Flow raises a selected node, and the geometry view's entry turns that off.
-    const z = (view, id) => page.evaluate((s) => Number(getComputedStyle(document.querySelector(s)).zIndex), nodeAt(view, id));
-    assert.ok((await z('v-seq', 'Login.auth')) >= 1000, 'In a view whose entry sets no plane prop a selected node is raised, as React Flow does by itself.');
+    // An entry's plane props: React Flow raises a selected node in a view of a graph kind, whose entry sets no plane
+    // prop; the sequence view's entry and the geometry view's turn that off. The file's general view shows the two
+    // heads picked above.
+    await soon(page, async () => (await selected('v-all')).sort().join() === 'Login.auth,Login.server', 'The two heads picked are not selected in the file\'s general view.');
+    assert.ok((await z('v-all', 'Login.auth')) >= 1000, 'In a view whose entry sets no plane prop a selected node is raised, as React Flow does by itself.');
+    assert.ok((await z('v-seq', 'Login.auth')) < 1000, 'In a sequence view a selected node is raised: its entry\'s elevateNodesOnSelect did not reach React Flow.');
     await B(page, 'pick', GEO, [{ type: 'el', id: 'room' }]);
     await soon(page, async () => (await selected('v-plan')).join() === 'room', 'A picked footprint is not selected.');
     assert.ok((await z('v-plan', 'room')) < 1000, 'In a geometry view a selected node is raised: its entry\'s elevateNodesOnSelect did not reach React Flow.');
@@ -1000,7 +1139,15 @@ describe('the seams of slice 2\'s scaffold, on a bench with stand-ins', () => {
   });
 
   test('without a gesture no grip is mounted and the root says nothing of grips', async () => {
-    const opened = await openPage(browser, { url: await rowsBench() });
+    // No gesture, whatever package 2-2 has built; and nothing that would draw into .grasp-marks (a pin, a badge, a
+    // note), whatever packages 2-6 and 2-7 have built: grid.json holds notes on Host and on mount.
+    const opened = await openPage(browser, {
+      url: await bench({
+        files: [fixture(GRID)],
+        views: [{ file: GRID, view: 'v-proof', width: 640, height: 420 }],
+        swaps: { 'plane/gestures/connect': NO_CONNECT, 'plane/marks/Pin': NO_PINS, 'plane/marks/Badge': NO_BADGE, 'core/notes': NO_NOTES },
+      }),
+    });
     const { page } = opened;
     await untilNodes(page, 'v-proof', 13);
     await selectBox(page, { id: 'v-proof', name: 'v-proof' }, 'Host');
@@ -1008,7 +1155,7 @@ describe('the seams of slice 2\'s scaffold, on a bench with stand-ins', () => {
       const root = document.querySelector(plane);
       return [root.querySelectorAll('[data-grip]').length, root.hasAttribute('data-grips'), root.hasAttribute('data-connecting'), root.querySelectorAll('.grasp-marks *').length];
     }, planeOf('v-proof'));
-    assert.deepEqual(found, [0, false, false, 0], 'The skeleton mounts a grip, or an attribute of the grips, or draws a pin or a badge.');
+    assert.deepEqual(found, [0, false, false, 0], 'With no gesture the plane mounts a grip, or an attribute of the grips; or, with no pin and no badge, something is drawn in .grasp-marks.');
     await finish(opened);
   });
 });
@@ -1017,11 +1164,13 @@ describe('the seams of slice 2\'s scaffold, on a bench with stand-ins', () => {
 
 // ---- The shell's seams (seams 8, 9 and 10): the controls of an action, the palette's actions, the toasts, the dock.
 //
-// In the built page, the table holds the scaffold's four rows (undo, redo, save, put-down), and the Undo and Redo
-// buttons are the two controls of an action a person meets. For what needs a row no package has built yet (an entry
-// of the palette, a control with choices, a new view's tab, the text tab, a section of Details), the tests below
-// bundle the application itself, canvas/app/src/main.tsx, with stand-ins for a few files of core/actions/ and
-// panels/, into a temporary folder: "the file as its package could build it". Nothing of it reaches canvas/dist.
+// In the built page, the table holds the scaffold's four rows (undo, redo, save, put-down) and whatever rows the
+// packages have built, and the Undo and Redo buttons are the two controls of an action a person meets. For what needs
+// a row a package builds (an entry of the palette, a control with choices, a new view's tab, the text tab, a section
+// of Details), or what holds with none of them, the tests below bundle the application itself,
+// canvas/app/src/main.tsx, with stand-ins for every file of core/actions/ but file.ts and for the sections of panels/,
+// into a temporary folder: "the file as its package could build it", or as its skeleton is. Nothing of it reaches
+// canvas/dist.
 
 /** What a control of an action says of itself. */
 const controlOf = (page, selector) => page.evaluate((s) => {
@@ -1155,35 +1304,18 @@ describe('the shell\'s seams, in the built page', () => {
     await finish(opened);
   });
 
-  test('the Notes panel stands on the left strip after Validation, and the controls of rows that are not built are not shown', async () => {
+  test('the Notes panel stands on the left strip after Validation', async () => {
     const opened = await openExample();
     const { page } = opened;
     assert.deepEqual(await stripOf(page), ['Explorer', 'Tools', 'Validation', 'Notes', 'Details'], 'The strips name Explorer, Tools, Validation and Notes on the left, and Details on the right.');
     const notes = await openNotes(page);
     assert.equal(await notes.count(), 1, 'The page holds more than one Notes panel (data-testid "notes").');
     assert.equal(await notes.locator('.grasp-side-title').textContent(), 'Notes');
-    assert.ok((await notes.locator('.grasp-side-text').textContent()).length > 0, 'The Notes panel\'s skeleton says nothing.');
+    assert.ok((await notes.textContent()).trim().length > 'Notes'.length, 'The Notes panel says nothing under its title.');
     // The panel in front is remembered as the others are.
     await page.reload();
     await page.waitForSelector(byTestId(TESTIDS.app));
     await soon(page, async () => (await rectOf(page, byTestId(TESTIDS.notes)))?.width > 0, 'After a reload the Notes panel is not in front again.');
-
-    // No row of new-view, open-text or of the palette's actions is built: no control of theirs is in the page.
-    await openStateFile(page, stateFileAt(EXAMPLE));
-    await showView(page, VIEW, linesOf(modelOf(EXAMPLE), VIEW).length);
-    assert.equal(await page.locator(`${byTestId(TESTIDS.newView)}, ${actionControl('new-view')}, ${actionControl('open-text')}`).count(), 0, 'A control of a row that is not built is shown.');
-    assert.deepEqual((await editorTabs(page)).map((t) => t.title), [tabTitle(VIEW)], 'The editor holds something else than the view\'s tab.');
-    const host = await boxOf(page, VIEW.id, 'Host');
-    await page.mouse.click(host.x + 24 * host.zoom, host.y + 14 * host.zoom, { button: 'right' });
-    await soon(page, async () => (await page.locator(byTestId(TESTIDS.palette)).count()) === 1, 'A right-click on Host opened no palette.');
-    assert.equal(await page.locator(`${byTestId(TESTIDS.palette)} [data-action]`).count(), 0, 'The palette lists an action no package has built.');
-    assert.equal(await page.locator(`${byTestId(TESTIDS.palette)} [role="separator"]`).count(), 1, 'With no action to list, the palette has no rule after its tools (one between its two groups).');
-    await page.keyboard.press('Escape');
-    // Details shows no section: none applies yet.
-    await selectBox(page, VIEW, 'Host');
-    await soon(page, async () => (await page.locator(`${byTestId(TESTIDS.details)} .grasp-details`).count()) === 1, 'Details shows no form for Host.');
-    assert.deepEqual(await page.evaluate((root) => [...document.querySelector(`${root} .grasp-details`).children].map((el) => el.className.split(' ')[0]), byTestId(TESTIDS.details)),
-      ['grasp-details-what', 'MuiTabs-root', 'grasp-details-page'], 'Details shows something under its form though no section applies.');
     await finish(opened);
   });
 });
@@ -1191,6 +1323,7 @@ describe('the shell\'s seams, in the built page', () => {
 // The application with stand-ins: rows for a few actions that later packages build, a section of Details, and the
 // camera's keys. Each stand-in writes as little as shows that it was asked: most say a sentence.
 const STAND_IN_REMOVE_ROWS = `
+  export * from './remove?real';
   import type { Action } from '../commands';
   import { saysOf } from '../says';
   import { selectionOf } from '../selection';
@@ -1234,6 +1367,7 @@ const STAND_IN_VIEW_ROWS = `
   ];
 `;
 const STAND_IN_TEXT_ROWS = `
+  export * from './text?real';
   import type { Action } from '../commands';
   import { handsOf } from '../hands';
   export const TEXT_ACTIONS: readonly Action[] = [
@@ -1250,6 +1384,7 @@ const STAND_IN_NOTE_ROWS = `
   ];
 `;
 const STAND_IN_CAMERA_ROWS = `
+  export * from './camera?real';
   import type { Action } from '../commands';
   import { handsOf } from '../hands';
   import { selectionOf } from '../selection';
@@ -1261,13 +1396,18 @@ const STAND_IN_CAMERA_ROWS = `
   export const CAMERA_ACTIONS: readonly Action[] = [row('zoom-in', 'Zoom in', '+', 'in'), row('zoom-out', 'Zoom out', '-', 'out'), row('fit-view', 'Fit the view', '0', 'fit')];
 `;
 const STAND_IN_CODE_SECTION = `
+  export * from './CodeSection?real';
   import type { Section, SectionProps } from './sections';
   export function CodeSection({ picked }: SectionProps): JSX.Element | null {
     return <div data-testid="code-section">{'A stand-in section for ' + picked.type + ':' + picked.id}</div>;
   }
   export const codeSection: Section = { id: 'code', applies: (_session, picked) => picked.type === 'el', Component: CodeSection };
 `;
+// The stand-ins stand on NO_ROWS and NO_SECTIONS: whatever a package has built, the table holds these rows and no
+// other, and Details these sections, so what the tests below list is exactly what the stand-ins give.
 const SHELL_SWAPS = {
+  ...NO_ROWS,
+  ...NO_SECTIONS,
   'core/actions/remove': STAND_IN_REMOVE_ROWS,
   'core/actions/views': STAND_IN_VIEW_ROWS,
   'core/actions/text': STAND_IN_TEXT_ROWS,
@@ -1276,10 +1416,13 @@ const SHELL_SWAPS = {
   'panels/CodeSection': STAND_IN_CODE_SECTION,
 };
 
-let shellPage = null;
-/** Builds the application with SHELL_SWAPS into a temporary folder, once, and gives its URL. */
-function shellBench() {
-  shellPage ??= (async () => {
+// And the application with no row of a later package and no section that applies, whatever is built.
+const SHELL_BARE = { ...NO_ROWS, ...NO_SECTIONS };
+
+const shellPages = new Map();
+/** Builds the application with `swaps` (SHELL_SWAPS by default) into a temporary folder, once for each, and gives its URL. */
+function shellBench(swaps = SHELL_SWAPS) {
+  if (!shellPages.has(swaps)) shellPages.set(swaps, (async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'grasp-shell-'));
     benches.push(dir);
     const result = await esbuild.build({
@@ -1294,7 +1437,7 @@ function shellBench() {
       outdir: dir,
       write: false,
       logLevel: 'silent',
-      plugins: [standInPlugin(SHELL_SWAPS), vendorPlugin],
+      plugins: [standInPlugin(swaps), vendorPlugin],
     });
     for (const out of result.outputFiles) fs.writeFileSync(path.join(dir, out.path.endsWith('.css') ? 'app.css' : 'app.js'), out.contents);
     fs.writeFileSync(path.join(dir, 'index.html'), [
@@ -1304,8 +1447,8 @@ function shellBench() {
       '<script src="app.js"></script></body></html>',
     ].join('\n'));
     return pathToFileURL(path.join(dir, 'index.html')).href;
-  })();
-  return shellPage;
+  })());
+  return shellPages.get(swaps);
 }
 
 describe('the shell\'s seams, in the application with stand-in rows', () => {
@@ -1320,8 +1463,8 @@ describe('the shell\'s seams, in the application with stand-in rows', () => {
   const MODEL = modelOf(EXAMPLE);
   const VIEW = MODEL.views[0];
   const PALETTE = byTestId(TESTIDS.palette);
-  async function openShell() {
-    const opened = await openPage(browser, { url: await shellBench(), picker: false });
+  async function openShell(swaps = SHELL_SWAPS) {
+    const opened = await openPage(browser, { url: await shellBench(swaps), picker: false });
     await openStateFile(opened.page, stateFileAt(EXAMPLE));
     await showView(opened.page, VIEW, linesOf(MODEL, VIEW).length);
     return opened;
@@ -1340,6 +1483,32 @@ describe('the shell\'s seams, in the application with stand-in rows', () => {
     return el.hasAttribute('data-action') ? `action:${el.getAttribute('data-action')}` : el.getAttribute('data-tool') ?? `?${el.textContent}`;
   }), PALETTE);
   const noPalette = (page, why) => soon(page, async () => (await page.locator(PALETTE).count()) === 0, `${why}: the palette is still open.`);
+
+  test('the controls of rows that are not built are not shown', async () => {
+    // The application with no row of a later package in the table and no section that applies (SHELL_BARE).
+    const opened = await openShell(SHELL_BARE);
+    const { page } = opened;
+    const core = await loadCore();
+    const session = core.openText(lib, readText(EXAMPLE), { name: 'example.json' }, { now: clock() });
+    // No control asks a row that is not in the table: the only ones in the page ask the scaffold's own rows.
+    const asked = await page.evaluate(() => [...new Set([...document.querySelectorAll('[data-action]')].map((el) => el.getAttribute('data-action')))].sort());
+    assert.ok(asked.every((id) => ['put-down', 'redo', 'save', 'undo'].includes(id)), `Controls ask ${asked.join(', ')}: a control of a row that is not in the table is shown.`);
+    assert.equal(await page.locator(`${byTestId(TESTIDS.newView)}, ${actionControl('new-view')}, ${actionControl('open-text')}`).count(), 0, 'A control of a row that is not built is shown.');
+    assert.deepEqual((await editorTabs(page)).map((t) => t.title), [tabTitle(VIEW)], 'The editor holds something else than the view\'s tab.');
+    // The palette on Host lists what can be made there, and no action, so no rule after its tools.
+    const at = await rightClick(page, 'Host');
+    const onHost = core.toolsOf(session).offers({ view: VIEW.id, type: 'el', id: 'Host', at, add: false }).map((group) => group.map((tool) => tool.kind));
+    assert.deepEqual(await paletteRows(page), onHost.flatMap((group, g) => (g > 0 ? ['rule', ...group] : group)), 'With no action in the table, the palette lists only what can be made, with a rule between its groups.');
+    assert.equal(await page.locator(`${PALETTE} [data-action]`).count(), 0, 'The palette lists an action that is not in the table.');
+    await page.keyboard.press('Escape');
+    await noPalette(page, 'After Escape');
+    // Details shows no section under its form: none applies.
+    await selectBox(page, VIEW, 'Host');
+    await soon(page, async () => (await page.locator(`${byTestId(TESTIDS.details)} .grasp-details`).count()) === 1, 'Details shows no form for Host.');
+    assert.deepEqual(await page.evaluate((root) => [...document.querySelector(`${root} .grasp-details`).children].map((el) => el.className.split(' ')[0]), byTestId(TESTIDS.details)),
+      ['grasp-details-what', 'MuiTabs-root', 'grasp-details-page'], 'Details shows something under its form though no section applies.');
+    await finish(opened);
+  });
 
   test('the palette lists an action that applies', async () => {
     const opened = await openShell();
@@ -1581,15 +1750,18 @@ describe('the hooks of Details\' fields, joined from panels/hooks', () => {
   test('fieldHooks holds its own hooks, the sequence file\'s and the geometry file\'s, and a hook a package adds is the field\'s', async () => {
     const real = await loadWith('panels/fieldHooks');
     assert.equal(typeof real.SEQUENCE_HOOKS, 'object');
-    assert.deepEqual(Object.keys(real.GEOMETRY_HOOKS), [], 'The geometry file\'s table is empty in the scaffold.');
-    assert.deepEqual(Object.keys(real.SEQUENCE_HOOKS), ['order'], 'The sequence file holds the order hook, moved as it is.');
+    assert.equal(typeof real.GEOMETRY_HOOKS, 'object');
+    assert.ok(real.SEQUENCE_HOOKS.order, 'The sequence file holds the order hook.');
     assert.equal(real.FIELD_HOOKS.order, real.SEQUENCE_HOOKS.order, 'The order hook of the form is the sequence file\'s.');
-    assert.equal(real.FIELD_HOOKS.order.locked(), real.ORDER_LOCKED);
+    // Until package 2-10 replaces it, the order hook is slice 1's, moved as it was: it only locks the field, with
+    // slice 1's sentence. Once the hook writes, this test has nothing to say of it.
+    if (Object.keys(real.SEQUENCE_HOOKS.order).join() === 'locked') assert.equal(real.FIELD_HOOKS.order.locked(), real.ORDER_LOCKED, 'The order hook was not moved as it was.');
     for (const name of ['name', 'abstract', 'type', 'typeLine', 'specializes', 'subsets', 'parallel']) assert.ok(real.FIELD_HOOKS[name], `fieldHooks lost its own hook ${name}.`);
 
     // The geometry file as its package could build it: a hook that locks a spatial field.
     const app = await loadCoreWith({
       'panels/hooks/geometry': `
+        export * from './geometry?real';
         import type { FieldHook } from '../fieldHooks';
         export const GEOMETRY_HOOKS: Readonly<Record<string, FieldHook>> = { posX: { locked: () => 'A stand-in locks x.' } };
       `,
@@ -1601,8 +1773,6 @@ describe('the hooks of Details\' fields, joined from panels/hooks', () => {
     const withHook = rows(app.formOf(s, { type: 'el', id: placed }, null)).find((row) => row.field === 'posX');
     assert.ok(withHook, `The form of ${placed} has no posX field.`);
     assert.equal(withHook.locked, 'A stand-in locks x.', 'A hook of panels/hooks/geometry.ts is not the field\'s.');
-    const sReal = real.openText(lib, readText(file), { name: 'geometry.json' }, { now: clock() });
-    assert.equal(rows(real.formOf(sReal, { type: 'el', id: placed }, null)).find((row) => row.field === 'posX').locked, null, 'Without the stand-in the field has no lock.');
   });
 });
 

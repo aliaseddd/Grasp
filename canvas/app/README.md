@@ -31,6 +31,8 @@ canvas/app/
 canvas/dist/          what the build writes, committed: the page that is opened
 ```
 
+Slice 2 (`plan/slice-2.md`) is under way, and the tree above is slice 1's. Section 3 of that plan is the map of the files slice 2 adds (`src/views/`, `src/core/readers/` and `src/core/actions/`, the plane's gestures, marks and grips, and more) and of the package that fills each. A file whose functions throw "<name>: package 2-N builds it", or whose export is null until that package builds it, is a skeleton: its comment is the contract its package fills. Package 2-14 brings this file up to date at the slice's close.
+
 Each file starts with a comment that says what it is for, and its contract is the comment above its main export: the tests are written from those comments, not the other way round. The plan's section 3 named most of the files. These came to be as the steps were built, each for a reason of its own:
 
 | File | Why it exists |
@@ -66,7 +68,7 @@ The selection (`core/selection.ts`) is one list for the session, which every pla
 ## How to add
 
 - **A side panel.** A file under `src/panels/` exporting a component that takes no props, reads `useDock()` (`session` may be null: a panel is mounted before any file is open and stays mounted while hidden), and renders inside `SidePanel` with its `data-testid`. Then a line in `COMPONENTS` of `shell/Dock.tsx` and the panel made in its `onReady`, on the left or right strip. Its text with no file, and with a file but nothing to show, is decided with it.
-- **A node shape.** A name in `SHAPES` of `core/adapter.ts` (and in `BOX_SHAPES` or `BORDER_SHAPES` when it is one), the data the adapter gives it, and the component that draws it in `NODE_TYPES` of `plane/Plane.tsx`: a shape missing there is drawn as React Flow's default, silently. A kind is drawn by the shape its row in the model library names (`shapeOf`).
+- **A node shape.** A name in `SHAPES` of `core/adapter.ts` (and in `BOX_SHAPES` or `BORDER_SHAPES` when it is one), the data the adapter gives it, and the component that draws it in `SHAPE_TYPES` of `views/bodies.ts`, which `npm run check` holds to every name of `SHAPES`. A renderer of its own (the sequence view, the geometry view) adds its node types in `nodeTypes` of `plane/nodes/<kind>/index.ts`, which the registry of `views/bodies.ts` reads. A kind is drawn by the shape its row in the model library names (`shapeOf`).
 - **A field's hook.** Most fields need none: a field is its row's property in the model library, shown by its row's type and changed in the generic words. A field whose value, writing, words or lock its row cannot say gets an entry in `FIELD_HOOKS` of `panels/fieldHooks.ts`, whose comment lists what each hook may give; its look and group, in `FIELD_LOOKS` and `GROUP_ORDER`.
 - **A command.** The Tools view and the palettes have one table, `core/commands.ts`: what a view kind offers comes from its row in the model library, `VIEW_KINDS[kind].tools` (`toolGroups`), its title, hint and base name from `TOOL_TITLE`, `TOOL_HINT` and `BASE_NAME`, and what it makes from `place` (an element) or `draw` (a line), each one `edit()`.
 - **A line of About.** An entry in `PROBE_LINES` of `core/probe.ts`, in the order About shows them, and its question in the probe's `ask()`, which answers it `yes`, `no` or `told` with the words of `SAID`.

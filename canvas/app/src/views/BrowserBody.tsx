@@ -14,6 +14,8 @@
 //   inside the scrolling content.
 // - A row's triangle stops its own click (BodyFrame's contract says why), and writes the view's `collapsed` option
 //   through setViewOption (core/actions/views.ts). A row is renamed through rename() of core/labels.ts.
+// - Expand all is an ActionButton (shell/ActionControl.tsx) for the action `expand-all`, in a bar at the top of the
+//   body, above the tree. Neither the view's section of Details nor the palette shows it.
 //
 // While this is null, or the reader of core/readers/browser.ts is, a browser view's tab shows the card
 // (views/ViewHost.tsx).

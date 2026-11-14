@@ -27,7 +27,7 @@
 //   marks and to React Flow's two portals (plane/Plane.tsx says why), so the editor, which is outside the plane, does
 //   not find it.
 // - A label outside the window is brought into it first: handsOf(session).hands?.reveal(viewId, rect).
-// - Its stylesheet is plane/label-editor.css, beside it.
+// - Its stylesheet is plane/label-editor.css, beside it. The package creates it and imports it from this file.
 
 import type { Session } from '../core';
 

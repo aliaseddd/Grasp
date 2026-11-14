@@ -15,6 +15,7 @@ import { describe, test } from 'node:test';
 import { EXAMPLE, FIXTURES, clock, lib, loadCore, loadCoreWith, plain, readText } from './core.mjs';
 
 const STAND_IN_ROWS = `
+  export * from './camera?real';
   import type { Action } from '../commands';
   import type { Session } from '../session';
   import type { Hit } from '../selection';
@@ -38,6 +39,15 @@ const STAND_IN_ROWS = `
   ];
 `;
 const withRows = () => loadCoreWith({ 'core/actions/camera': STAND_IN_ROWS });
+/** core/actions/camera.ts with one row only, for the key 'printable', as package 2-3's type-label could be, and no row for the camera's keys. */
+const PRINTABLE_ONLY = `
+  export * from './camera?real';
+  import type { Action } from '../commands';
+  export const STAND_IN: { asked: string[] } = { asked: [] };
+  export const CAMERA_ACTIONS: readonly Action[] = [
+    { id: 'stand-in:type', title: 'Stand-in type', key: 'printable', applies: () => true, run: (_session, _at, choice) => { STAND_IN.asked.push(choice ?? ''); } },
+  ];
+`;
 
 /** A session of the example, in the core given. */
 function sessionOf(core, file = EXAMPLE) {
@@ -252,7 +262,7 @@ describe('the action table', () => {
     const kept = core.handsOf(s);
     assert.equal(core.handsOf(s), kept, 'handsOf must give the same object at each call for one session.');
     assert.equal(kept.hands, null, 'A new session has no hands: the shell has not given them yet.');
-    const hands = { save() {}, showText() {}, showView() {}, showPanel() {}, camera() {}, reveal() {}, copy: async () => {} };
+    const hands = { save() {}, showText() {}, showView() {}, showPanel() {}, camera: () => false, reveal() {}, copy: async () => {} };
     kept.give(hands);
     assert.equal(core.handsOf(s).hands, hands);
     kept.give(null);
@@ -279,16 +289,36 @@ describe('the keys', () => {
     for (const [p, key] of spelled) assert.equal(core.keyOf(p), key, `${JSON.stringify(p)} must read as ${key}.`);
     const none = [
       press('Backspace'), press('Enter'), press('Tab'), press(' '), press('Shift', { shift: true }), press('Dead'), press('F3'),
-      press('ArrowRight'), press('ArrowDown', { alt: true }), press('ArrowLeft', { shift: true }), press('Escape', { shift: true }),
+      press('ArrowRight'), press('ArrowUp', { alt: true, shift: true }), press('ArrowLeft', { shift: true }), press('Escape', { shift: true }),
       press('a', { ctrl: true }), press('a', { meta: true }), press('a', { alt: true }), press('z', { ctrl: true, alt: true }),
       press('Delete', { ctrl: true }), press('y', { ctrl: true, shift: true }),
     ];
+    // None of these is a key of section 5's table, or ArrowRight only, which is pan-right's in core/actions/camera.ts,
+    // the file the stand-in replaces whole.
     for (const p of none) assert.equal(core.keyOf(p), null, `${JSON.stringify(p)} is no shortcut.`);
 
     // A key is a shortcut only as the key of a row: with the scaffold's four rows nothing types and nothing deletes.
     const bare = await loadCore();
     if (!bare.actions().some((a) => a.key === 'printable')) assert.equal(bare.keyOf(press('a')), null, 'With no row for a typed character, a character is no shortcut.');
     assert.equal(bare.keyOf(press('z', { ctrl: true })), 'Mod+Z');
+  });
+
+  // Section 2: "+, =, -, _ and 0 are the camera's keys, always." While no row carries one of them (the camera's rows
+  // are package 2-14's), it is no shortcut, and never a typed character that starts a label.
+  test('the camera\'s five keys are never a typed character, whatever the table holds', async () => {
+    const core = await loadCoreWith({ 'core/actions/camera': PRINTABLE_ONLY });
+    assert.equal(core.keyOf(press('a')), 'printable', 'The stand-in\'s row carries the key printable.');
+    for (const p of [press('+', { shift: true }), press('+'), press('='), press('-'), press('_', { shift: true }), press('0')]) {
+      assert.equal(core.keyOf(p), null, `${JSON.stringify(p)} is one of the camera's keys: with no row for it, it is no shortcut, not printable.`);
+    }
+    for (const p of [press('1'), press('9'), press('*', { shift: true }), press('/')]) {
+      assert.equal(core.keyOf(p), 'printable', `${JSON.stringify(p)} is no key of the camera, so it types.`);
+    }
+    const s = sessionOf(core);
+    core.STAND_IN.asked.length = 0;
+    assert.equal(core.pressed(s, press('+', { shift: true }), PAGE), false, '+ with no row for it is not taken.');
+    assert.equal(core.pressed(s, press('0'), PAGE), false, '0 with no row for it is not taken.');
+    assert.deepEqual(core.STAND_IN.asked, [], 'A key of the camera asked the row printable.');
   });
 
   test('a chord with Ctrl or ⌘ acts as slice 1\'s keys do: not from a text field, unless the field is one of Details', async () => {

@@ -26,15 +26,16 @@ describe('the notes in a session and in a state file', () => {
       const kept = core.notesOf(s).file();
       assert.deepEqual(plain(kept.notes), listOf(raw.notes), `${name}: the notes must be the file's.`);
       assert.deepEqual(plain(kept.archive), listOf(raw.archive), `${name}: the archive must be the file's.`);
-      assert.equal(s.notes, kept.notes, `${name}: session.notes is what notesOf(session).file() gives.`);
-      assert.equal(s.archive, kept.archive, `${name}: session.archive is what notesOf(session).file() gives.`);
+      // By value: seam 11 promises the lists as a state file keeps them, not the same arrays at each call, nor the
+      // file's order of a record's keys.
+      assert.deepEqual(plain(s.notes), plain(core.notesOf(s).file().notes), `${name}: session.notes is what notesOf(session).file() gives.`);
+      assert.deepEqual(plain(s.archive), plain(core.notesOf(s).file().archive), `${name}: session.archive is what notesOf(session).file() gives.`);
       const state = core.stateFile(s);
-      assert.equal(state.notes, kept.notes, `${name}: a state file's notes come from notesOf(session).file().`);
-      assert.equal(state.archive, kept.archive, `${name}: a state file's archive comes from notesOf(session).file().`);
+      assert.deepEqual(plain(state.notes), plain(core.notesOf(s).file().notes), `${name}: a state file's notes come from notesOf(session).file().`);
+      assert.deepEqual(plain(state.archive), plain(core.notesOf(s).file().archive), `${name}: a state file's archive comes from notesOf(session).file().`);
       const saved = JSON.parse(core.stateText(s));
       assert.deepEqual(saved.notes, listOf(raw.notes), `${name}: the saved notes must be the file's, key for key.`);
       assert.deepEqual(saved.archive, listOf(raw.archive), `${name}: the saved archive must be the file's, key for key.`);
-      assert.equal(JSON.stringify(saved.notes), JSON.stringify(listOf(raw.notes)), `${name}: and in the file's order of keys.`);
       assert.equal(s.unsaved, false, `${name}: a file just opened has nothing unsaved.`);
       notes += listOf(raw.notes).length;
       archived += listOf(raw.archive).length;

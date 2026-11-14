@@ -78,6 +78,12 @@ function spell(press: KeyPress): string {
   return ALIASES[key] ?? key;
 }
 
+/**
+ * The camera's keys, as spell() writes them (`=` and `_` are read as `+` and `-`): "`+`, `=`, `-`, `_` and `0` are
+ * the camera's keys, always" (section 2). keyOf() never reads one of them as 'printable', whatever the table holds.
+ */
+const CAMERA_KEYS: readonly string[] = ['+', '-', '0'];
+
 /** The row of a key: the first row of the table that carries it. */
 function rowOf(key: string): Action | null {
   for (const action of actions()) if (action.key === key) return action;
@@ -90,21 +96,25 @@ function rowOf(key: string): Action | null {
  *
  * - A press is spelled as spell() says, its aliases read (ALIASES). When a row of the table has that very key, that
  *   is the answer.
+ * - Otherwise, a press of one of the camera's keys ('+', '=', '-', '_' and '0', CAMERA_KEYS) is null: they are the
+ *   camera's whatever the table holds, and never start a label (section 2), also while no row carries them (the
+ *   camera's rows are package 2-14's).
  * - Otherwise, when the press types one character (typed(): the space bar types none here, since it belongs to the
- *   button that has the focus) and a row has the key 'printable', the answer is 'printable'. An exact key is looked
- *   up first, so '+', '=', '-', '_' and '0' are the camera's and never start a label (section 2).
+ *   button that has the focus) and a row has the key 'printable', the answer is 'printable'.
  * - Otherwise null. A key is a shortcut only as the `key` of a row: a row that is not built is not in the table, so
  *   its key is null until then.
  */
 export function keyOf(press: KeyPress): string | null {
   const key = spell(press);
   if (rowOf(key)) return key;
+  if (CAMERA_KEYS.includes(key)) return null;
   return typed(press) && rowOf('printable') ? 'printable' : null;
 }
 
 /**
  * A key was pressed: asks the action of that key, when the key is the page's where it came from. It returns whether
- * the key was taken; the caller then prevents the browser's default, and does nothing else with the event.
+ * the key was taken; the caller then prevents the browser's default (except Escape's, so that Material UI's toast
+ * still closes at it: shell/App.tsx), and does nothing else with the event.
  *
  * The rules, in this order. The first five are slice 1's, moved here unchanged from shell/TopBar.tsx and
  * panels/Tools.tsx; the rest are section 5's.

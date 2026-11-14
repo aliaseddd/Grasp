@@ -13,10 +13,12 @@ import type { Hit, Session } from '../core';
  *   plane this is React Flow's screenToFlowPosition.
  * - `hitAt(client)`: what lies at a point of the window: the ground, an element or a relationship, as a Hit with
  *   `add` false. It looks only at what is inside this body's root, so a node of a view beside it is never the answer,
- *   and it passes over whatever carries `data-pass` or is inside something that does: the pins, the badges, the grips
- *   and the line in hand. So a pin that is dragged does not hide what is under it. In a plane the answer is the first
- *   element there that is a node or an edge (a node that stands for no element is passed over); a point over one of
- *   the plane's panels (the zoom buttons, the minimap) is the ground. In a component body it is the first element
+ *   and it passes over whatever carries `data-pass` or is inside something that does: the pins, the badges, a line's
+ *   grips and the line in hand. So a pin that is dragged does not hide what is under it. In a plane a node's grip, and
+ *   the way from the node's side to it, is that node's (while a line is in hand every near node shows its grips, and
+ *   a person lets go on the one they aim at); otherwise the answer is the first element there that is a node or an
+ *   edge (a node that stands for no element is passed over); a point over one of the plane's panels (the zoom
+ *   buttons, the minimap) is the ground. In a component body it is the first element
  *   there that is inside something with `data-thing`.
  * - `zoom()`: the body's zoom; 1 for a body with no camera.
  * - `menu(hit, client)`: opens the right-click palette there.

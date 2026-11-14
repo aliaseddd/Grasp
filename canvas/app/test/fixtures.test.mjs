@@ -10,8 +10,10 @@
 //   - Line 23 of section 7: two views of one model side by side, each drawn.
 //
 // What a view must show is asked of its kind's reader in Node (core/readers: readView and listed), on the file as the
-// core opens it; what it shows is read from the page through thingsIn(). So a body that draws a card, drops a row or
-// draws one too many fails here, whatever its kind.
+// core opens it; what it shows is read from the page through thingsIn(). Both sides are sets of things (`el:<id>`,
+// `rel:<id>`), since one thing may be drawn twice (a lifeline's head and line, a matrix's two heads of one element).
+// So a body that draws a card, leaves out a thing its reader lists, or draws a thing its reader does not list fails
+// here, whatever its kind; one that draws a listed thing more often than it should does not.
 
 import assert from 'node:assert/strict';
 import path from 'node:path';

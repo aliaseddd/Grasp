@@ -12,7 +12,8 @@
 //   each render of its form and, when it answers true, renders its Component under the form, inside the form's root
 //   (`.grasp-details`, which carries `data-history-keys`), with `session` and `picked`.
 // - It imports the types SectionProps and Section from panels/sections.ts, and nothing from panels/Details.tsx.
-// - Its styles are panels/view-section.css, which package 2-4 owns with the view's section.
+// - Its styles are panels/view-section.css, which package 2-4 owns with the view's section: the package creates it
+//   and imports it from panels/ViewSection.tsx.
 //
 // Until package 2-4 builds it, its applies() answers false and its component renders nothing.
 

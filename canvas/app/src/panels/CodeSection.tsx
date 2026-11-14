@@ -17,7 +17,7 @@
 //   field is left (history.endEdit, as panels/fieldHooks.ts's endTyping does for a field of the form).
 // - Add and Remove are ActionButtons (shell/ActionControl.tsx).
 // - It imports the types SectionProps and Section from panels/sections.ts, and nothing from panels/Details.tsx. Its
-//   stylesheet is panels/code-section.css, beside it.
+//   stylesheet is panels/code-section.css, beside it. The package creates it and imports it from this file.
 //
 // Until package 2-8 builds it, its applies() answers false and its component renders nothing.
 

@@ -26,6 +26,12 @@
   transform: translateY(-50%) scale(var(--grasp-marks-scale));
   transform-origin: right center;
 }
+/* A selected box's corner handles (NodeResizer's, plane/nodes/BoxNode.tsx) lie over its marks: the row ends at the
+   top right corner, where a handle is, and the box must be resizable from every corner. The handle covers the
+   corner's end of the row only; the rest of the row, and the side lines of the resizer, stay under it. */
+.grasp-plane .react-flow__node.selected .react-flow__resize-control.handle {
+  z-index: 1;
+}
 /* On a border item: beside the square, on the side away from its name, which is the side of its owner's inside. */
 .grasp-plane .react-flow__node > .grasp-marks[data-side='right'] {
   right: calc(100% + 2px);

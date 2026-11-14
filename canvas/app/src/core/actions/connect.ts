@@ -25,10 +25,14 @@ export function fits(_session: Session, _viewId: string, _fromId: string, _toId:
 }
 
 /**
- * Why an end of a relationship may not move to the element `toId`, or null when it may: drawProblem's sentence for
- * the new pair, the line itself left out of the "already drawn" check; and for a "defined by" line whose usage end
- * goes to a usage that has a definition already, "<describe of that usage> is defined by <the definition's name>
- * already. Clear its definition in Details first." Package 2-2 builds it.
+ * Why an end of a relationship may not move to the element `toId`, or null when it may. Two checks, in this order,
+ * the first that has a sentence giving it:
+ * 1. drawProblem's sentence for the new pair, with `but` the line itself, so that it is left out of the "already
+ *    drawn" check;
+ * 2. then, for a "defined by" line whose usage end goes to a usage that has a definition already (another typing
+ *    than this line), "<describe of that usage> is defined by <the definition's name> already. Clear its definition
+ *    in Details first."
+ * reconnect.test.mjs's refusal() holds the same order. Package 2-2 builds it.
  */
 export function reconnectProblem(_session: Session, _relId: string, _end: 'from' | 'to', _toId: string): string | null {
   throw new Error('reconnectProblem: package 2-2 builds it');

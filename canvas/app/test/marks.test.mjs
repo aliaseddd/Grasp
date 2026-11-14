@@ -190,6 +190,14 @@ describe('the marks', () => {
     touch(s);
     assert.equal(calls, 7, 'The checks telling of the same entries changes no mark.');
 
+    // A free note moved to another point of its view: its view's list is a new array, with the new point.
+    const was = marks.free('v-proof');
+    notes.moveTo(free.id, { view: 'v-proof', x: 60, y: 70 });
+    assert.equal(calls, 8, 'A free pin moved within its view tells once.');
+    const moved = marks.free('v-proof');
+    assert.notEqual(moved, was, 'A view\'s free pins that moved are a new array.');
+    assert.deepEqual(plain(moved), [{ id: free.id, no: 5, resolved: false, hot: false, x: 60, y: 70 }]);
+
     // Everything taken away: the thing carries NO_MARKS itself again.
     notes.remove('n-host-abstract');
     assert.equal(marks.of('el', 'Host'), core.NO_MARKS);

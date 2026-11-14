@@ -265,6 +265,20 @@ describe('save, undo, redo and their keys', () => {
     await finish(opened);
   });
 
+  // Escape is put-down's key, which always applies, and a toast said through saysOf leaves at Escape too
+  // (shell/Toasts.tsx, "When it leaves"): Material UI's Snackbar closes on an Escape whose default is not prevented.
+  test('Escape takes away a toast that says why a key was refused', async () => {
+    const opened = await openExample(browser);
+    const { page } = opened;
+    await page.keyboard.press('Control+y');
+    const said = await toastAfter(page, 0, 'Ctrl + Y with nothing to redo');
+    assert.equal(said.text, 'There is nothing to redo.', 'Ctrl + Y with nothing to redo');
+    await page.keyboard.press('Escape');
+    await soon(page, async () => (await toast(page)) === null,
+      async () => `After Escape the toast "${said.text}" (data-said ${said.said}) is still up: ${JSON.stringify(await toast(page))}.`);
+    await finish(opened);
+  });
+
   test('with no file open a key does nothing and says nothing', async () => {
     const bare = await openPage(browser, { picker: false });
     const { page } = bare;

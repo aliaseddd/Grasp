@@ -15,6 +15,13 @@
 //   once it has moved.
 // - **Marks, anchors and grips.** Its label carries `data-label`; a badge and its pins sit at its middle; selected
 //   and near, it shows a grip at each end (criterion 5).
+// - **A press on a grip is not its drag.** The plane's capturing pointerdown hands a press inside `[data-grip]` (an
+//   end grip) to the connect gesture and neither stops nor prevents it, so the edge's own pointerdown sees the same
+//   press: MessageEdge leaves alone a press whose target is inside `[data-grip]`, or a press on an end grip would
+//   start both gestures.
+// - **What the tests find it by.** Its own React Flow element carries the class `message` (the library's `line.cls`
+//   of a message; linesIn() of test/helpers.mjs reads a line's kind off its edge's classes), and `data-of` is on the
+//   `path` that takes the pointer (freePointOf() and endsAt() look for `path[data-of]`).
 //
 // What the scaffold fixes for an edge component of another renderer is said in plane/nodes/sequence/index.ts and, in
 // full, in plane/Plane.tsx: who it is (`data-of="rel:<data.relationship>"` on one element inside its own), its marks
@@ -23,7 +30,7 @@
 // own look while a gesture is over it (`data-over`).
 //
 // Nothing imports this file until index.ts names its component. Its stylesheet is
-// plane/nodes/sequence/sequence.css, beside it.
+// plane/nodes/sequence/sequence.css, beside it. The package creates it and imports it from the folder's index.ts.
 
 import type { EdgeProps } from '@xyflow/react';
 

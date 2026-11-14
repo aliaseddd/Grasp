@@ -17,8 +17,13 @@ export interface ShellHands {
   showView(viewId: string): void;
   /** Opens a side panel: 'notes', 'details'. */
   showPanel(id: string): void;
-  /** The plane's: zooms by a step about its middle, fits, or moves by a step. Nothing for a view with no camera. */
-  camera(viewId: string, how: 'in' | 'out' | 'fit' | 'left' | 'right' | 'up' | 'down'): void;
+  /**
+   * The plane's: zooms by a step about its middle, fits, or moves by a step. Returns true when a mounted plane of that
+   * view did it, and false when none did (no plane of the view is mounted, as behind a text tab, or its body has no
+   * camera), so that a camera row can refuse with a sentence where nothing took the key.
+   * By the lead's decision this departs from seam 8's `camera(...): void`, which says nothing when nothing moved.
+   */
+  camera(viewId: string, how: 'in' | 'out' | 'fit' | 'left' | 'right' | 'up' | 'down'): boolean;
   /** Brings a place of a view, in the view's own units, into its window. */
   reveal(viewId: string, rect: { x: number; y: number; w: number; h: number }): void;
   /** The clipboard: resolves once the text is on it, and rejects when the browser refuses. */

@@ -15,7 +15,8 @@
 //   a tab's body while another tab of its group is in front, and mounts it again when it is shown.
 // - It is given the session whose text it shows as its one prop, never the session of the dock's context: when
 //   another file is opened, React renders the old file's tabs once more before the dock takes them away.
-// - Its root fills the tab. Its stylesheet is views/text-tab.css, beside it.
+// - Its root fills the tab. Its stylesheet is views/text-tab.css, beside it. The package creates it and imports it
+//   from this file.
 //
 // Until package 2-9 builds it, it renders nothing: nothing opens the tab before the row `open-text` is in the table.
 

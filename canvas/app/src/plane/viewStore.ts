@@ -82,7 +82,14 @@ export interface ViewSnapshot {
  * - A view the model no longer holds, and a view of a kind no plane draws, have the empty snapshot.
  * - **Step 9: what is selected is the session's selection** (core/selection.ts; plan/swarm/step-9.md), no longer
  *   React Flow's own, kept view by view. A node carries `selected: true` when selectionOf(session).has('el', its id)
- *   and an edge when has('rel', its id), in every view that shows it; no other node or edge is selected. The store
+ *   and an edge when has('rel', its id), in every view that shows it; no other node or edge is selected. A selected
+ *   edge, and no other, carries `zIndex` SELECTED_LINE_Z beside `selected` (slice 2), so that a picked line is drawn
+ *   over the boxes it crosses and its two end grips (plane/nodes/Grips.tsx, EndGrips) can be pressed where an end
+ *   lies on a node or under another line; the zIndex goes when the edge is no longer selected. The store gives the
+ *   lines of a picked box none (the plane does not set React Flow's elevateEdgesOnSelect, which would raise them
+ *   all); React Flow itself still draws a line that ends on a nested node at that node's z, which is 1000 and more
+ *   while the node is picked (elevateNodesOnSelect), as in slice 1. A reader gives an edge no zIndex: it is the
+ *   store's. The store
  *   sets this after every projection and after every change of the selection it hears (selection.listen): a new
  *   object for each node or edge whose `selected` differs, in a new array, every other the object it was. A live
  *   store then tells its subscribers, once; a store with no subscriber sets it at its next getSnapshot(). A `select`
@@ -259,10 +266,27 @@ interface Item { id: string; selected?: boolean }
 interface Select { type: string; id?: string; selected?: boolean }
 
 /**
- * The list with a new object for each item a `select` change names, reading as `says` says of that item: a new array;
- * null when the changes name no item of the list.
+ * The zIndex the store gives a selected edge, and no other (see "Step 9" of ViewStore's comment): over every node,
+ * a picked box too, which React Flow raises by 1000 (elevateNodesOnSelect), and its nested boxes one above it; and
+ * under a line's marks, which marks.css puts at 1500. React Flow adds to it the z of an end node that is nested in
+ * another (getElevatedEdgeZIndex).
  */
-function renewed<T extends Item>(list: T[], changes: readonly Select[], says: (item: T) => boolean): T[] | null {
+export const SELECTED_LINE_Z = 1100;
+
+/** A node that reads as `is` says of its `selected`. */
+const nodeAs = <T extends Item>(node: T, is: boolean): T => ({ ...node, selected: is });
+
+/** An edge that reads as `is` says of its `selected`, with SELECTED_LINE_Z while selected and no zIndex otherwise. */
+function edgeAs(edge: PlaneEdge, is: boolean): PlaneEdge {
+  const { zIndex: _was, ...rest } = edge;
+  return is ? { ...rest, selected: true, zIndex: SELECTED_LINE_Z } : { ...rest, selected: false };
+}
+
+/**
+ * The list with a new object for each item a `select` change names, reading as `says` says of that item: a new array;
+ * null when the changes name no item of the list. `as` makes an item that reads as selected or not.
+ */
+function renewed<T extends Item>(list: T[], changes: readonly Select[], says: (item: T) => boolean, as: (item: T, is: boolean) => T): T[] | null {
   let out: T[] | null = null;
   for (const change of changes) {
     if (change.type !== 'select' || change.id === undefined) continue;
@@ -272,7 +296,7 @@ function renewed<T extends Item>(list: T[], changes: readonly Select[], says: (i
     out ??= [...list];
     const is = says(current[at]);
     // A copy that reads as the selection says: `selected` is written only where it would otherwise differ.
-    out[at] = (current[at].selected ?? false) === is ? { ...current[at] } : { ...current[at], selected: is };
+    out[at] = (current[at].selected ?? false) === is ? { ...current[at] } : as(current[at], is);
   }
   return out;
 }
@@ -360,7 +384,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
       if (same && e.data.marks === now) return;
       edges ??= [...p.edges];
       const data = e.data.marks === now ? e.data : { ...e.data, marks: now };
-      edges[i] = same ? { ...e, data } : { ...e, selected: is, data };
+      edges[i] = same ? { ...e, data } : { ...edgeAs(e, is), data };
     });
     if (nodes || edges) projection = { ...p, nodes: nodes ?? p.nodes, edges: edges ?? p.edges };
   };
@@ -595,7 +619,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   const nodesChanged = (changes: NodeChange<PlaneNode>[]): void => {
     refresh();
     if (!projection) return;
-    const chosen = renewed(projection.nodes, changes, picked);
+    const chosen = renewed(projection.nodes, changes, picked, nodeAs);
     if (chosen) {
       projection = { ...projection, nodes: chosen };
       adopt();
@@ -667,7 +691,7 @@ function make(session: Session, viewId: string, hear: Map<string, Hear>): ViewSt
   const edgesChanged = (changes: EdgeChange<PlaneEdge>[]): void => {
     refresh();
     if (!projection) return;
-    const edges = renewed(projection.edges, changes, pickedEdge);
+    const edges = renewed(projection.edges, changes, pickedEdge, edgeAs);
     if (!edges) return;
     projection = { ...projection, edges };
     adopt();

@@ -224,4 +224,41 @@ describe('resizing a box', () => {
       'a refused write aborts its writable once and does not close it (createWritable, abort and close calls)');
     await finish(opened);
   });
+
+  // Slice 2 (plan/slice-2.md, seam 4): a box's marks lie across its top edge at its right end (plane/marks/marks.css),
+  // where its top right handle is. The handles stay over the marks, so a marked box can be resized from every corner.
+  // Nothing marks a box in the scaffold's page, so the test puts a row of one 16 px mark into the node as Badge would.
+  test('a mark on a selected box leaves its four corner handles to the pointer', async () => {
+    const view = JSON.parse(fs.readFileSync(EXAMPLE, 'utf8')).model.views[0];
+    const opened = await openPage(browser, { picker: false });
+    const { page } = opened;
+    await openStateFile(page, stateFileAt(EXAMPLE));
+    await viewTab(page, view);
+    await untilDrawn(page, view);
+    await selectBox(page, view, BOX);
+    const handles = page.locator(`${nodeOf(view.id, BOX)} ${HANDLE}`);
+    await soon(page, async () => (await handles.count()) === 4, `${BOX}, selected, does not show its four corner handles (${HANDLE}).`);
+    const seen = await page.evaluate(([node, handle]) => {
+      const el = document.querySelector(node);
+      const row = document.createElement('div');
+      row.className = 'grasp-marks nodrag nopan';
+      const mark = document.createElement('span');
+      mark.style.cssText = 'display: block; width: 16px; height: 16px';
+      row.appendChild(mark);
+      el.appendChild(row);
+      const middle = (r) => ({ x: r.x + r.width / 2, y: r.y + r.height / 2 });
+      const corners = [...el.querySelectorAll(handle)].map((h) => {
+        const at = middle(h.getBoundingClientRect());
+        const top = document.elementFromPoint(at.x, at.y);
+        return { handle: h.className, free: top === h, under: top === h ? null : top?.tagName };
+      });
+      const at = middle(mark.getBoundingClientRect());
+      const markFree = document.elementFromPoint(at.x, at.y) === mark;
+      row.remove();
+      return { corners, markFree };
+    }, [nodeOf(view.id, BOX), HANDLE]);
+    for (const corner of seen.corners) assert.ok(corner.free, `With a mark on ${BOX}, the handle "${corner.handle}" lies under a ${corner.under} at its middle, so the box cannot be resized from that corner.`);
+    assert.ok(seen.markFree, `The mark on ${BOX} lies under something at its middle: a click there would not reach it.`);
+    await finish(opened);
+  });
 });

@@ -141,7 +141,12 @@ describe('a line\'s end moved by dragging', () => {
       const saved = await saveAndRead(page);
       assert.deepEqual(saved.model.relationships.find((other) => other.id === rel.id), { ...rel, [end]: takes.id }, `${where} was not saved with that one end moved and everything else of it as it was.`);
       assert.equal(lists(saved.model, rel.id, end, rel[end]), lists(model, rel.id, end, rel[end]), `${where} changed something else of the model.`);
-      assert.deepEqual(saved.notes, noted.notes, `${where} did not keep the notes: the note on the line is still on it (target "${rel.id}").`);
+      // A note's targetLabel follows its target's words while the target is in the model (core/notes.ts, the Note
+      // contract), and a line's words name its ends: so the notes are compared without it, and each keeps its target.
+      const unlabelled = (notes) => notes.map(({ targetLabel: _label, ...rest }) => rest);
+      assert.deepEqual(unlabelled(saved.notes), unlabelled(noted.notes), `${where} did not keep the notes: the note on the line is still on it (target "${rel.id}").`);
+      const ours = noted.notes.at(-1);
+      assert.equal(saved.notes.find((note) => note.id === ours.id)?.target, rel.id, `${where} moved its note off the line: the note's target is no longer "${rel.id}".`);
 
       // One undo step: Ctrl + Z, once, puts the end back, and nothing is left to undo.
       await pressKey(page, 'Mod+Z');

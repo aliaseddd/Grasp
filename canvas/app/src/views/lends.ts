@@ -57,7 +57,9 @@ export function lend(session: Session, viewId: string, lent: Lent): () => void {
  * a step of 1.2 about the plane's middle, 'fit' fits the view as the fit button does, and 'left', 'right', 'up' and
  * 'down' move the window that way over the view by 80 px of the screen. It does nothing for a view whose body is not
  * mounted or has no camera (a component body): the camera's actions ask first whether the view in front has one
- * (graphBodied() of core/readers). Returns whether a camera was moved.
+ * (graphBodied() of core/readers). Returns whether a camera was moved: true when a mounted body of the view lent a
+ * camera and was asked, false otherwise. ShellHands.camera gives this answer back to the action, which refuses with a
+ * sentence when it is false.
  */
 export function lentCamera(session: Session, viewId: string, how: CameraMove): boolean {
   const camera = keptOf(session).lent.get(viewId)?.camera;

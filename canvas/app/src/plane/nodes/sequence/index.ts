@@ -1,5 +1,6 @@
 // The node and edge types a sequence view adds to every plane. THE SCAFFOLD'S SKELETON: package 2-10 owns this folder
-// (index.ts, LifelineNode.tsx, MessageEdge.tsx, sequence.css) and builds it.
+// (index.ts, LifelineNode.tsx, MessageEdge.tsx, sequence.css) and builds it. sequence.css does not exist yet: the
+// package creates it and imports it from this file.
 //
 // What it fills (plan/slice-2.md, section 8, package 2-10; section 2, "The sequence view and the geometry view: a
 // graph body each"; section 4, seams 2, 3, 4, 6 and 7):

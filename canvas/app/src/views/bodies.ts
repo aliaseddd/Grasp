@@ -123,7 +123,12 @@ const BROWSER_OPTIONS: readonly OptionRow[] = [
 export const BODIES: readonly BodyEntry[] = [
   { renderer: 'graph', reader: () => readerOf('graph'), options: [], body: 'graph', nodeTypes: SHAPE_TYPES, edgeTypes: LINE_TYPES },
   {
-    renderer: 'sequence', reader: () => readerOf('sequence'), options: SEQUENCE_OPTIONS, body: 'graph',
+    // A picked lifeline's line is not raised over the messages that cross it (section 2: the line, `<id>:line`, lies
+    // behind everything). The store selects every node of a picked element, so the line's node is selected with its
+    // head, and React Flow's calculateZ adds 1000 to the z of any selected node, selectable or not, while a message
+    // joined to neither of its ends keeps its own: raised, the dashed line and its strip would lie over the message,
+    // and a click where they cross would pick the lifeline.
+    renderer: 'sequence', reader: () => readerOf('sequence'), options: SEQUENCE_OPTIONS, body: 'graph', flow: { elevateNodesOnSelect: false },
     get nodeTypes() { return sequenceNodeTypes; },
     get edgeTypes() { return sequenceEdgeTypes; },
   },

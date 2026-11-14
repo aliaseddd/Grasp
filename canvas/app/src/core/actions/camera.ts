@@ -8,9 +8,13 @@
 // front." or "<A grid view> has no zoom: it scrolls." Each calls the shell's hand,
 // handsOf(session).hands.camera(viewId, 'in' | 'out' | 'fit' | 'left' | 'right' | 'up' | 'down'): '+' and '-' zoom by a
 // step of 1.2 about the middle of the plane, an arrow moves the plane by 80 px, and '0' fits, as the fit button does
-// (section 8, package 2-14). '=' reads as '+' and '_' as '-' (ALIASES of core/keys.ts).
+// (section 8, package 2-14). '=' reads as '+' and '_' as '-' (ALIASES of core/keys.ts). The hand returns whether a
+// mounted plane of that view did it; where it returns false (no plane of the view is mounted: a text tab is in front
+// of it, or its body is still a card), `run` refuses with a sentence ({ refused: "No view is in front." }), so that a
+// key that moved nothing still says why.
 //
-// While the array is empty the keys do nothing, as before the scaffold.
+// While the array is empty the keys do nothing, as before the scaffold: keyOf() reads '+', '=', '-', '_' and '0' as
+// no shortcut while no row carries them, never as a typed character (core/keys.ts).
 
 import type { Action } from '../commands';
 

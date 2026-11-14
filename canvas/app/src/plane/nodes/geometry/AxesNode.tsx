@@ -11,7 +11,7 @@
 //   view's store never marks or selects it (plan/slice-2.md, section 4, seam 3, "A node that is no element").
 //
 // Nothing imports this file until index.ts names its component. Its stylesheet is
-// plane/nodes/geometry/geometry.css, beside it.
+// plane/nodes/geometry/geometry.css, beside it. The package creates it and imports it from the folder's index.ts.
 
 import type { NodeProps } from '@xyflow/react';
 

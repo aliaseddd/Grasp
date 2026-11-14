@@ -138,6 +138,9 @@ const standIns = new Map();
  * A stand-in resolves its own imports from the folder of the module it stands in for, so './session' means what it
  * means there. To add to the real module instead of replacing it, a stand-in imports it as '<its path>?real'
  * (`export * from './checks?real'; export function entriesOf() { … }`: its own exports win over the starred ones).
+ * Every stand-in of the tests begins so, even one that gives every export its skeleton has: a package may add exports
+ * to its file that its other files import, and a stand-in without the star would not hold them, so the bundle would
+ * not build.
  */
 export function loadCoreWith(swaps, ...files) {
   const key = JSON.stringify([Object.entries(swaps).sort(([a], [b]) => (a < b ? -1 : 1)), files]);
@@ -187,6 +190,7 @@ async function bundleStandIns(swaps, files) {
  * of every session of the bundle have at this moment.
  */
 export const STAND_IN_NOTES = `
+  export * from './notes?real';
   import { fileNotesOf } from './session';
   import type { Session } from './session';
   type Rec = Record<string, unknown>;
@@ -262,6 +266,7 @@ export const STAND_IN_ENTRIES = `
  * also exports ASKED, which keeps what it was asked. Use it with STAND_IN_PLANE_ACTIONS, on the sequence fixture.
  */
 export const STAND_IN_PLANE_READER = `
+  export * from './sequence?real';
   import { LOOK } from '../adapter';
   import type { Ask, PlaneEdge, PlaneNode, Projection, Rect } from '../adapter';
   import { NO_MARKS } from '../marks';
@@ -330,6 +335,7 @@ export const STAND_IN_PLANE_READER = `
  * was asked.
  */
 export const STAND_IN_PLANE_ACTIONS = `
+  export * from './sequence?real';
   import type { Ask, Projection } from '../adapter';
   import type { Action } from '../commands';
   import type { Ender, Placer } from '../readers/index';

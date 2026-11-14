@@ -146,10 +146,12 @@ export interface PlaneProps {
  *   anchor, and how `mark` finds what to outline. Nothing reads `data-id` as an element's or a relationship's id.
  * - **The body's hands** (seam 2; views/bodyContext.ts). The plane provides BodyContext around React Flow and the
  *   connect menu: `toView` is React Flow's screenToFlowPosition; `hitAt` goes through document.elementsFromPoint,
- *   looks only at what is inside this root, passes over whatever carries `data-pass` or is inside something that
- *   does, stops at one of React Flow's panels (the ground), and answers with the first that is a node with an element
- *   or an edge, else the ground; `zoom` is the store's; `menu` opens the palette; `inside` asks the root's rectangle;
- *   `mark` sets `data-over` ('fits' or 'no') on the React Flow element of each node of that element, or of that
+ *   looks only at what is inside this root, answers a node's grip (an element with `data-grip` that is a child of a
+ *   node's React Flow element), and the way from the node's side to it, with that node's element, passes over
+ *   whatever else carries `data-pass` or is inside something that does (a line's grips, the pins, the badges, the
+ *   line in hand), stops at one of React Flow's panels (the ground), and answers with the first that is a node with
+ *   an element or an edge, else the ground; `zoom` is the store's; `menu` opens the palette; `inside` asks the root's
+ *   rectangle; `mark` sets `data-over` ('fits' or 'no') on the React Flow element of each node of that element, or of that
  *   relationship's edge, and takes it off the ones before (plane/nodes/grips.css draws it); `swallow` raises the flag
  *   that drops the next click. Before React Flow is mounted `toView` gives the point back and `hitAt` the ground.
  * - **The click that follows a gesture's release is no click** (seam 6): one flag, raised while a marquee is drawn,
@@ -184,10 +186,11 @@ export interface PlaneProps {
  *   renderer.
  * - **An entry's plane props** (seam 3): the `flow` of the view kind's entry in the registry, cut to FLOW_PROPS
  *   (`elevateNodesOnSelect`), is spread onto React Flow.
- * - **`elevateEdgesOnSelect`**: a selected line is drawn over the boxes it crosses, on every plane. Without it a
- *   selected line's end grips (EndGrips) lie under the node the end is on, or under another line, and cannot be
- *   pressed: 19 of the 116 line ends of the ten files, against none with it (plan/notes.md keeps the numbers). It is
- *   the plane's own prop, not one an entry may set.
+ * - **A selected line is drawn over the boxes it crosses**, on every plane, by the zIndex the store gives a selected
+ *   edge (SELECTED_LINE_Z, plane/viewStore.ts), so that its end grips (EndGrips) can be pressed where an end lies on
+ *   a node or under another line. The plane does not set React Flow's `elevateEdgesOnSelect`, which would raise every
+ *   line of a picked box as well. (React Flow still draws a line that ends on a nested node at that node's z, so the
+ *   lines of a picked nested box lie over its siblings, as in slice 1.)
  * - **The camera's hand** (seam 8; views/lends.ts): while React Flow is mounted the plane lends its camera and its
  *   `reveal`. The camera zooms by a step of ZOOM_STEP about the plane's middle ('in', 'out'), held between MIN_ZOOM
  *   and MAX_ZOOM; moves the window over the view by PAN_STEP screen px ('left', 'right', 'up', 'down': 'left' shows
@@ -374,7 +377,17 @@ function planeHands(store: ViewStore, root: RefObject<HTMLDivElement>, reach: Re
     const el = root.current;
     if (el && reach.inner) {
       for (const found of document.elementsFromPoint(client.x, client.y)) {
-        if (!el.contains(found) || found.closest('[data-pass]')) continue;
+        if (!el.contains(found)) continue;
+        // A node's grip, and the way from its side to the grip (the grip's ::before), is that node's: while a line is
+        // in hand every near node shows its grips, and a person lets go on the handle they aim at. A line's grips,
+        // in its edge, are passed over with the rest of what carries data-pass.
+        const holder = found.closest('[data-grip]')?.parentElement;
+        if (holder?.classList.contains('react-flow__node')) {
+          const id = elementAt(reach, holder.getAttribute('data-id'));
+          if (id === null) continue;
+          return { view, type: 'el', id, at, add: false };
+        }
+        if (found.closest('[data-pass]')) continue;
         if (found.closest('.react-flow__panel')) break;
         const node = found.closest('.react-flow__node');
         if (node) {
@@ -480,7 +493,6 @@ function Flow({ store, root, openPalette, reach, body, flow }: FlowProps & { ope
       maxZoom={MAX_ZOOM}
       onlyRenderVisibleElements={snapshot.nodes.length > LARGE_VIEW}
       panOnDrag={PAN_BUTTONS}
-      elevateEdgesOnSelect
       panOnScroll
       panOnScrollSpeed={1}
       zoomOnScroll={false}

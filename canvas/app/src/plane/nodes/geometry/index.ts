@@ -1,5 +1,6 @@
 // The node and edge types a geometry view adds to every plane. THE SCAFFOLD'S SKELETON: package 2-11 owns this folder
-// (index.ts, FootprintNode.tsx, AxesNode.tsx, geometry.css) and builds it.
+// (index.ts, FootprintNode.tsx, AxesNode.tsx, geometry.css) and builds it. geometry.css does not exist yet: the
+// package creates it and imports it from this file.
 //
 // What it fills (plan/slice-2.md, section 8, package 2-11; section 2, "The sequence view and the geometry view: a
 // graph body each"; section 4, seams 2, 3, 4 and 7):

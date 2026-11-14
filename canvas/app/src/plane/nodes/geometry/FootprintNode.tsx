@@ -22,7 +22,7 @@
 // it. A node component never reads the body's context (views/bodyContext.ts).
 //
 // Nothing imports this file until index.ts names its component. Its stylesheet is
-// plane/nodes/geometry/geometry.css, beside it.
+// plane/nodes/geometry/geometry.css, beside it. The package creates it and imports it from the folder's index.ts.
 
 import type { NodeProps } from '@xyflow/react';
 

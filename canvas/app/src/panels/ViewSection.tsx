@@ -19,7 +19,7 @@
 // - Every button that asks an action is an ActionButton (shell/ActionControl.tsx), which greys itself and carries
 //   the sentence where the action does not apply.
 // - It imports the types SectionProps and Section from panels/sections.ts, and nothing from panels/Details.tsx. Its
-//   stylesheet is panels/view-section.css, beside it.
+//   stylesheet is panels/view-section.css, beside it. The package creates it and imports it from this file.
 //
 // Until package 2-4 builds it, its applies() answers false and its component renders nothing.
 

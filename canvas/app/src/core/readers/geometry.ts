@@ -9,6 +9,12 @@
 // - `at(data, point)` answers GeometryAt: the innermost footprint at the point that can hold a part, and the point in
 //   that footprint's frame, or in the view's, in the view's unit. Only core/actions/geometry.ts reads it.
 // - `geometryResult`: the position a dragged footprint has at a step, rounded.
+// - **What step() reads.** step(data, asks) gets no model, and the store hands it a spread copy of what read() gave
+//   (plane/viewStore.ts sets `selected` and the marks in a copy, `{ ...projection, nodes, edges }`). So the reader
+//   keeps what it needs of lib, model and view in a field of its own on the projection it gives, which a spread copy
+//   keeps, and reads it back from there in step(); a WeakMap keyed by the projection object misses the copy.
+//   PlaneNode holds no footprint and no axes: the reader gives its nodes their own data, with Who's `element`, `view`
+//   and `marks` (core/adapter.ts), and casts them to PlaneNode.
 //
 // While `geometryReader` is null a geometry view is not drawn by a body: its tab shows the card and it lists no tools.
 

@@ -56,7 +56,12 @@ export interface CodeLinks {
   change(index: number, field: keyof CodeLink, value: string, key?: string | null): Touched | null;
 }
 
-/** The code links of an element of a session. Package 2-8 builds it. */
+/**
+ * The code links of an element of a session. For an id that names no element of the model, or an element whose kind
+ * holds no code links (its kind's `fields` do not list `code`), `links` is empty and add, remove and change do nothing
+ * and return null. Package 2-8 builds it, and may add an export of its own here that says whether an element can hold
+ * code links, which the section's `applies` asks (rather than a field of the record).
+ */
 export function codeLinksOf(_session: Session, _elementId: string): CodeLinks {
   throw new Error('codeLinksOf: package 2-8 builds it');
 }

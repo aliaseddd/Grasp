@@ -9,9 +9,14 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { scaleState } from '../../test/scale-model.mjs';
-import { EXAMPLE, FIXTURES, clock, lib, loadPlanes, plain, readText } from './core.mjs';
+import { EXAMPLE, FIXTURES, clock, lib, loadCoreWith, loadPlanes, plain, readText } from './core.mjs';
 
 const VIEW = 'v-proof';
+/** A stand-in for core/readers/grid.ts with no reader, as the scaffold left it: a kind no body draws, whatever is built. */
+const NO_GRID_READER = `
+  export * from './grid?real';
+  export const gridReader = null;
+`;
 const PLACED = ['Page', 'Page.hosts', 'Page.hosts.api', 'Page.app', 'Page.app.api', 'Host', 'Host.api', 'App', 'App.api', 'StrongholdApp', 'ServerHost', 'OnlineHost', 'DevHost'];
 
 /** A session from a file's text. */
@@ -241,8 +246,9 @@ describe("a view's store", () => {
   });
 
   test('a view of a kind no plane draws is not drawn and has the empty snapshot', async () => {
-    const { viewStoreOf } = await loadPlanes();
-    const s = await session(fixture('grid.json'));
+    // The grid view's reader as it is until package 2-12 builds it, whatever is built: so the kind has no reader.
+    const { openText, viewStoreOf } = await loadCoreWith({ 'core/readers/grid': NO_GRID_READER }, 'plane/viewStore');
+    const s = openText(lib, fixture('grid.json'), { name: 'grid.json' }, { now: clock() });
     const grid = viewStoreOf(s, 'v-table');
     assert.equal(grid.drawn, false, 'A grid view must not be drawn.');
     assert.equal(grid.notDrawn, 'A grid view is not drawn yet.', 'The card must say what the adapter says of a grid view.');
@@ -728,5 +734,47 @@ describe('the selection in the store', () => {
     store.nodesChanged([position(82, 450, false)]);
     assert.equal(node(store.getSnapshot(), 'Host').selected, true, 'Host must say selected after the end of its drag.');
     assert.ok(calls.n >= 3, 'The drag must have called the listener.');
+  });
+});
+
+// ---- Slice 2: a picked line is drawn over the boxes (plane/viewStore.ts, "Step 9", the zIndex of a selected edge), so
+// that its two end grips can be pressed where the end lies on a node or under another line. Only the picked line gets
+// the zIndex: the store gives the lines of a picked box none.
+
+describe('the zIndex of a picked line', () => {
+  test('a selected edge carries the zIndex that puts it over the nodes, an unselected one none, and an edge that did not change stays the same object', async () => {
+    const { SELECTED_LINE_Z, selectionOf } = await loadPlanes();
+    assert.equal(typeof SELECTED_LINE_Z, 'number', 'viewStore.ts must export SELECTED_LINE_Z, the zIndex of a selected edge.');
+    assert.ok(SELECTED_LINE_Z > 1000, 'A selected edge must lie over a picked box too, which React Flow raises to 1000.');
+    const { session: s, store } = await example();
+    const sel = selectionOf(s);
+    const { calls, stop } = listen(store);
+    const before = store.getSnapshot();
+    assert.ok(before.edges.length > 1 && edge(before, 'mount'), 'The example draws the line mount among others.');
+    for (const e of before.edges) assert.equal('zIndex' in e, false, `Nothing is picked, so the edge ${e.id} must carry no zIndex.`);
+
+    sel.set([{ type: 'rel', id: 'mount' }]);
+    const picked = store.getSnapshot();
+    assert.equal(edge(picked, 'mount').selected, true, 'mount is picked and must say selected.');
+    assert.equal(edge(picked, 'mount').zIndex, SELECTED_LINE_Z, 'The picked line must carry SELECTED_LINE_Z.');
+    for (const e of before.edges) if (e.id !== 'mount') assert.equal(edge(picked, e.id), e, `The edge ${e.id} was not picked and must be the very object it was.`);
+    for (const n of before.nodes) assert.equal(node(picked, n.id), n, `The node ${n.id} must be the very object it was.`);
+
+    // A select change from React Flow that names the picked line gives a new object that still reads as picked.
+    store.edgesChanged([{ id: 'mount', type: 'select', selected: false }]);
+    const renewed = store.getSnapshot();
+    assert.notEqual(edge(renewed, 'mount'), edge(picked, 'mount'), 'mount is named by a select change and must be a new object.');
+    assert.equal(edge(renewed, 'mount').zIndex, SELECTED_LINE_Z, 'mount is still picked and must keep SELECTED_LINE_Z through a select change.');
+
+    // The store gives the lines of a picked box no zIndex: picking Host lets mount go, and leaves every edge without one.
+    sel.set([{ type: 'el', id: 'Host' }]);
+    const box = store.getSnapshot();
+    assert.notEqual(edge(box, 'mount'), edge(renewed, 'mount'), 'mount was let go and must be a new object.');
+    assert.notEqual(edge(box, 'mount').selected, true, 'mount was let go and must not say selected.');
+    assert.equal('zIndex' in edge(box, 'mount'), false, 'mount was let go, and its zIndex must go with it.');
+    for (const e of box.edges) assert.equal('zIndex' in e, false, `With a box picked the edge ${e.id} must carry no zIndex.`);
+    for (const e of renewed.edges) if (e.id !== 'mount') assert.equal(edge(box, e.id), e, `The edge ${e.id} did not change and must be the very object it was.`);
+    assert.ok(calls.n >= 3, 'Each change must have told the subscriber.');
+    stop();
   });
 });

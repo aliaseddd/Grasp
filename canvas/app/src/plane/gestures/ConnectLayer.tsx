@@ -12,7 +12,7 @@
 //   `--grasp-zoom`, for a line that keeps its width on the screen.
 // - What it draws carries `data-pass`, so that the body's hitAt looks past the line at what is under the pointer, and
 //   takes no pointer.
-// - Its stylesheet is plane/gestures/connect.css, beside it.
+// - Its stylesheet is plane/gestures/connect.css, beside it. The package creates it and imports it from this file.
 
 import type { BodyProps } from '../../views/bodies';
 

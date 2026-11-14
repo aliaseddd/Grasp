@@ -216,6 +216,7 @@ describe('the readers', () => {
 
 // A stand-in for package 2-10's two files of the core: a reader that gives data of its own, a placer and an ender.
 const STAND_IN_READER = `
+  export * from './sequence?real';
   import type { Reader } from './index';
   export const READ: { calls: { view: string; options: unknown }[] } = { calls: [] };
   export interface StandInData { stand: 'in'; view: string; far: boolean; shown: string[] }
@@ -231,6 +232,7 @@ const STAND_IN_READER = `
   export function sequenceResult(): null { return null; }
 `;
 const STAND_IN_ACTIONS = `
+  export * from './sequence?real';
   import { freeName, freshElement } from '../commands';
   import type { Action, Outcome } from '../commands';
   import type { Placer, Ender } from '../readers/index';
@@ -254,8 +256,15 @@ const STAND_IN_ACTIONS = `
   export function moveMessage(): never { throw new Error('a stand-in'); }
 `;
 
+// The geometry view's reader as it is until package 2-11 builds it, whatever is built: null. So a kind with no reader
+// stands beside the stand-in's, and the test below can say that a reader makes its own kind drawn, and no other.
+const NO_GEOMETRY_READER = `
+  export * from './geometry?real';
+  export const geometryReader = null;
+`;
+
 describe('a reader of another renderer, by a stand-in for the sequence view\'s', () => {
-  const load = () => loadCoreWith({ 'core/readers/sequence': STAND_IN_READER, 'core/actions/sequence': STAND_IN_ACTIONS });
+  const load = () => loadCoreWith({ 'core/readers/sequence': STAND_IN_READER, 'core/actions/sequence': STAND_IN_ACTIONS, 'core/readers/geometry': NO_GEOMETRY_READER });
   const ground = (x = 500, y = 300) => ({ view: 'v-seq', type: 'ground', id: null, at: { x, y }, add: false });
   const on = (id) => ({ view: 'v-seq', type: 'el', id, at: { x: 10, y: 10 }, add: false });
 
@@ -341,6 +350,7 @@ describe('a reader of another renderer, by a stand-in for the sequence view\'s',
 
 // A stand-in for package 2-12's reader: a component body's, whose data is no Projection.
 const STAND_IN_ROWS_READER = `
+  export * from './grid?real';
   import type { Reader } from './index';
   export const GRID_ASKED = { read: 0 };
   export const GRID_ROW = 28, GRID_HEAD = 32, GRID_MARKS = 72, MATRIX_SIDE = 200, MATRIX_CELL = 96;

@@ -73,6 +73,27 @@ export function rootChoices(session: Session, viewId: string): { value: string; 
  * scale, so that the drawing keeps its size, in the same step. Its words name the option and the view: "Set the row
  * spacing of <view Y> to 64", "Sorted <view Y> by name", "Folded <part def X> in <view Y>". It returns what the edit
  * touched, or null when the value is the one the view has. Package 2-4 builds it.
+ *
+ * - **'' is null.** In an option row the value '' stands for null in the model: for `sort`, the model's order; for
+ *   `roots`, the whole package. setViewOption takes '' or null for it and writes null; viewOption gives null, and the
+ *   view's section ticks the '' choice while it does.
+ * - **`roots`** (a set): ticking '' writes null and unticks the others; the ticked elements are written as the list
+ *   of their ids; unticking the last one writes null. Its words are "Set the roots of <describeView> to <describe,
+ *   …>" (each root's describe(), joined by ', ') or "Set the roots of <describeView> to the whole package".
+ * - **`collapsed`** (a browser view's folded rows) is a list of element ids, and has no option row. Its words come
+ *   from the old list and the new one: one id added says "Folded <describe> in <describeView>", one id taken out
+ *   "Unfolded <describe> in <describeView>", and the list emptied "Unfolded everything in <describeView>".
+ * - **The rows' ranges and values, stated again here.** The core cannot import views/bodies.ts, where the option rows
+ *   are: the core is bundled for Node, and bodies.ts imports this file. So setViewOption checks against these, and a
+ *   test of package 2-4 holds them equal to bodyOf(...).options:
+ *   - `spacing`: a number from 24 to 400;
+ *   - `scale`: a number above 0;
+ *   - `unit`: one of the library's GEO_UNITS;
+ *   - `mode`: 'table' or 'matrix';
+ *   - `columns`: a list of the library's GRID_COLUMNS, and a table keeps at least one: taking the last away answers
+ *     "A table needs a column, so <col> stays. Tick another column before taking this one away.";
+ *   - `sort`: '' or null (the model's order), one of GRID_COLUMNS, or one of them after '-' (descending);
+ *   - `roots`: '' or null (the whole package), or a list of the values of rootChoices() other than ''.
  */
 export function setViewOption(_session: Session, _viewId: string, _name: string, _value: unknown, _key?: string | null): Touched | { refused: string } | null {
   throw new Error('setViewOption: package 2-4 builds it');

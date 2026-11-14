@@ -212,7 +212,8 @@ export interface DockProps {
  *     `handsOf(session).give(hands)`, and takes them back (null) when the session leaves: `save` is `onSave`;
  *     `showText` and `showView` are the context's; `showPanel(id)` brings a side panel to the front of its strip
  *     and opens its side when it is collapsed (an id that names no side panel does nothing); `camera` and `reveal`
- *     are what the mounted bodies lend, lentCamera and lentReveal of views/lends.ts; `copy(text)` is the
+ *     are what the mounted bodies lend, lentCamera and lentReveal of views/lends.ts, and `camera` gives back
+ *     lentCamera's answer, whether a mounted plane of the view moved; `copy(text)` is the
  *     clipboard's writeText, and rejects when the browser has no clipboard for the page or refuses.
  */
 export function Dock({ session, onOpen, onSave }: DockProps): JSX.Element {
@@ -257,7 +258,7 @@ export function Dock({ session, onOpen, onSave }: DockProps): JSX.Element {
         if (panel.group.api.isCollapsed()) panel.group.api.expand();
         panel.api.setActive();
       },
-      camera: (viewId, how) => { lentCamera(session, viewId, how); },
+      camera: (viewId, how) => lentCamera(session, viewId, how),
       reveal: (viewId, rect) => lentReveal(session, viewId, rect),
       copy: (text) => (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject(new Error('This page has no clipboard.'))),
     };

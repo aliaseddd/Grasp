@@ -85,9 +85,13 @@ export function placeOf(target: EventTarget | null): KeyPlace {
  *   it (Escape closes an open palette and is still the page's). It describes the event (`key`, the modifiers,
  *   `repeat`) and where it came from (placeOf), and calls `pressed(session, press, place)` of core/keys.ts, which
  *   holds every rule of the keys and asks the action of the key; when the key was taken, the browser's default is
- *   prevented, and nothing else is done with the event: it goes on to whatever else hears it. No component listens
- *   for a key of its own, except a text field for what is typed into it, and a widget for its own keys. With no file
- *   open the session is null, and pressed() then takes Save's key only, so the browser's own Save never opens.
+ *   prevented, except Escape's, and nothing else is done with the event: it goes on to whatever else hears it.
+ *   Escape's default is not prevented so that the toast that is up leaves at Escape (Material UI's Snackbar closes
+ *   only on an Escape whose default is not prevented; shell/Toasts.tsx). Nothing else of the page reads whether
+ *   Escape's default was prevented: Material UI's menus, palette and dialogs close at Escape either way. No
+ *   component listens for a key of its own, except a text field for what is typed into it, and a widget for its own
+ *   keys. With no file open the session is null, and pressed() then takes Save's key only, so the browser's own Save
+ *   never opens.
  * - **Save's hand.** `onSave` is what the action `save` calls: the dock gives it to the session with its own hands
  *   (shell/Dock.tsx, handsOf).
  * - **The label editor** (slice 2, seam 7): one `<LabelEditor session />` (plane/LabelEditor.tsx) for the page,
@@ -145,7 +149,9 @@ export function App(): JSX.Element {
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       const press = { key: event.key, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey, repeat: event.repeat };
-      if (pressed(session, press, placeOf(event.target))) event.preventDefault();
+      // Escape's default is left alone: Material UI's Snackbar closes on an Escape whose default is not prevented
+      // (Toasts.tsx, "When it leaves"), and the browser has no default of Escape worth stopping.
+      if (pressed(session, press, placeOf(event.target)) && event.key !== 'Escape') event.preventDefault();
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);

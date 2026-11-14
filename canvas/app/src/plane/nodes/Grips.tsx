@@ -12,7 +12,9 @@ import './grips.css';
  * - **A grip** is an element with `data-grip` (which one), `data-pass`, `data-testid="grip"` (the name a test finds
  *   it by, plan/slice-2.md, seam 12), and the classes `grasp-grip nodrag nopan nokey`.
  *   With those classes React Flow neither drags the node (`nodrag`), nor pans (`nopan`), nor starts a marquee when Shift
- *   is held (`nokey`); `data-pass` makes a body's hitAt look past it, at what lies under it.
+ *   is held (`nokey`); `data-pass` keeps it out of what a body's hitAt takes for a thing of
+ *   its own: a plane's hitAt answers a node's grip, and the way to it, with that node (a line let go on the handle a
+ *   person aims at is let go on its node), and looks past a line's grips, at what lies under them.
  * - **Mounted** only while `connectOf` is not null (package 2-2 has built the gesture), and only near: far, nothing.
  * - **Shown** by grips.css, under the plane root's `data-grips`: when the pointer is over the node, when the node is
  *   selected, and on every near node while a line is in hand (`data-connecting`). A grip that is not shown takes no

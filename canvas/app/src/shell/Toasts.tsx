@@ -36,7 +36,9 @@ export const TOAST_MS = 8000;
  * - TOAST_MS (8 s) have passed since it came up (`autoHideDuration`). The time runs whether or not the window has
  *   the focus (`disableWindowBlurListener`); while the pointer rests on the toast it waits, which is Material UI's
  *   own.
- * - Escape is pressed (Material UI's own; the same key is the action `put-down`, core/actions/file.ts).
+ * - Escape is pressed (Material UI's own; the same key is the action `put-down`, core/actions/file.ts). Material UI
+ *   closes the toast only on an Escape whose default is not prevented, so App's keydown listener, which prevents the
+ *   default of the keys it takes, leaves Escape's alone.
  * - Another file is opened.
  * A click elsewhere does not take it away (the Snackbar's `clickaway` is ignored): the next click on the plane is
  * the tool's, and what the tool says of it replaces the toast or lets it go. A toast that left by its time or by
