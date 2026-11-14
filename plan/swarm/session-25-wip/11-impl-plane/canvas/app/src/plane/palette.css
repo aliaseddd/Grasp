@@ -1,7 +1,0 @@
-/* What a plane shows while a tool is in hand (plane/Plane.tsx, step 11): the root carries data-tool, and the pointer
-   is a crosshair over the ground, the nodes and the lines. A box's resize controls keep their own cursors. */
-.grasp-plane[data-tool] .react-flow__pane,
-.grasp-plane[data-tool] .react-flow__node,
-.grasp-plane[data-tool] .react-flow__edge {
-  cursor: crosshair;
-}

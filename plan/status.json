@@ -1,7 +1,6 @@
 {
   "plan": "plan/direction.md",
   "next": 2,
-  "swarm": "plan/swarm/tasks.json",
   "slices": [
     {
       "id": 1, "name": "The shell and the planes", "status": "done",
